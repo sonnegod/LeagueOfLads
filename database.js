@@ -767,9 +767,25 @@ class DBInstance {
 
     getLeagueData(leagueId){
         return this.queryDatabase(
-            `SELECT li.LeagueId, li.LeagueName, li.Active
+            `SELECT
+            li.Active,
+            li.LeagueId,
+            li.LeagueName,
+            CASE WHEN mt.TeamRad = mt.WinnerId THEN mt.TeamRad
+                WHEN mt.TeamDire = mt.WinnerId THEN mt.TeamDire
+                ELSE NULL END AS WinnerTeamId,
+            ti.TeamName AS WinnerTeamName
             FROM LeagueInfo li
-            WHERE li.LeagueId = ?
+            LEFT JOIN MatchLeague ml ON li.LeagueId = ml.LeagueId
+            LEFT JOIN MatchTeam mt ON ml.MatchId = mt.MatchId
+            LEFT JOIN TeamInfo ti ON ti.TeamId = 
+                CASE WHEN mt.TeamRad = mt.WinnerId THEN mt.TeamRad
+                    WHEN mt.TeamDire = mt.WinnerId THEN mt.TeamDire END
+            WHERE ml.MatchId = (
+                SELECT MAX(ml2.MatchId)
+                FROM MatchLeague ml2
+                WHERE ml2.LeagueId = li.LeagueId)
+                AND li.LeagueId = ?
         `,[leagueId]);
     }
 
@@ -1067,7 +1083,7 @@ class DBInstance {
 
     insertLeagueStanding(matchId, winId, loseId){
         try {
-            const leagueId = this.queryDatabase(
+            const league = this.queryDatabase(
                                 `SELECT
                                 ml.LeagueId
                                 FROM MatchLeague ml
@@ -1077,16 +1093,17 @@ class DBInstance {
 
             const boundary = this.queryDatabase(
                 `SELECT GroupEndMatchId FROM LeagueStageBoundaries WHERE LeagueId = ?`,
-                [leagueId[0].LeagueId]
+                [league[0].LeagueId]
             );
 
-            if(!boundary || matchId <= boundary.GroupEndMatchId){
+            console.log(league)
+            if(boundary.length === 0 || matchId <= boundary.GroupEndMatchId){
                 this.db.prepare(`
                     INSERT INTO LeagueStandings (LeagueId, TeamId, Wins, Losses)
                     VALUES (@leagueId, @teamId, 1, 0)
                     ON CONFLICT(LeagueId, TeamId)
                     DO UPDATE SET Wins = Wins + 1
-                `).run({ leagueId: league.LeagueId, teamId: winId });
+                `).run({ leagueId: league[0].LeagueId, teamId: winId });
 
                 // Loser
                 this.db.prepare(`
@@ -1094,7 +1111,7 @@ class DBInstance {
                     VALUES (@leagueId, @teamId, 0, 1)
                     ON CONFLICT(LeagueId, TeamId)
                     DO UPDATE SET Losses = Losses + 1
-                `).run({ leagueId: league.LeagueId, teamId: loseId });
+                `).run({ leagueId: league[0].LeagueId, teamId: loseId });
                 }
         } catch (err) {
             console.log(err);
@@ -1115,12 +1132,12 @@ class DBInstance {
         try {
             const stmt = this.db.prepare(`INSERT INTO TempSeriesInfo (Team1, Team2, DateCreated)
                                           VALUES (@team1, @team2, @DateCreated)`);
-            stmt.run({
+            const result = stmt.run({
                 team1: teamA,
                 team2: teamB,
                 DateCreated: dateCreated
             });
-            return stmt.lastInsertRowid;
+            return result.lastInsertRowid;
         } catch (err) {
             console.log(err);
             return 2;
@@ -1145,8 +1162,8 @@ class DBInstance {
     insertTempIntoSeries(){
         try {
             const insertStmt = this.db.prepare(`
-                INSERT INTO SeriesInfo (Team1, Team2, DateCreated)
-                SELECT Team1, Team2, DateCreated FROM TempSeriesInfo
+                INSERT INTO SeriesInfo (SeriesId, Team1, Team2, DateCreated)
+                SELECT SeriesId, Team1, Team2, DateCreated FROM TempSeriesInfo
             `);
             const info = insertStmt.run();
             console.log(`Inserted ${info.changes} rows into SeriesInfo`);

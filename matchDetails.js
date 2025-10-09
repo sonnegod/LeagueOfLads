@@ -97,9 +97,8 @@ async function getMatchDetails(matches){
             yesterdaysDate = yesterdaysDate.toISOString().split('T')[0];
 
             const existing = db.checkSeries(data.dire_team_id,data.radiant_team_id);
-            
-            let seriesId;
 
+            let seriesId;
             if (existing.length === 0) {
                 const resultSeries = db.insertTempSeries(data.dire_team_id,data.radiant_team_id,yesterdaysDate)
 
@@ -110,7 +109,7 @@ async function getMatchDetails(matches){
             } else {
                 seriesId = existing[0].SeriesId;
             }
-
+            
             const seriesMatch = db.insertSeriesMatch(seriesId,match.MatchId);
             if(seriesMatch === 2)
                 console.error(`Failed to insert series match ${seriesId} - ${match.MatchId}`);

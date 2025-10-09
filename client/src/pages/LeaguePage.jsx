@@ -6,7 +6,7 @@ export default function LeaguePage() {
   const { leagueId } = useParams();
   const [data, setLeague] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("matches");
+  const [activeTab, setActiveTab] = useState("teams");
   const [expandedMatches, setExpandedMatches] = useState({});
   const [expandedHeroes, setExpandedHeroes] = useState({});
 
@@ -17,6 +17,7 @@ export default function LeaguePage() {
         const res = await fetch(`/api/leagues/${leagueId}`);
         const data = await res.json();
 
+        console.log(data);
 
         setLeague(data);
       } catch (err) {
@@ -37,19 +38,43 @@ export default function LeaguePage() {
 
   if (loading || !data) return <div>Loading league...</div>;
 
-  const { league, matchesWithPlayers, players, heroesWithPlayers } = data;
+  const { league, matchesWithPlayers, players, heroesWithPlayers, teams } = data;
 
   return (
     <div style={{ padding: "1rem", overflowX: "auto" }}>
       <h1>{league[0].LeagueName}</h1>
-      <p>League ID: {league[0].LeagueId}</p>
+      <h2>Winner: <Link to={`/team/${league[0].WinnerTeamId}`}>{league[0].WinnerTeamName}</Link></h2>
 
       {/* Tabs */}
       <div style={{ marginBottom: "1rem" }}>
+        <button onClick={() => setActiveTab("teams")} style={activeTab === "teams" ? activeTabStyle : tabStyle}>Teams</button>
         <button onClick={() => setActiveTab("matches")} style={activeTab === "matches" ? activeTabStyle : tabStyle}>Matches</button>
         <button onClick={() => setActiveTab("players")} style={activeTab === "players" ? activeTabStyle : tabStyle}>Players</button>
         <button onClick={() => setActiveTab("heroes")} style={activeTab === "heroes" ? activeTabStyle : tabStyle}>Heroes</button>
       </div>
+
+      {/* Teams Tab */}
+      {activeTab === "teams" && (
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={thStyle}>TeamName</th>
+              <th style={thStyle}>Games Played</th>
+              <th style={thStyle}>Win Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+            {teams.map(t => (
+              <React.Fragment key={t.TeamId}>
+                <tr>
+                  <td style={tdStyle}><Link to={`/team/${t.TeamId}`}>{t.TeamName}</Link></td>
+                  <td style={tdStyle}>{t.GamesPlayed}</td>
+                  <td style={tdStyle}>{t.WinPercentage}%</td>
+                </tr>
+              </React.Fragment>))}
+          </tbody>
+        </table>
+      )}
 
       {/* Matches Tab */}
       {activeTab === "matches" && (
