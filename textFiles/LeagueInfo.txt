@@ -1,0 +1,14 @@
+12300,League of Lads Season 5
+12671,League of Lads Season 6
+13177,League of Lads Season 7 Summer
+13450,League of Lads Season 8
+13807,League of Lads Season 9
+14211,League of Lads Season 10
+14648,League of Lads Season 11
+14993,League of Lads Season 12
+15482,League of Lads Season 13
+15862,League of Lads Season 14
+16330,League of Lads Season 15
+16960,League of Lads Season 16
+17636,League of Lads Season 17
+18089,League of Lads Season 18
