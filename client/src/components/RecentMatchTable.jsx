@@ -138,7 +138,6 @@ export default function RecentMatchTable() {
                         <td
                         colSpan={columns.length}
                         style={{
-                            background: '#f9f9f9',
                             padding: '10px 20px',
                             borderTop: '2px solid #ccc',    // upper border
                             //borderBottom: '2px solid #ccc', // lower border
@@ -187,7 +186,7 @@ function PlayerTable({ players }) {
                 <td colSpan={11} style={{
                   textAlign: 'center',
                   fontWeight: 'bold',
-                  background: '#e0f7fa',
+                  background: '#35adedff',
                   padding: '6px 0'
                 }}>
                   Radiant
@@ -221,7 +220,7 @@ function PlayerTable({ players }) {
               <td colSpan={11} style={{
                 textAlign: 'center',
                 fontWeight: 'bold',
-                background: '#ffebee',
+                background: '#f57588ff',
                 padding: '6px 0'
               }}>
                 Dire

@@ -168,4 +168,5 @@ const tdStyle = {
   border: "1px solid #ccc",
   padding: "12px 16px",
   textAlign: "center",
+  color: 'black'
 };

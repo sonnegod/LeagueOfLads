@@ -61,7 +61,7 @@ export default function HeroStatsTable({ data }) {
       </thead>
       <tbody>
         {sortedData.map((player, idx) => (
-          <tr key={idx} style={idx % 2 === 0 ? evenRow : oddRow}>
+          <tr>
             <td style={tdStyle}>
                 <Link to={`/match/${player.MatchId}`}>{player.MatchId}</Link>
             </td>
@@ -99,18 +99,11 @@ const tdStyle = {
   border: '1px solid #ccc',
   padding: '8px',
   textAlign: 'left',
+  color: 'black'
 };
 
 const tdCenter = {
   border: '1px solid #ccc',
   padding: '8px',
   textAlign: 'center',
-};
-
-const evenRow = {
-  backgroundColor: '#fff',
-};
-
-const oddRow = {
-  backgroundColor: '#fafafa',
 };

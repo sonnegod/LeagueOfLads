@@ -60,7 +60,6 @@ export default function TeamPlayers({ teamId, leagueId }) {
                 onClick={() => toggleExpanded(p.PlayerId)}
                 style={{
                   cursor: 'pointer',
-                  backgroundColor: expandedPlayers[p.PlayerId] ? '#f9f9f9' : 'white',
                 }}
               >
                 <td style={tdStyle}>
@@ -77,7 +76,7 @@ export default function TeamPlayers({ teamId, leagueId }) {
 
               {expandedPlayers[p.PlayerId] && (
                 <tr>
-                  <td colSpan="8" style={{ paddingLeft: '2rem', background: '#f5f5f5' }}>
+                  <td colSpan="8" style={{ paddingLeft: '2rem'}}>
                     <strong>Top Heroes:</strong>
                     <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0.5rem' }}>
                       <thead>

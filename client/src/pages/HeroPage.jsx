@@ -143,6 +143,6 @@ export default function HeroPage() {
 // Styles
 const tableStyle = { width: "100%", borderCollapse: "collapse", minWidth: "700px" };
 const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
-const tdStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
+const tdStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center"};
 const tabStyle = { padding: "0.5rem 1rem", cursor: "pointer" };
 const activeTabStyle = { ...tabStyle, fontWeight: "bold"};

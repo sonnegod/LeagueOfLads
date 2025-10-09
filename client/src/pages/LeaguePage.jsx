@@ -66,7 +66,7 @@ export default function LeaguePage() {
               <React.Fragment key={m.MatchId}>
                 <tr
                   onClick={() => toggleMatchExpanded(m.MatchId)}
-                  style={{ cursor: "pointer", backgroundColor: expandedMatches[m.MatchId] ? "#f9f9f9" : "white" }}
+                  style={{ cursor: "pointer"}}
                 >
                   <td style={tdStyle}><Link to={`/match/${m.MatchId}`}>{m.MatchId}</Link></td>
                   <td style={tdStyle}><Link to={`/team/${m.RadiantTeamId}`}>{m.RadiantTeamName}{m.WinnerSide === 'r' && ' ♔'}</Link></td>
@@ -75,7 +75,7 @@ export default function LeaguePage() {
 
                 {expandedMatches[m.MatchId] && m.matchPlayers && (
                   <tr>
-                    <td colSpan="3" style={{ paddingLeft: "2rem", background: "#f5f5f5" }}>
+                    <td colSpan="3" style={{ paddingLeft: "2rem" }}>
                       <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem" }}>
                         <thead>
                           <tr>
@@ -94,14 +94,14 @@ export default function LeaguePage() {
                             <React.Fragment key={p.PlayerId}>
                               {idx === 0 && (
                                 <tr>
-                                  <td colSpan="8" style={{ textAlign: 'center', fontWeight: 'bold', background: '#e0f7fa' }}>
+                                  <td colSpan="8" style={{ textAlign: 'center', fontWeight: 'bold' }}>
                                     Radiant {m.WinnerSide === 'r' && '♔'}
                                   </td>
                                 </tr>
                               )}
                               {idx === 5 && (
                                 <tr>
-                                  <td colSpan="8" style={{ textAlign: 'center', fontWeight: 'bold', background: '#ffebee' }}>
+                                  <td colSpan="8" style={{ textAlign: 'center', fontWeight: 'bold'}}>
                                     Dire {m.WinnerSide === 'd' && '♔'}
                                   </td>
                                 </tr>
@@ -181,7 +181,7 @@ export default function LeaguePage() {
                 <React.Fragment key={hero.HeroId}>
                 <tr
                     onClick={() => toggleHeroExpanded(hero.HeroId)}
-                    style={{ cursor: 'pointer', backgroundColor: expandedHeroes[hero.HeroId] ? '#f9f9f9' : 'white' }}
+                    style={{ cursor: 'pointer'}}
                 >
                     <td style={tdStyle}>
                         <Link to={`/hero/${hero.HeroId}`}>{hero.HeroName}</Link>
@@ -196,7 +196,7 @@ export default function LeaguePage() {
 
                 {expandedHeroes[hero.HeroId] && hero.heroPlayers && (
                     <tr>
-                    <td colSpan="7" style={{ paddingLeft: '2rem', background: '#f5f5f5' }}>
+                    <td colSpan="7" style={{ paddingLeft: '2rem'}}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0.5rem' }}>
                         <thead>
                             <tr>

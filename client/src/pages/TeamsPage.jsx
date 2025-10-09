@@ -129,7 +129,6 @@ export default function TeamsPage() {
                 onClick={() => toggleTeamExpanded(team.TeamId)}
                 style={{
                   cursor: "pointer",
-                  backgroundColor: expandedTeams[team.TeamId] ? "#f9f9f9" : "white",
                 }}
               >
                 <td style={tdStyle}>
@@ -143,7 +142,7 @@ export default function TeamsPage() {
 
               {expandedTeams[team.TeamId] && (
                 <tr>
-                  <td colSpan="3" style={{ paddingLeft: "2rem", background: "#f5f5f5" }}>
+                  <td colSpan="3" style={{ paddingLeft: "2rem"}}>
                     {/* Nested Player Table */}
                     <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem" }}>
                       <thead>
@@ -163,7 +162,7 @@ export default function TeamsPage() {
                               onClick={() => togglePlayerExpanded(p.PlayerId)}
                               style={{
                                 cursor: "pointer",
-                                backgroundColor: expandedPlayers[p.PlayerId] ? "#f0f0f0" : "white",
+                               
                               }}
                             >
                               <td style={tdStyle}>
@@ -178,7 +177,7 @@ export default function TeamsPage() {
 
                             {expandedPlayers[p.PlayerId] && (
                               <tr>
-                                <td colSpan="8" style={{ paddingLeft: "2rem", background: "#fafafa" }}>
+                                <td colSpan="8" style={{ paddingLeft: "2rem"}}>
                                   <strong>Top Heroes:</strong>
                                   <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem" }}>
                                     <thead>

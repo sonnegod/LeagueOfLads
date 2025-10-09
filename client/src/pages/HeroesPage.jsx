@@ -57,5 +57,5 @@ const heroLinkStyle = {
   textDecoration: 'none',
   color: '#646cff',
   fontWeight: 500,
-  backgroundColor: '#f4ddddff',
+  backgroundColor: '#e1e1e1ff',
 };

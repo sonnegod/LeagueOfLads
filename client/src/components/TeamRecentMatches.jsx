@@ -9,7 +9,7 @@ export default function TeamRecentMatches({ matches }) {
       tableLayout: 'fixed',  // keeps columns consistent
     }}>
       <thead>
-        <tr style={{ backgroundColor: '#f0f0f0' }}>
+        <tr >
           <th style={{ padding: '10px', textAlign: 'center' }}>Match ID</th>
           <th style={{ padding: '10px', textAlign: 'left' }}>Radiant</th>
           <th style={{ padding: '10px', textAlign: 'left' }}>Dire</th>
@@ -23,7 +23,6 @@ export default function TeamRecentMatches({ matches }) {
             style={{
               borderTop: '1px solid #ccc',
               borderBottom: '1px solid #ccc',
-              backgroundColor: idx % 2 === 0 ? '#fff' : '#f9f9f9', // alternate row color
             }}
           >
             <td style={{ padding: '8px', textAlign: 'center' }}>
