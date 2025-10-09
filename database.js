@@ -1112,7 +1112,6 @@ class DBInstance {
     }
 
     insertTempSeries(teamA,teamB,dateCreated){
-        console.log(teamA,teamB,dateCreated)
         try {
             const stmt = this.db.prepare(`INSERT INTO TempSeriesInfo (Team1, Team2, DateCreated)
                                           VALUES (@team1, @team2, @DateCreated)`);
@@ -1121,8 +1120,7 @@ class DBInstance {
                 team2: teamB,
                 DateCreated: dateCreated
             });
-            console.log(stmt);
-            return stmt;
+            return stmt.lastInsertRowid;
         } catch (err) {
             console.log(err);
             return 2;
