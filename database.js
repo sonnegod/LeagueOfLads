@@ -132,6 +132,14 @@ class DBInstance {
         );
     }
 
+    getPlayerInfo(userId){
+        return this.queryDatabase(
+            `SELECT * FROM PlayerInfo where PlayerId = ?
+            `,
+            [userId]
+        );
+    }
+
     getMostRecentMatch() {
         const rows = this.queryDatabase(
             `SELECT MatchId 
@@ -835,6 +843,31 @@ class DBInstance {
             return 1;
         } catch (err) {
             return 2;
+        }
+    }
+
+    changeName(accountId,newName){
+        const now = new Date();
+    
+        try {
+            const row = this.queryDatabase(
+                `SELECT LastDateChanged FROM PlayerInfo WHERE PlayerId = ?`,
+                [accountId]
+            );
+
+            const lastChanged = row[0].LastDateChanged ? new Date(row[0].LastDateChanged) : null;
+            lastChanged.setDate(lastChanged.getDate() + 30)
+
+            if (lastChanged && lastChanged > now) {
+                return { success: false, error: 'You can only change your name once every 30 days.' };
+            }
+
+            this.db.prepare('UPDATE PlayerInfo SET PlayerName = ?, LastDateChanged = ? WHERE PlayerId = ?')
+                .run(newName, now.toISOString(), accountId);
+
+            return { success: true, message: 'Name updated successfully!' };
+        } catch (err) {
+           return { success: false, error: err };
         }
     }
 

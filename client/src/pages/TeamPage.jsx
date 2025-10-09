@@ -110,6 +110,6 @@ export default function TeamPage() {
 }
 
 // Styles
-const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center", background: "#eee" };
+const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
 const tdStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "left" };
-const tdCenter = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
+const tdCenter = { border: "1px solid #ccccccff", padding: "8px", textAlign: "center" };

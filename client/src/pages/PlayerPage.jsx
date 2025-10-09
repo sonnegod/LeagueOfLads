@@ -35,7 +35,7 @@ export default function PlayerPage() {
 
   return (
     <div style={{ padding: "1rem" }}>
-      <h1>Player: {playerStats[0]?.PlayerName || player_id}</h1>
+      <h1>{playerStats[0]?.PlayerName || player_id}</h1>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
@@ -106,7 +106,7 @@ export default function PlayerPage() {
 
 // Styles
 const tableStyle = { width: "100%", borderCollapse: "collapse", minWidth: "700px" };
-const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center", background: "#eee" };
+const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center"};
 const tdStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
 const tabStyle = { padding: "0.5rem 1rem", cursor: "pointer" };
 const activeTabStyle = { ...tabStyle, fontWeight: "bold", backgroundColor: "#e0e0e0" };

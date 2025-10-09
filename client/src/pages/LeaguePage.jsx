@@ -231,8 +231,8 @@ export default function LeaguePage() {
 
 // Styles
 const tableStyle = { width: "100%", borderCollapse: "collapse", minWidth: "900px" };
-const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center", background: "#eee" };
+const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center"};
 const tdStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
 const tdCenter = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
 const tabStyle = { padding: "0.5rem 1rem", marginRight: "0.5rem", cursor: "pointer" };
-const activeTabStyle = { ...tabStyle, fontWeight: "bold", backgroundColor: "#e0e0e0" };
+const activeTabStyle = { ...tabStyle, fontWeight: "bold"};

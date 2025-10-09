@@ -15,6 +15,7 @@ export function AuthProvider({ children }) {
       .then(
         userData => {
       const accountId = steamId64ToAccountId(userData.steamid); // assumes field is 'steamId'
+          console.log(userData);
       setUser({ ...userData, accountId });
     })
     .catch(() => setUser(null))

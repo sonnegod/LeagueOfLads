@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import NameChangeModal from './NameChangeDropdown';
 
 export default function UserDropdown({ user }) {
   const [open, setOpen] = useState(false);
@@ -19,6 +20,9 @@ export default function UserDropdown({ user }) {
       {open && (
         <div className="absolute right-0 mt-2 w-40 bg-white text-black shadow-lg rounded">
           <button onClick={() => navigate('/dashboard')} className="block w-full px-4 py-2 hover:bg-gray-200">Dashboard</button>
+
+          <NameChangeModal />
+
           <button onClick={logout} className="block w-full px-4 py-2 hover:bg-gray-200">Logout</button>
         </div>
       )}

@@ -20,9 +20,9 @@ router.get('/auth/steam/return',
   (req, res) => {
     db.login(req.user.displayName, req.user.id, new Date().toISOString());
     if(process.env.ENVIRONMENT === 'DEV')
-      res.redirect(`http://localhost:${process.env.FRONTEND_PORT}`);
+      res.redirect(`http://localhost:${process.env.FRONTEND_PORT}/dashboard`);
     else if(process.env.ENVIRONMENT === 'PROD')
-      res.redirect(`https://www.leagueoflads.com`); 
+      res.redirect(`https://www.leagueoflads.com/dashboard`); 
   }
 );
 
@@ -48,6 +48,34 @@ router.get('/auth/logout', (req, res, next) => {
       res.redirect('/');
     });
   });
+});
+
+router.post('/nameChange', (req, res) => {
+
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: 'Not logged in' });
+  }
+
+  const newName = req.body.newName;
+  if (!newName || !newName.trim()) {
+    return res.status(400).json({ error: 'Invalid name' });
+  }
+
+   const userId = req.body.userId; // or steamId / accountId
+   try {
+    // Call your DB function that handles validation & update
+    const result = db.changeName(userId, newName);
+    console.log(result);
+    if (!result.success) {
+      // e.g., result.message could be "You must wait X days"
+      return res.status(400).json({ error: result.message });
+    }
+
+    res.json({ success: true, message: 'Name updated successfully!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 router.get('/dashboard', (req, res) => {

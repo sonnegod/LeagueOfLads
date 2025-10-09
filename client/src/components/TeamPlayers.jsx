@@ -126,7 +126,6 @@ const thStyle = {
   border: '1px solid #ccc',
   padding: '8px',
   textAlign: 'center',
-  background: '#eee',
 };
 
 const tdStyle = {

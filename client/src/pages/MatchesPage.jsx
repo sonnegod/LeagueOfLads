@@ -159,6 +159,6 @@ export default function MatchesPage() {
   );
 }
 
-const thStyle = { border: '1px solid #ccc', padding: '8px', textAlign: 'center', background: '#eee', cursor: 'pointer' };
+const thStyle = { border: '1px solid #ccc', padding: '8px', textAlign: 'center', cursor: 'pointer' };
 const tdStyle = { border: '1px solid #ccc', padding: '8px', textAlign: 'left' };
 const tdCenter = { border: '1px solid #ccc', padding: '8px', textAlign: 'center' };

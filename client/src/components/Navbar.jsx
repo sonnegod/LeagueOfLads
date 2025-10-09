@@ -7,6 +7,7 @@ import logo from '../assets/League_of_lads_logo.png';
 import { Link } from 'react-router-dom';
 
 
+
 export default function Navbar() {
   const { user, logout } = useAuth();
   const [query, setQuery] = useState("");
@@ -73,7 +74,7 @@ export default function Navbar() {
               <span className={`dropdown-arrow ${dropdownOpen ? 'up' : ''}`}>&#9662;</span>
               {dropdownOpen && (
                 <div className="dropdown-menu">
-                  <button onClick={() => navigate('/dashboard')}>Dashboard</button>
+                  <button onClick={() => navigate('/dashboard')}>Dashboard</button>                  
                   <button onClick={handleLogout}>Logout</button>
                 </div>
               )}

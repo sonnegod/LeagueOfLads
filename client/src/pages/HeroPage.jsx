@@ -36,7 +36,7 @@ export default function HeroPage() {
 
   return (
     <div>
-      <h1>Hero: {hero[0]?.HeroName || hero_id}</h1>
+      <h1>{hero[0]?.HeroName || hero_id}</h1>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
@@ -142,7 +142,7 @@ export default function HeroPage() {
 
 // Styles
 const tableStyle = { width: "100%", borderCollapse: "collapse", minWidth: "700px" };
-const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center", background: "#eee" };
+const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
 const tdStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
 const tabStyle = { padding: "0.5rem 1rem", cursor: "pointer" };
-const activeTabStyle = { ...tabStyle, fontWeight: "bold", backgroundColor: "#e0e0e0" };
+const activeTabStyle = { ...tabStyle, fontWeight: "bold"};

@@ -36,6 +36,7 @@ app.use(session({
   }
 }));
 
+app.use(express.json());        
 
 // Middleware
 app.use(passport.initialize());

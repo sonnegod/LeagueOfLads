@@ -90,7 +90,6 @@ export default function PlayerStatsTable({ data }) {
 const thStyle = {
   border: '1px solid #ccc',
   padding: '8px',
-  backgroundColor: '#f2f2f2',
   textAlign: 'center',
   cursor: 'pointer', // show pointer cursor for clickable header
 };
