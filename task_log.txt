@@ -1,0 +1,656 @@
+2025-01-10T08:00:00.254Z - Task is running
+2025-01-10T08:00:00.281Z - Beginning Get Pull
+2025-01-10T08:00:00.332Z - Inserts Complete
+2025-01-10T08:00:00.475Z - Get Pull Complete, Inserting into Database
+2025-01-10T08:00:00.738Z - Inserted Successfully, Now pulling Match Details
+2025-01-10T08:00:00.738Z - Beginning Match Fetch and Insert
+2025-01-10T08:00:00.739Z - Error with Get Request/Database
+2025-01-10T08:00:00.739Z - ReferenceError: matchId is not defined
+2025-01-11T08:00:00.676Z - Task is running
+2025-01-11T08:00:00.679Z - Beginning Get Pull
+2025-01-11T08:00:00.725Z - Inserts Complete
+2025-01-11T08:00:00.914Z - Get Pull Complete, Inserting into Database
+2025-01-11T08:00:01.527Z - Inserted Successfully, Now pulling Match Details
+2025-01-11T08:00:01.528Z - Beginning Match Fetch and Insert
+2025-01-11T08:00:01.528Z - Error with Get Request/Database
+2025-01-11T08:00:01.528Z - ReferenceError: match is not defined
+2025-01-12T08:00:00.295Z - Task is running
+2025-01-12T08:00:00.296Z - Beginning Get Pull
+2025-01-12T08:00:00.323Z - Inserts Complete
+2025-01-12T08:00:00.500Z - Get Pull Complete, Inserting into Database
+2025-01-12T08:00:00.673Z - Inserted Successfully, Now pulling Match Details for [object Object],[object Object]
+2025-01-12T08:00:00.673Z - Beginning Match Fetch and Insert
+2025-01-12T08:00:00.949Z - Match Details Pulled
+2025-01-12T08:00:02.357Z - Pick Ban Information Inserted
+2025-01-12T08:00:03.132Z - Player Details Inserted
+2025-01-12T08:00:03.223Z - getCurrentTime()} - Team Win Updated
+2025-01-12T08:00:03.227Z - Match Details Pulled
+2025-01-12T08:00:05.814Z - Pick Ban Information Inserted
+2025-01-12T08:00:06.931Z - Player Details Inserted
+2025-01-12T08:00:07.031Z - getCurrentTime()} - Team Win Updated
+2025-01-13T08:00:00.976Z - Task is running
+2025-01-13T08:00:01.009Z - Beginning Get Pull
+2025-01-13T08:00:01.010Z - Inserts Complete
+2025-01-13T08:00:01.319Z - Get Pull Complete, Inserting into Database
+2025-01-13T08:00:01.829Z - Inserted Successfully, Now pulling Match Details for [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object]
+2025-01-13T08:00:01.830Z - Beginning Match Fetch and Insert
+2025-01-13T08:00:02.075Z - Match Details Pulled
+2025-01-13T08:00:04.413Z - Pick Ban Information Inserted
+2025-01-13T08:00:05.338Z - Player Details Inserted
+2025-01-13T08:00:05.445Z - getCurrentTime()} - Team Win Updated
+2025-01-13T08:00:05.446Z - Match Details Pulled
+2025-01-13T08:00:08.038Z - Pick Ban Information Inserted
+2025-01-13T08:00:09.179Z - Player Details Inserted
+2025-01-13T08:00:09.262Z - getCurrentTime()} - Team Win Updated
+2025-01-13T08:00:09.271Z - Match Details Pulled
+2025-01-13T08:00:11.220Z - Pick Ban Information Inserted
+2025-01-13T08:00:12.120Z - Player Details Inserted
+2025-01-13T08:00:12.121Z - getCurrentTime()} - Team Win Updated
+2025-01-13T08:00:12.122Z - Match Details Pulled
+2025-01-13T08:00:14.378Z - Pick Ban Information Inserted
+2025-01-13T08:00:15.370Z - Player Details Inserted
+2025-01-13T08:00:15.462Z - getCurrentTime()} - Team Win Updated
+2025-01-13T08:00:15.462Z - Match Details Pulled
+2025-01-13T08:00:18.070Z - Pick Ban Information Inserted
+2025-01-13T08:00:19.369Z - Player Details Inserted
+2025-01-13T08:00:19.478Z - getCurrentTime()} - Team Win Updated
+2025-01-13T08:00:19.479Z - Match Details Pulled
+2025-01-13T08:00:21.487Z - Pick Ban Information Inserted
+2025-01-13T08:00:22.403Z - Player Details Inserted
+2025-01-13T08:00:22.403Z - getCurrentTime()} - Team Win Updated
+2025-01-13T08:00:22.412Z - Match Details Pulled
+2025-01-13T08:00:25.519Z - Pick Ban Information Inserted
+2025-01-13T08:00:26.944Z - Player Details Inserted
+2025-01-13T08:00:27.119Z - getCurrentTime()} - Team Win Updated
+2025-01-13T08:00:27.125Z - Match Details Pulled
+2025-01-13T08:00:30.260Z - Pick Ban Information Inserted
+2025-01-13T08:00:31.335Z - Player Details Inserted
+2025-01-13T08:00:31.435Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:00.487Z - Task is running
+2025-01-15T08:00:00.487Z - Beginning Get Pull
+2025-01-15T08:00:00.489Z - Inserts Complete
+2025-01-15T08:00:00.676Z - Get Pull Complete, Inserting into Database
+2025-01-15T08:00:01.180Z - Inserted Successfully, Now pulling Match Details for [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object]
+2025-01-15T08:00:01.180Z - Beginning Match Fetch and Insert
+2025-01-15T08:00:01.485Z - Match Details Pulled
+2025-01-15T08:00:03.463Z - Pick Ban Information Inserted
+2025-01-15T08:00:04.271Z - Player Details Inserted
+2025-01-15T08:00:04.355Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:04.366Z - Match Details Pulled
+2025-01-15T08:00:06.388Z - Pick Ban Information Inserted
+2025-01-15T08:00:07.188Z - Player Details Inserted
+2025-01-15T08:00:07.271Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:07.274Z - Match Details Pulled
+2025-01-15T08:00:09.171Z - Pick Ban Information Inserted
+2025-01-15T08:00:09.987Z - Player Details Inserted
+2025-01-15T08:00:09.988Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:09.988Z - Match Details Pulled
+2025-01-15T08:00:11.154Z - Pick Ban Information Inserted
+2025-01-15T08:00:11.829Z - Player Details Inserted
+2025-01-15T08:00:11.829Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:11.830Z - Match Details Pulled
+2025-01-15T08:00:14.070Z - Pick Ban Information Inserted
+2025-01-15T08:00:15.204Z - Player Details Inserted
+2025-01-15T08:00:15.204Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:15.204Z - Match Details Pulled
+2025-01-15T08:00:18.154Z - Pick Ban Information Inserted
+2025-01-15T08:00:19.187Z - Player Details Inserted
+2025-01-15T08:00:19.312Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:19.312Z - Match Details Pulled
+2025-01-15T08:00:22.087Z - Pick Ban Information Inserted
+2025-01-15T08:00:23.272Z - Player Details Inserted
+2025-01-15T08:00:23.353Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:23.354Z - Match Details Pulled
+2025-01-15T08:00:25.548Z - Pick Ban Information Inserted
+2025-01-15T08:00:26.472Z - Player Details Inserted
+2025-01-15T08:00:26.473Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:26.473Z - Match Details Pulled
+2025-01-15T08:00:28.656Z - Pick Ban Information Inserted
+2025-01-15T08:00:29.530Z - Player Details Inserted
+2025-01-15T08:00:29.531Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:29.531Z - Match Details Pulled
+2025-01-15T08:00:31.739Z - Pick Ban Information Inserted
+2025-01-15T08:00:32.597Z - Player Details Inserted
+2025-01-15T08:00:32.677Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:32.678Z - Match Details Pulled
+2025-01-15T08:00:34.914Z - Pick Ban Information Inserted
+2025-01-15T08:00:35.755Z - Player Details Inserted
+2025-01-15T08:00:35.835Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:35.836Z - Match Details Pulled
+2025-01-15T08:00:38.522Z - Pick Ban Information Inserted
+2025-01-15T08:00:39.660Z - Player Details Inserted
+2025-01-15T08:00:39.660Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:39.670Z - Match Details Pulled
+2025-01-15T08:00:42.713Z - Pick Ban Information Inserted
+2025-01-15T08:00:44.045Z - Player Details Inserted
+2025-01-15T08:00:44.046Z - getCurrentTime()} - Team Win Updated
+2025-01-15T08:00:44.053Z - Match Details Pulled
+2025-01-15T08:00:47.213Z - Pick Ban Information Inserted
+2025-01-15T08:00:48.387Z - Player Details Inserted
+2025-01-15T08:00:48.387Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:00.473Z - Task is running
+2025-01-16T08:00:00.510Z - Beginning Get Pull
+2025-01-16T08:00:00.512Z - Inserts Complete
+2025-01-16T08:00:00.731Z - Get Pull Complete, Inserting into Database
+2025-01-16T08:00:01.197Z - Inserted Successfully, Now pulling Match Details for [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object]
+2025-01-16T08:00:01.197Z - Beginning Match Fetch and Insert
+2025-01-16T08:00:01.471Z - Match Details Pulled
+2025-01-16T08:00:01.471Z - Pick Ban Information Inserted
+2025-01-16T08:00:02.397Z - Player Details Inserted
+2025-01-16T08:00:02.473Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:02.483Z - Match Details Pulled
+2025-01-16T08:00:04.647Z - Pick Ban Information Inserted
+2025-01-16T08:00:05.639Z - Player Details Inserted
+2025-01-16T08:00:05.739Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:05.739Z - Match Details Pulled
+2025-01-16T08:00:07.922Z - Pick Ban Information Inserted
+2025-01-16T08:00:08.780Z - Player Details Inserted
+2025-01-16T08:00:08.781Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:08.782Z - Match Details Pulled
+2025-01-16T08:00:11.199Z - Pick Ban Information Inserted
+2025-01-16T08:00:12.205Z - Player Details Inserted
+2025-01-16T08:00:12.205Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:12.206Z - Match Details Pulled
+2025-01-16T08:00:14.990Z - Pick Ban Information Inserted
+2025-01-16T08:00:16.030Z - Player Details Inserted
+2025-01-16T08:00:16.030Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:16.031Z - Match Details Pulled
+2025-01-16T08:00:19.881Z - Pick Ban Information Inserted
+2025-01-16T08:00:21.196Z - Player Details Inserted
+2025-01-16T08:00:21.197Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:21.197Z - Match Details Pulled
+2025-01-16T08:00:24.956Z - Pick Ban Information Inserted
+2025-01-16T08:00:26.221Z - Player Details Inserted
+2025-01-16T08:00:26.221Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:26.221Z - Match Details Pulled
+2025-01-16T08:00:29.647Z - Pick Ban Information Inserted
+2025-01-16T08:00:30.570Z - Player Details Inserted
+2025-01-16T08:00:30.571Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:30.571Z - Match Details Pulled
+2025-01-16T08:00:33.305Z - Pick Ban Information Inserted
+2025-01-16T08:00:34.244Z - Player Details Inserted
+2025-01-16T08:00:34.244Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:34.244Z - Match Details Pulled
+2025-01-16T08:00:37.122Z - Pick Ban Information Inserted
+2025-01-16T08:00:38.036Z - Player Details Inserted
+2025-01-16T08:00:38.036Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:38.038Z - Match Details Pulled
+2025-01-16T08:00:39.797Z - Pick Ban Information Inserted
+2025-01-16T08:00:40.528Z - Player Details Inserted
+2025-01-16T08:00:40.528Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:40.528Z - Match Details Pulled
+2025-01-16T08:00:43.320Z - Pick Ban Information Inserted
+2025-01-16T08:00:44.243Z - Player Details Inserted
+2025-01-16T08:00:44.244Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:44.244Z - Match Details Pulled
+2025-01-16T08:00:47.436Z - Pick Ban Information Inserted
+2025-01-16T08:00:48.895Z - Player Details Inserted
+2025-01-16T08:00:48.895Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:48.896Z - Match Details Pulled
+2025-01-16T08:00:52.811Z - Pick Ban Information Inserted
+2025-01-16T08:00:54.286Z - Player Details Inserted
+2025-01-16T08:00:54.442Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:54.444Z - Match Details Pulled
+2025-01-16T08:00:58.061Z - Pick Ban Information Inserted
+2025-01-16T08:00:59.419Z - Player Details Inserted
+2025-01-16T08:00:59.419Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:00:59.425Z - Match Details Pulled
+2025-01-16T08:01:02.885Z - Pick Ban Information Inserted
+2025-01-16T08:01:04.493Z - Player Details Inserted
+2025-01-16T08:01:04.583Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:01:04.588Z - Match Details Pulled
+2025-01-16T08:01:07.618Z - Pick Ban Information Inserted
+2025-01-16T08:01:08.768Z - Player Details Inserted
+2025-01-16T08:01:08.866Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:01:08.871Z - Match Details Pulled
+2025-01-16T08:01:11.918Z - Pick Ban Information Inserted
+2025-01-16T08:01:13.576Z - Player Details Inserted
+2025-01-16T08:01:13.576Z - getCurrentTime()} - Team Win Updated
+2025-01-16T08:01:13.579Z - Match Details Pulled
+2025-01-16T08:01:16.859Z - Pick Ban Information Inserted
+2025-01-16T08:01:18.067Z - Player Details Inserted
+2025-01-16T08:01:18.068Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:00.602Z - Task is running
+2025-01-17T08:00:00.626Z - Beginning Get Pull
+2025-01-17T08:00:00.641Z - Inserts Complete
+2025-01-17T08:00:00.815Z - Get Pull Complete, Inserting into Database
+2025-01-17T08:00:01.676Z - Inserted Successfully, Now pulling Match Details for [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object]
+2025-01-17T08:00:01.676Z - Beginning Match Fetch and Insert
+2025-01-17T08:00:01.952Z - Match Details Pulled
+2025-01-17T08:00:03.502Z - Pick Ban Information Inserted
+2025-01-17T08:00:04.452Z - Player Details Inserted
+2025-01-17T08:00:04.558Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:04.578Z - Match Details Pulled
+2025-01-17T08:00:06.193Z - Pick Ban Information Inserted
+2025-01-17T08:00:07.360Z - Player Details Inserted
+2025-01-17T08:00:07.466Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:07.469Z - Match Details Pulled
+2025-01-17T08:00:10.235Z - Pick Ban Information Inserted
+2025-01-17T08:00:11.443Z - Player Details Inserted
+2025-01-17T08:00:11.545Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:11.550Z - Match Details Pulled
+2025-01-17T08:00:14.368Z - Pick Ban Information Inserted
+2025-01-17T08:00:15.543Z - Player Details Inserted
+2025-01-17T08:00:15.640Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:15.641Z - Match Details Pulled
+2025-01-17T08:00:18.824Z - Pick Ban Information Inserted
+2025-01-17T08:00:20.426Z - Player Details Inserted
+2025-01-17T08:00:20.574Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:20.574Z - Match Details Pulled
+2025-01-17T08:00:22.708Z - Pick Ban Information Inserted
+2025-01-17T08:00:23.676Z - Player Details Inserted
+2025-01-17T08:00:23.782Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:23.782Z - Match Details Pulled
+2025-01-17T08:00:27.090Z - Pick Ban Information Inserted
+2025-01-17T08:00:28.608Z - Player Details Inserted
+2025-01-17T08:00:28.609Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:28.609Z - Match Details Pulled
+2025-01-17T08:00:32.440Z - Pick Ban Information Inserted
+2025-01-17T08:00:34.041Z - Player Details Inserted
+2025-01-17T08:00:34.041Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:34.042Z - Match Details Pulled
+2025-01-17T08:00:37.048Z - Pick Ban Information Inserted
+2025-01-17T08:00:38.266Z - Player Details Inserted
+2025-01-17T08:00:38.266Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:38.266Z - Match Details Pulled
+2025-01-17T08:00:41.122Z - Pick Ban Information Inserted
+2025-01-17T08:00:42.274Z - Player Details Inserted
+2025-01-17T08:00:42.274Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:42.274Z - Match Details Pulled
+2025-01-17T08:00:45.097Z - Pick Ban Information Inserted
+2025-01-17T08:00:46.282Z - Player Details Inserted
+2025-01-17T08:00:46.282Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:46.282Z - Match Details Pulled
+2025-01-17T08:00:49.155Z - Pick Ban Information Inserted
+2025-01-17T08:00:50.381Z - Player Details Inserted
+2025-01-17T08:00:50.382Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:50.382Z - Match Details Pulled
+2025-01-17T08:00:50.730Z - Pick Ban Information Inserted
+2025-01-17T08:00:52.306Z - Player Details Inserted
+2025-01-17T08:00:52.412Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:52.413Z - Match Details Pulled
+2025-01-17T08:00:55.621Z - Pick Ban Information Inserted
+2025-01-17T08:00:56.971Z - Player Details Inserted
+2025-01-17T08:00:56.971Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:00:56.972Z - Match Details Pulled
+2025-01-17T08:01:00.687Z - Pick Ban Information Inserted
+2025-01-17T08:01:02.271Z - Player Details Inserted
+2025-01-17T08:01:02.271Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:01:02.271Z - Match Details Pulled
+2025-01-17T08:01:05.737Z - Pick Ban Information Inserted
+2025-01-17T08:01:07.387Z - Player Details Inserted
+2025-01-17T08:01:07.387Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:01:07.387Z - Match Details Pulled
+2025-01-17T08:01:10.353Z - Pick Ban Information Inserted
+2025-01-17T08:01:11.511Z - Player Details Inserted
+2025-01-17T08:01:11.512Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:01:11.512Z - Match Details Pulled
+2025-01-17T08:01:14.336Z - Pick Ban Information Inserted
+2025-01-17T08:01:15.494Z - Player Details Inserted
+2025-01-17T08:01:15.495Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:01:15.496Z - Match Details Pulled
+2025-01-17T08:01:15.496Z - Pick Ban Information Inserted
+2025-01-17T08:01:16.753Z - Player Details Inserted
+2025-01-17T08:01:16.753Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:01:16.754Z - Match Details Pulled
+2025-01-17T08:01:18.544Z - Pick Ban Information Inserted
+2025-01-17T08:01:19.836Z - Player Details Inserted
+2025-01-17T08:01:19.935Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:01:19.938Z - Match Details Pulled
+2025-01-17T08:01:20.978Z - Pick Ban Information Inserted
+2025-01-17T08:01:21.686Z - Player Details Inserted
+2025-01-17T08:01:21.844Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:01:21.852Z - Match Details Pulled
+2025-01-17T08:01:25.627Z - Pick Ban Information Inserted
+2025-01-17T08:01:27.318Z - Player Details Inserted
+2025-01-17T08:01:27.319Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:01:27.323Z - Match Details Pulled
+2025-01-17T08:01:31.201Z - Pick Ban Information Inserted
+2025-01-17T08:01:32.826Z - Player Details Inserted
+2025-01-17T08:01:32.827Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:01:32.834Z - Match Details Pulled
+2025-01-17T08:01:36.618Z - Pick Ban Information Inserted
+2025-01-17T08:01:38.234Z - Player Details Inserted
+2025-01-17T08:01:38.235Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:01:38.240Z - Match Details Pulled
+2025-01-17T08:01:42.234Z - Pick Ban Information Inserted
+2025-01-17T08:01:43.792Z - Player Details Inserted
+2025-01-17T08:01:43.793Z - getCurrentTime()} - Team Win Updated
+2025-01-17T08:01:43.797Z - Match Details Pulled
+2025-01-17T08:01:47.642Z - Pick Ban Information Inserted
+2025-01-17T08:01:49.259Z - Player Details Inserted
+2025-01-17T08:01:49.259Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:00.429Z - Task is running
+2025-01-22T08:00:00.469Z - Beginning Get Pull
+2025-01-22T08:00:00.497Z - Inserts Complete
+2025-01-22T08:00:00.739Z - Get Pull Complete, Inserting into Database
+2025-01-22T08:00:02.861Z - Inserted Successfully, Now pulling Match Details for [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object]
+2025-01-22T08:00:02.861Z - Beginning Match Fetch and Insert
+2025-01-22T08:00:03.218Z - Match Details Pulled
+2025-01-22T08:00:04.346Z - Pick Ban Information Inserted
+2025-01-22T08:00:05.079Z - Player Details Inserted
+2025-01-22T08:00:05.161Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:05.178Z - Match Details Pulled
+2025-01-22T08:00:06.362Z - Pick Ban Information Inserted
+2025-01-22T08:00:07.220Z - Player Details Inserted
+2025-01-22T08:00:07.294Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:07.297Z - Match Details Pulled
+2025-01-22T08:00:09.243Z - Pick Ban Information Inserted
+2025-01-22T08:00:10.178Z - Player Details Inserted
+2025-01-22T08:00:10.253Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:10.253Z - Match Details Pulled
+2025-01-22T08:00:12.568Z - Pick Ban Information Inserted
+2025-01-22T08:00:13.461Z - Player Details Inserted
+2025-01-22T08:00:13.527Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:13.529Z - Match Details Pulled
+2025-01-22T08:00:14.076Z - Pick Ban Information Inserted
+2025-01-22T08:00:14.811Z - Player Details Inserted
+2025-01-22T08:00:14.885Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:14.886Z - Match Details Pulled
+2025-01-22T08:00:17.068Z - Pick Ban Information Inserted
+2025-01-22T08:00:18.319Z - Player Details Inserted
+2025-01-22T08:00:18.435Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:18.435Z - Match Details Pulled
+2025-01-22T08:00:21.117Z - Pick Ban Information Inserted
+2025-01-22T08:00:22.585Z - Player Details Inserted
+2025-01-22T08:00:22.676Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:22.677Z - Match Details Pulled
+2025-01-22T08:00:24.409Z - Pick Ban Information Inserted
+2025-01-22T08:00:25.394Z - Player Details Inserted
+2025-01-22T08:00:25.509Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:25.510Z - Match Details Pulled
+2025-01-22T08:00:27.783Z - Pick Ban Information Inserted
+2025-01-22T08:00:28.604Z - Player Details Inserted
+2025-01-22T08:00:28.726Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:28.726Z - Match Details Pulled
+2025-01-22T08:00:29.700Z - Pick Ban Information Inserted
+2025-01-22T08:00:30.104Z - Player Details Inserted
+2025-01-22T08:00:30.159Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:30.159Z - Match Details Pulled
+2025-01-22T08:00:31.933Z - Pick Ban Information Inserted
+2025-01-22T08:00:32.737Z - Player Details Inserted
+2025-01-22T08:00:32.838Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:32.839Z - Match Details Pulled
+2025-01-22T08:00:34.999Z - Pick Ban Information Inserted
+2025-01-22T08:00:35.787Z - Player Details Inserted
+2025-01-22T08:00:35.859Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:35.859Z - Match Details Pulled
+2025-01-22T08:00:37.841Z - Pick Ban Information Inserted
+2025-01-22T08:00:38.661Z - Player Details Inserted
+2025-01-22T08:00:38.759Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:38.759Z - Match Details Pulled
+2025-01-22T08:00:39.745Z - Pick Ban Information Inserted
+2025-01-22T08:00:40.733Z - Player Details Inserted
+2025-01-22T08:00:40.804Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:40.804Z - Match Details Pulled
+2025-01-22T08:00:43.378Z - Pick Ban Information Inserted
+2025-01-22T08:00:44.694Z - Player Details Inserted
+2025-01-22T08:00:44.775Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:44.775Z - Match Details Pulled
+2025-01-22T08:00:47.686Z - Pick Ban Information Inserted
+2025-01-22T08:00:48.777Z - Player Details Inserted
+2025-01-22T08:00:48.907Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:48.908Z - Match Details Pulled
+2025-01-22T08:00:50.027Z - Pick Ban Information Inserted
+2025-01-22T08:00:50.319Z - Player Details Inserted
+2025-01-22T08:00:50.366Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:50.367Z - Match Details Pulled
+2025-01-22T08:00:51.435Z - Pick Ban Information Inserted
+2025-01-22T08:00:51.511Z - Player Details Inserted
+2025-01-22T08:00:51.570Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:51.573Z - Match Details Pulled
+2025-01-22T08:00:53.527Z - Pick Ban Information Inserted
+2025-01-22T08:00:54.560Z - Player Details Inserted
+2025-01-22T08:00:54.703Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:54.704Z - Match Details Pulled
+2025-01-22T08:00:55.860Z - Pick Ban Information Inserted
+2025-01-22T08:00:56.060Z - Player Details Inserted
+2025-01-22T08:00:56.149Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:56.158Z - Match Details Pulled
+2025-01-22T08:00:58.051Z - Pick Ban Information Inserted
+2025-01-22T08:00:58.752Z - Player Details Inserted
+2025-01-22T08:00:58.815Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:00:58.820Z - Match Details Pulled
+2025-01-22T08:01:00.751Z - Pick Ban Information Inserted
+2025-01-22T08:01:01.468Z - Player Details Inserted
+2025-01-22T08:01:01.531Z - getCurrentTime()} - Team Win Updated
+2025-01-22T08:01:01.538Z - Match Details Pulled
+2025-01-22T08:01:03.685Z - Pick Ban Information Inserted
+2025-01-22T08:01:04.726Z - Player Details Inserted
+2025-01-22T08:01:04.823Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:00.226Z - Task is running
+2025-01-23T08:00:00.241Z - Beginning Get Pull
+2025-01-23T08:00:00.253Z - Inserts Complete
+2025-01-23T08:00:00.610Z - Get Pull Complete, Inserting into Database
+2025-01-23T08:00:01.282Z - Inserted Successfully, Now pulling Match Details for [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object]
+2025-01-23T08:00:01.283Z - Beginning Match Fetch and Insert
+2025-01-23T08:00:01.578Z - Match Details Pulled
+2025-01-23T08:00:04.014Z - Pick Ban Information Inserted
+2025-01-23T08:00:04.997Z - Player Details Inserted
+2025-01-23T08:00:05.098Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:05.113Z - Match Details Pulled
+2025-01-23T08:00:06.240Z - Pick Ban Information Inserted
+2025-01-23T08:00:07.055Z - Player Details Inserted
+2025-01-23T08:00:07.056Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:07.058Z - Match Details Pulled
+2025-01-23T08:00:08.267Z - Pick Ban Information Inserted
+2025-01-23T08:00:08.423Z - Player Details Inserted
+2025-01-23T08:00:08.495Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:08.496Z - Match Details Pulled
+2025-01-23T08:00:11.031Z - Pick Ban Information Inserted
+2025-01-23T08:00:12.089Z - Player Details Inserted
+2025-01-23T08:00:12.089Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:12.090Z - Match Details Pulled
+2025-01-23T08:00:13.582Z - Pick Ban Information Inserted
+2025-01-23T08:00:14.430Z - Player Details Inserted
+2025-01-23T08:00:14.431Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:14.432Z - Match Details Pulled
+2025-01-23T08:00:17.814Z - Pick Ban Information Inserted
+2025-01-23T08:00:18.930Z - Player Details Inserted
+2025-01-23T08:00:18.930Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:18.931Z - Match Details Pulled
+2025-01-23T08:00:21.772Z - Pick Ban Information Inserted
+2025-01-23T08:00:23.113Z - Player Details Inserted
+2025-01-23T08:00:23.114Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:23.114Z - Match Details Pulled
+2025-01-23T08:00:26.647Z - Pick Ban Information Inserted
+2025-01-23T08:00:27.996Z - Player Details Inserted
+2025-01-23T08:00:27.996Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:27.997Z - Match Details Pulled
+2025-01-23T08:00:31.512Z - Pick Ban Information Inserted
+2025-01-23T08:00:32.737Z - Player Details Inserted
+2025-01-23T08:00:32.829Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:32.829Z - Match Details Pulled
+2025-01-23T08:00:35.455Z - Pick Ban Information Inserted
+2025-01-23T08:00:36.755Z - Player Details Inserted
+2025-01-23T08:00:36.755Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:36.755Z - Match Details Pulled
+2025-01-23T08:00:39.521Z - Pick Ban Information Inserted
+2025-01-23T08:00:40.746Z - Player Details Inserted
+2025-01-23T08:00:40.746Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:40.747Z - Match Details Pulled
+2025-01-23T08:00:43.146Z - Pick Ban Information Inserted
+2025-01-23T08:00:44.287Z - Player Details Inserted
+2025-01-23T08:00:44.386Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:44.386Z - Match Details Pulled
+2025-01-23T08:00:45.804Z - Pick Ban Information Inserted
+2025-01-23T08:00:46.813Z - Player Details Inserted
+2025-01-23T08:00:46.813Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:46.813Z - Match Details Pulled
+2025-01-23T08:00:48.246Z - Pick Ban Information Inserted
+2025-01-23T08:00:49.370Z - Player Details Inserted
+2025-01-23T08:00:49.371Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:49.371Z - Match Details Pulled
+2025-01-23T08:00:51.212Z - Pick Ban Information Inserted
+2025-01-23T08:00:51.379Z - Player Details Inserted
+2025-01-23T08:00:51.379Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:51.379Z - Match Details Pulled
+2025-01-23T08:00:55.194Z - Pick Ban Information Inserted
+2025-01-23T08:00:56.636Z - Player Details Inserted
+2025-01-23T08:00:56.636Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:00:56.636Z - Match Details Pulled
+2025-01-23T08:01:00.111Z - Pick Ban Information Inserted
+2025-01-23T08:01:01.727Z - Player Details Inserted
+2025-01-23T08:01:01.728Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:01:01.728Z - Match Details Pulled
+2025-01-23T08:01:05.452Z - Pick Ban Information Inserted
+2025-01-23T08:01:07.348Z - Player Details Inserted
+2025-01-23T08:01:07.349Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:01:07.349Z - Match Details Pulled
+2025-01-23T08:01:09.185Z - Pick Ban Information Inserted
+2025-01-23T08:01:09.427Z - Player Details Inserted
+2025-01-23T08:01:09.427Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:01:09.429Z - Match Details Pulled
+2025-01-23T08:01:11.160Z - Pick Ban Information Inserted
+2025-01-23T08:01:11.835Z - Player Details Inserted
+2025-01-23T08:01:11.835Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:01:11.836Z - Match Details Pulled
+2025-01-23T08:01:12.992Z - Pick Ban Information Inserted
+2025-01-23T08:01:14.326Z - Player Details Inserted
+2025-01-23T08:01:14.327Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:01:14.327Z - Match Details Pulled
+2025-01-23T08:01:17.801Z - Pick Ban Information Inserted
+2025-01-23T08:01:19.234Z - Player Details Inserted
+2025-01-23T08:01:19.235Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:01:19.245Z - Match Details Pulled
+2025-01-23T08:01:22.759Z - Pick Ban Information Inserted
+2025-01-23T08:01:23.976Z - Player Details Inserted
+2025-01-23T08:01:23.976Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:01:23.982Z - Match Details Pulled
+2025-01-23T08:01:25.117Z - Pick Ban Information Inserted
+2025-01-23T08:01:26.342Z - Player Details Inserted
+2025-01-23T08:01:26.433Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:01:26.437Z - Match Details Pulled
+2025-01-23T08:01:28.409Z - Pick Ban Information Inserted
+2025-01-23T08:01:29.467Z - Player Details Inserted
+2025-01-23T08:01:29.616Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:01:29.623Z - Match Details Pulled
+2025-01-23T08:01:33.141Z - Pick Ban Information Inserted
+2025-01-23T08:01:34.624Z - Player Details Inserted
+2025-01-23T08:01:34.625Z - getCurrentTime()} - Team Win Updated
+2025-01-23T08:01:34.633Z - Match Details Pulled
+2025-01-23T08:01:38.358Z - Pick Ban Information Inserted
+2025-01-23T08:01:39.958Z - Player Details Inserted
+2025-01-23T08:01:39.958Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:00.336Z - Task is running
+2025-01-24T08:00:00.369Z - Beginning Get Pull
+2025-01-24T08:00:00.371Z - Inserts Complete
+2025-01-24T08:00:01.560Z - Get Pull Complete, Inserting into Database
+2025-01-24T08:00:02.647Z - Inserted Successfully, Now pulling Match Details for [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object]
+2025-01-24T08:00:02.647Z - Beginning Match Fetch and Insert
+2025-01-24T08:00:02.907Z - Match Details Pulled
+2025-01-24T08:00:05.672Z - Pick Ban Information Inserted
+2025-01-24T08:00:06.864Z - Player Details Inserted
+2025-01-24T08:00:06.971Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:06.982Z - Match Details Pulled
+2025-01-24T08:00:08.447Z - Pick Ban Information Inserted
+2025-01-24T08:00:09.522Z - Player Details Inserted
+2025-01-24T08:00:09.523Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:09.527Z - Match Details Pulled
+2025-01-24T08:00:12.055Z - Pick Ban Information Inserted
+2025-01-24T08:00:12.855Z - Player Details Inserted
+2025-01-24T08:00:12.856Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:12.856Z - Match Details Pulled
+2025-01-24T08:00:14.430Z - Pick Ban Information Inserted
+2025-01-24T08:00:15.381Z - Player Details Inserted
+2025-01-24T08:00:15.479Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:15.479Z - Match Details Pulled
+2025-01-24T08:00:18.280Z - Pick Ban Information Inserted
+2025-01-24T08:00:19.488Z - Player Details Inserted
+2025-01-24T08:00:19.579Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:19.580Z - Match Details Pulled
+2025-01-24T08:00:22.621Z - Pick Ban Information Inserted
+2025-01-24T08:00:24.279Z - Player Details Inserted
+2025-01-24T08:00:24.337Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:24.337Z - Match Details Pulled
+2025-01-24T08:00:27.879Z - Pick Ban Information Inserted
+2025-01-24T08:00:29.296Z - Player Details Inserted
+2025-01-24T08:00:29.419Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:29.420Z - Match Details Pulled
+2025-01-24T08:00:33.112Z - Pick Ban Information Inserted
+2025-01-24T08:00:34.337Z - Player Details Inserted
+2025-01-24T08:00:34.337Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:34.337Z - Match Details Pulled
+2025-01-24T08:00:36.820Z - Pick Ban Information Inserted
+2025-01-24T08:00:38.045Z - Player Details Inserted
+2025-01-24T08:00:38.177Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:38.178Z - Match Details Pulled
+2025-01-24T08:00:40.903Z - Pick Ban Information Inserted
+2025-01-24T08:00:41.836Z - Player Details Inserted
+2025-01-24T08:00:41.837Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:41.837Z - Match Details Pulled
+2025-01-24T08:00:44.561Z - Pick Ban Information Inserted
+2025-01-24T08:00:45.569Z - Player Details Inserted
+2025-01-24T08:00:45.668Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:45.668Z - Match Details Pulled
+2025-01-24T08:00:48.368Z - Pick Ban Information Inserted
+2025-01-24T08:00:50.111Z - Player Details Inserted
+2025-01-24T08:00:50.291Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:50.291Z - Match Details Pulled
+2025-01-24T08:00:51.969Z - Pick Ban Information Inserted
+2025-01-24T08:00:52.252Z - Player Details Inserted
+2025-01-24T08:00:52.253Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:52.253Z - Match Details Pulled
+2025-01-24T08:00:55.769Z - Pick Ban Information Inserted
+2025-01-24T08:00:57.227Z - Player Details Inserted
+2025-01-24T08:00:57.227Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:00:57.228Z - Match Details Pulled
+2025-01-24T08:01:00.943Z - Pick Ban Information Inserted
+2025-01-24T08:01:02.601Z - Player Details Inserted
+2025-01-24T08:01:02.602Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:02.602Z - Match Details Pulled
+2025-01-24T08:01:04.460Z - Pick Ban Information Inserted
+2025-01-24T08:01:05.726Z - Player Details Inserted
+2025-01-24T08:01:05.727Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:05.727Z - Match Details Pulled
+2025-01-24T08:01:09.376Z - Pick Ban Information Inserted
+2025-01-24T08:01:10.891Z - Player Details Inserted
+2025-01-24T08:01:10.892Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:10.892Z - Match Details Pulled
+2025-01-24T08:01:12.851Z - Pick Ban Information Inserted
+2025-01-24T08:01:13.892Z - Player Details Inserted
+2025-01-24T08:01:13.892Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:13.893Z - Match Details Pulled
+2025-01-24T08:01:17.175Z - Pick Ban Information Inserted
+2025-01-24T08:01:18.782Z - Player Details Inserted
+2025-01-24T08:01:18.890Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:18.891Z - Match Details Pulled
+2025-01-24T08:01:22.166Z - Pick Ban Information Inserted
+2025-01-24T08:01:23.516Z - Player Details Inserted
+2025-01-24T08:01:23.517Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:23.517Z - Match Details Pulled
+2025-01-24T08:01:25.516Z - Pick Ban Information Inserted
+2025-01-24T08:01:26.958Z - Player Details Inserted
+2025-01-24T08:01:26.958Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:26.958Z - Match Details Pulled
+2025-01-24T08:01:30.541Z - Pick Ban Information Inserted
+2025-01-24T08:01:31.999Z - Player Details Inserted
+2025-01-24T08:01:31.999Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:32.000Z - Match Details Pulled
+2025-01-24T08:01:32.899Z - Pick Ban Information Inserted
+2025-01-24T08:01:34.249Z - Player Details Inserted
+2025-01-24T08:01:34.250Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:34.252Z - Match Details Pulled
+2025-01-24T08:01:37.923Z - Pick Ban Information Inserted
+2025-01-24T08:01:39.565Z - Player Details Inserted
+2025-01-24T08:01:39.566Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:39.566Z - Match Details Pulled
+2025-01-24T08:01:41.799Z - Pick Ban Information Inserted
+2025-01-24T08:01:41.965Z - Player Details Inserted
+2025-01-24T08:01:41.966Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:41.966Z - Match Details Pulled
+2025-01-24T08:01:45.631Z - Pick Ban Information Inserted
+2025-01-24T08:01:47.214Z - Player Details Inserted
+2025-01-24T08:01:47.215Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:47.223Z - Match Details Pulled
+2025-01-24T08:01:50.206Z - Pick Ban Information Inserted
+2025-01-24T08:01:51.339Z - Player Details Inserted
+2025-01-24T08:01:51.339Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:51.344Z - Match Details Pulled
+2025-01-24T08:01:52.189Z - Pick Ban Information Inserted
+2025-01-24T08:01:53.205Z - Player Details Inserted
+2025-01-24T08:01:53.206Z - getCurrentTime()} - Team Win Updated
+2025-01-24T08:01:53.209Z - Match Details Pulled
+2025-01-24T08:01:54.631Z - Pick Ban Information Inserted
+2025-01-24T08:01:55.464Z - Player Details Inserted
+2025-01-24T08:01:55.464Z - getCurrentTime()} - Team Win Updated
