@@ -76,7 +76,7 @@ async function getMatchDetails(matches){
             }
 
             if (newPlayers.length > 0) {
-                db.insertNewPlayers(newPlayers); // You’ll need to define this in your `db` module
+                db.insertNewPlayers(newPlayers); 
                 console.log(`Inserted ${newPlayers.length} new players.`);
             }
 
@@ -90,12 +90,43 @@ async function getMatchDetails(matches){
 
             db.insertTeamWin(match.MatchId, winTeamId);
             db.insertDuration(match.MatchId,data.duration);
+
+            //creating series
+            let yesterdaysDate = new Date();
+            yesterdaysDate.setDate(yesterdaysDate.getDate() - 1);
+            yesterdaysDate = yesterdaysDate.toISOString().split('T')[0];
+
+            const existing = db.checkSeries(data.dire_team_id,data.radiant_team_id);
+            
+            let seriesId;
+
+            if (existing.length === 0) {
+                const resultSeries = db.insertTempSeries(data.dire_team_id,data.radiant_team_id,yesterdaysDate)
+
+                if(resultSeries === 2)
+                    console.error(`Failed to insert series ${data.dire_team_id} - ${data.radiant_team_id}`);
+                
+                seriesId = resultSeries;
+            } else {
+                seriesId = existing[0].SeriesId;
+            }
+
+            const seriesMatch = db.insertSeriesMatch(seriesId,match.MatchId);
+            if(seriesMatch === 2)
+                console.error(`Failed to insert series match ${seriesId} - ${match.MatchId}`);
             
             db.insertLeagueStanding(match.MatchId, winTeamId, loseTeamId)
         } catch (err) {
             console.error(`Failed to fetch match ${match.MatchId}:`, err);
         }
     }
+
+
+    const insertFromTemp = db.insertTempIntoSeries();
+
+    if(insertFromTemp === -1)
+        console.error(`Failed to insert into SeriesInfo from TempSeriesInfo match`);
+
 
     if(badMatches.length > 0)
     {

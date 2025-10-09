@@ -69,7 +69,7 @@ button:focus-visible {
 /* Main content area */
 main {
   margin-top: 60px;      /* height of navbar */
-  margin-left: 200px;    /* width of sidebar */
+  margin-left: 180px;    /* width of sidebar */
   padding: 20px;         /* inner spacing */
   min-height: calc(100vh - 60px); /* fill remaining height */
   background-color: transparent;  /* optional if you want the page bg to show */

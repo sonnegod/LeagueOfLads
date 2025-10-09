@@ -512,12 +512,52 @@ class DBInstance {
        
     }
 
+    getTeamSeasonStats(teamId,leagueId){
+        let query = `
+            SELECT 
+            sub.TeamId,
+            sub.TeamName,
+            COUNT(*) AS GamesPlayed,
+            ROUND(100.0 * SUM(sub.Winner) / COUNT(*), 2) AS WinPercentage
+            FROM (
+                SELECT 
+                    mt.TeamRad AS TeamId, 
+                    ti.TeamName,
+                    CASE WHEN mt.TeamRad = mt.WinnerId THEN 1 ELSE 0 END AS Winner,
+                    li.LeagueId,
+                    li.LeagueName
+                FROM MatchTeam mt
+                JOIN TeamInfo ti ON ti.TeamId = mt.TeamRad
+                JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
+                JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
+                WHERE li.LeagueId = ? AND ti.TeamId = ?
+                UNION ALL
+
+                SELECT 
+                    mt.TeamDire AS TeamId, 
+                    ti.TeamName,
+                    CASE WHEN mt.TeamDire = mt.WinnerId THEN 1 ELSE 0 END AS Winner,
+                    li.LeagueId,
+                    li.LeagueName
+                FROM MatchTeam mt
+                JOIN TeamInfo ti ON ti.TeamId = mt.TeamDire
+                JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
+                JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
+                WHERE li.LeagueId = ? AND ti.TeamId = ?
+                ) sub
+        `;
+         const params = [leagueId,teamId,leagueId,teamId];
+
+        return this.queryDatabase(query, params);
+
+    }
+
     getHeroPlayerInfo(heroId, leagueId){
         let query = 
             `SELECT
             p.PlayerId,
             p.PlayerName,
-            COUNT(mp.MatchId) AS GamesPlayed,
+            COUNT(DISTINCT mp.MatchId) AS GamesPlayed,
             ROUND(100.0 * SUM(CASE WHEN mp.Winner = 1 THEN 1 ELSE 0 END) / COUNT(mp.MatchId), 2) AS WinPercentage
             FROM MatchPlayer mp
             JOIN PlayerInfo p ON mp.PlayerId = p.PlayerId
@@ -1040,7 +1080,7 @@ class DBInstance {
                 [leagueId[0].LeagueId]
             );
 
-            if(boundary && matchId <= boundary.GroupEndMatchId){
+            if(!boundary || matchId <= boundary.GroupEndMatchId){
                 this.db.prepare(`
                     INSERT INTO LeagueStandings (LeagueId, TeamId, Wins, Losses)
                     VALUES (@leagueId, @teamId, 1, 0)
@@ -1059,6 +1099,68 @@ class DBInstance {
         } catch (err) {
             console.log(err);
             return 2;
+        }
+    }
+
+    checkSeries(teamA,teamB){
+        return this.queryDatabase(`
+            SELECT SeriesId from TempSeriesInfo 
+            WHERE (Team1 = ? AND Team2 = ?) OR (Team1 = ? AND Team2 = ?)
+            `,
+            [teamA,teamB,teamB,teamA]
+        );
+    }
+
+    insertTempSeries(teamA,teamB,dateCreated){
+        console.log(teamA,teamB,dateCreated)
+        try {
+            const stmt = this.db.prepare(`INSERT INTO TempSeriesInfo (Team1, Team2, DateCreated)
+                                          VALUES (@team1, @team2, @DateCreated)`);
+            stmt.run({
+                team1: teamA,
+                team2: teamB,
+                DateCreated: dateCreated
+            });
+            console.log(stmt);
+            return stmt;
+        } catch (err) {
+            console.log(err);
+            return 2;
+        }
+    }
+
+    insertSeriesMatch(seriesId,matchId){
+        try {
+            const stmt = this.db.prepare(`INSERT INTO SeriesMatch (SeriesId, MatchId)
+                                          VALUES (@SeriesId, @MatchId)`);
+            stmt.run({
+                SeriesId: seriesId,
+                MatchId: matchId
+            });
+            return 1;
+        } catch (err) {
+            console.log(err);
+            return 2;
+        }
+    }
+
+    insertTempIntoSeries(){
+        try {
+            const insertStmt = this.db.prepare(`
+                INSERT INTO SeriesInfo (Team1, Team2, DateCreated)
+                SELECT Team1, Team2, DateCreated FROM TempSeriesInfo
+            `);
+            const info = insertStmt.run();
+            console.log(`Inserted ${info.changes} rows into SeriesInfo`);
+
+            const deleteStmt = this.db.prepare(`DELETE FROM TempSeriesInfo`);
+            const delInfo = deleteStmt.run();
+            console.log(`Deleted ${delInfo.changes} rows from TempSeriesInfo`);
+
+            return info.changes; 
+        } catch (err) {
+            console.log(err);
+            return -1;
         }
     }
 

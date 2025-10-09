@@ -194,12 +194,18 @@ router.get('/matches/:matchId', async (req, res) => {
     const match = await db.getMatch(matchId);
     const matchPlayers = await db.getMatchPlayerInformation(matchId);
     const matchPicksBans = await db.getMatchPickBanInformation(matchId);
+
+    const teamSeasonRad = await db.getTeamSeasonStats(match[0].rad_team_id,match[0].LeagueId);
+    const teamSeasonDire = await db.getTeamSeasonStats(match[0].dire_team_id,match[0].LeagueId);
+
     if (!matchPlayers) return res.status(404).json({ error: 'Match Player not found' });
     
     res.json({
       match,
       matchPlayers,
-      matchPicksBans
+      matchPicksBans,
+      teamSeasonDire,
+      teamSeasonRad
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

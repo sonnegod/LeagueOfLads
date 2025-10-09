@@ -18,7 +18,7 @@ async function checkMatches(leagueId) {
   console.log('---------------------------------------');
 
   let startAtMatchId = null;//db.getMostRecentMatch();
-  console.log(startAtMatchId);
+
   const preloadedMatchDetailIds = db.preloadedData.matches.map(match => match.MatchId);
   let allNewMatches = [];
 

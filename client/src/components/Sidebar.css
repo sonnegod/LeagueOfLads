@@ -2,7 +2,7 @@
   position: fixed;
   top: 60px; /* below navbar */
   left: 0;
-  width: 200px;
+  width: 180px;
   height: calc(100vh - 60px);
   background-color: #1e1e1e;
   color: white;

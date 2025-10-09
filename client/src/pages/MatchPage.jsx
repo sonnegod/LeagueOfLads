@@ -13,8 +13,7 @@ export default function MatchPage() {
       try {
         const res = await fetch(`/api/matches/${matchId}`);
         const data = await res.json();
-
-
+        console.log(data)
         setMatch(data);
       } catch (err) {
         console.error(err);
@@ -49,8 +48,7 @@ export default function MatchPage() {
       <h1>Match {match.match[0].MatchId}</h1>
       <p><strong>Date:</strong> {match.match[0].DatePlayed}</p>
       <p><strong>League:</strong><Link to={`/league/${match.match[0].LeagueId}`}> {match.match[0].LeagueName}</Link></p>
-      <p><strong>Duration:</strong> {Math.floor(match.match[0].Duration / 60)}:{match.match[0].Duration % 60}</p>
-
+      <p><strong>Duration:</strong> {Math.floor(match.match[0].Duration / 60)}:{(match.match[0].Duration % 60).toString().padStart(2, '0')}</p>
       {/* Teams side by side */}
       <div style={{ display: 'flex', gap: '2rem', marginTop: '2rem' }}>
         {/* Radiant */}
@@ -67,6 +65,9 @@ export default function MatchPage() {
                 <th style={thTdStyle}>D</th>
                 <th style={thTdStyle}>A</th>
                 <th style={thTdStyle}>LH</th>
+                <th style={thTdStyle}>Hero Dmg</th>
+                <th style={thTdStyle}>Healing</th>
+                <th style={thTdStyle}>Tower Dmg</th>
                 <th style={thTdStyle}>GPM</th>
                 <th style={thTdStyle}>XPM</th>
               </tr>
@@ -79,7 +80,10 @@ export default function MatchPage() {
                   <td style={thTdStyle}>{p.Kills}</td>
                   <td style={thTdStyle}>{p.Deaths}</td>
                   <td style={thTdStyle}>{p.Assists}</td>
-                  <td style={thTdStyle}>{p.LastHits}</td>
+                  <td style={thTdStyle}>{p.Lasthits}</td>
+                  <td style={thTdStyle}>{p.HeroDamage}</td>
+                  <td style={thTdStyle}>{p.Healing}</td>
+                  <td style={thTdStyle}>{p.TowerDamage}</td>
                   <td style={thTdStyle}>{p.GPM}</td>
                   <td style={thTdStyle}>{p.XPM}</td>
                 </tr>
@@ -102,6 +106,9 @@ export default function MatchPage() {
                 <th style={thTdStyle}>D</th>
                 <th style={thTdStyle}>A</th>
                 <th style={thTdStyle}>LH</th>
+                <th style={thTdStyle}>Hero Dmg</th>
+                <th style={thTdStyle}>Healing</th>
+                <th style={thTdStyle}>Tower Dmg</th>
                 <th style={thTdStyle}>GPM</th>
                 <th style={thTdStyle}>XPM</th>
               </tr>
@@ -114,7 +121,10 @@ export default function MatchPage() {
                   <td style={thTdStyle}>{p.Kills}</td>
                   <td style={thTdStyle}>{p.Deaths}</td>
                   <td style={thTdStyle}>{p.Assists}</td>
-                  <td style={thTdStyle}>{p.LastHits}</td>
+                  <td style={thTdStyle}>{p.Lasthits}</td>
+                  <td style={thTdStyle}>{p.HeroDamage}</td>
+                  <td style={thTdStyle}>{p.Healing}</td>
+                  <td style={thTdStyle}>{p.TowerDamage}</td>
                   <td style={thTdStyle}>{p.GPM}</td>
                   <td style={thTdStyle}>{p.XPM}</td>
                 </tr>
@@ -142,12 +152,23 @@ export default function MatchPage() {
                         </th> 
                     </tr> 
                     </thead> 
-                    <tbody> 
-                        {match.matchPicksBans.map((pb, index) => 
-                            ( <tr key={index}> 
-                                <td style={thTdStyle}>{pb.Team === 0 ? ( <span style={{ color: '#00796b', fontWeight: 'bold' }}>Radiant</span> ) : ( <span style={{ color: '#b71c1c', fontWeight: 'bold' }}>Dire</span> )} </td> 
-                                <td style={thTdStyle}>{pb.IsPick ? 'Pick' : 'Ban'}</td> <td style={thTdStyle}> <Link to={`/hero/${pb.HeroId}`}>{pb.HeroName}</Link> </td> </tr> ))} 
-                    </tbody> 
+                    <tbody>
+                      {match.matchPicksBans.map((pb, index) => (
+                        <tr key={index}>
+                          <td style={thTdStyle}>
+                            {pb.Team === 0 ? (
+                              <span style={{ color: '#00796b', fontWeight: 'bold' }}>Radiant</span>
+                            ) : (
+                              <span style={{ color: '#b71c1c', fontWeight: 'bold' }}>Dire</span>
+                            )}
+                          </td>
+                          <td style={thTdStyle}>{pb.IsPick ? 'Pick' : 'Ban'}</td>
+                          <td style={thTdStyle}>
+                            <Link to={`/hero/${pb.HeroId}`}>{pb.HeroName}</Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
                 </table> 
             </div> 
 
@@ -163,14 +184,14 @@ export default function MatchPage() {
         </thead>
         <tbody>
           <tr>
-            <td style={thTdStyle}><Link to={`/team/${match.RadiantTeamId}`}>{match.RadiantTeamName}</Link></td>
-            <td style={thTdStyle}>{match.RadiantGamesPlayed}</td>
-            <td style={thTdStyle}>{match.RadiantWinPercentage?.toFixed(2)}</td>
+            <td style={thTdStyle}><Link to={`/team/${match.match[0].rad_team_id}`}>{match.match[0].rad_team_name}</Link></td>
+            <td style={thTdStyle}>{match.teamSeasonRad[0].GamesPlayed}</td>
+            <td style={thTdStyle}>{match.teamSeasonRad[0].WinPercentage?.toFixed(2)}</td>
           </tr>
           <tr>
-            <td style={thTdStyle}><Link to={`/team/${match.DireTeamId}`}>{match.DireTeamName}</Link></td>
-            <td style={thTdStyle}>{match.DireGamesPlayed}</td>
-            <td style={thTdStyle}>{match.DireWinPercentage?.toFixed(2)}</td>
+            <td style={thTdStyle}><Link to={`/team/${match.match[0].dire_team_id}`}>{match.match[0].dire_team_name}</Link></td>
+            <td style={thTdStyle}>{match.teamSeasonDire[0].GamesPlayed}</td>
+            <td style={thTdStyle}>{match.teamSeasonDire[0].WinPercentage?.toFixed(2)}</td>
           </tr>
         </tbody>
       </table>
