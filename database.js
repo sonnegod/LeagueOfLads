@@ -1,9 +1,14 @@
 import Database from "better-sqlite3";
+import dotenv from 'dotenv';
+dotenv.config();
 
 class DBInstance {
     constructor(){
         if(!DBInstance.instance){
-            this.db = new Database('./db/LadsData.db');
+            if(process.env.ENVIRONMENT === 'DEV')
+                this.db = new Database('./db/LadsData.db');
+            if(process.env.ENVIRONMENT === 'PROD')
+                this.db = new Database('root/LeagueOfLads/db/LadsData.db');
             this.preloadedData = this.preloadData();
             DBInstance.instance = this;
         }
