@@ -423,5 +423,53 @@ router.get('/leagues/:leagueId', async (req, res) => {
   }
 });
 
+router.get('/homepageSeries', async (req, res) => {
+
+  try {
+    const series = await db.getCurrentLeagueSeries();
+
+    const seriesWithMatches = await Promise.all(
+      series.map(async (series) => {
+        const seriesMatches = await db.getSeriesMatches(series.SeriesId);
+        return {
+          ...series,
+          seriesMatches, 
+        };
+      })
+    );
+
+    if (!series) return res.status(404).json({ error: 'Series not found' });
+
+    res.json(seriesWithMatches);
+
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/currentLeaderboard', async (req, res) => {
+
+  try {
+    const series = await db.getCurrentLeagueLeaderboard();
+
+    const seriesWithMatches = await Promise.all(
+      series.map(async (series) => {
+        const seriesMatches = await db.getSeriesMatches(series.SeriesId);
+        return {
+          ...series,
+          seriesMatches, 
+        };
+      })
+    );
+
+    if (!series) return res.status(404).json({ error: 'Series not found' });
+
+    res.json(seriesWithMatches);
+
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 export default router;

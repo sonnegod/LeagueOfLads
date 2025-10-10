@@ -460,6 +460,57 @@ class DBInstance {
         return this.queryDatabase(query, params);
     }
 
+    getCurrentLeagueSeries(){
+            return this.queryDatabase(
+            `SELECT 
+            si.SeriesId,
+            si.Team1, 
+            si.Team2, 
+            ti1.TeamName as team_one,
+            ti2.TeamName as team_two,
+            si.DateCreated 
+            FROM 
+            SeriesInfo si 
+            JOIN SeriesMatch sm on si.SeriesId = sm.SeriesId
+            JOIN MatchLeague ml on sm.MatchId = ml.MatchId
+            JOIN LeagueInfo li on ml.LeagueId = li.LeagueId
+            JOIN TeamInfo ti1 on ti1.TeamId = si.Team1
+            JOIN TeamInfo ti2 on ti2.TeamId = si.Team2
+            WHERE li.Active = 1
+            GROUP BY si.SeriesId`
+        );
+    }
+
+    getSeriesMatches(seriesId){
+        return this.queryDatabase(
+            `SELECT 
+            sm.SeriesId,
+            sm.MatchId,
+            mt.TeamRad as rad_team_id,
+            mt.TeamDire as dire_team_id,
+            CASE 
+                WHEN mt.WinnerId = mt.TeamRad THEN 'r'
+                WHEN mt.WinnerId = mt.TeamDire THEN 'd'
+            ELSE NULL
+            END AS WinnerSide,
+            tir.TeamName as rad_team_name,
+            tid.TeamName as dire_team_name,
+            mt.Duration
+            FROM 
+            SeriesInfo si 
+            JOIN SeriesMatch sm on si.SeriesId = sm.SeriesId
+            JOIN MatchTeam mt on sm.MatchId = mt.MatchId
+            JOIN TeamInfo tir on tir.TeamId = mt.TeamRad 
+            JOIN TeamInfo tid on tid.TeamId = mt.TeamDire
+            WHERE si.SeriesId = ?`,
+            [seriesId]
+        );
+    }
+
+    getCurrentLeagueLeaderboard(){
+
+    }
+
     getRecentMatches(numMatches) {
         return this.queryDatabase(
             `SELECT ml.MatchId, radTeam.TeamName as rad_team_name,mt.TeamRad as rad_team_id, direTeam.TeamName as dire_team_name,mt.TeamDire as dire_team_id,

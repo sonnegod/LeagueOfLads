@@ -13,6 +13,7 @@ export default function Sidebar() {
         <Link to="/">Home</Link>
         {user && <Link to="/dashboard">Dashboard</Link>}
 
+        <Link to="/recentMatches">Recent Matches</Link>
         <Link to="/team">Teams</Link>
         <Link to="/player">Players</Link>
         <Link to="/match">Matches</Link>

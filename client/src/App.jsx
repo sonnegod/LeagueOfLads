@@ -14,14 +14,15 @@ import LeaguesPage from './pages/LeaguesPage';
 import MatchPage from './pages/MatchPage';
 import MatchesPage from './pages/MatchesPage';
 import SearchPage from "./pages/SearchPage";
-
+import RecentMatchesPage from "./pages/RecentMatchesPage";
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
         <Route index element={<Home />} />
-        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/recentMatches" element={<RecentMatchesPage />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/player/:player_id" element={<PlayerPage />} />
         <Route path="/hero/:hero_id" element={<HeroPage />} />
