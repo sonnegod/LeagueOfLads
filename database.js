@@ -477,7 +477,8 @@ class DBInstance {
             JOIN TeamInfo ti1 on ti1.TeamId = si.Team1
             JOIN TeamInfo ti2 on ti2.TeamId = si.Team2
             WHERE li.Active = 1
-            GROUP BY si.SeriesId`
+            GROUP BY si.SeriesId
+            ORDER BY si.SeriesId DESC`
         );
     }
 
@@ -502,8 +503,7 @@ class DBInstance {
             JOIN MatchTeam mt on sm.MatchId = mt.MatchId
             JOIN TeamInfo tir on tir.TeamId = mt.TeamRad 
             JOIN TeamInfo tid on tid.TeamId = mt.TeamDire
-            WHERE si.SeriesId = ?
-            ORDER BY si.SeriesId DESC`,
+            WHERE si.SeriesId = ?`,
             [seriesId]
         );
     }
