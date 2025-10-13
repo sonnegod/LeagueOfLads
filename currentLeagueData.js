@@ -4,6 +4,8 @@ import apiURL from './apiURL.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
+console.log("Beginning load of new matches")
+
 async function runRecentMatches() {
     const leagueId = db.getCurrentLeague();
 

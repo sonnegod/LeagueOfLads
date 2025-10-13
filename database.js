@@ -8,7 +8,7 @@ class DBInstance {
             if(process.env.ENVIRONMENT === 'DEV')
                 this.db = new Database('./db/LadsData.db');
             if(process.env.ENVIRONMENT === 'PROD')
-                this.db = new Database('/root/LeagueOfLads/db/LadsData.db');
+                this.db = new Database('./db/LadsData.db');
             this.preloadedData = this.preloadData();
             DBInstance.instance = this;
         }

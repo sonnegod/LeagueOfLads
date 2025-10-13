@@ -1,6 +1,8 @@
 import db from './database.js';
 import apiUrl from './apiURL.js';
 
+console.log("Beginning match detail load");
+
 let matchDetailCallsToday = 0;
 const MAX_CALLS_PER_DAY = 2000;
 const MIN_INTERVAL_MS = 1000; // 1 call per second
