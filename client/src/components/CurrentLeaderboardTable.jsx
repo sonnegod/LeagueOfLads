@@ -13,7 +13,6 @@ export default function CurrentLeagueSeries({ seriesList }) {
       try {
         const res = await fetch('/api/currentLeaderboard');
         const data = await res.json();4
-        console.log(data);
         setGroups(data);
       } catch (err) {
         console.error(err);
@@ -25,41 +24,79 @@ export default function CurrentLeagueSeries({ seriesList }) {
   }, []);
 
     return (
-    <div className="flex flex-wrap gap-4 justify-center">
-        {groups.map(group => (
-        <div
-            key={group.GroupId}
-            className="border rounded p-3 w-full sm:w-[48%] lg:w-[45%] xl:w-[30%]"
-        >
-            <h3 className="font-semibold mb-2 text-center">
-            {group.GroupName ? group.GroupName : `Group ${group.GroupId}`}
-            </h3>
+  <div style={containerStyle}>
+    {groups.map(group => (
+      <div key={group.GroupId} style={cardStyle}>
+        <h3 style={{ textAlign: "center", marginBottom: 8 }}>
+          {group.GroupName ? group.GroupName : `Group ${group.GroupId}`}
+        </h3>
 
-            <table style={tableStyle}>
-            <thead>
-                <tr className="bg-gray-100">
-                <th style={thStyle}>Team</th>
-                <th style={thStyle}>Wins</th>
-                <th style={thStyle}>Losses</th>
-                </tr>
-            </thead>
-            <tbody>
-                {group.groupTeams.map(team => (
-                <tr key={team.TeamId}>
-                    <td style={tdStyle}>{team.TeamName}</td>
-                    <td style={tdStyle}>{team.Wins}</td>
-                    <td style={tdStyle}>{team.Losses}</td>
-                </tr>
-                ))}
-            </tbody>
-            </table>
-        </div>
-        ))}
-    </div>
-    );
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Team</th>
+              <th style={thStyle}>Wins</th>
+              <th style={thStyle}>Losses</th>
+            </tr>
+          </thead>
+          <tbody>
+            {group.groupTeams.map(team => (
+              <tr key={team.TeamId}>
+                <td style={tdStyle}>
+                    <Link to={`/team/${team.TeamId}`}>
+                            {team.TeamName}
+                    </Link>
+                </td>
+                <td style={tdStyle}>{team.Wins}</td>
+                <td style={tdStyle}>{team.Losses}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ))}
+  </div>
+);
+
 
 }
 
-const tableStyle = { width: "100%", borderCollapse: "collapse", minWidth: "900px" };
-const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
-const tdStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
+// Styles (replace your existing ones)
+const containerStyle = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "16px",          // spacing between cards
+  justifyContent: "center",
+};
+
+const cardStyle = {
+  border: "1px solid #e2e8f0",
+  borderRadius: "8px",
+  padding: "12px",
+  boxSizing: "border-box",
+  flex: "1 1 340px",    // allow grow, allow shrink, base width 340px
+  minWidth: 0,          // IMPORTANT: allow flex child to shrink
+  maxWidth: "420px",    // optional: limit how wide each card grows
+  background: "white",
+};
+
+const tableStyle = {
+  width: "100%",
+  borderCollapse: "collapse",
+  tableLayout: "fixed", // important: columns respect available width
+  minWidth: 0,          // allow table to shrink to parent
+};
+
+const thStyle = {
+  border: "1px solid #ccc",
+  padding: "8px",
+  textAlign: "center",
+  whiteSpace: "nowrap",
+};
+
+const tdStyle = {
+  border: "1px solid #ccc",
+  padding: "8px",
+  textAlign: "center",
+  wordBreak: "break-word",
+};

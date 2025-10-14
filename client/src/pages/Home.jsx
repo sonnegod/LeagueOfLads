@@ -30,13 +30,13 @@ export default function Home() {
 
   return (
     <div style={{ padding: "1rem" }}>
-      <h1>Recent Series</h1>
-      <CurrentLeagueSeries seriesList={series} />
+      <h1>Group Leaderboard</h1>
+      <CurrentLeaderboardTable />      
 
       <hr style={{ margin: "2rem 0" }} />
 
-      <h2>Group Leaderboard (Coming Soon)</h2>
-      <CurrentLeaderboardTable />
+      <h2>Recent Series</h2>
+      <CurrentLeagueSeries seriesList={series} />
     </div>
   );
 }
