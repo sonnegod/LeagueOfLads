@@ -40,17 +40,18 @@ export default function CurrentLeagueSeries({ seriesList }) {
             </tr>
           </thead>
           <tbody>
-            {group.groupTeams.map(team => (
-              <tr key={team.TeamId}>
-                <td style={tdStyle}>
-                    <Link to={`/team/${team.TeamId}`}>
-                            {team.TeamName}
-                    </Link>
-                </td>
-                <td style={tdStyle}>{team.Wins}</td>
-                <td style={tdStyle}>{team.Losses}</td>
-              </tr>
-            ))}
+            {group.groupTeams.map((team, index) => (
+                <tr
+                  key={team.TeamId}
+                  style={getRowStyle(index, group.groupTeams.length)}
+                >
+                  <td style={tdStyle}>
+                    <Link to={`/team/${team.TeamId}`}>{team.TeamName}</Link>
+                  </td>
+                  <td style={tdStyle}>{team.Wins}</td>
+                  <td style={tdStyle}>{team.Losses}</td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>
@@ -58,7 +59,24 @@ export default function CurrentLeagueSeries({ seriesList }) {
   </div>
 );
 
+}
 
+function getRowStyle(index, total) {
+  const greenStyle = { backgroundColor: "#d1fae5" };  // light green
+  const blueStyle = { backgroundColor: "#bfdbfe" };   // light blue
+  const redStyle = { backgroundColor: "#fecaca" };    // light red
+  const tanStyle = { backgroundColor: "#fef3c7" };    // light tan
+
+  const isOdd = total % 2 === 1
+
+
+  if (index < 2) return greenStyle;                  // top 2
+  if (index === 2) return blueStyle;                 // 3rd
+
+  if (isOdd && index >= total - 3) return redStyle;      //bottom 3 for odd nmber
+  if (!isOdd && index >= total - 2) return redStyle;
+  
+  return tanStyle;                                  // rest (middle)
 }
 
 // Styles (replace your existing ones)
@@ -67,6 +85,7 @@ const containerStyle = {
   flexWrap: "wrap",
   gap: "16px",          // spacing between cards
   justifyContent: "center",
+  color: "black",
 };
 
 const cardStyle = {
@@ -78,6 +97,8 @@ const cardStyle = {
   minWidth: 0,          // IMPORTANT: allow flex child to shrink
   maxWidth: "420px",    // optional: limit how wide each card grows
   background: "white",
+  color: "black",
+
 };
 
 const tableStyle = {
@@ -85,6 +106,8 @@ const tableStyle = {
   borderCollapse: "collapse",
   tableLayout: "fixed", // important: columns respect available width
   minWidth: 0,          // allow table to shrink to parent
+  color: "black",
+
 };
 
 const thStyle = {
