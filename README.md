@@ -1,5 +1,7 @@
 To set up:
 1. Clone the repository
+2. NPM install in the main directory and in the /client file
+3. set up .env file (ping sonnegod for info)
 2. Download SQLITE Studio for ui for the flat file
 3. Add the database (choose the LadsData.db)
 4. LadsDataProd.db will be considered the official record of data and should not be modified, it will be occasionally pushed to by the server
@@ -13,6 +15,13 @@ sudo systemctl reload nginx
 sudo cp -r dist/* /var/www/leagueoflads/
 
 pm2 start /root/LeagueOfLads/index.js --name LeagueOfLads
+----
+
+FOR UPDATING SeriesInfo when the job doesnt catch all matches
+----
+1. Find the Duplicate series with only one match id
+2. UPDATE SeriesMatch set SeriesId = 49 WHERE SeriesId = 51
+3. DELETE FROM Series Info where SeriesId = ^
 ----
 
 
