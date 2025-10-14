@@ -450,21 +450,23 @@ router.get('/homepageSeries', async (req, res) => {
 router.get('/currentLeaderboard', async (req, res) => {
 
   try {
-    const series = await db.getCurrentLeagueLeaderboard();
+    const groups = await db.getCurrentLeagueLeaderboard();
 
-    const seriesWithMatches = await Promise.all(
-      series.map(async (series) => {
-        const seriesMatches = await db.getSeriesMatches(series.SeriesId);
+    const groupsWithTeams = await Promise.all(
+      groups.map(async (group) => {
+        const groupTeams = await db.getGroupStats(group);
         return {
-          ...series,
-          seriesMatches, 
+          ...group,
+          groupTeams, 
         };
       })
     );
 
-    if (!series) return res.status(404).json({ error: 'Series not found' });
 
-    res.json(seriesWithMatches);
+
+    if (!groupsWithTeams) return res.status(404).json({ error: 'Groups and teams not found' });
+
+    res.json(groupsWithTeams);
 
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

@@ -515,7 +515,30 @@ class DBInstance {
 
     getCurrentLeagueLeaderboard(){
 
+        return this.queryDatabase(`
+            SELECT DISTINCT lg.GroupID, g.GroupName, lg.LeagueId
+            FROM LeagueGroups lg
+            JOIN GroupNames g on g.GroupId = lg.GroupId
+            Join LeagueInfo l on l.LeagueId = lg.LeagueId
+            WHERE l.Active = 1
+            ORDER BY lg.GroupID
+        `);
+        
     }
+
+    getGroupStats(groupInfo){
+        return this.queryDatabase( `
+            SELECT lg.TeamId, t.TeamName, ls.Wins, ls.Losses
+                FROM LeagueGroups lg
+                JOIN TeamInfo t ON t.TeamId = lg.TeamId
+                JOIN GroupNames g on g.GroupId = lg.GroupId
+                Join LeagueInfo l on l.LeagueId = lg.LeagueId
+                JOIN LeagueStandings ls on ls.LeagueId = lg.LeagueId AND ls.TeamId = lg.TeamId
+                WHERE lg.GroupId = ? AND lg.LeagueId = ?
+                ORDER BY ls.Wins DESC, ls.Losses ASC
+        `,[groupInfo.GroupId, groupInfo.LeagueId]);
+
+    };
 
     getRecentMatches(numMatches) {
         return this.queryDatabase(
