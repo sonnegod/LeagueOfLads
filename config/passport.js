@@ -22,8 +22,8 @@ else if(process.env.ENVIRONMENT === 'PROD'){
 }
 
 passport.use(new SteamStrategy({
-  returnURL: `http://localhost:${process.env.SERVER_PORT}/api/auth/steam/return`,//https://www.leagueoflads.com for both
-  realm: `http://localhost:${process.env.SERVER_PORT}/`,
+  returnURL: returnURL,
+  realm: realmURL,
   apiKey: STEAM_API_KEY
 }, (identifier, profile, done) => {
 
