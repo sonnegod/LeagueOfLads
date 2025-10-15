@@ -10,6 +10,17 @@ const STEAM_API_KEY = process.env.STEAM_API_KEY; // Replace with your real API k
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
+const returnURL = '';
+const realmURL = '';
+if(process.env.ENVIRONMENT === 'DEV'){
+  returnURL = `http://localhost:${process.env.SERVER_PORT}/api/auth/steam/return`;
+  realmURL = `http://localhost:${process.env.SERVER_PORT}/`;
+}
+else if(process.env.ENVIRONMENT === 'PROD'){
+  returnURL = `https://www.leagueoflads.com/api/auth/steam/return`;
+  realmURL = `https://www.leagueoflads.com/`;
+}
+
 passport.use(new SteamStrategy({
   returnURL: `http://localhost:${process.env.SERVER_PORT}/api/auth/steam/return`,//https://www.leagueoflads.com for both
   realm: `http://localhost:${process.env.SERVER_PORT}/`,
