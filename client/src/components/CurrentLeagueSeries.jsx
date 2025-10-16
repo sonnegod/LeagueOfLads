@@ -20,8 +20,8 @@ export default function CurrentLeagueSeries({ seriesList }) {
         <thead>
           <tr>
             <th style={thStyle}>Time</th>
-            <th style={thStyle}>Radiant Team</th>
-            <th style={thStyle}>Dire Team</th>
+            <th style={thStyle}>Team</th>
+            <th style={thStyle}>Team</th>
           </tr>
         </thead>
         <tbody>
@@ -99,4 +99,4 @@ export default function CurrentLeagueSeries({ seriesList }) {
 
 const tableStyle = { width: "100%", borderCollapse: "collapse", minWidth: "900px" };
 const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
-const tdStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
+const tdStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center",  color: "black" };

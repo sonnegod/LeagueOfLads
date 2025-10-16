@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import CurrentLeagueSeries from "../components/CurrentLeagueSeries";
-
+import CurrentLeaderboardTable from "../components/CurrentLeaderboardTable";
 
 export default function Home() {
   const [series, setSeries] = useState([]);
@@ -14,7 +14,7 @@ export default function Home() {
       try {
         const res = await fetch("/api/homepageSeries");
         const data = await res.json();
-        console.log(data);
+
         setSeries(data);
       } catch (err) {
         console.error("Error fetching series:", err);
@@ -30,13 +30,13 @@ export default function Home() {
 
   return (
     <div style={{ padding: "1rem" }}>
-      <h1>Recent Series</h1>
-      <CurrentLeagueSeries seriesList={series} />
+      <h1>Group Leaderboard</h1>
+      <CurrentLeaderboardTable />      
 
       <hr style={{ margin: "2rem 0" }} />
 
-      <h2>Group Leaderboard (Coming Soon)</h2>
-      {/*<CurrentLeaderboardTable />*/}
+      <h2>Recent Series</h2>
+      <CurrentLeagueSeries seriesList={series} />
     </div>
   );
 }

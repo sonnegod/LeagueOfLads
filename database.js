@@ -5,10 +5,12 @@ dotenv.config();
 class DBInstance {
     constructor(){
         if(!DBInstance.instance){
-            if(process.env.ENVIRONMENT === 'DEV')
-                this.db = new Database('./db/LadsData.db');
-            if(process.env.ENVIRONMENT === 'PROD')
-                this.db = new Database('./db/LadsData.db');
+            const dbPath =
+                process.env.ENVIRONMENT === 'DEV'
+                ? path.resolve('./db/LadsData.db') 
+                : '/root/LeagueOfLads/db/LadsData.db';
+                
+            this.db = new Database(dbPath);
             this.preloadedData = this.preloadData();
             DBInstance.instance = this;
         }
@@ -515,7 +517,30 @@ class DBInstance {
 
     getCurrentLeagueLeaderboard(){
 
+        return this.queryDatabase(`
+            SELECT DISTINCT lg.GroupID, g.GroupName, lg.LeagueId
+            FROM LeagueGroups lg
+            JOIN GroupNames g on g.GroupId = lg.GroupId
+            Join LeagueInfo l on l.LeagueId = lg.LeagueId
+            WHERE l.Active = 1
+            ORDER BY lg.GroupID
+        `);
+        
     }
+
+    getGroupStats(groupInfo){
+        return this.queryDatabase( `
+            SELECT lg.TeamId, t.TeamName, ls.Wins, ls.Losses
+                FROM LeagueGroups lg
+                JOIN TeamInfo t ON t.TeamId = lg.TeamId
+                JOIN GroupNames g on g.GroupId = lg.GroupId
+                Join LeagueInfo l on l.LeagueId = lg.LeagueId
+                JOIN LeagueStandings ls on ls.LeagueId = lg.LeagueId AND ls.TeamId = lg.TeamId
+                WHERE lg.GroupId = ? AND lg.LeagueId = ?
+                ORDER BY ls.Wins DESC, ls.Losses ASC
+        `,[groupInfo.GroupId, groupInfo.LeagueId]);
+
+    };
 
     getRecentMatches(numMatches) {
         return this.queryDatabase(
