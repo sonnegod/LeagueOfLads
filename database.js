@@ -5,10 +5,12 @@ dotenv.config();
 class DBInstance {
     constructor(){
         if(!DBInstance.instance){
-            if(process.env.ENVIRONMENT === 'DEV')
-                this.db = new Database('./db/LadsData.db');
-            if(process.env.ENVIRONMENT === 'PROD')
-                this.db = new Database('./db/LadsData.db');
+            const dbPath =
+                process.env.ENVIRONMENT === 'DEV'
+                ? path.resolve('./db/LadsData.db') 
+                : '/root/LeagueOfLads/db/LadsData.db';
+                
+            this.db = new Database(dbPath);
             this.preloadedData = this.preloadData();
             DBInstance.instance = this;
         }
