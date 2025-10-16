@@ -244,6 +244,36 @@ router.get('/player/:accountId', async (req, res) => {
   }
 });
 
+router.get('/playerDashboard/:accountId', async (req, res) => {
+  const { accountId } = req.params;
+  try {
+    const playerStats = await db.getPlayerByAccountId(accountId);
+    const playerHeroStats = await db.getPlayerHeroesByAccountId(accountId);
+    const playerTeamStats = await db.getPlayerDetails(accountId, null);
+    const currentLeagueId = await db.getCurrentLeague();
+    const getPlayerSeasonStats =  await db.getPlayerSeasonStatsByAccountId(accountId)
+    
+    const mostSuccessfulHero = await playerHeroStats.filter(hero => hero.GamesPlayed >= 3 && hero.WinPercentage >= 60).sort((a, b) => a.WinPercentage - b.WinPercentage).pop();
+    const mostSuccessfulTeam = await playerTeamStats.sort((a, b) => a.WinPercentage - b.WinPercentage).pop();
+    const recentLeagueStats = await playerStats.filter(stat => stat.LeagueId === currentLeagueId).slice(0, 5);
+    const currentSeasonMSH = await getPlayerSeasonStats.pop() || null
+
+    if (!playerStats || !playerHeroStats || !playerTeamStats) return res.status(404).json({ error: 'Player Data not found' });
+
+    res.json({
+      playerStats,
+      mostSuccessfulHero,
+      mostSuccessfulTeam,
+      recentLeagueStats,
+      playerTeamStats,
+      getPlayerSeasonStats,
+      currentSeasonMSH
+    });
+    } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/players/:playerId/details', async (req, res) => {
   const { playerId } = req.params;
   const { leagueId } = req.query;
@@ -262,6 +292,7 @@ router.get('/players/:playerId/details', async (req, res) => {
 
 router.get('/hero/:heroId', async (req, res) => {
   const { heroId } = req.params;
+
   try {
     const hero = await db.getHeroById(heroId);
     const heroPlayerStats = await db.getHeroesPlayerByHeroId(heroId)
@@ -281,7 +312,6 @@ router.get('/hero/:heroId', async (req, res) => {
 });
 
 router.get('/heroes', async (req, res) => {
-
   try {
     const hero = await db.getHeroes();
 
@@ -472,6 +502,5 @@ router.get('/currentLeaderboard', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
 
 export default router;

@@ -7,7 +7,7 @@ class DBInstance {
         if(!DBInstance.instance){
             const dbPath =
                 process.env.ENVIRONMENT === 'DEV'
-                ? path.resolve('./db/LadsData.db') 
+                ? './db/LadsData.db'
                 : '/root/LeagueOfLads/db/LadsData.db';
                 
             this.db = new Database(dbPath);
@@ -372,6 +372,34 @@ class DBInstance {
         const params = [heroId];
 
         return this.queryDatabase(baseQuery, params);
+    }
+
+    getPlayerSeasonStatsByAccountId(playerId){
+        let baseQuery = `
+            SELECT 
+                h.HeroName,
+                COUNT(*) AS games_played,
+                SUM(CASE WHEN mp.Winner = 1 THEN 1 ELSE 0 END) AS wins,
+                ROUND(100.0 * SUM(CASE WHEN mp.Winner = 1 THEN 1 ELSE 0 END) / COUNT(mp.MatchId), 2) AS WinPercentage,
+                ROUND(AVG(mp.Kills), 2) AS AvgKills,
+                ROUND(AVG(mp.Deaths), 2) AS AvgDeaths,
+                ROUND(AVG(mp.Assists), 2) AS AvgAssists,
+                ROUND(AVG(mp.Lasthits), 2) AS AvgLastHits,
+                ROUND(AVG(mp.GPM), 2) AS AvgGPM,
+                ROUND(AVG(mp.XPM), 2) AS AvgXPM
+            FROM MatchPlayer mp
+            JOIN MatchLeague ml ON mp.MatchId = ml.MatchId
+            JOIN LeagueInfo l ON ml.LeagueId = l.LeagueId
+            JOIN HeroInfo h ON mp.HeroId = h.HeroId
+            WHERE l.Active = 1
+              AND mp.PlayerId = ?
+            GROUP BY mp.HeroId, h.HeroName
+            ORDER BY WinPercentage ASC;
+            `
+
+            const params = [playerId];
+
+            return this.queryDatabase(baseQuery, params);
     }
 
     getHeroes(){
