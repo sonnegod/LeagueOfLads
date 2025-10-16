@@ -8,7 +8,7 @@ export default function PlayerPage() {
   const [playerData, setPlayerData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('recentmatches'); // stats, heroes, teams
-
+  console.log(playerData)
   useEffect(() => {
     async function fetchPlayer() {
       setLoading(true);
