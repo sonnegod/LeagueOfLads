@@ -9,7 +9,7 @@ export default function Dashboard() {
   if (!user) return <p>You are not logged in.</p>;
   
   const { accountId } = user;
-  console.log(accountId)
+  
   return (
     <div>
       <h1>Welcome, {user.personaname}</h1>

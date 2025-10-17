@@ -4,7 +4,7 @@ import { HeroCard } from "./HeroCard";
 export function PersonalStats({ accountId }) {
   const [playerData, setPlayerData] = useState(null);
   const { mostSuccessfulHero, currentSeasonMSH } = playerData || {};
-  
+
   useEffect(() => {
     async function fetchPlayer() {
       try {
@@ -13,6 +13,7 @@ export function PersonalStats({ accountId }) {
         const data = await res.json();
         console.log(data);
         setPlayerData(data);
+        
       } catch (err) {
         console.error(err);
         setPlayerData(null);
