@@ -7,8 +7,9 @@ export default function PlayerPage() {
   const { player_id } = useParams(); // gets :player_id from URL
   const [playerData, setPlayerData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('recentmatches'); // stats, heroes, teams
-  console.log(playerData)
+  const [activeTab, setActiveTab] = useState('season'); // stats, heroes, teams
+  const currentSeasonPlayerData = playerData?.playerStats?.filter(stat => stat.LeagueId === playerData.LeagueId);
+  
   useEffect(() => {
     async function fetchPlayer() {
       setLoading(true);
@@ -34,19 +35,20 @@ export default function PlayerPage() {
   const { playerStats, playerHeroStats, playerTeamStats } = playerData;
 
   return (
-    <div style={{ padding: "1rem" }}>
-      <h1>{playerStats[0]?.PlayerName || player_id}</h1>
+    <div className='p-4'>
+      <h1 className="mb-4">{playerStats[0]?.PlayerName || player_id}</h1>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-        <button onClick={() => setActiveTab('recentmatches')} style={activeTab === 'recentmatches' ? activeTabStyle : tabStyle}>Recent Matches</button>
+      <div className='flex gap-2 mb-4'>
+        <button onClick={() => setActiveTab('season')} style={activeTab === 'season' ? activeTabStyle : tabStyle}>Season Stats</button>
+        <button onClick={() => setActiveTab('allMatches')} style={activeTab === 'allMatches' ? activeTabStyle : tabStyle}>Total Matches</button>
         <button onClick={() => setActiveTab('heroes')} style={activeTab === 'heroes' ? activeTabStyle : tabStyle}>Heroes</button>
         <button onClick={() => setActiveTab('teams')} style={activeTab === 'teams' ? activeTabStyle : tabStyle}>Teams</button>
       </div>
 
       {/* Tab content */}
-      {activeTab === 'recentmatches' && <PlayerStatsTable data={playerStats} />}
-
+      {activeTab === 'season' && <PlayerStatsTable data={currentSeasonPlayerData} />}
+      {activeTab === 'allMatches' && <PlayerStatsTable data={playerStats} />}
       {activeTab === 'heroes' && (
         <table style={tableStyle}>
           <thead>

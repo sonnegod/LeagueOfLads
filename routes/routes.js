@@ -231,13 +231,15 @@ router.get('/player/:accountId', async (req, res) => {
     const playerStats = await db.getPlayerByAccountId(accountId);
     const playerHeroStats = await db.getPlayerHeroesByAccountId(accountId);
     const playerTeamStats = await db.getPlayerDetails(accountId, null);
-
+    const currentLeague = await db.getCurrentLeague()
+    const currentLeagueId = currentLeague[0]
     if (!playerStats || !playerHeroStats || !playerTeamStats) return res.status(404).json({ error: 'Player Data not found' });
 
     res.json({
       playerStats,
       playerHeroStats,
-      playerTeamStats
+      playerTeamStats,
+      ...currentLeagueId
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

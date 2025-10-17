@@ -57,7 +57,7 @@ export function PersonalStats({ accountId }) {
                       <div className="text-center">
                         GPM: {GPM} XPM: {XPM}
                       </div>
-                      <div className="p-2 text-center">{match.Winner === 0 ? 'L' : 'W'}</div>
+                      <div className={`p-2 text-center ${match.Winner === 0 ? 'text-red-500' : 'text-green-500'}`}>{match.Winner === 0 ? 'L' : 'W'}</div>
                     </div>
                   )
                 })}
