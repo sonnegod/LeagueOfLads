@@ -32,10 +32,25 @@ export function PersonalStats({ accountId }) {
               </h2>
               <div className="flex">
                 {playerData.recentLeagueStats.map((match) => {
-                  const { HeroName, Kills, Deaths, Assists, GPM, XPM } = match;
+                  const {
+                    HeroName,
+                    Kills,
+                    Deaths,
+                    Assists,
+                    GPM,
+                    XPM,
+                    MatchId,
+                  } = match;
                   return match.Winner === 0 ? (
                     <div className="flex-col">
-                      <div className="text-center">{HeroName}</div>
+                      <div className="text-center">
+                        <a
+                          href={`https://www.dotabuff.com/matches/${MatchId}`}
+                          className="text-center"
+                        >
+                          {HeroName}
+                        </a>
+                      </div>
                       <div className="text-center">
                         Kills: {Kills} Deaths: {Deaths} Assists: {Assists}
                       </div>
@@ -46,7 +61,14 @@ export function PersonalStats({ accountId }) {
                     </div>
                   ) : (
                     <div className="flex-col">
-                      <div className="text-center">{HeroName}</div>
+                      <div className="text-center">
+                        <a
+                          href={`https://www.dotabuff.com/matches/${MatchId}`}
+                          className="text-center"
+                        >
+                          {HeroName}
+                        </a>
+                      </div>
                       <div className="text-center">
                         Kills: {Kills} Deaths: {Deaths} Assists: {Assists}
                       </div>
