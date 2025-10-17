@@ -27,7 +27,7 @@ export function PersonalStats({ accountId }) {
         <>
           <div className="flex">
             <div className="flex-col">
-              <h2 className="text-yellow-500 mr-8 text-lg">
+              <h2 className="text-yellow-500 mr-8 text-lg text-center">
                 Your Recent Matches
               </h2>
               <div className="flex">
