@@ -26,23 +26,44 @@ export function PersonalStats({ accountId }) {
       {playerData ? (
         <>
           <div className="flex">
-            <h2 className="text-yellow-500 mr-8 text-lg">
-              Your Recent Matches
-            </h2>
-            <div className="flex flex-row">
-              {playerData.recentLeagueStats.map((match) =>
-                match.Winner === 0 ? (
-                  <div className="p-2">L</div>
-                ) : (
-                  <div className="p-2">W</div>
-                )
-              )}
+            <div className="flex-col">
+              <h2 className="text-yellow-500 mr-8 text-lg">
+                Your Recent Matches
+              </h2>
+              <div className="flex">
+                {playerData.recentLeagueStats.map((match) => {
+                  const { HeroName, Kills, Deaths, Assists, GPM, XPM } = match;
+                  return match.Winner === 0 ? (
+                    <div className="flex-col">
+                      <div className="text-center">{HeroName}</div>
+                      <div className="text-center">
+                        Kills: {Kills} Deaths: {Deaths} Assists: {Assists}
+                      </div>
+                      <div className="text-center">
+                        GPM: {GPM} XPM: {XPM}
+                      </div>
+                      <div className="p-2 text-center">L</div>
+                    </div>
+                  ) : (
+                    <div className="flex-col">
+                      <div className="text-center">{HeroName}</div>
+                      <div className="text-center">
+                        Kills: {Kills} Deaths: {Deaths} Assists: {Assists}
+                      </div>
+                      <div className="text-center">
+                        GPM: {GPM} XPM: {XPM}
+                      </div>
+                      <div className="p-2 text-center">W</div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             <div className="flex-col">
               <div className="text-orange-600 text-lg text-center">
                 Most successful Hero
               </div>
-                <HeroCard hero={mostSuccessfulHero} />
+              <HeroCard hero={mostSuccessfulHero} />
             </div>
             <div className="flex-col">
               <div className="text-orange-600 text-lg text-center">

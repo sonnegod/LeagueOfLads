@@ -255,7 +255,7 @@ router.get('/playerDashboard/:accountId', async (req, res) => {
     
     const mostSuccessfulHero = await playerHeroStats.filter(hero => hero.GamesPlayed >= 3 && hero.WinPercentage >= 60).sort((a, b) => a.WinPercentage - b.WinPercentage).pop();
     const mostSuccessfulTeam = await playerTeamStats.sort((a, b) => a.WinPercentage - b.WinPercentage).pop();
-    const recentLeagueStats = await playerStats.filter(stat => stat.LeagueId === currentLeagueId).slice(0, 5);
+    const recentLeagueStats = await playerStats.filter(stat => stat.LeagueId === 17636).slice(0, 5);
     const currentSeasonMSH = await getPlayerSeasonStats.pop() || null
 
     if (!playerStats || !playerHeroStats || !playerTeamStats) return res.status(404).json({ error: 'Player Data not found' });
