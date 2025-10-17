@@ -41,8 +41,8 @@ export function PersonalStats({ accountId }) {
                     XPM,
                     MatchId,
                   } = match;
-                  return match.Winner === 0 ? (
-                    <div className="flex-col">
+                  return (
+                    <div className="flex-col mr-4">
                       <div className="text-center">
                         <a
                           href={`https://www.dotabuff.com/matches/${MatchId}`}
@@ -52,32 +52,14 @@ export function PersonalStats({ accountId }) {
                         </a>
                       </div>
                       <div className="text-center">
-                        Kills: {Kills} Deaths: {Deaths} Assists: {Assists}
+                        K/D/A: {Kills}/{Deaths}/{Assists}
                       </div>
                       <div className="text-center">
                         GPM: {GPM} XPM: {XPM}
                       </div>
-                      <div className="p-2 text-center">L</div>
+                      <div className="p-2 text-center">{match.Winner === 0 ? 'L' : 'W'}</div>
                     </div>
-                  ) : (
-                    <div className="flex-col">
-                      <div className="text-center">
-                        <a
-                          href={`https://www.dotabuff.com/matches/${MatchId}`}
-                          className="text-center"
-                        >
-                          {HeroName}
-                        </a>
-                      </div>
-                      <div className="text-center">
-                        Kills: {Kills} Deaths: {Deaths} Assists: {Assists}
-                      </div>
-                      <div className="text-center">
-                        GPM: {GPM} XPM: {XPM}
-                      </div>
-                      <div className="p-2 text-center">W</div>
-                    </div>
-                  );
+                  )
                 })}
               </div>
             </div>
