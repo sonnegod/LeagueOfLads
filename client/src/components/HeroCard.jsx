@@ -9,7 +9,7 @@ export function HeroCard({ hero }) {
             Average Kills: {hero.AvgKills} Average Deaths: {hero.AvgDeaths}
           </div>
           <div className="text-center">
-            Games played {hero.GamesPlayed} Win Percentage: {hero.WinPercentage}
+            Games played: {hero.GamesPlayed} Win Percentage: {hero.WinPercentage}
           </div>
         </>
       ) : (
