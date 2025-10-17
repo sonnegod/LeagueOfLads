@@ -27,11 +27,11 @@ export function PersonalStats({ accountId }) {
         <>
           <div className="flex">
             <div className="flex-col">
-              <h2 className="text-yellow-500 mr-8 text-lg text-center">
+              <h2 className="text-yellow-500 mr-14 mb-4 text-lg text-center">
                 Your Recent Matches
               </h2>
               <div className="flex">
-                {playerData.recentLeagueStats.map((match) => {
+                {playerData.length ? playerData.recentLeagueStats.map((match) => {
                   const {
                     HeroName,
                     Kills,
@@ -60,17 +60,17 @@ export function PersonalStats({ accountId }) {
                       <div className={`p-2 text-center ${match.Winner === 0 ? 'text-red-500' : 'text-green-500'}`}>{match.Winner === 0 ? 'L' : 'W'}</div>
                     </div>
                   )
-                })}
+                }) : <div className="text-center">No matches this season.</div>}
               </div>
             </div>
-            <div className="flex-col">
-              <div className="text-orange-600 text-lg text-center">
+            <div className="flex-col mr-14">
+              <div className="text-orange-600 text-lg text-center mb-4">
                 Most successful Hero
               </div>
               <HeroCard hero={mostSuccessfulHero} />
             </div>
-            <div className="flex-col">
-              <div className="text-orange-600 text-lg text-center">
+            <div className="flex-col mr-14">
+              <div className="text-orange-600 text-lg text-center mb-4">
                 Most successful Hero This Season
               </div>
               <HeroCard hero={currentSeasonMSH} />
