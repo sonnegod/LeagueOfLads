@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+cd /root/LeagueOfLads
+
 # Ensure log directory exists
 LOG_DIR="/root/LeagueOfLads/Logs"
 mkdir -p "$LOG_DIR"
