@@ -7,9 +7,9 @@ class DBInstance {
         if(!DBInstance.instance){
             const dbPath =
                 process.env.ENVIRONMENT === 'DEV'
-                ? path.resolve('./db/LadsData.db') 
+                ? './db/LadsData.db' 
                 : '/root/LeagueOfLads/db/LadsData.db';
-                
+
             this.db = new Database(dbPath);
             this.preloadedData = this.preloadData();
             DBInstance.instance = this;
