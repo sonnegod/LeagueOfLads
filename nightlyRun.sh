@@ -17,6 +17,10 @@ echo "$(date) - Starting nightly jobs" >> "$LOG_FILE"
 /usr/bin/node /root/LeagueOfLads/matchDetails.js >> "$LOG_FILE" 2>&1
 /usr/bin/node /root/LeagueOfLads/populateTeamNames.js >> "$LOG_FILE" 2>&1
 
-cp 
+echo "Copying Files" >> "$LOG_FILE"
+cp /db/LadsData.db /db/LadsDataProd.db
+cp /db/LadsData.db /root/LadsDataProdBKUP.db
+
+echo "Files Copied" >> "$LOG_FILE"
 
 echo "$(date) - Nightly jobs complete" >> "$LOG_FILE"
