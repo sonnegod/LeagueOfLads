@@ -19,7 +19,6 @@ class DBInstance {
     }
 
     preloadData(){
-        console.log(this.db)
         const users = this.queryDatabase('SELECT * FROM PlayerInfo');
         const teams = this.queryDatabase('SELECT * FROM Team');
         const teamNames = this.queryDatabase('SELECT * FROM TeamInfo');
@@ -1125,7 +1124,6 @@ class DBInstance {
 
     insertNewPlayers(playerData) {
         try {
-            console.log(this.db)
             const stmt = this.db.prepare(`INSERT INTO PlayerInfo (PlayerId, PlayerName)
                                           VALUES (@player_id, @player_name)`);
             playerData.forEach(player => {

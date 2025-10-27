@@ -6,7 +6,6 @@ export default function NameChangeDashboard() {
   const [newName, setNewName] = useState('');
   const [status, setStatus] = useState('');
   const { user, loading } = useAuth();
-  console.log(newName)
   const handleConfirm = async () => {
     if (!newName.trim()) return;
 

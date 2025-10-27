@@ -17,8 +17,6 @@ export default function LeaguePage() {
         const res = await fetch(`/api/leagues/${leagueId}`);
         const data = await res.json();
 
-        console.log(data);
-
         setLeague(data);
       } catch (err) {
         console.error(err);
