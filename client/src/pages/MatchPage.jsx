@@ -13,7 +13,6 @@ export default function MatchPage() {
       try {
         const res = await fetch(`/api/matches/${matchId}`);
         const data = await res.json();
-        console.log(data)
         setMatch(data);
       } catch (err) {
         console.error(err);

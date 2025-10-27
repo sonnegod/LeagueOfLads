@@ -65,7 +65,6 @@ router.post('/nameChange', (req, res) => {
    try {
     // Call your DB function that handles validation & update
     const result = db.changeName(userId, newName);
-    console.log(result);
     if (!result.success) {
       // e.g., result.message could be "You must wait X days"
       return res.status(400).json({ error: result.message });
