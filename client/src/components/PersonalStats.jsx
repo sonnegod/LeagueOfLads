@@ -11,6 +11,7 @@ export function PersonalStats({ accountId }) {
         const res = await fetch(`/api/playerDashboard/${accountId}`);
         if (!res.ok) throw new Error("Player not found");
         const data = await res.json();
+        console.log(data);
         setPlayerData(data);
       } catch (err) {
         console.error(err);
@@ -30,7 +31,7 @@ export function PersonalStats({ accountId }) {
                 Your Recent Matches
               </h2>
               <div className="flex">
-                {playerData.length ? playerData.recentLeagueStats.map((match) => {
+                {playerData.recentLeagueStats.length ? playerData.recentLeagueStats.map((match) => {
                   const {
                     HeroName,
                     Kills,
@@ -44,7 +45,7 @@ export function PersonalStats({ accountId }) {
                     <div className="flex-col mr-4">
                       <div className="text-center">
                         <a
-                          href={`https://www.dotabuff.com/matches/${MatchId}`}
+                          href={`/match/${MatchId}`}
                           className="text-center"
                         >
                           {HeroName}

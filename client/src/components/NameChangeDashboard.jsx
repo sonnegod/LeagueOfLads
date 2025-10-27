@@ -47,7 +47,7 @@ export default function NameChangeDashboard() {
       />
       <button
         onClick={handleConfirm}
-        className="bg-blue-600 text-white px-3 py-1 rounded w-full hover:bg-blue-700"
+        className="bg-blue-600 border-2 border-black px-3 py-1 rounded w-full hover:bg-blue-700"
       >
         Confirm Name
       </button>
