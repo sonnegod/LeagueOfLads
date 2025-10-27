@@ -34,89 +34,95 @@ async function getMatchDetails(matches){
             matchDetailCallsToday++;
             console.log(`(${matchDetailCallsToday}) Match ${match.MatchId} details pulled.`);
 
-            if(data.picks_bans)
-                db.insertPickBanData(match.MatchId,data.picks_bans);
-
-            db.insertMatchDetailsPlayer(match.MatchId, data.players);
-     
-
-            // Insert new players (optimized from earlier step) here...
-            const newPlayers = [];
-
-
-            if(data.players.length < 10)
-            {
-                badMatches.push({
-                    match_id: match.MatchId,
-                    player_number: data.players.length,
-                }); 
+            //indicates that this match got remade
+            if(data.radiant_score === 0 && data.dire_score === 0){
+                db.deleteRemakeMatch(match.MatchId);
             }
+            else{
+                if(data.picks_bans)
+                    db.insertPickBanData(match.MatchId,data.picks_bans);
 
-            for (const player of data.players) {
-                const accountId = player.account_id;
+                db.insertMatchDetailsPlayer(match.MatchId, data.players);
+        
 
-                if (accountId && !knownPlayers.has(accountId)) {
-                    knownPlayers.add(accountId); // add to set so we don’t check again
-                    newPlayers.push({
-                        player_id: accountId,
-                        player_name: player.personaname || '', // fallback to null if not present
-                    });
+                // Insert new players (optimized from earlier step) here...
+                const newPlayers = [];
+
+
+                if(data.players.length < 10)
+                {
+                    badMatches.push({
+                        match_id: match.MatchId,
+                        player_number: data.players.length,
+                    }); 
                 }
-                if (accountId !== null && accountId !== undefined) {
-                    let teamCode = null;
 
-                    if (player.player_slot >= 0 && player.player_slot <= 4) {
-                        teamCode = 'R'; // Radiant
-                    } else if (player.player_slot >= 128 && player.player_slot <= 132) {
-                        teamCode = 'D'; // Dire
+                for (const player of data.players) {
+                    const accountId = player.account_id;
+
+                    if (accountId && !knownPlayers.has(accountId)) {
+                        knownPlayers.add(accountId); // add to set so we don’t check again
+                        newPlayers.push({
+                            player_id: accountId,
+                            player_name: player.personaname || '', // fallback to null if not present
+                        });
                     }
+                    if (accountId !== null && accountId !== undefined) {
+                        let teamCode = null;
 
-                    if (teamCode) {
-                        db.InsertMatchTeamPlayer(matchId, accountId, teamCode);
+                        if (player.player_slot >= 0 && player.player_slot <= 4) {
+                            teamCode = 'R'; // Radiant
+                        } else if (player.player_slot >= 128 && player.player_slot <= 132) {
+                            teamCode = 'D'; // Dire
+                        }
+
+                        if (teamCode) {
+                            db.InsertMatchTeamPlayer(matchId, accountId, teamCode);
+                        }
                     }
                 }
-            }
 
-            if (newPlayers.length > 0) {
-                db.insertNewPlayers(newPlayers); 
-                console.log(`Inserted ${newPlayers.length} new players.`);
-            }
+                if (newPlayers.length > 0) {
+                    db.insertNewPlayers(newPlayers); 
+                    console.log(`Inserted ${newPlayers.length} new players.`);
+                }
 
-            const winTeamId = data.radiant_win
-                ? data.radiant_team_id
-                : data.dire_team_id;
+                const winTeamId = data.radiant_win
+                    ? data.radiant_team_id
+                    : data.dire_team_id;
 
-            const loseTeamId = data.radiant_win
-                ? data.dire_team_id
-                : data.radiant_team_id;
+                const loseTeamId = data.radiant_win
+                    ? data.dire_team_id
+                    : data.radiant_team_id;
 
-            db.insertTeamWin(match.MatchId, winTeamId);
-            db.insertDuration(match.MatchId,data.duration);
+                db.insertTeamWin(match.MatchId, winTeamId);
+                db.insertDuration(match.MatchId,data.duration);
 
-            //creating series
-            let yesterdaysDate = new Date();
-            yesterdaysDate.setDate(yesterdaysDate.getDate() - 1);
-            yesterdaysDate = yesterdaysDate.toISOString().split('T')[0];
+                //creating series
+                let yesterdaysDate = new Date();
+                yesterdaysDate.setDate(yesterdaysDate.getDate() - 1);
+                yesterdaysDate = yesterdaysDate.toISOString().split('T')[0];
 
-            const existing = db.checkSeries(data.dire_team_id,data.radiant_team_id);
+                const existing = db.checkSeries(data.dire_team_id,data.radiant_team_id);
 
-            let seriesId;
-            if (existing.length === 0) {
-                const resultSeries = db.insertTempSeries(data.dire_team_id,data.radiant_team_id,yesterdaysDate)
+                let seriesId;
+                if (existing.length === 0) {
+                    const resultSeries = db.insertTempSeries(data.dire_team_id,data.radiant_team_id,yesterdaysDate)
 
-                if(resultSeries === 2)
-                    console.error(`Failed to insert series ${data.dire_team_id} - ${data.radiant_team_id}`);
+                    if(resultSeries === 2)
+                        console.error(`Failed to insert series ${data.dire_team_id} - ${data.radiant_team_id}`);
+                    
+                    seriesId = resultSeries;
+                } else {
+                    seriesId = existing[0].SeriesId;
+                }
                 
-                seriesId = resultSeries;
-            } else {
-                seriesId = existing[0].SeriesId;
+                const seriesMatch = db.insertSeriesMatch(seriesId,match.MatchId);
+                if(seriesMatch === 2)
+                    console.error(`Failed to insert series match ${seriesId} - ${match.MatchId}`);
+                
+                db.insertLeagueStanding(match.MatchId, winTeamId, loseTeamId)
             }
-            
-            const seriesMatch = db.insertSeriesMatch(seriesId,match.MatchId);
-            if(seriesMatch === 2)
-                console.error(`Failed to insert series match ${seriesId} - ${match.MatchId}`);
-            
-            db.insertLeagueStanding(match.MatchId, winTeamId, loseTeamId)
         } catch (err) {
             console.error(`Failed to fetch match ${match.MatchId}:`, err);
         }
