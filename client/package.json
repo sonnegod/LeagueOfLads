@@ -16,6 +16,9 @@
     "@tanstack/react-table": "^8.21.3",
     "ag-grid-community": "^34.1.0",
     "ag-grid-react": "^34.1.0",
+    "brackets-manager": "^1.7.0",
+    "brackets-viewer": "^1.8.1",
+    "d3": "^7.9.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.7.1"

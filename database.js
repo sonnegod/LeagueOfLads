@@ -48,6 +48,21 @@ class DBInstance {
         }
     }
 
+
+    getPlayoffGames(leagueId){
+
+        return this.queryDatabase(
+            `SELECT mt.*,ti1.TeamName as Team1,ti2.TeamName AS Team2
+            FROM MatchLeague ml
+            JOIN LeagueStageBoundaries lsb on ml.LeagueId = lsb.LeagueId
+            JOIN MatchTeam mt on mt.MatchId = ml.MatchId
+            JOIN TeamInfo ti1 on mt.TeamRad = ti1.TeamId
+            JOIN TeamInfo ti2 on mt.TeamDire = ti2.TeamId
+            WHERE ml.LeagueId = ? and ml.MatchId >= lsb.PlayoffBeginMatchId`
+            ,[leagueId]
+        );
+    }
+
     search(query){
         try{
             
