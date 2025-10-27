@@ -1261,6 +1261,20 @@ class DBInstance {
         }
     }
 
+    deleteRemakeMatch(matchId){
+        try{
+            const deleteMT = this.db.queryDatabase(`DELETE FROM MatchTeam WHERE MatchId = ?`, [matchId]);
+            console.log(`Deleted MatchTeam info for `+matchId)
+
+            const deleteML = this.db.queryDatabase(`DELETE FROM MatchLeague WHERE MatchId = ?`, [matchId]);
+            console.log(`Deleted MatchLeague info for `+matchId)
+
+        } catch(err) {
+            console.log(err);
+            return -1;
+        }
+    }
+
     login(username, steamid, date){
         try {
             const stmt = this.db.prepare(`INSERT INTO Logins (Username, SteamID, LoginDate)
