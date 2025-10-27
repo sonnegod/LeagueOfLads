@@ -1,12 +1,12 @@
 // NameChangeDashboard.jsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export default function NameChangeDashboard() {
   const [newName, setNewName] = useState('');
   const [status, setStatus] = useState('');
   const { user, loading } = useAuth();
-
+  console.log(newName)
   const handleConfirm = async () => {
     if (!newName.trim()) return;
 

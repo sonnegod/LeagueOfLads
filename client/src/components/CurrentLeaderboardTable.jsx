@@ -12,7 +12,7 @@ export default function CurrentLeagueSeries({ seriesList }) {
       setLoading(true);
       try {
         const res = await fetch('/api/currentLeaderboard');
-        const data = await res.json();4
+        const data = await res.json();
         setGroups(data);
       } catch (err) {
         console.error(err);

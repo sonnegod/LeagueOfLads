@@ -9,7 +9,7 @@ export default function LeaguePage() {
   const [activeTab, setActiveTab] = useState("teams");
   const [expandedMatches, setExpandedMatches] = useState({});
   const [expandedHeroes, setExpandedHeroes] = useState({});
-
+  
   useEffect(() => {
     async function fetchLeague() {
       setLoading(true);

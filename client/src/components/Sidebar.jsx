@@ -11,7 +11,7 @@ export default function Sidebar() {
     <aside className="sidebar">
       <nav className="sidebar-nav">
         <Link to="/">Home</Link>
-        {user && <Link to="/dashboard">Dashboard</Link>}
+        {user ? <Link to="/dashboard">Dashboard</Link> : <a href="/api/auth/steam" >Login</a>}
 
         <Link to="/recentMatches">Recent Matches</Link>
         <Link to="/team">Teams</Link>

@@ -14,7 +14,6 @@ export default function Home() {
       try {
         const res = await fetch("/api/homepageSeries");
         const data = await res.json();
-
         setSeries(data);
       } catch (err) {
         console.error("Error fetching series:", err);
@@ -29,7 +28,7 @@ export default function Home() {
   if (loading) return <div>Loading recent series...</div>;
 
   return (
-    <div style={{ padding: "1rem" }}>
+    <div style={{ padding: "1rem" }}> 
       <h1>Group Leaderboard</h1>
       <CurrentLeaderboardTable />      
 

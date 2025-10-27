@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
 
@@ -14,9 +14,9 @@ export function AuthProvider({ children }) {
       })
       .then(
         userData => {
-      const accountId = steamId64ToAccountId(userData.steamid); // assumes field is 'steamId'
-          console.log(userData);
-      setUser({ ...userData, accountId });
+        const accountId = steamId64ToAccountId(userData.steamid); // assumes field is 'steamId'
+        console.log(userData);
+        setUser({ ...userData, accountId });
     })
     .catch(() => setUser(null))
     .finally(() => setLoading(false));
