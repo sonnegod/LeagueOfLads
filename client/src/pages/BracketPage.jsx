@@ -149,8 +149,8 @@ const exampleSeriesList = [
     Games: [ 8396270435, 8396298794 ],
     BestOf: 3,
     winnerTo: 54,
-    loserTo: null,
-    Bracket: 'L',
+    loserTo: 38,
+    Bracket: 'U',
     Round: 4
   },
   {
@@ -180,7 +180,7 @@ const exampleSeriesList = [
     BestOf: 3,
     winnerTo: 44,
     loserTo: 40,
-    Bracket: 'L',
+    Bracket: 'U',
     Round: 4
   },
   {
@@ -225,7 +225,7 @@ const exampleSeriesList = [
     BestOf: 3,
     winnerTo: 44,
     loserTo: 45,
-    Bracket: 'L',
+    Bracket: 'U',
     Round: 4
   },
   {
@@ -300,7 +300,7 @@ const exampleSeriesList = [
     BestOf: 3,
     winnerTo: 60,
     loserTo: null,
-    Bracket: 'L',
+    Bracket: 'U',
     Round: 3
   },
   {
