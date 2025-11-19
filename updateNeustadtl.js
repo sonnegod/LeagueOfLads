@@ -19,7 +19,7 @@ function scoreMatchSet(teamId, results) {
     else losses++;
   });
 
-  if (wins === 2) return 2;  // 2–0
+  if (wins === 2) return 3;  // 2–0
   if (wins === 1 && losses === 1) return 1; // 1–1
   return 0; // 0–2
 }
