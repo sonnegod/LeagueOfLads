@@ -92,6 +92,56 @@ router.get('/admin', checkAdmin, (req, res) => {
   res.json({ message: 'Welcome to the admin portal!' });
 });
 
+router.post('/admin/updateMatchTeams', (req, res) => {
+  
+  const matchId = req.body.matchId;
+  const teamRad = req.body.team1;
+  const teamDire = req.body.team2;
+  const winnerId = req.body.winner;
+
+  const originalTeamRad = req.body.team1Old;
+  const originalTeamDire = req.body.team2Old;
+
+  try {
+    // Call your DB function that handles validation & update
+    const result = db.adminUpdateMatch(matchId, teamRad, teamDire, winnerId, originalTeamRad, originalTeamDire);
+    if (!result.success) {
+
+      return res.status(400).json({ error: result.message });
+    }
+
+    res.json({ success: true});
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/admin/currentLeagueTeams', (req, res) => {
+  try {
+
+    const result = db.adminCurrentTeams();
+
+      res.json({ result });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.get('/admin/currentLeagueTeamMatches/:teamId', (req, res) => {
+  try {
+    const { teamId } = req.params;
+
+    const result = db.adminCurrentTeamMatches(teamId);
+
+      res.json({ result });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 router.get('/logout', (req, res) => {
   req.logout(err => {
     if (err) console.error(err);
@@ -344,6 +394,37 @@ router.get('/teams', async (req, res) => {
   }
 });
 
+router.get('/activeTeams', async (req, res) => {
+  try {
+    const teams = await db.getActiveTeams();
+
+    if (!teams) return res.status(404).json({ error: 'Teams not found' });
+    
+    res.json({
+      teams
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/matchEdit/:matchId', async (req, res) => {
+  const { matchId } = req.params;
+  try {
+    const matchTeams = await db.getTeamsMatchEdit(matchId);
+
+    if (!matchTeams) return res.status(404).json({ error: 'Teams not found' });
+    
+    res.json({
+      team1: { TeamId: matchTeams[0].TeamRad, TeamName:  matchTeams[0].RadTeamName },
+      team2: { TeamId:  matchTeams[0].TeamDire, TeamName:  matchTeams[0].DireTeamName },
+      winner: { TeamId:  matchTeams[0].WinnerId, TeamName:  matchTeams[0].WinnerTeamName }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/teams/:teamId', async (req, res) => {
   const { teamId } = req.params;
   const { leagueId } = req.query;
@@ -486,9 +567,11 @@ router.get('/currentLeaderboard', async (req, res) => {
     const groupsWithTeams = await Promise.all(
       groups.map(async (group) => {
         const groupTeams = await db.getGroupStats(group);
+        const groupH2H = await db.getHeadToHeadStats(group);
         return {
           ...group,
           groupTeams, 
+          groupH2H
         };
       })
     );

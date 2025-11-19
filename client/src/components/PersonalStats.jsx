@@ -11,7 +11,6 @@ export function PersonalStats({ accountId }) {
         const res = await fetch(`/api/playerDashboard/${accountId}`);
         if (!res.ok) throw new Error("Player not found");
         const data = await res.json();
-        console.log(data);
         setPlayerData(data);
       } catch (err) {
         console.error(err);

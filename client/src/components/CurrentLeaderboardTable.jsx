@@ -13,6 +13,7 @@ export default function CurrentLeagueSeries({ seriesList }) {
       try {
         const res = await fetch('/api/currentLeaderboard');
         const data = await res.json();
+        console.log(data)
         setGroups(data);
       } catch (err) {
         console.error(err);
@@ -27,7 +28,9 @@ export default function CurrentLeagueSeries({ seriesList }) {
   <div style={containerStyle}>
     {groups.map(group => (
       <div key={group.GroupId} style={cardStyle}>
-        <h3 style={{ textAlign: "center", marginBottom: 8 }}>
+        <div style={{ flexGrow: 1 }}>
+
+        <h3 style={{ textAlign: "center", }}>
           {group.GroupName ? group.GroupName : `Group ${group.GroupId}`}
         </h3>
 
@@ -37,6 +40,7 @@ export default function CurrentLeagueSeries({ seriesList }) {
               <th style={thStyle}>Team</th>
               <th style={thStyle}>Wins</th>
               <th style={thStyle}>Losses</th>
+              <th style={thStyle}>Neustadtl</th>
             </tr>
           </thead>
           <tbody>
@@ -50,11 +54,17 @@ export default function CurrentLeagueSeries({ seriesList }) {
                   </td>
                   <td style={tdStyle}>{team.Wins}</td>
                   <td style={tdStyle}>{team.Losses}</td>
+                  <td style={tdStyle}>{team.Score}</td>
                 </tr>
               ))}
           </tbody>
         </table>
+        </div>
+        <div style={h2hContainerStyle}>
+      {buildH2HMatrix(group)}
+    </div>
       </div>
+      
     ))}
   </div>
 );
@@ -79,6 +89,112 @@ function getRowStyle(index, total) {
   return tanStyle;                                  // rest (middle)
 }
 
+function buildH2HMatrix(group) {
+  if (!group.groupH2H || !Array.isArray(group.groupH2H)) return null;
+
+  const teams = group.groupTeams;
+
+  // Fast lookup map
+  const h2hMap = {};
+  group.groupH2H.forEach(row => {
+    const key = `${row.TeamA}-${row.TeamB}`;
+    h2hMap[key] = row;
+  });
+
+  const smallTd = {
+    ...tdStyle,
+    fontSize: "10px",
+    padding: "4px"
+  };
+
+  return (
+    <table style={{ ...tableStyle, marginTop: "12px" }}>
+      <thead>
+        <tr>
+          <th style={h2hThStyle}></th>
+          {teams.map(t => (
+            <th key={t.TeamId} style={h2hThStyle}>
+              {t.TeamName}
+            </th>
+          ))}
+        </tr>
+      </thead>
+
+      <tbody>
+        {teams.map(rowTeam => (
+          <tr key={rowTeam.TeamId}>
+            <th style={h2hThStyle}>{rowTeam.TeamName}</th>
+
+            {teams.map(colTeam => {
+              // Diagonal cells (same team)
+              if (rowTeam.TeamId === colTeam.TeamId) {
+                return (
+                  <td
+                    key={colTeam.TeamId}
+                    style={{
+                      ...smallTd,
+                      background: "#eee"
+                    }}
+                  >
+                    —
+                  </td>
+                );
+              }
+
+              // Look up H2H match record
+              const match =
+                h2hMap[`${rowTeam.TeamId}-${colTeam.TeamId}`] ||
+                h2hMap[`${colTeam.TeamId}-${rowTeam.TeamId}`];
+
+              if (!match) {
+                return (
+                  <td key={colTeam.TeamId} style={smallTd}>
+                    0–0
+                  </td>
+                );
+              }
+
+              // Determine rowTeam and colTeam results
+              let winsRow = 0;
+              let winsCol = 0;
+
+              if (match.TeamA === rowTeam.TeamId) {
+                winsRow = match.WinsA;
+                winsCol = match.WinsB;
+              } else {
+                winsRow = match.WinsB;
+                winsCol = match.WinsA;
+              }
+
+              // Determine background color
+              let bgColor = "white";
+
+              if (winsRow === 2 && winsCol === 0) bgColor = "#d1fae5"; // green
+              else if (winsRow === 0 && winsCol === 2) bgColor = "#fecaca"; // red
+              else if (winsRow === 1 && winsCol === 1) bgColor = "#fed7aa"; // orange
+
+              return (
+                <td
+                  key={colTeam.TeamId}
+                  style={{
+                    ...smallTd,
+                    background: bgColor,
+                  }}
+                >
+                  {winsRow}–{winsCol}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+
+
+
 // Styles (replace your existing ones)
 const containerStyle = {
   display: "flex",
@@ -95,10 +211,11 @@ const cardStyle = {
   boxSizing: "border-box",
   flex: "1 1 340px",    // allow grow, allow shrink, base width 340px
   minWidth: 0,          // IMPORTANT: allow flex child to shrink
-  maxWidth: "420px",    // optional: limit how wide each card grows
+  maxWidth: "800px",    // optional: limit how wide each card grows
   background: "white",
   color: "black",
-
+   display: "flex",         // NEW
+  flexDirection: "column", // NEW
 };
 
 const tableStyle = {
@@ -122,4 +239,21 @@ const tdStyle = {
   padding: "8px",
   textAlign: "center",
   wordBreak: "break-word",
+};
+
+const h2hThStyle = {
+  ...thStyle,
+  whiteSpace: "normal",   // allow wrapping
+  fontSize: "10px",       // smaller text
+  maxWidth: "100px",       // prevents giant columns
+  padding: "4px",         // tighter look
+  overflowWrap: "break-word",   // modern
+  wordBreak: "break-word", 
+};
+
+const h2hContainerStyle = {
+  marginTop: "16px",
+  flexGrow: 1,               // forces matrix areas to fill equally
+  display: "flex",
+  alignItems: "stretch",
 };
