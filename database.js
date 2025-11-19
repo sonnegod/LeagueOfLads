@@ -241,7 +241,7 @@ class DBInstance {
                 ON mtp.MatchId = mp.MatchId AND mtp.PlayerId = mp.PlayerId
             JOIN TeamInfo t 
                 ON t.TeamId = mtp.TeamId
-                WHERE mp.PlayerId = ?
+            WHERE mp.PlayerId = ?
             GROUP BY t.TeamId
             ORDER BY GamesPlayed DESC;
         `, [playerId]);
@@ -416,6 +416,84 @@ class DBInstance {
             SELECT TeamDire as TeamId from MatchTeam`);
     }
 
+    getActiveLeague(){
+        return this.queryDatabase(`
+            SELECT LeagueId 
+            FROM LeagueInfo 
+            WHERE Active = 1`);
+    }
+
+    //returning all teams that are currently in the active league (can have bad teams)
+    getActiveTeams(){
+        return this.queryDatabase(`
+            SELECT DISTINCT
+                TeamId,
+                TeamName
+            FROM(
+                SELECT 
+                    mt.TeamRad AS TeamId,
+                    ti.TeamName
+                FROM MatchTeam mt
+                JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
+                JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
+                JOIN TeamInfo ti ON ti.TeamId = mt.TeamRad
+                WHERE li.Active = 1
+
+                UNION
+
+                SELECT 
+                    mt.TeamDire AS TeamId,
+                    ti.TeamName
+                FROM MatchTeam mt
+                JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
+                JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
+                JOIN TeamInfo ti ON ti.TeamId = mt.TeamDire
+                WHERE li.Active = 1
+            )
+            ORDER BY TeamName ASC;
+            `);
+    }
+
+    getActiveTeamsGroups(){
+        return this.queryDatabase(`
+            SELECT lg.TeamId,lg.GroupId
+            FROM LeagueGroups lg
+            JOIN LeagueInfo li on lg.LeagueId = li.LeagueId
+            WHERE li.Active = 1
+            `)
+    }
+
+    getResults(teamA,teamB){
+        return this.queryDatabase(`
+           SELECT WinnerId
+            FROM MatchTeam mt
+            JOIN MatchLeague ml ON mt.MatchId = ml.MatchId
+            JOIN LeagueInfo li ON ml.LeagueId = li.LeagueId
+            WHERE li.Active = 1
+            AND (
+                    (mt.TeamRad = ? AND mt.TeamDire = ?)
+                OR (mt.TeamRad = ? AND mt.TeamDire = ?)
+            )
+            `,[teamA,teamB,teamB,teamA])
+    }
+
+    getTeamsMatchEdit(MatchId){
+        return this.queryDatabase(`
+            SELECT 
+                TeamRad, 
+                ti1.TeamName as RadTeamName, 
+                TeamDire, 
+                ti2.TeamName as DireTeamName, 
+                WinnerId, 
+                ti3.TeamName as WinnerTeamName
+            FROM MatchTeam mt
+            JOIN TeamInfo ti1 on mt.TeamRad = ti1.TeamId
+            JOIN TeamInfo ti2 on mt.TeamDire = ti2.TeamId
+            JOIN TeamInfo ti3 on mt.WinnerId = ti3.TeamId
+            WHERE mt.MatchId = ?
+        `, [MatchId]);
+    };
+
 
     getAllTeams(leagueId) {
         let baseQuery = `
@@ -557,17 +635,57 @@ class DBInstance {
 
     getGroupStats(groupInfo){
         return this.queryDatabase( `
-            SELECT lg.TeamId, t.TeamName, ls.Wins, ls.Losses
+            SELECT lg.TeamId, t.TeamName, ls.Wins, ls.Losses, n.Score
                 FROM LeagueGroups lg
                 JOIN TeamInfo t ON t.TeamId = lg.TeamId
                 JOIN GroupNames g on g.GroupId = lg.GroupId
                 Join LeagueInfo l on l.LeagueId = lg.LeagueId
                 JOIN LeagueStandings ls on ls.LeagueId = lg.LeagueId AND ls.TeamId = lg.TeamId
+                JOIN Neustadtl n on n.TeamId = lg.TeamId
                 WHERE lg.GroupId = ? AND lg.LeagueId = ?
-                ORDER BY ls.Wins DESC, ls.Losses ASC
+                ORDER BY ls.Wins DESC,n.Score DESC 
         `,[groupInfo.GroupId, groupInfo.LeagueId]);
 
     };
+
+    getHeadToHeadStats(groupInfo){
+        return this.queryDatabase( `
+            SELECT
+                T1.TeamId AS TeamA,
+                T1.TeamName AS TeamAName,
+                T2.TeamId AS TeamB,
+                T2.TeamName AS TeamBName,
+                SUM(CASE WHEN MT.WinnerId = T1.TeamId THEN 1 ELSE 0 END) AS WinsA,
+                SUM(CASE WHEN MT.WinnerId = T2.TeamId THEN 1 ELSE 0 END) AS WinsB,
+                COUNT(MT.MatchId) AS MatchesPlayed
+            FROM LeagueGroups LG
+
+            -- Get all teams in the group
+            JOIN LeagueGroups LG2
+                ON LG.GroupId = LG2.GroupId
+            AND LG.LeagueId = LG2.LeagueId
+
+            -- Pair teams together (T1 vs T2)
+            JOIN TeamInfo T1 ON T1.TeamId = LG.TeamId
+            JOIN TeamInfo T2 ON T2.TeamId = LG2.TeamId AND T1.TeamId < T2.TeamId
+
+            -- Find any series-containing matches between Team1 + Team2
+            JOIN SeriesInfo SI 
+            ON (SI.Team1 = T1.TeamId AND SI.Team2 = T2.TeamId)
+            OR (SI.Team1 = T2.TeamId AND SI.Team2 = T1.TeamId)
+            JOIN SeriesMatch SM
+            ON SM.SeriesId = SI.SeriesId
+            JOIN MatchTeam MT
+            ON MT.MatchId = SM.MatchId
+            WHERE LG.LeagueId = ?
+            AND LG.GroupId = ?
+            GROUP BY
+                TeamA, TeamAName,
+                TeamB, TeamBName
+
+            ORDER BY TeamAName, TeamBName;
+        `,[groupInfo.LeagueId,groupInfo.GroupId]);
+    }
 
     getRecentMatches(numMatches) {
         return this.queryDatabase(
@@ -1036,6 +1154,151 @@ class DBInstance {
         }
     }
 
+    adminUpdateMatch(matchId, teamRad, teamDire, winnerId, originalTeamRad, originalTeamDire){
+        try {
+
+            this.db.prepare('UPDATE MatchTeam SET TeamRad = ?, TeamDire = ?, WinnerId = ? WHERE MatchId = ?')
+                .run(teamRad, teamDire, winnerId, matchId);
+
+            this.db.prepare(`INSERT INTO AdminAuditLog (
+                              Type,
+                              Message
+                          )
+                          VALUES (
+                              'MatchTeam Update',
+                              'Updated Match ${matchId} with values Team1 = ${teamRad}, Team2 = ${teamDire}, Winner = ${winnerId}'
+                          );
+                    `).run();
+
+            if (teamRad !== originalTeamRad) {
+                this.db.prepare(`UPDATE MatchTeamPlayer SET TeamId = ? WHERE MatchId = ?`)
+                .run(teamRad, matchId);
+
+                this.db.prepare(`INSERT INTO AdminAuditLog (
+                              Type,
+                              Message
+                          )
+                          VALUES (
+                              'MatchTeamPlayer Update',
+                              'Updated Match ${matchId} with values TeamId = ${teamRad}, old value = ${originalTeamRad}'
+                          );
+                    `).run();
+            }
+
+            if (teamDire !== originalTeamDire) {
+                this.db.prepare(`UPDATE MatchTeamPlayer SET TeamId = ? WHERE MatchId = ?`)
+                .run(teamDire, matchId);
+
+                this.db.prepare(`INSERT INTO AdminAuditLog (
+                              Type,
+                              Message
+                          )
+                          VALUES (
+                              'MatchTeamPlayer Update',
+                              'Updated Match ${matchId} with values TeamId = ${teamDire}, old value = ${originalTeamDire}'
+                          );
+                    `).run();
+            }
+
+            const oldSeries = this.queryDatabase(`
+                    SELECT
+                        si.SeriesId,
+                        si.DateCreated
+                    FROM
+                    SeriesInfo si
+                    JOIN SeriesMatch sm on si.SeriesId = sm.SeriesId
+                    WHERE sm.MatchId = ?
+                `, [matchId]);
+
+            console.log(oldSeries);
+            
+            const newSeries = this.queryDatabase(`
+                    SELECT
+                        SeriesId,
+                        DateCreated
+                    FROM
+                    SeriesInfo
+                    WHERE (Team1 = ? AND Team2 = ?)
+                        OR (Team1 = ? AND Team2 = ?)
+                        AND DateCreated = ?
+                `, [teamRad,teamDire,teamDire,teamRad,oldSeries[0].DateCreated]);
+
+            console.log(newSeries);
+
+
+            if(newSeries.length === 0){
+                console.log('testing empty')
+                this.db.prepare(`UPDATE SeriesInfo SET Team1 = ?, Team2 = ? WHERE SeriesId = ?`)
+                    .run(teamRad,teamDire,oldSeries[0].SeriesId);
+
+
+                this.db.prepare(`INSERT INTO AdminAuditLog (
+                                Type,
+                                Message
+                            )
+                            VALUES (
+                                'SeriesMatch Update',
+                                'Updated Series ${oldSeries[0].SeriesId} adding teams ${teamRad},${teamDire}'
+                            );
+                        `).run();
+                console.log('test');
+            }
+            else{
+                this.db.prepare(`UPDATE SeriesMatch SET SeriesId = ? WHERE MatchId = ?`)
+                    .run(newSeries[0].SeriesId, matchId);
+
+
+                this.db.prepare(`INSERT INTO AdminAuditLog (
+                                Type,
+                                Message
+                            )
+                            VALUES (
+                                'SeriesMatch Update',
+                                'Updated Series ${newSeries[0].SeriesId} add match ${matchId}'
+                            );
+                        `).run();
+            }
+
+
+            return { success: true, message: 'Match updated successfully!' };
+        } catch (err) {
+           return { success: false, error: err };
+        }
+    }
+
+    adminCurrentTeams(){
+        return this.queryDatabase(`
+            SELECT 
+                ti.TeamId,
+                ti.TeamName,
+                COUNT(mt.MatchId) AS MatchesPlayed
+            FROM TeamInfo ti
+            JOIN MatchTeam mt 
+                ON ti.TeamId = mt.TeamRad 
+                OR ti.TeamId = mt.TeamDire
+            JOIN MatchLeague ml
+                ON ml.MatchId = mt.MatchId
+            JOIN LeagueInfo li
+                ON li.LeagueId = ml.LeagueId
+            WHERE li.Active = 1
+            GROUP BY ti.TeamId, ti.TeamName
+            ORDER BY MatchesPlayed DESC;
+            `);
+    }
+
+    adminCurrentTeamMatches(teamId){
+        return this.queryDatabase(`
+            SELECT 
+                mt.MatchId
+            FROM MatchTeam mt
+            JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
+            JOIN LeagueInfo li ON ml.LeagueId = li.LeagueId
+            WHERE li.Active = 1
+            AND (mt.TeamRad = ? OR mt.TeamDire = ?)
+            ORDER BY mt.MatchId DESC;
+            `,[teamId,teamId]);
+    }
+
     insertMatchLeague(matchLeagueIds) {
         try {
             const insertQuery = `INSERT INTO MatchLeague (MatchId, LeagueId, DatePlayed)
@@ -1286,6 +1549,24 @@ class DBInstance {
             console.log(err);
             return -1;
         }
+    }
+
+    updateNeustadtl(standings){
+        const insertQuery = `
+            INSERT INTO Neustadtl (TeamId, Score)
+                VALUES (?, ?)
+                ON CONFLICT(TeamId)
+                DO UPDATE SET Score = excluded.Score
+            `;
+        const insertStmt = this.db.prepare(insertQuery);
+        
+        const transaction = this.db.transaction((rows) => {
+            rows.forEach(row => {
+                insertStmt.run(row.TeamId, row.Neustadtl);
+            })
+        })
+
+        transaction(standings);
     }
 
     deleteRemakeMatch(matchId){

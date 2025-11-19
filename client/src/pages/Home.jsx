@@ -29,7 +29,6 @@ export default function Home() {
 
   return (
     <div style={{ padding: "1rem" }}> 
-      <h1>Group Leaderboard</h1>
       <CurrentLeaderboardTable />      
 
       <hr style={{ margin: "2rem 0" }} />
