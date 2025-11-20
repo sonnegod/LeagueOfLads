@@ -456,9 +456,10 @@ class DBInstance {
 
     getActiveTeamsGroups(){
         return this.queryDatabase(`
-            SELECT lg.TeamId,lg.GroupId
+            SELECT lg.TeamId,lg.GroupId, ls.Wins
             FROM LeagueGroups lg
             JOIN LeagueInfo li on lg.LeagueId = li.LeagueId
+            JOIN LeagueStandings ls on li.LeagueId = ls.LeagueId and lg.TeamId = ls.TeamId
             WHERE li.Active = 1
             `)
     }
@@ -489,7 +490,7 @@ class DBInstance {
             FROM MatchTeam mt
             JOIN TeamInfo ti1 on mt.TeamRad = ti1.TeamId
             JOIN TeamInfo ti2 on mt.TeamDire = ti2.TeamId
-            JOIN TeamInfo ti3 on mt.WinnerId = ti3.TeamId
+            LEFT JOIN TeamInfo ti3 on mt.WinnerId = ti3.TeamId
             WHERE mt.MatchId = ?
         `, [MatchId]);
     };
@@ -1227,7 +1228,6 @@ class DBInstance {
 
 
             if(newSeries.length === 0){
-                console.log('testing empty')
                 this.db.prepare(`UPDATE SeriesInfo SET Team1 = ?, Team2 = ? WHERE SeriesId = ?`)
                     .run(teamRad,teamDire,oldSeries[0].SeriesId);
 
@@ -1241,7 +1241,6 @@ class DBInstance {
                                 'Updated Series ${oldSeries[0].SeriesId} adding teams ${teamRad},${teamDire}'
                             );
                         `).run();
-                console.log('test');
             }
             else{
                 this.db.prepare(`UPDATE SeriesMatch SET SeriesId = ? WHERE MatchId = ?`)
@@ -1257,6 +1256,19 @@ class DBInstance {
                                 'Updated Series ${newSeries[0].SeriesId} add match ${matchId}'
                             );
                         `).run();
+
+                this.db.prepare(`DELETE FROM SeriesMatch WHERE SeriesId = ?`)
+                    .run(oldSeries[0].SeriesId);        
+                
+                 this.db.prepare(`INSERT INTO AdminAuditLog (
+                                Type,
+                                Message
+                            )
+                            VALUES (
+                                'SeriesMatch Delete',
+                                'Deleted Series ${oldSeries[0].SeriesId}'
+                            );
+                        `).run();
             }
 
 
@@ -1268,21 +1280,48 @@ class DBInstance {
 
     adminCurrentTeams(){
         return this.queryDatabase(`
-            SELECT 
-                ti.TeamId,
-                ti.TeamName,
-                COUNT(mt.MatchId) AS MatchesPlayed
-            FROM TeamInfo ti
-            JOIN MatchTeam mt 
-                ON ti.TeamId = mt.TeamRad 
-                OR ti.TeamId = mt.TeamDire
-            JOIN MatchLeague ml
-                ON ml.MatchId = mt.MatchId
-            JOIN LeagueInfo li
-                ON li.LeagueId = ml.LeagueId
-            WHERE li.Active = 1
-            GROUP BY ti.TeamId, ti.TeamName
-            ORDER BY MatchesPlayed DESC;
+           SELECT 
+                t.TeamId,
+                t.TeamName,
+                COALESCE(m.MatchesPlayed, 0) AS MatchesPlayed,
+                ls.Wins,
+                ls.Losses
+            FROM TeamInfo t
+
+            -- Aggregate matches first
+            LEFT JOIN (
+                SELECT 
+                    ti.TeamId,
+                            ti.TeamName,
+                            COUNT(mt.MatchId) AS MatchesPlayed
+                        FROM TeamInfo ti
+                        JOIN MatchTeam mt 
+                            ON ti.TeamId = mt.TeamRad 
+                            OR ti.TeamId = mt.TeamDire
+                        JOIN MatchLeague ml
+                            ON ml.MatchId = mt.MatchId
+                        JOIN LeagueInfo li
+                            ON li.LeagueId = ml.LeagueId
+                        WHERE li.Active = 1
+                        GROUP BY ti.TeamId, ti.TeamName
+                        ORDER BY MatchesPlayed DESC
+            ) m ON m.TeamId = t.TeamId
+
+            -- Correct standings join (one row per team)
+            LEFT JOIN LeagueStandings ls 
+                ON ls.TeamId = t.TeamId
+            JOIN LeagueInfo li2 
+                ON ls.LeagueId = li2.LeagueId
+            WHERE li2.Active = 1
+
+            GROUP BY 
+                t.TeamId, 
+                t.TeamName, 
+                ls.Wins, 
+                ls.Losses
+            ORDER BY 
+                MatchesPlayed DESC;
+
             `);
     }
 
@@ -1297,6 +1336,48 @@ class DBInstance {
             AND (mt.TeamRad = ? OR mt.TeamDire = ?)
             ORDER BY mt.MatchId DESC;
             `,[teamId,teamId]);
+    }
+
+    adminCurrentTeamStandings(teamId){
+        return this.queryDatabase(`
+            SELECT 
+                ls.TeamId,
+                ti.TeamName,
+                ls.Wins,
+                ls.Losses
+            FROM LeagueStandings ls
+            JOIN LeagueInfo li ON ls.LeagueId = li.LeagueId
+            JOIN TeamInfo ti on ti.TeamId = ls.TeamId
+            WHERE li.Active = 1
+            AND ls.TeamId = ?
+            `,[teamId]);
+    }
+
+    adminUpdateTeamStandings(teamId,wins,losses){
+        try{
+            const currLeague = this.getActiveLeague();
+                console.log('testing empty')
+
+            this.db.prepare(`
+                UPDATE LeagueStandings SET Wins = ?, Losses = ? WHERE TeamId = ? AND LeagueId = ?
+                `).run(wins,losses,teamId,currLeague[0].LeagueId);
+     
+
+            this.db.prepare(`INSERT INTO AdminAuditLog (
+                                    Type,
+                                    Message
+                                )
+                                VALUES (
+                                    'Standings Update',
+                                    'UpdatedStandings with Wins: ${wins},Losses: ${losses}, for teamId: ${teamId} and leagueId: ${currLeague[0].LeagueId}'
+                                );
+                            `).run();
+
+          return { success: true, message: 'Team Standing updated successfully!' };
+        } catch (err) {
+           return { success: false, error: err };
+        }
+            
     }
 
     insertMatchLeague(matchLeagueIds) {
@@ -1571,15 +1652,76 @@ class DBInstance {
 
     deleteRemakeMatch(matchId){
         try{
-            const deleteMT = this.db.queryDatabase(`DELETE FROM MatchTeam WHERE MatchId = ?`, [matchId]);
+            this.db.prepare(`DELETE FROM MatchTeam WHERE MatchId = ?`).run(matchId);
             console.log(`Deleted MatchTeam info for `+matchId)
 
-            const deleteML = this.db.queryDatabase(`DELETE FROM MatchLeague WHERE MatchId = ?`, [matchId]);
+            this.db.prepare(`DELETE FROM MatchLeague WHERE MatchId = ?`).run(matchId);
             console.log(`Deleted MatchLeague info for `+matchId)
 
         } catch(err) {
             console.log(err);
             return -1;
+        }
+    }
+
+    adminDeleteMatch(matchId){
+        try{
+
+            this.db.prepare('DELETE FROM MatchPlayer WHERE MatchId = ?')
+                    .run( matchId);
+
+            this.db.prepare(`INSERT INTO AdminAuditLog (
+                                Type,
+                                Message
+                            )
+                            VALUES (
+                                'MatchPlayer Delete',
+                                'Deleted Match ${matchId} From MatchPlayer'
+                            );
+                        `).run();
+
+
+            this.db.prepare('DELETE FROM MatchTeam WHERE MatchId = ?')
+                    .run(matchId);
+
+            this.db.prepare(`INSERT INTO AdminAuditLog (
+                                Type,
+                                Message
+                            )
+                            VALUES (
+                                'MatchTeam Delete',
+                                'Deleted Match ${matchId} From MatchTeam'
+                            );
+                        `).run();
+            
+            this.db.prepare('DELETE FROM MatchLeague WHERE MatchId = ?')
+                    .run(matchId);
+
+            this.db.prepare(`INSERT INTO AdminAuditLog (
+                                Type,
+                                Message
+                            )
+                            VALUES (
+                                'MatchLeague Delete',
+                                'Deleted Match ${matchId} From MatchLeague'
+                            );
+                        `).run();
+
+            this.db.prepare('DELETE FROM MatchTeamPlayer WHERE MatchId = ?')
+                    .run(matchId);
+
+            this.db.prepare(`INSERT INTO AdminAuditLog (
+                                Type,
+                                Message
+                            )
+                            VALUES (
+                                'MatchTeamPlayer Delete',
+                                'Deleted Match ${matchId} From MatchTeamPlayer'
+                            );
+                        `).run();
+            return { success: true, message: 'MatchDeleted updated successfully!' };
+        } catch (err) {
+           return { success: false, error: err };
         }
     }
 

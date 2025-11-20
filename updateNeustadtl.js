@@ -8,7 +8,7 @@ function getResults(teamA,teamB){
     return db.getResults(teamA,teamB);
 }
 
-function scoreMatchSet(teamId, results) {
+function scoreMatchSet(teamId, results, opponentMapWins) {
   if (results.length === 0) return 0;
 
   let wins = 0;
@@ -19,8 +19,8 @@ function scoreMatchSet(teamId, results) {
     else losses++;
   });
 
-  if (wins === 2) return 3;  // 2–0
-  if (wins === 1 && losses === 1) return 1; // 1–1
+  if (wins === 2) return 2*opponentMapWins;  // 2–0
+  if (wins === 1 && losses === 1) return opponentMapWins; // 1–1
   return 0; // 0–2
 }
 
@@ -43,14 +43,11 @@ function computeNeustadtl() {
       let neustadtl = 0;
 
       const opponents = getGroupOpponents(groupTeams, team.TeamId);
-        if(team.TeamId === 9906253)
-                        console.log(opponents);
 
       opponents.forEach(opp => {
         const results = getResults(team.TeamId, opp.TeamId);
-        if(team.TeamId === 9906253)
-            console.log(results);
-        neustadtl += scoreMatchSet(team.TeamId, results);
+
+        neustadtl += scoreMatchSet(team.TeamId, results, opp.Wins);
       });
 
       standings.push({
@@ -72,7 +69,6 @@ function main() {
   db.updateNeustadtl(standings);
 
   console.log("Neustadtl Scores Updated:");
-  console.table(standings);
 }
 
 

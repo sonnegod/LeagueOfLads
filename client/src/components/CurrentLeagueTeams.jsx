@@ -43,7 +43,7 @@ export default function CurrentLeagueTeams({ refreshKey }) {
   if (loading) return <div>Loading teams...</div>;
 
   return (
-    <div>
+    <div style={adminWidgetStyle}>
       <h3>Current Teams</h3>
 
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -52,6 +52,8 @@ export default function CurrentLeagueTeams({ refreshKey }) {
             <th style={{ padding: 8, border: "1px solid #ccc" }}>Team ID</th>
             <th style={{ padding: 8, border: "1px solid #ccc" }}>Team Name</th>
             <th style={{ padding: 8, border: "1px solid #ccc" }}>Matches Played</th>
+            <th style={{ padding: 8, border: "1px solid #ccc" }}>Wins</th>
+            <th style={{ padding: 8, border: "1px solid #ccc" }}>Losses</th>
           </tr>
         </thead>
 
@@ -68,6 +70,8 @@ export default function CurrentLeagueTeams({ refreshKey }) {
                 <td>{team.TeamId}</td>
                 <td>{team.TeamName}</td>
                 <td style={{ textAlign: "center" }}>{team.MatchesPlayed}</td>
+                <td style={{ textAlign: "center" }}>{team.Wins}</td>
+                <td style={{ textAlign: "center" }}>{team.Losses}</td>
               </tr>
 
               {/* EXPANDED SECTION */}
@@ -116,3 +120,10 @@ export default function CurrentLeagueTeams({ refreshKey }) {
     </div>
   );
 }
+const adminWidgetStyle = {
+  border: "1px solid #ccc",
+  borderRadius: "8px",
+  padding: "16px",
+  overflowY: "auto"       // <-- For scrollable widgets
+};
+

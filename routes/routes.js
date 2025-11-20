@@ -142,6 +142,55 @@ router.get('/admin/currentLeagueTeamMatches/:teamId', (req, res) => {
     }
 });
 
+router.get('/admin/teamStandings/:teamId', (req, res) => {
+  try {
+    const { teamId } = req.params;
+
+    const result = db.adminCurrentTeamStandings(teamId);
+
+      res.json({ result });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.post('/admin/updateTeamStandings', (req, res) => {
+  try {
+      const teamId = req.body.teamId;
+      const wins = req.body.wins;
+      const losses = req.body.losses;
+
+      const result = db.adminUpdateTeamStandings(teamId,wins,losses);
+      
+      if (!result.success) {
+
+        return res.status(400).json({ error: result.message });
+      }
+      res.json({ success:true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.delete('/admin/deleteMatch', (req, res) => {
+  try {
+      const matchId = req.body.matchId;
+
+      const result = db.adminDeleteMatch(matchId);
+      
+      if (!result.success) {
+
+        return res.status(400).json({ error: result.message });
+      }
+      res.json({ success:true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 router.get('/logout', (req, res) => {
   req.logout(err => {
     if (err) console.error(err);
@@ -412,6 +461,8 @@ router.get('/matchEdit/:matchId', async (req, res) => {
   const { matchId } = req.params;
   try {
     const matchTeams = await db.getTeamsMatchEdit(matchId);
+
+    console.log(matchTeams);
 
     if (!matchTeams) return res.status(404).json({ error: 'Teams not found' });
     
