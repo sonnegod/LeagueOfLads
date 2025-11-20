@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import MatchEditorPanel from "../components/MatchEditorPanel";
 import CurrentLeagueTeams from "../components/CurrentLeagueTeams";
+import TeamStandingEditor from "../components/TeamStandingEditor";
+import DeleteMatchCard from "../components/DeleteMatchCard";
 
 
 export default function AdminPage() {
@@ -36,20 +38,54 @@ export default function AdminPage() {
     <div style={{ padding: 20 }}>
       <h1>Admin Panel</h1>
 
-      <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",   // two equal columns
-        gap: "20px",
-        alignItems: "flex-start",
-        marginTop: "20px"      // <-- add this
+     <div style={pageContainer}>
+      {/* LEFT COLUMN */}
+      <div style={leftColumnStyle}>
+        <CurrentLeagueTeams refreshKey={refreshKey} />
+      </div>
 
-      }}
-    >
-      <CurrentLeagueTeams refreshKey={refreshKey} />
-
-      <MatchEditorPanel onMatchUpdated={triggerRefresh} />
+      {/* RIGHT COLUMN: 2x2 GRID */}
+      <div style={rightGridStyle}>
+        <MatchEditorPanel onMatchUpdated={triggerRefresh} />
+        <TeamStandingEditor onTeamUpdated={triggerRefresh} />
+        <DeleteMatchCard onMatchDeleted={triggerRefresh} />
+        <div style={placeholderBox}>[ Future Widget ]</div>
+      </div>
     </div>
+
     </div>
   );
 }
+
+const pageContainer = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",  // Left = 50%, Right = 50%
+  gap: "20px",
+  width: "100%",
+  alignItems: "flex-start",
+};
+
+const leftColumnStyle = {
+  height: "100%", 
+  overflow: "auto",      // keeps it scrollable
+};
+
+const rightGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",  // 2 columns
+  gridTemplateRows: "1fr 1fr",     // 2 rows
+  gap: "20px",
+  height: "100%",        // <--- match left column
+
+};
+
+const placeholderBox = {
+  border: "1px dashed #ccc",
+  padding: "20px",
+  borderRadius: "8px",
+  height: "100%",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+};
+

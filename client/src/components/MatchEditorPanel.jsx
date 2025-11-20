@@ -125,15 +125,11 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
   };
 
   return (
-    <div
-      style={{
-        padding: "20px",
-        border: "1px solid #ccc",
-        borderRadius: 8,
-        maxWidth: 400,
-      }}
+    <div style={adminWidgetStyle}
     >
-      <h3 style={{ marginTop: 0 }}>Match Editor</h3>
+      <h3 style={{ textAlign: "center", marginBottom: "12px" }}>
+        Match Editor
+      </h3>
 
       {/* MATCH ID INPUT */}
       <label>Match ID</label>
@@ -224,3 +220,14 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
     </div>
   );
 }
+
+const adminWidgetStyle = {
+  height: "450px",       // match CurrentLeagueTeams
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  border: "1px solid #ccc",
+  borderRadius: "8px",
+  padding: "16px",
+  boxSizing: "border-box",
+};
