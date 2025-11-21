@@ -20,7 +20,7 @@ export default function Sidebar() {
         <Link to="/league">Leagues</Link>
         <Link to="/hero">Heroes</Link>
 
-
+        {user && <Link to="/request">Request</Link>}
         {/* Show admin button only if user is admin */}
         {user?.accountId === ADMIN_ACCOUNT_ID && (
           <Link to="/admin">Admin Portal</Link>

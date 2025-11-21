@@ -5,12 +5,18 @@ import MatchEditorPanel from "../components/MatchEditorPanel";
 import CurrentLeagueTeams from "../components/CurrentLeagueTeams";
 import TeamStandingEditor from "../components/TeamStandingEditor";
 import DeleteMatchCard from "../components/DeleteMatchCard";
+import PlayoffAdminPanel from "../components/PlayoffAdminPanel";
 
 
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const [adminData, setAdminData] = useState(null);
   const [error, setError] = useState(null);
+
+  const [stageInfo, setStageInfo] = useState(null);
+
+  const [activeTab, setActiveTab] = useState("editor"); // editor | playoffs
+
 
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -38,21 +44,43 @@ export default function AdminPage() {
     <div style={{ padding: 20 }}>
       <h1>Admin Panel</h1>
 
-     <div style={pageContainer}>
-      {/* LEFT COLUMN */}
-      <div style={leftColumnStyle}>
-        <CurrentLeagueTeams refreshKey={refreshKey} />
+      <div style={tabBarStyle}>
+        <button
+          style={activeTab === "editor" ? tabActiveStyle : tabButtonStyle}
+          onClick={() => setActiveTab("editor")}
+        >
+          Editor Page
+        </button>
+
+        <button
+          style={activeTab === "playoffs" ? tabActiveStyle : tabButtonStyle}
+          onClick={() => setActiveTab("playoffs")}
+        >
+          Playoff Page
+        </button>
       </div>
 
-      {/* RIGHT COLUMN: 2x2 GRID */}
-      <div style={rightGridStyle}>
-        <MatchEditorPanel onMatchUpdated={triggerRefresh} />
-        <TeamStandingEditor onTeamUpdated={triggerRefresh} />
-        <DeleteMatchCard onMatchDeleted={triggerRefresh} />
-        <div style={placeholderBox}>[ Future Widget ]</div>
-      </div>
-    </div>
 
+      {activeTab === "editor" && (
+          <div style={pageContainer}>
+            {/* LEFT COLUMN */}
+            <div style={leftColumnStyle}>
+              <CurrentLeagueTeams refreshKey={refreshKey} />
+            </div>
+
+            {/* RIGHT COLUMN 2x2 */}
+            <div style={rightGridStyle}>
+              <MatchEditorPanel onMatchUpdated={triggerRefresh} />
+              <TeamStandingEditor onTeamUpdated={triggerRefresh} />
+              <DeleteMatchCard onMatchDeleted={triggerRefresh} />
+              <div style={placeholderBox}>[ Future Widget ]</div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "playoffs" && (
+          <PlayoffAdminPanel />
+        )}
     </div>
   );
 }
@@ -89,3 +117,23 @@ const placeholderBox = {
   alignItems: "center",
 };
 
+const tabBarStyle = {
+  display: "flex",
+  gap: "12px",
+  marginBottom: "20px",
+};
+
+const tabButtonStyle = {
+  padding: "10px 18px",
+  borderRadius: "6px",
+  border: "1px solid #ccc",
+  background: "#f4f4f4",
+  cursor: "pointer",
+};
+
+const tabActiveStyle = {
+  ...tabButtonStyle,
+  background: "#007bff",
+  color: "white",
+  borderColor: "#005fcc",
+};

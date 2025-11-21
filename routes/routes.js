@@ -191,11 +191,225 @@ router.delete('/admin/deleteMatch', (req, res) => {
     }
 });
 
+router.post("/admin/activateTiebreakers", (req, res) => {
+
+  const last = db.getLastMatchForActiveLeague();
+  if (!last) return res.json({ success: false, error: "No matches found" });
+
+  const activeLeague = db.getActiveLeague();
+
+  const existing = db.getLeagueStageBoundaries(activeLeague[0].LeagueId);
+
+  // Case 1: No record — create new one
+  if (existing.length === 0) {
+    db.insertNewLeagueStageBoundaries(activeLeague[0].LeagueId, last[0].MatchId, null);
+
+    return res.json({ 
+      success: true, 
+      created: true
+     });
+  }
+  else{
+    // Case 2: Record exists — not allowed if GroupEndMatchId already set
+    return res.json({ success: false, error: "Group stage already closed" });
+  }
+});
+
+router.post("/admin/activatePlayoffs", (req, res) => {
+  const activeLeague = db.getActiveLeague();
+
+  const last = db.getLastMatchForActiveLeague();
+  if (!last) return res.json({ success: false, error: "No matches found" });
+
+  const existing = db.getLeagueStageBoundaries(activeLeague[0].LeagueId);
+
+  // Case 1: No record — create both fields set
+  if (existing.length === 0) {
+    db.insertNewLeagueStageBoundaries(activeLeague[0].LeagueId, last[0].MatchId, last[0].MatchId);
+    return res.json({ 
+      success: true, 
+      created: true
+    });
+  }
+
+  // Case 2: Set only TieBreakerEndMatchId
+  db.updateLeagueStageBoundariesTieBreaker(last[0].MatchId, activeLeague[0].LeagueId);
+
+  return res.json({ success: true });
+});
+
+router.get('/leagueStage', (req, res) => {
+  try {
+    const row = db.getActiveLeagueBoundaries();
+
+    if (row.length === 0) {
+      return res.json({
+        exists: false,
+        stageInfo: {
+          GroupEndMatchId: null,
+          TieBreakerEndMatchId: null
+        }
+      });
+    }
+    return res.json({
+      exists: true,
+      ...row
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load league stage" });
+  }
+});
+
+
+router.get('/tiebreakerInfo', async (req, res) => {
+  try {
+    
+    const groups = await db.getCurrentLeagueLeaderboard();
+
+    const groupsWithTeams = await Promise.all(
+      groups.map(async (group) => {
+        const groupTeams = await db.getGroupStats(group);
+
+        // Ensure teams are sorted correctly
+        groupTeams.sort((a, b) => {
+          // Sort by Wins DESC
+          if (b.Wins !== a.Wins) return b.Wins - a.Wins;
+          // Then by Neustadtl DESC (if available)
+          return b.Neustadtl - a.Neustadtl;
+
+        });
+
+        // ---- BUCKET LOGIC ----
+        const upper = groupTeams.slice(0, 2);        // top 2
+        const tiebreaker = groupTeams.slice(2, 3);   // 3rd place → 1 per group
+        const lower = groupTeams.slice(3, 8);        // next 5
+        const eliminated = groupTeams.slice(8);      // rest
+
+        return {
+          ...group,
+          groupTeams,
+          upperBracket: upper,
+          tiebreakerTeams: tiebreaker,
+          lowerBracket: lower,
+          eliminatedTeams: eliminated,
+        };
+      })
+    );
+
+    // Aggregate tiebreakers (3 teams across all groups)
+    const allTiebreakerTeams = groupsWithTeams.flatMap(
+      (g) => g.tiebreakerTeams
+    );
+
+    const allUpperBracketTeams = groupsWithTeams.flatMap(
+      (g) => g.upperBracket
+    );
+
+    const allLowerBracketTeams = groupsWithTeams.flatMap(
+      (g) => g.lowerBracket
+    );
+
+    const allEliminatedTeams = groupsWithTeams.flatMap(
+      (g) => g.eliminatedTeams
+    );
+
+
+    return res.json({
+      success: true,
+      groups: groupsWithTeams,
+      tiebreakerTeams: allTiebreakerTeams,
+      upperBracketTeams: allUpperBracketTeams,
+      lowerBracketTeams: allLowerBracketTeams,
+      eliminatedTeams: allEliminatedTeams,
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load league stage" });
+  }
+});
+
+
+router.get('/tiebreakerMatches', (req, res) => {
+  try{
+
+    const boundaries = db.getActiveLeagueBoundaries();
+
+    const activeLeague = db.getActiveLeague();
+
+    if (!boundaries || !boundaries[0].GroupEndMatchId) {
+      // No tiebreaker stage started yet
+      return res.json([]);
+    }
+
+    const groupEndMatchId = boundaries[0].GroupEndMatchId;
+    const tieBreakerEndMatchId = boundaries[0].TieBreakerEndMatchId ?? 9999999999999;
+
+    console.log(tieBreakerEndMatchId);
+
+
+    const matches = db.getTieBreakerMatches(activeLeague[0].LeagueId,groupEndMatchId,tieBreakerEndMatchId);
+
+    console.log(matches);
+
+    if(matches.length === 0)
+      return res.json([]);
+
+    const h2h = {};
+
+    for (const m of matches) {
+      const key = `${m.TeamA}-${m.TeamB}`;
+      if (!h2h[key]) {
+        h2h[key] = {
+          TeamA: m.TeamA,
+          TeamAName: m.TeamAName,
+          TeamB: m.TeamB,
+          TeamBName: m.TeamBName,
+          WinsA: 0,
+          WinsB: 0
+        };
+      }
+
+      if (m.WinnerId == m.TeamA) h2h[key].WinsA++;
+      else if (m.WinnerId == m.TeamB) h2h[key].WinsB++;
+    }
+    console.log(h2h);
+
+    return res.json(Object.values(h2h));
+
+  }
+  catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Failed to load tiebreaker matches" });
+  }
+});
+
+
 router.get('/logout', (req, res) => {
   req.logout(err => {
     if (err) console.error(err);
     res.redirect('/');
   });
+});
+
+router.post('/user/request', (req, res) => {
+  try {
+      const userId = req.body.userId;
+      const message = req.body.requestText;
+
+      const result = db.insertRequest(userId,message);
+      
+      if (!result.success) {
+
+        return res.status(400).json({ error: result.message });
+      }
+      res.json({ success:true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 router.get('/search', async (req, res) => {
@@ -461,8 +675,6 @@ router.get('/matchEdit/:matchId', async (req, res) => {
   const { matchId } = req.params;
   try {
     const matchTeams = await db.getTeamsMatchEdit(matchId);
-
-    console.log(matchTeams);
 
     if (!matchTeams) return res.status(404).json({ error: 'Teams not found' });
     

@@ -64,11 +64,21 @@ function computeNeustadtl() {
 function main() {
   console.log("Computing nightly Neustadtl...");
 
-  const standings = computeNeustadtl();
+  const inSeason = db.getActiveLeagueBoundaries();
+  let standings = null;
 
-  db.updateNeustadtl(standings);
+  if(inSeason.length === 0){
+    standings = computeNeustadtl();
+    db.updateNeustadtl(standings);
 
-  console.log("Neustadtl Scores Updated:");
+    console.log("Neustadtl Scores Updated:");
+
+  }
+  else{
+    const msg = db.legacyNeustadtl();
+
+    console.log(msg);
+  }
 }
 
 
