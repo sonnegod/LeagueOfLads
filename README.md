@@ -13,8 +13,9 @@ sudo nginx -t
 sudo systemctl reload nginx
 
 cd client
-sudo cp -r dist/* /var/www/leagueoflads/
 npm run build
+sudo cp -r dist/* /var/www/leagueoflads/
+
 
 cd .. 
 pm2 start /root/LeagueOfLads/index.js --name LeagueOfLads

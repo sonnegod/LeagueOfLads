@@ -423,6 +423,56 @@ class DBInstance {
             WHERE Active = 1`);
     }
 
+    getActiveLeagueBoundaries(){
+        return this.queryDatabase(`
+                SELECT lsb.LeagueId, lsb.GroupEndMatchId, lsb.TieBreakerEndMatchId
+                    FROM LeagueStageBoundaries lsb
+                    JOIN LeagueInfo li on lsb.LeagueId = li.LeagueId
+                    WHERE li.Active = 1
+            `)
+    }
+
+    getTieBreakerMatches(leagueId,groupEndMatchId,tieBreakerEndMatchId){
+        return this.queryDatabase(`
+           SELECT 
+                mt.MatchId,
+                mt.TeamRad AS TeamA,
+                mt.TeamDire AS TeamB,
+                mt.WinnerId,
+                tiA.TeamName AS TeamAName,
+                tiB.TeamName AS TeamBName
+            FROM MatchTeam mt
+            JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
+            JOIN TeamInfo tiA ON tiA.TeamId = mt.TeamRad
+            JOIN TeamInfo tiB ON tiB.TeamId = mt.TeamDire
+            WHERE ml.LeagueId = ?
+                AND mt.MatchId > ?
+                AND mt.MatchId <= ?
+            ORDER BY mt.MatchId ASC 
+            `,[leagueId,groupEndMatchId,tieBreakerEndMatchId]);
+    }
+
+    updateLeagueStageBoundariesTieBreaker(matchId,leagueId){
+        this.db.prepare(`
+            UPDATE LeagueStageBoundaries
+            SET TieBreakerEndMatchId = ?
+            WHERE LeagueId = ?
+        `).run(matchId, leagueId);
+    }
+
+    insertNewLeagueStageBoundaries(leagueId, groupEndMatchId, tieEndMatchId){
+        this.db.prepare(`
+            INSERT INTO LeagueStageBoundaries (LeagueId, GroupEndMatchId, TieBreakerEndMatchId)
+            VALUES (?, ?, ?)
+        `).run(leagueId, groupEndMatchId, tieEndMatchId);
+    }
+
+    getLeagueStageBoundaries(leagueId){
+        return this.queryDatabase(`
+            SELECT * FROM LeagueStageBoundaries WHERE LeagueId = ?
+        `,[leagueId]);
+    }
+
     //returning all teams that are currently in the active league (can have bad teams)
     getActiveTeams(){
         return this.queryDatabase(`
@@ -1210,8 +1260,6 @@ class DBInstance {
                     JOIN SeriesMatch sm on si.SeriesId = sm.SeriesId
                     WHERE sm.MatchId = ?
                 `, [matchId]);
-
-            console.log(oldSeries);
             
             const newSeries = this.queryDatabase(`
                     SELECT
@@ -1223,8 +1271,6 @@ class DBInstance {
                         OR (Team1 = ? AND Team2 = ?)
                         AND DateCreated = ?
                 `, [teamRad,teamDire,teamDire,teamRad,oldSeries[0].DateCreated]);
-
-            console.log(newSeries);
 
 
             if(newSeries.length === 0){
@@ -1356,7 +1402,6 @@ class DBInstance {
     adminUpdateTeamStandings(teamId,wins,losses){
         try{
             const currLeague = this.getActiveLeague();
-                console.log('testing empty')
 
             this.db.prepare(`
                 UPDATE LeagueStandings SET Wins = ?, Losses = ? WHERE TeamId = ? AND LeagueId = ?
@@ -1549,7 +1594,6 @@ class DBInstance {
                 [league[0].LeagueId]
             );
 
-            console.log(league)
             if(boundary.length === 0 || matchId <= boundary.GroupEndMatchId){
                 this.db.prepare(`
                     INSERT INTO LeagueStandings (LeagueId, TeamId, Wins, Losses)
@@ -1565,7 +1609,7 @@ class DBInstance {
                     ON CONFLICT(LeagueId, TeamId)
                     DO UPDATE SET Losses = Losses + 1
                 `).run({ leagueId: league[0].LeagueId, teamId: loseId });
-                }
+            }
         } catch (err) {
             console.log(err);
             return 2;
@@ -1632,6 +1676,27 @@ class DBInstance {
         }
     }
 
+
+    insertRequest(userId, message){
+        try {
+            this.db.prepare(`
+                INSERT INTO Comments (
+                         UserId,
+                         Comment
+                     )
+                     VALUES (
+                         ?,
+                         ?
+                     );
+
+            `).run(userId,message);
+
+            return { success: true, message: 'Comment updated successfully!' };
+        } catch (err) {
+            return { success: false, message: err };;
+        }
+    }
+
     updateNeustadtl(standings){
         const insertQuery = `
             INSERT INTO Neustadtl (TeamId, Score)
@@ -1648,6 +1713,32 @@ class DBInstance {
         })
 
         transaction(standings);
+    }
+
+    legacyNeustadtl(){
+        const legacyCheck = this.db.queryDatabase(`
+                SELECT * FROM
+                NeustadtlLegacy nl 
+                JOIN LeagueInfo li on nl.LeagueId = li.LeagueId
+                WHERE li.Active = 1
+            `);
+
+        if(legacyCheck.length === 0){
+            const activeLeague = this.getActiveLeague();
+
+            this.db.prepare(`
+                    INSERT INTO NeustadtlLegacy (LeagueId, TeamId, Score)
+                        SELECT 
+                            ? AS LeagueId,
+                            TeamId,
+                            Score
+                        FROM Neustadtl
+                `).run(activeLeague[0].leagueId);
+
+            return "Legacy data inserted into Database";
+        }
+        else
+            return "Legacy data already added into Database";
     }
 
     deleteRemakeMatch(matchId){
@@ -1740,6 +1831,30 @@ class DBInstance {
             return 2;
         }
     }
+
+    getLastMatchForLeague(leagueId){
+        return this.queryDatabase(`
+                SELECT mt.MatchId 
+                FROM MatchTeam mt
+                JOIN MatchLeague ml on ml.MatchId = mt.MatchId
+                WHERE ml.LeagueId = ?
+                ORDER BY mt.MatchId DESC
+                LIMIT 1
+            `,[leagueId]);
+    }
+
+    getLastMatchForActiveLeague(){
+        return this.queryDatabase(`
+                SELECT mt.MatchId 
+                FROM MatchTeam mt
+                JOIN MatchLeague ml on ml.MatchId = mt.MatchId
+                JOIN LeagueInfo li on li.LeagueId = ml.LeagueId
+                WHERE li.Active = 1
+                ORDER BY mt.MatchId DESC
+                LIMIT 1
+            `);
+    }
+    
     
 }
 

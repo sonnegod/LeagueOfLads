@@ -1,13 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+
 import CurrentLeagueSeries from "../components/CurrentLeagueSeries";
 import CurrentLeaderboardTable from "../components/CurrentLeaderboardTable";
+import TieBreakerView from "../components/TieBreakerView";   // you will create
+import PlayoffBracketView from "../components/PlayoffBracketView"; // you will create
 
 export default function Home() {
   const [series, setSeries] = useState([]);
   const [loading, setLoading] = useState(true);
-  
 
+  const [stageInfo, setStageInfo] = useState(null);
+  const [activeTab, setActiveTab] = useState("group"); // default tab
+
+  // ----------------------------------------------------
+  // Load recent series
+  // ----------------------------------------------------
   useEffect(() => {
     async function fetchRecentSeries() {
       setLoading(true);
@@ -24,18 +32,146 @@ export default function Home() {
     fetchRecentSeries();
   }, []);
 
+  // ----------------------------------------------------
+  // Load stage info
+  // ----------------------------------------------------
+  useEffect(() => {
+    fetch("/api/leagueStage")
+      .then((res) => res.json())
+      .then((data) => {
+        setStageInfo(data[0] || data.stageInfo);
+        
+        if (!data.exists) {
+          setActiveTab("group"); // group stage
+        } else if (data[0].GroupEndMatchId && !data[0].TieBreakerEndMatchId) {
+          setActiveTab("tiebreakers");
+        } else if (data[0].GroupEndMatchId && data[0].TieBreakerEndMatchId) {
+          setActiveTab("playoffs");
+        }
+      });
+  }, []);
 
-  if (loading) return <div>Loading recent series...</div>;
+  if (loading || !stageInfo) return <div>Loading recent series...</div>;
+
+  const inGroupStage = !stageInfo.GroupEndMatchId && !stageInfo.TieBreakerEndMatchId;
+
+  const inTiebreakers =
+    stageInfo.GroupEndMatchId &&
+    !stageInfo.TieBreakerEndMatchId;
+
+  const inPlayoffs =
+    stageInfo.GroupEndMatchId &&
+    stageInfo.TieBreakerEndMatchId;
+
+  const noSeparateTiebreaker =
+    stageInfo.GroupEndMatchId === stageInfo.TieBreakerEndMatchId;
+
+  // ----------------------------------------------------
+  // Render GROUP STAGE (original view)
+  // ----------------------------------------------------
+  if (inGroupStage) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <CurrentLeaderboardTable />
+
+        <hr style={{ margin: "2rem 0" }} />
+
+        <h2>Recent Series</h2>
+        <CurrentLeagueSeries seriesList={series} />
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------
+  // Render TIEBREAKERS / PLAYOFFS WITH TABS
+  // ----------------------------------------------------
 
   return (
-    <div style={{ padding: "1rem" }}> 
-      <CurrentLeaderboardTable />      
+    <div style={{ padding: "1rem" }}>
+      {/* TABS */}
+      <div style={tabBarStyle}>
+        {inPlayoffs && (
+          <button
+            style={activeTab === "playoffs" ? tabActive : tabInactive}
+            onClick={() => setActiveTab("playoffs")}
+          >
+            Playoffs
+          </button>
+        )}
 
-      <hr style={{ margin: "2rem 0" }} />
+        {inPlayoffs && !noSeparateTiebreaker && (
+          <button
+            style={activeTab === "tiebreakers" ? tabActive : tabInactive}
+            onClick={() => setActiveTab("tiebreakers")}
+          >
+            Tiebreakers
+          </button>
+        )}
 
-      <h2>Recent Series</h2>
-      <CurrentLeagueSeries seriesList={series} />
+        {inTiebreakers && (
+          <button
+            style={activeTab === "tiebreakers" ? tabActive : tabInactive}
+            onClick={() => setActiveTab("tiebreakers")}
+          >
+            Tiebreakers
+          </button>
+        )}
+
+        <button
+          style={activeTab === "group" ? tabActive : tabInactive}
+          onClick={() => setActiveTab("group")}
+        >
+          Groups
+        </button>
+      </div>
+
+      {/* TAB CONTENT */}
+      <div style={{ marginTop: "20px" }}>
+        {activeTab === "group" && (
+          <>
+            <CurrentLeaderboardTable />
+            <hr style={{ margin: "2rem 0" }} />
+            <h2>Recent Series</h2>
+            <CurrentLeagueSeries seriesList={series} />
+          </>
+        )}
+
+        {activeTab === "tiebreakers" && (
+          <TieBreakerView />
+        )}
+
+        {activeTab === "playoffs" && (
+          <PlayoffBracketView />
+        )}
+      </div>
     </div>
   );
 }
 
+/* ------------------ TAB STYLES -------------------- */
+
+const tabBarStyle = {
+  display: "flex",
+  gap: "12px",
+  marginBottom: "10px",
+};
+
+const tabBase = {
+  padding: "10px 15px",
+  borderRadius: "6px",
+  cursor: "pointer",
+  border: "1px solid #ccc",
+  background: "#f5f5f5",
+};
+
+const tabActive = {
+  ...tabBase,
+  background: "#0077ff",
+  color: "white",
+  borderColor: "#0057cc",
+};
+
+const tabInactive = {
+  ...tabBase,
+  background: "#e1e1e1",
+};

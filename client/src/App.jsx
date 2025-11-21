@@ -15,6 +15,7 @@ import MatchPage from './pages/MatchPage';
 import MatchesPage from './pages/MatchesPage';
 import SearchPage from "./pages/SearchPage";
 import RecentMatchesPage from "./pages/RecentMatchesPage";
+import RequestPage from "./pages/RequestPage";
 
 export default function App() {
   return (
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/match" element={<MatchesPage />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/hero" element={<HeroesPage />} />
+        <Route path="/request" element={<RequestPage />} />
       </Route>
     </Routes>
   );
