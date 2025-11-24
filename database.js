@@ -626,22 +626,22 @@ class DBInstance {
     getCurrentLeagueSeries(){
             return this.queryDatabase(
             `SELECT 
-            si.SeriesId,
-            si.Team1, 
-            si.Team2, 
-            ti1.TeamName as team_one,
-            ti2.TeamName as team_two,
-            si.DateCreated 
-            FROM 
-            SeriesInfo si 
-            JOIN SeriesMatch sm on si.SeriesId = sm.SeriesId
-            JOIN MatchLeague ml on sm.MatchId = ml.MatchId
-            JOIN LeagueInfo li on ml.LeagueId = li.LeagueId
-            JOIN TeamInfo ti1 on ti1.TeamId = si.Team1
-            JOIN TeamInfo ti2 on ti2.TeamId = si.Team2
-            WHERE li.Active = 1
+                si.SeriesId,
+                si.Team1,
+                si.Team2,
+                ti1.TeamName AS team_one,
+                ti2.TeamName AS team_two,
+                si.DateCreated
+            FROM SeriesInfo si
+            JOIN SeriesMatch sm ON si.SeriesId = sm.SeriesId
+            JOIN MatchLeague ml ON sm.MatchId = ml.MatchId
+            JOIN LeagueInfo li ON ml.LeagueId = li.LeagueId AND li.Active = 1
+            LEFT JOIN LeagueStageBoundaries lsb ON lsb.LeagueId = li.LeagueId
+            JOIN TeamInfo ti1 ON ti1.TeamId = si.Team1
+            JOIN TeamInfo ti2 ON ti2.TeamId = si.Team2
+            WHERE (lsb.GroupEndMatchId IS NULL OR sm.MatchId <= lsb.GroupEndMatchId)
             GROUP BY si.SeriesId
-            ORDER BY si.SeriesId DESC`
+            ORDER BY si.SeriesId DESC;`
         );
     }
 
@@ -728,8 +728,17 @@ class DBInstance {
             ON SM.SeriesId = SI.SeriesId
             JOIN MatchTeam MT
             ON MT.MatchId = SM.MatchId
+            LEFT JOIN LeagueStageBoundaries LSB
+                ON LSB.LeagueId = LG.LeagueId
+
             WHERE LG.LeagueId = ?
             AND LG.GroupId = ?
+
+            -- Filter only group-stage matches IF boundary exists
+            AND (
+                    LSB.GroupEndMatchId IS NULL
+                    OR MT.MatchId <= LSB.GroupEndMatchId
+                )
             GROUP BY
                 TeamA, TeamAName,
                 TeamB, TeamBName
