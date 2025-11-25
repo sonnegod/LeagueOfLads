@@ -20,8 +20,6 @@ export default function TiebreakerView() {
         const res = await fetch('/api/tiebreakerInfo');
         const data = await res.json();
 
-        console.log(data);
-
         setTiebreakerTeams(data.tiebreakerTeams || []);
         setUpperTeams(data.upperBracketTeams || []);
         setLowerTeams(data.lowerBracketTeams || []);

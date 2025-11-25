@@ -28,7 +28,6 @@ export default function TeamStandingsEditor({onTeamUpdated}) {
       const res = await fetch(`/api/admin/teamStandings/${teamId}`);
       const data = await res.json();
 
-      console.log(data.result[0].Wins);
       if (!data) {
         setMessage("Team not found in current league.");
       } else {

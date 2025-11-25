@@ -6,6 +6,7 @@ import CurrentLeagueTeams from "../components/CurrentLeagueTeams";
 import TeamStandingEditor from "../components/TeamStandingEditor";
 import DeleteMatchCard from "../components/DeleteMatchCard";
 import PlayoffAdminPanel from "../components/PlayoffAdminPanel";
+import PlayoffBracketEditor from "../components/PlayoffBracketEditor";
 
 
 export default function AdminPage() {
@@ -79,7 +80,10 @@ export default function AdminPage() {
         )}
 
         {activeTab === "playoffs" && (
-          <PlayoffAdminPanel />
+          <div>
+            <PlayoffAdminPanel />
+            <PlayoffBracketEditor />
+          </div>
         )}
     </div>
   );

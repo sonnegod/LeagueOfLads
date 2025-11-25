@@ -204,6 +204,9 @@ router.post("/admin/activateTiebreakers", (req, res) => {
   if (existing.length === 0) {
     db.insertNewLeagueStageBoundaries(activeLeague[0].LeagueId, last[0].MatchId, null);
 
+    //we dont care about seeding right now
+    db.setSeeding();
+
     return res.json({ 
       success: true, 
       created: true
@@ -347,12 +350,10 @@ router.get('/tiebreakerMatches', (req, res) => {
     const groupEndMatchId = boundaries[0].GroupEndMatchId;
     const tieBreakerEndMatchId = boundaries[0].TieBreakerEndMatchId ?? 9999999999999;
 
-    console.log(tieBreakerEndMatchId);
 
 
     const matches = db.getTieBreakerMatches(activeLeague[0].LeagueId,groupEndMatchId,tieBreakerEndMatchId);
 
-    console.log(matches);
 
     if(matches.length === 0)
       return res.json([]);
@@ -375,7 +376,6 @@ router.get('/tiebreakerMatches', (req, res) => {
       if (m.WinnerId == m.TeamA) h2h[key].WinsA++;
       else if (m.WinnerId == m.TeamB) h2h[key].WinsB++;
     }
-    console.log(h2h);
 
     return res.json(Object.values(h2h));
 
@@ -385,6 +385,67 @@ router.get('/tiebreakerMatches', (req, res) => {
     return res.status(500).json({ error: "Failed to load tiebreaker matches" });
   }
 });
+
+router.get('/admin/playoffBracket', (req, res) => {
+  try {
+
+    let result = -1;
+
+    const playoff = db.adminGetCurrentPlayoffBracket();
+
+    if(playoff.length === 0){
+      //return playoff teams
+      result = db.adminGetCurrentPlayoffTeams();
+
+      return res.json({ result });
+    }
+    else{
+      const playoffBracket = JSON.parse(playoff[0].PlayoffStructure);
+      console.log(result);
+
+
+      return res.json({ playoffBracket });
+    }
+
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.get('/getCurrentBracket', (req, res) => {
+  try {
+
+    let result = -1;
+
+    const playoff = db.adminGetCurrentPlayoffBracket();
+
+    const playoffBracket = JSON.parse(playoff[0].PlayoffStructure);
+    console.log(result);
+
+    return res.json({ playoffBracket });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.post('/admin/saveBracket', (req, res) => {
+  try {
+
+    const bracket = req.body.bracketData;
+
+    db.insertBracket(bracket);
+ 
+    return res.json({success : true})
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
 
 
 router.get('/logout', (req, res) => {
@@ -801,7 +862,7 @@ router.get('/leagues/:leagueId', async (req, res) => {
 router.get('/homepageSeries', async (req, res) => {
 
   try {
-    const series = await db.getCurrentLeagueSeries();
+    const series = await db.getCurrentLeagueSeriesGroupstage();
 
     const seriesWithMatches = await Promise.all(
       series.map(async (series) => {

@@ -24,6 +24,7 @@
     "got": "^14.4.5",
     "heatmap.js": "^2.0.5",
     "latest": "^0.2.0",
+    "lucide-react": "^0.554.0",
     "node-cron": "^3.0.3",
     "nodemon": "^3.1.10",
     "npm": "^10.9.2",
