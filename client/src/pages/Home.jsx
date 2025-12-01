@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import CurrentLeagueSeries from "../components/CurrentLeagueSeries";
 import CurrentLeaderboardTable from "../components/CurrentLeaderboardTable";
 import TieBreakerView from "../components/TieBreakerView";   // you will create
-import PlayoffBracketView from "../components/PlayoffBracketView"; // you will create
+import CurrentPlayoffBracketView from "../components/CurrentPlayoffBracketView"; // you will create
 
 export default function Home() {
   const [series, setSeries] = useState([]);
@@ -141,7 +141,7 @@ export default function Home() {
         )}
 
         {activeTab === "playoffs" && (
-          <PlayoffBracketView />
+          <CurrentPlayoffBracketView />
         )}
       </div>
     </div>

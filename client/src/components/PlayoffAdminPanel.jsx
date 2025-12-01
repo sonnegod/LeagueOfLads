@@ -13,7 +13,6 @@ export default function PlayoffAdminPanel() {
       const res = await fetch(`/api/leagueStage`);
       const data = await res.json();
 
-      console.log(data)
 
       setStageInfo(data[0] || data.stageInfo);
       
@@ -51,7 +50,6 @@ export default function PlayoffAdminPanel() {
 
       const data = await res.json();
 
-      console.log(data)
 
       if (data.success) {
         setMessage("Tiebreaker stage activated.");
@@ -84,7 +82,6 @@ export default function PlayoffAdminPanel() {
 
       const data = await res.json();
 
-            console.log(data)
 
 
       if (data.success) {

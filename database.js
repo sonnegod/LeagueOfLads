@@ -452,6 +452,30 @@ class DBInstance {
             `,[leagueId,groupEndMatchId,tieBreakerEndMatchId]);
     }
 
+    adminGetCurrentPlayoffBracket(){
+        return this.queryDatabase(`
+           SELECT 
+                pb.PlayoffStructure
+            FROM PlayoffBracket pb
+            JOIN LeagueInfo li ON li.LeagueId = pb.LeagueId
+            WHERE li.Active = 1
+            `);
+    }
+
+    adminGetCurrentPlayoffTeams(){
+        return this.queryDatabase(`
+            SELECT 
+                ps.TeamId,
+                ti.TeamName,
+                ps.Seed,
+                ps.Bracket
+            FROM PlayoffSeeding ps
+            JOIN LeagueInfo li on ps.LeagueId = li.LeagueId
+            JOIN TeamInfo ti on ti.TeamId = ps.TeamId
+            WHERE li.Active = 1
+            `)
+    }
+
     updateLeagueStageBoundariesTieBreaker(matchId,leagueId){
         this.db.prepare(`
             UPDATE LeagueStageBoundaries
@@ -623,7 +647,7 @@ class DBInstance {
         return this.queryDatabase(query, params);
     }
 
-    getCurrentLeagueSeries(){
+    getCurrentLeagueSeriesGroupstage(){
             return this.queryDatabase(
             `SELECT 
                 si.SeriesId,
@@ -643,6 +667,122 @@ class DBInstance {
             GROUP BY si.SeriesId
             ORDER BY si.SeriesId DESC;`
         );
+    }
+
+    getCurrentLeagueSeriesTieBreakers(){
+            return this.queryDatabase(
+            `SELECT 
+                si.SeriesId,
+                si.Team1,
+                si.Team2,
+                ti1.TeamName AS team_one,
+                ti2.TeamName AS team_two,
+                si.DateCreated
+            FROM SeriesInfo si
+            JOIN SeriesMatch sm ON si.SeriesId = sm.SeriesId
+            JOIN MatchLeague ml ON sm.MatchId = ml.MatchId
+            JOIN LeagueInfo li ON ml.LeagueId = li.LeagueId AND li.Active = 1
+            LEFT JOIN LeagueStageBoundaries lsb ON lsb.LeagueId = li.LeagueId
+            JOIN TeamInfo ti1 ON ti1.TeamId = si.Team1
+            JOIN TeamInfo ti2 ON ti2.TeamId = si.Team2
+            WHERE (lsb.GroupEndMatchId IS NULL OR sm.MatchId <= lsb.GroupEndMatchId)
+            GROUP BY si.SeriesId
+            ORDER BY si.SeriesId DESC;`
+        );
+    }
+
+    getCurrentLeagueSeriesPlayoffs(){
+            return this.queryDatabase(
+            `SELECT 
+                si.SeriesId,
+                si.Team1,
+                si.Team2,
+                ti1.TeamName AS team_one,
+                ti2.TeamName AS team_two,
+                si.DateCreated
+            FROM SeriesInfo si
+            JOIN SeriesMatch sm ON si.SeriesId = sm.SeriesId
+            JOIN MatchLeague ml ON sm.MatchId = ml.MatchId
+            JOIN LeagueInfo li ON ml.LeagueId = li.LeagueId AND li.Active = 1
+            LEFT JOIN LeagueStageBoundaries lsb ON lsb.LeagueId = li.LeagueId
+            JOIN TeamInfo ti1 ON ti1.TeamId = si.Team1
+            JOIN TeamInfo ti2 ON ti2.TeamId = si.Team2
+            WHERE (lsb.GroupEndMatchId IS NULL OR sm.MatchId <= lsb.GroupEndMatchId)
+            GROUP BY si.SeriesId
+            ORDER BY si.SeriesId DESC;`
+        );
+    }
+
+    async setSeeding(){
+        try {
+            const groups = await this.getCurrentLeagueLeaderboard();
+
+            const groupsWithTeams = await Promise.all(
+                groups.map(async (group) => {
+                    const groupTeams = await this.getGroupStats(group);
+
+                    // Ensure teams are sorted correctly
+                    groupTeams.sort((a, b) => {
+                    // Sort by Wins DESC
+                    if (b.Wins !== a.Wins) return b.Wins - a.Wins;
+                    // Then by Neustadtl DESC (if available)
+                    return b.Neustadtl - a.Neustadtl;
+
+                    });
+
+                    const playoffTeams = groupTeams.slice(0, 8);        // top 2
+
+
+                    return {
+                    ...group,
+                    teams: playoffTeams
+                    };
+                })
+            );
+
+            groupsWithTeams.forEach(group => {
+                group.teams.forEach((team,idx) => {
+                    const seedNumber = idx + 1;
+                    const bracket = seedNumber <= 3 ? 'upper' : 'lower';
+
+                    this.addSeeding(group.LeagueId,team.TeamId,seedNumber,bracket)
+                });
+            });
+
+            } catch (err) {
+            console.error(err);
+        }
+    }
+
+    insertBracket(bracket){
+        this.db.prepare(`
+              INSERT OR REPLACE INTO PlayoffBracket (
+                               LeagueId,
+                               PlayoffStructure
+                           )
+                           SELECT
+                               LeagueId,
+                               ?
+                           FROM LeagueInfo
+                           WHERE Active = 1
+
+            `).run(JSON.stringify(bracket));
+    }
+
+    addSeeding(leagueId, team, seed, bracket){
+        this.db.prepare(`INSERT INTO PlayoffSeeding (
+                               LeagueId,
+                               TeamId,
+                               Seed,
+                               Bracket
+                           )
+                           VALUES (
+                               ?,
+                               ?,
+                               ?,
+                               ?
+                           );
+                    `).run(leagueId, team, seed, bracket);
     }
 
     getSeriesMatches(seriesId){

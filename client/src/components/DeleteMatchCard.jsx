@@ -22,7 +22,6 @@ export default function DeleteMatchCard({ onMatchDeleted }) {
       const res = await fetch(`/api/matchEdit/${matchId}`);
       const data = await res.json();
 
-      console.log(data)
 
       if (!data) {
         setMatchData(null);

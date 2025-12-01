@@ -13,7 +13,7 @@ export default function TieBreakerTable({ teams }) {
       try {
         const res = await fetch("/api/tiebreakerMatches");
         const data = await res.json();
-        console.log(data)
+
         setMatches(data || []);
       } catch (err) {
         console.error("TieBreaker match load error:", err);
