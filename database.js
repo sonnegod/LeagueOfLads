@@ -2031,11 +2031,11 @@ class DBInstance {
     login(username, steamid, date){
         try {
             const stmt = this.db.prepare(`INSERT OR REPLACE INTO Logins (Username, SteamID, LoginDate)
-                                          VALUES (@username, @steamId, @loginDate)`);
+                                          VALUES (@username, @steamId, @LastLoginDate)`);
             stmt.run({
                 username: username,
                 steamId: steamid,
-                loginDate: date
+                LastLoginDate: date
             });
             return 1;
         } catch (err) {
@@ -2043,7 +2043,7 @@ class DBInstance {
             return 2;
         }
     }
-
+    
     getLastMatchForLeague(leagueId){
         return this.queryDatabase(`
                 SELECT mt.MatchId 
