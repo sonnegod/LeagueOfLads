@@ -151,8 +151,6 @@ const PlayoffBracketEditor = () => {
       const res = await fetch('/api/admin/playoffBracket');
       const data = await res.json();
 
-      console.log(data.playoffBracket);
-
       // Simulate checking for existing bracket
       const existingBracket = JSON.stringify(data.playoffBracket); // Set this to response.bracket if exists
 
@@ -252,7 +250,6 @@ const PlayoffBracketEditor = () => {
 
   // Helper to find a future match and set its team
   const updateTargetMatch = (bracketObj, matchId, slot, teamId, teamName) => {
-    console.log(teamName);
     // Flatten search
     const allMatches = [
       ...bracketObj.upperBracket.flatMap(r => r.matches),
@@ -282,8 +279,6 @@ const PlayoffBracketEditor = () => {
                 bracketData: bracket, 
             }),
       });
-
-      console.log(res)
 
       if (res.ok) {
             setDirty(false);

@@ -2030,7 +2030,7 @@ class DBInstance {
 
     login(username, steamid, date){
         try {
-            const stmt = this.db.prepare(`INSERT INTO Logins (Username, SteamID, LoginDate)
+            const stmt = this.db.prepare(`INSERT OR REPLACE INTO Logins (Username, SteamID, LoginDate)
                                           VALUES (@username, @steamId, @loginDate)`);
             stmt.run({
                 username: username,
