@@ -12,6 +12,11 @@ const knownPlayers = new Set(db.preloadedData.users.map(p => p.PlayerId));
 const unparsedMatches = db.getUnParsedMatchIds(); // This should return a Set or Array of MatchIds already processed
 console.log(`${unparsedMatches.length} Matches that need to be parsed by Open Dota`);
 
+const stage = db.getStage();
+const currentStage = stage[0].Stage;
+
+const leagueId = db.getCurrentLeague();
+
 getMatchDetails(unparsedMatches);
 
 async function getMatchDetails(matches){
@@ -107,7 +112,7 @@ async function getMatchDetails(matches){
 
                 let seriesId;
                 if (existing.length === 0) {
-                    const resultSeries = db.insertTempSeries(data.dire_team_id,data.radiant_team_id,yesterdaysDate)
+                    const resultSeries = db.insertTempSeries(data.dire_team_id,data.radiant_team_id,currentStage,leagueId[0].LeagueId,yesterdaysDate)
 
                     if(resultSeries === 2)
                         console.error(`Failed to insert series ${data.dire_team_id} - ${data.radiant_team_id}`);
@@ -121,7 +126,8 @@ async function getMatchDetails(matches){
                 if(seriesMatch === 2)
                     console.error(`Failed to insert series match ${seriesId} - ${match.MatchId}`);
                 
-                db.insertLeagueStanding(match.MatchId, winTeamId, loseTeamId)
+                if(currentStage === 'g')
+                    db.insertLeagueStanding(match.MatchId, winTeamId, loseTeamId)
             }
         } catch (err) {
             console.error(`Failed to fetch match ${match.MatchId}:`, err);
