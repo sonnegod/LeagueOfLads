@@ -785,6 +785,29 @@ class DBInstance {
                     `).run(leagueId, team, seed, bracket);
     }
 
+    findPlayoffSeries(team1Id, team2Id){
+        return this.queryDatabase(
+            `SELECT 
+                SI.SeriesId,
+                SUM(CASE WHEN mt.WinnerId = ? THEN 1 ELSE 0 END) as Team1Wins,
+                SUM(CASE WHEN mt.WinnerId = ? THEN 1 ELSE 0 END) as Team2Wins,
+                COUNT(SM.MatchId) as TotalGames
+            FROM SeriesInfo SI
+            JOIN SeriesMatch SM ON SI.SeriesId = SM.SeriesId
+            JOIN MatchTeam mt on mt.MatchId = SM.MatchId
+            WHERE 
+                        SI.Stage = 'p' 
+                        AND (
+                            (SI.Team1 = ? AND SI.Team2 = ?) 
+                            OR 
+                            (SI.Team1 = ? AND SI.Team2 = ?)
+                        )
+                    GROUP BY SI.SeriesId
+                    ORDER BY SI.SeriesId DESC
+                    LIMIT 1
+                `,[team1Id,team2Id,team1Id,team2Id,team2Id,team1Id])
+    }
+
     getSeriesMatches(seriesId){
         return this.queryDatabase(
             `SELECT 
@@ -1774,13 +1797,15 @@ class DBInstance {
         );
     }
 
-    insertTempSeries(teamA,teamB,dateCreated){
+    insertTempSeries(teamA,teamB,stage,leagueId,dateCreated){
         try {
             const stmt = this.db.prepare(`INSERT INTO TempSeriesInfo (Team1, Team2, DateCreated)
-                                          VALUES (@team1, @team2, @DateCreated)`);
+                                          VALUES (@team1, @team2,@stage,@LeagueId, @DateCreated)`);
             const result = stmt.run({
                 team1: teamA,
                 team2: teamB,
+                stage: stage,
+                LeagueId:leagueId,
                 DateCreated: dateCreated
             });
             return result.lastInsertRowid;
@@ -1803,6 +1828,44 @@ class DBInstance {
             console.log(err);
             return 2;
         }
+    }
+
+    getStage(){
+        return this.queryDatabase(
+            `SELECT
+                CASE
+                    -- No boundary rows at all → group stage "g"
+                    WHEN NOT EXISTS (
+                    SELECT 1
+                    FROM LeagueStageBoundaries b
+                    JOIN LeagueInfo li ON li.LeagueId = b.LeagueId
+                    WHERE li.Active = 1
+                    ) THEN 'g'
+
+                    -- Has group end but NO tiebreak end → "t"
+                    WHEN EXISTS (
+                    SELECT 1
+                    FROM LeagueStageBoundaries b
+                    JOIN LeagueInfo li ON li.LeagueId = b.LeagueId
+                    WHERE li.Active = 1
+                        AND b.GroupEndMatchId IS NOT NULL
+                        AND b.TieBreakerEndMatchId IS NULL
+                    ) THEN 't'
+
+                    -- Has group end AND tiebreak end → "p"
+                    WHEN EXISTS (
+                    SELECT 1
+                    FROM LeagueStageBoundaries b
+                    JOIN LeagueInfo li ON li.LeagueId = b.LeagueId
+                    WHERE li.Active = 1
+                        AND b.GroupEndMatchId IS NOT NULL
+                        AND b.TieBreakerEndMatchId IS NOT NULL
+                    ) THEN 'p'
+
+                    ELSE 'g'
+                END AS Stage;
+                `
+        )
     }
 
     insertTempIntoSeries(){

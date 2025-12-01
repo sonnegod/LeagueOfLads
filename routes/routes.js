@@ -204,7 +204,6 @@ router.post("/admin/activateTiebreakers", (req, res) => {
   if (existing.length === 0) {
     db.insertNewLeagueStageBoundaries(activeLeague[0].LeagueId, last[0].MatchId, null);
 
-    //we dont care about seeding right now
     db.setSeeding();
 
     return res.json({ 
@@ -401,8 +400,6 @@ router.get('/admin/playoffBracket', (req, res) => {
     }
     else{
       const playoffBracket = JSON.parse(playoff[0].PlayoffStructure);
-      console.log(result);
-
 
       return res.json({ playoffBracket });
     }
@@ -422,7 +419,6 @@ router.get('/getCurrentBracket', (req, res) => {
     const playoff = db.adminGetCurrentPlayoffBracket();
 
     const playoffBracket = JSON.parse(playoff[0].PlayoffStructure);
-    console.log(result);
 
     return res.json({ playoffBracket });
     } catch (err) {
