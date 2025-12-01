@@ -1,5 +1,6 @@
 // src/components/tiebreakers/EliminatedBracketTable.jsx
 import React from "react";
+import { Link } from 'react-router-dom';
 
 export default function EliminatedBracketTable({ teams }) {
   return (
@@ -23,7 +24,7 @@ export default function EliminatedBracketTable({ teams }) {
           <tbody>
             {teams.map((team) => (
               <tr key={team.TeamId}>
-                <td style={td}>{team.TeamName}</td>
+                <td style={td}><Link to={`/team/${team.TeamId}`}>{team.TeamName}</Link></td>
               </tr>
             ))}
           </tbody>

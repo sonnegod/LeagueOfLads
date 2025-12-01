@@ -685,7 +685,7 @@ class DBInstance {
             LEFT JOIN LeagueStageBoundaries lsb ON lsb.LeagueId = li.LeagueId
             JOIN TeamInfo ti1 ON ti1.TeamId = si.Team1
             JOIN TeamInfo ti2 ON ti2.TeamId = si.Team2
-            WHERE (lsb.GroupEndMatchId IS NULL OR sm.MatchId <= lsb.GroupEndMatchId)
+            WHERE (sm.MatchId > lsb.GroupEndMatchId AND sm.MatchId <= lsb.TieBreakerEndMatchId)
             GROUP BY si.SeriesId
             ORDER BY si.SeriesId DESC;`
         );
@@ -707,7 +707,7 @@ class DBInstance {
             LEFT JOIN LeagueStageBoundaries lsb ON lsb.LeagueId = li.LeagueId
             JOIN TeamInfo ti1 ON ti1.TeamId = si.Team1
             JOIN TeamInfo ti2 ON ti2.TeamId = si.Team2
-            WHERE (lsb.GroupEndMatchId IS NULL OR sm.MatchId <= lsb.GroupEndMatchId)
+            WHERE (sm.MatchId > lsb.TieBreakerEndMatchId)
             GROUP BY si.SeriesId
             ORDER BY si.SeriesId DESC;`
         );
