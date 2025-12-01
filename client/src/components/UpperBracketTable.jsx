@@ -1,5 +1,6 @@
 // src/components/tiebreakers/UpperBracketTable.jsx
 import React from "react";
+import { Link } from 'react-router-dom';
 
 export default function UpperBracketTable({ teams }) {
   return (
@@ -16,7 +17,7 @@ export default function UpperBracketTable({ teams }) {
         <tbody>
           {teams.map((t, idx) => (
             <tr key={t.TeamId}>
-              <td style={td}>{t.TeamName}</td>
+              <td style={td}><Link to={`/team/${t.TeamId}`}>{t.TeamName}</Link></td>
             </tr>
           ))}
         </tbody>

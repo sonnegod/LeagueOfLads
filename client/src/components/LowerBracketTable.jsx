@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from 'react-router-dom';
 
 export default function LowerBracketTable({ teams }) {
   // Split teams evenly for 2-column layout
@@ -26,7 +27,7 @@ export default function LowerBracketTable({ teams }) {
           <tbody>
             {col1.map((t) => (
               <tr key={t.TeamId}>
-                <td style={td}>{t.TeamName}</td>
+                <td style={td}><Link to={`/team/${t.TeamId}`}>{t.TeamName}</Link></td>
               </tr>
             ))}
           </tbody>
@@ -37,7 +38,7 @@ export default function LowerBracketTable({ teams }) {
           <tbody>
             {col2.map((t) => (
               <tr key={t.TeamId}>
-                <td style={td}>{t.TeamName}</td>
+                <td style={td}><Link to={`/team/${t.TeamId}`}>{t.TeamName}</Link></td>
               </tr>
             ))}
           </tbody>

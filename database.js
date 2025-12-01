@@ -685,7 +685,7 @@ class DBInstance {
             LEFT JOIN LeagueStageBoundaries lsb ON lsb.LeagueId = li.LeagueId
             JOIN TeamInfo ti1 ON ti1.TeamId = si.Team1
             JOIN TeamInfo ti2 ON ti2.TeamId = si.Team2
-            WHERE (lsb.GroupEndMatchId IS NULL OR sm.MatchId <= lsb.GroupEndMatchId)
+            WHERE (sm.MatchId > lsb.GroupEndMatchId AND sm.MatchId <= lsb.TieBreakerEndMatchId)
             GROUP BY si.SeriesId
             ORDER BY si.SeriesId DESC;`
         );
@@ -707,7 +707,7 @@ class DBInstance {
             LEFT JOIN LeagueStageBoundaries lsb ON lsb.LeagueId = li.LeagueId
             JOIN TeamInfo ti1 ON ti1.TeamId = si.Team1
             JOIN TeamInfo ti2 ON ti2.TeamId = si.Team2
-            WHERE (lsb.GroupEndMatchId IS NULL OR sm.MatchId <= lsb.GroupEndMatchId)
+            WHERE (sm.MatchId > lsb.TieBreakerEndMatchId)
             GROUP BY si.SeriesId
             ORDER BY si.SeriesId DESC;`
         );
@@ -832,6 +832,25 @@ class DBInstance {
             WHERE si.SeriesId = ?`,
             [seriesId]
         );
+    }
+
+    getSeriesInfo(seriesId){
+        return this.queryDatabase(
+                    `SELECT 
+                        si.*,
+                        SUM(CASE WHEN mt.WinnerId = si.Team1 THEN 1 ELSE 0 END) as Team1Wins,
+                        SUM(CASE WHEN mt.WinnerId = si.Team2 THEN 1 ELSE 0 END) as Team2Wins,
+                        ti1.TeamName as Team1Name,
+                        ti2.TeamName as Team2Name
+                    FROM 
+                    SeriesInfo si 
+                    JOIN SeriesMatch sm on si.SeriesId = sm.SeriesId
+                    JOIN MatchTeam mt on mt.MatchId = sm.MatchId
+                    JOIN TeamInfo ti1 on si.Team1 = ti1.TeamId
+                    JOIN TeamInfo ti2 on si.Team2 = ti2.TeamId
+                    WHERE si.SeriesId = ?`,
+                    [seriesId]
+                );
     }
 
     getCurrentLeagueLeaderboard(){

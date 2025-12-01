@@ -581,6 +581,37 @@ router.get('/matches/:matchId', async (req, res) => {
   }
 });
 
+router.get('/series/:seriesId', async (req, res) => {
+  const { seriesId } = req.params;
+
+  try {
+    const series = await db.getSeriesInfo(seriesId);
+    const seriesMatches = await db.getSeriesMatches(seriesId);
+
+     const seriesMatchesWithData = await Promise.all(
+      seriesMatches.map(async (match) => {
+        const matchInfo = await db.getMatch(match.MatchId);
+        const matchPlayers = await db.getMatchPlayerInformation(match.MatchId);
+        const matchPicksBans = await db.getMatchPickBanInformation(match.MatchId);
+        return {
+          ...match,
+          matchInfo, 
+          matchPlayers,
+          matchPicksBans
+        };
+      })
+    );
+
+    
+    res.json({
+      series,
+      seriesMatchesWithData
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/players', async (req, res) => {
   const { leagueId } = req.query;
 

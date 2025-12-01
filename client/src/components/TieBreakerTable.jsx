@@ -1,5 +1,6 @@
 // src/components/tiebreakers/TieBreakerTable.jsx
 import React, { useEffect, useState } from "react";
+import { Link } from 'react-router-dom';
 
 export default function TieBreakerTable({ teams }) {
   const [matches, setMatches] = useState([]);
@@ -60,7 +61,7 @@ export default function TieBreakerTable({ teams }) {
           <tbody>
             {teams.map((t) => (
               <tr key={t.TeamId}>
-                <td style={td}>{t.TeamName}</td>
+                <td style={td}><Link to={`/team/${t.TeamId}`}>{t.TeamName}</Link></td>
               </tr>
             ))}
           </tbody>
