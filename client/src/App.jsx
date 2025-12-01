@@ -16,6 +16,8 @@ import MatchesPage from './pages/MatchesPage';
 import SearchPage from "./pages/SearchPage";
 import RecentMatchesPage from "./pages/RecentMatchesPage";
 import RequestPage from "./pages/RequestPage";
+import SeriesPage from "./pages/SeriesPage";
+
 
 export default function App() {
   return (
@@ -37,6 +39,7 @@ export default function App() {
         <Route path="/search" element={<SearchPage />} />
         <Route path="/hero" element={<HeroesPage />} />
         <Route path="/request" element={<RequestPage />} />
+        <Route path="/series/:seriesId" element={<SeriesPage />} />
       </Route>
     </Routes>
   );

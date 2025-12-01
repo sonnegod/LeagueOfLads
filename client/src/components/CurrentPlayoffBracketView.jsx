@@ -1,5 +1,7 @@
 // SECTION: Read-Only Sub-Components
 // These components are self-contained and only display data.
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const ReadOnlyRoundColumn = ({ title, children, styles }) => (
     <div style={styles.column}>
@@ -27,12 +29,14 @@ const ReadOnlyTeamRow = ({ teamName, score, placeholder, styles, isWinner }) => 
     );
 };
 
-const ReadOnlyMatchCard = ({ match, isGrandFinal, styles }) => {
+const ReadOnlyMatchCard = ({ match, isGrandFinal, styles, onMatchClick }) => {
     // Logic to determine winner (purely for visual cue)
     const s1 = parseInt(match.team1Score || 0);
     const s2 = parseInt(match.team2Score || 0);
     const isTeam1Winner = s1 > s2;
     const isTeam2Winner = s2 > s1;
+
+    const isClickable = !!match.seriesId;
 
     // Visual cues
     const isDropRound = match.isDropRound;
@@ -40,6 +44,14 @@ const ReadOnlyMatchCard = ({ match, isGrandFinal, styles }) => {
         ...styles.card,
         borderLeft: isDropRound ? '4px solid #ff6b6b' : '4px solid #4ecdc4',
         borderColor: isGrandFinal ? 'gold' : '#ccc',
+
+        cursor: isClickable ? 'pointer' : 'default',
+    };
+
+    const handleClick = () => {
+        if (isClickable && onMatchClick) {
+            onMatchClick(match.seriesId);
+        }
     };
     
     // Determine placeholder based on current match status
@@ -53,7 +65,7 @@ const ReadOnlyMatchCard = ({ match, isGrandFinal, styles }) => {
     };
 
     return (
-        <div style={cardStyle}>
+        <div style={cardStyle} onClick={handleClick}>
             <div style={styles.cardHeader}>
                 <span>M{match.matchNum}</span>
                 {isDropRound && <span style={styles.dropLabel}>UB Drop</span>}
@@ -80,12 +92,20 @@ const ReadOnlyMatchCard = ({ match, isGrandFinal, styles }) => {
     );
 };
 
-import React, { useState, useEffect } from 'react';
-
 const CurrentPlayoffBracketView = () => {
     const [bracket, setBracket] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const navigate = useNavigate(); 
+    
+    // Function to handle the click and navigation
+    const handleMatchClick = (seriesId) => {
+        if (seriesId) {
+            // Adjust this path to match your actual series page route
+            navigate(`/series/${seriesId}`); 
+        }
+    };
 
     useEffect(() => {
         const fetchBracket = async () => {
@@ -148,6 +168,7 @@ const CurrentPlayoffBracketView = () => {
                                         key={m.id} 
                                         match={m} 
                                         styles={styles}
+                                        onMatchClick={handleMatchClick}
                                     />
                                 ))}
                             </ReadOnlyRoundColumn>
@@ -159,6 +180,7 @@ const CurrentPlayoffBracketView = () => {
                                 match={bracket.grandFinals[0]} 
                                 isGrandFinal={true}
                                 styles={styles}
+                                onMatchClick={handleMatchClick}
                             />
                         </ReadOnlyRoundColumn>
                     </div>
@@ -178,6 +200,7 @@ const CurrentPlayoffBracketView = () => {
                                         key={m.id} 
                                         match={m} 
                                         styles={styles}
+                                        onMatchClick={handleMatchClick}
                                     />
                                 ))}
                             </ReadOnlyRoundColumn>
