@@ -1818,7 +1818,7 @@ class DBInstance {
 
     insertTempSeries(teamA,teamB,stage,leagueId,dateCreated){
         try {
-            const stmt = this.db.prepare(`INSERT INTO TempSeriesInfo (Team1, Team2,Stage,LeagueId DateCreated)
+            const stmt = this.db.prepare(`INSERT INTO TempSeriesInfo (Team1, Team2,Stage,LeagueId, DateCreated)
                                           VALUES (@team1, @team2,@stage,@LeagueId, @DateCreated)`);
             const result = stmt.run({
                 team1: teamA,
