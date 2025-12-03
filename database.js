@@ -1818,7 +1818,7 @@ class DBInstance {
 
     insertTempSeries(teamA,teamB,stage,leagueId,dateCreated){
         try {
-            const stmt = this.db.prepare(`INSERT INTO TempSeriesInfo (Team1, Team2, DateCreated)
+            const stmt = this.db.prepare(`INSERT INTO TempSeriesInfo (Team1, Team2,Stage,LeagueId DateCreated)
                                           VALUES (@team1, @team2,@stage,@LeagueId, @DateCreated)`);
             const result = stmt.run({
                 team1: teamA,
@@ -1890,8 +1890,8 @@ class DBInstance {
     insertTempIntoSeries(){
         try {
             const insertStmt = this.db.prepare(`
-                INSERT INTO SeriesInfo (SeriesId, Team1, Team2, DateCreated)
-                SELECT SeriesId, Team1, Team2, DateCreated FROM TempSeriesInfo
+                INSERT INTO SeriesInfo (SeriesId, Team1, Team2,Stage,LeagueId, DateCreated)
+                SELECT SeriesId, Team1, Team2,Stage,LeagueId, DateCreated FROM TempSeriesInfo
             `);
             const info = insertStmt.run();
             console.log(`Inserted ${info.changes} rows into SeriesInfo`);
@@ -1947,7 +1947,7 @@ class DBInstance {
     }
 
     legacyNeustadtl(){
-        const legacyCheck = this.db.queryDatabase(`
+        const legacyCheck = this.queryDatabase(`
                 SELECT * FROM
                 NeustadtlLegacy nl 
                 JOIN LeagueInfo li on nl.LeagueId = li.LeagueId
