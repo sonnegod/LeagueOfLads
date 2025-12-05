@@ -1834,13 +1834,14 @@ class DBInstance {
         }
     }
 
-    insertSeriesMatch(seriesId,matchId){
+    insertSeriesMatch(seriesId,matchId,date){
         try {
-            const stmt = this.db.prepare(`INSERT INTO SeriesMatch (SeriesId, MatchId)
-                                          VALUES (@SeriesId, @MatchId)`);
+            const stmt = this.db.prepare(`INSERT INTO SeriesMatch (SeriesId, MatchId,DateCreated)
+                                          VALUES (@SeriesId, @MatchId,@DateCreated)`);
             stmt.run({
                 SeriesId: seriesId,
-                MatchId: matchId
+                MatchId: matchId,
+                DateCreated: date
             });
             return 1;
         } catch (err) {

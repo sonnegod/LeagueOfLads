@@ -116,13 +116,19 @@ async function getMatchDetails(matches){
 
                     if(resultSeries === 2)
                         console.error(`Failed to insert series ${data.dire_team_id} - ${data.radiant_team_id}`);
+                        console.error(`Data for Failure 
+                            Dire TeamId: ${data.dire_team_id}, 
+                            Radiant Team Id: ${data.radiant_team_id}, 
+                            Current Stage: ${currentStage}, 
+                            LeagueId: ${leagueId[0].LeagueId}, 
+                            Date: ${yesterdaysDate}`);
                     
                     seriesId = resultSeries;
                 } else {
                     seriesId = existing[0].SeriesId;
                 }
                 
-                const seriesMatch = db.insertSeriesMatch(seriesId,match.MatchId);
+                const seriesMatch = db.insertSeriesMatch(seriesId,match.MatchId,yesterdaysDate);
                 if(seriesMatch === 2)
                     console.error(`Failed to insert series match ${seriesId} - ${match.MatchId}`);
                 
