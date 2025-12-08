@@ -1850,6 +1850,30 @@ class DBInstance {
         }
     }
 
+    insertScheduledSeries(matches){
+        matches.forEach(match => {
+            const team1 = this.getTeamIdByName(match.team1)
+            const team2 = this.getTeamIdByName(match.team2)
+
+            console.log(match.team2,team2)
+
+            const stmt = this.db.prepare(`INSERT OR IGNORE INTO ScheduledSeries (Team1,Team2,Date)
+                                        VALUES (@Team1,@Team2,@Date);`);
+            stmt.run({
+                Team1: team1[0].TeamId,
+                Team2: team2[0].TeamId,
+                Date: match.date
+            });
+        })
+    }
+
+    getTeamIdByName(teamName){
+        return this.queryDatabase(`
+            SELECT TeamId
+            FROM TeamInfo 
+            WHERE LOWER(TeamName) = ?`, [teamName.toLowerCase()])
+    }
+
     getStage(){
         return this.queryDatabase(
             `SELECT
