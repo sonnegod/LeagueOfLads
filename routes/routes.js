@@ -971,6 +971,26 @@ router.get('/wallet/:userId', async (req, res) => {
       }
 })
 
+router.get('/bets/:userId', async (req, res) => {
+    const { userId } = req.params;
+
+    if (!userId) {
+          return res.status(400).json({ success: false, message: "User ID is required." });
+      }
+      
+      // Assume getWalletBalance queries the UserWallets table
+      const betData = dbBet.getBets(userId); 
+
+      console.log(betData)
+
+      if (betData) {
+          return res.status(200).json(betData);
+      } else {
+          // This should rarely happen if login is handled correctly, but good to guard against.
+          return res.status(404).json({ success: false, message: "Bets not found." });
+      }
+})
+
 router.post('/parlay', async (req, res) => {
     const { user, totalWager, betLegs } = req.body;
 

@@ -26,7 +26,25 @@ export default function MarketCard({ market, selectedOptions, onSelectOption }) 
             <h3>{title}</h3>
             <p className="status">Status: <strong>{status}</strong></p>
             {isBettingAvailable && close_time && (
-                <p className="close-time">Closes: {new Date(close_time).toLocaleTimeString()}</p>
+               <p className="close-time">
+                    Closes: {new Date(close_time).toLocaleString('en-US', {
+                        // Date options
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        
+                        // Time options
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true,
+
+                        // Timezone setting (Critical for UTC -> EST conversion)
+                        timeZone: 'America/New_York' 
+                    })
+                    .replace(', ', ' ') // Replaces the comma/space separator (e.g., '12/09/2025, 5:00:00 PM' -> '12/09/2025 5:00:00 PM')
+                    } 
+                </p>
             )}
 
             {Object.entries(groupedOptions).map(([type, options]) => (

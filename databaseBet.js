@@ -219,6 +219,40 @@ class DBInstance {
             )`,[team1,team2,team2,team1]);
     }
 
+    getBets(userId){
+        return this.queryDatabase(`
+            SELECT
+                PT.id AS ticket_id,
+                PT.total_amount,
+                ROUND(PT.total_odds,2) as odds,
+                ROUND(PT.total_payout,2) as payout,
+                PT.created_at,
+                -- Use aggregation to capture the details of all bet legs for this ticket
+                json_group_array(
+                    json_object(
+                        'option_name', BO.name,
+                        'odds_taken', BL.odds_at_time,
+                        'market_title', M.title,
+                        'market_id', M.id
+                    )
+                ) AS legs
+            FROM
+                ParlayTickets PT
+            JOIN
+                BetLegs BL ON PT.id = BL.ticket_id
+            JOIN
+                BettingOptions BO ON BL.option_id = BO.id
+            JOIN
+                Markets M ON BO.market_id = M.id
+            WHERE
+                PT.user_id = ? AND PT.status = 'PENDING'
+            GROUP BY
+                PT.id
+            ORDER BY
+                PT.created_at DESC;
+            `,[userId]);
+    }
+
     placeParlayBet(userId, totalWager, betLegs){
         try {
             // --- Step 1: Preliminary Validation ---
