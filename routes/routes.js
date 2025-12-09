@@ -4,7 +4,7 @@ import passport from 'passport';
 import { checkAdmin } from '../middleware/checkAdmin.js';
 
 import db from '../database.js';
-
+import dbBet from '../databaseBet.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
@@ -936,6 +936,66 @@ router.get('/currentLeaderboard', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+router.get('/markets', async (req, res) => {
+    const activeMarkets = dbBet.getActiveMarkets(); 
+
+    const activeMarketsWithOptions = await Promise.all(
+      activeMarkets.map(async(market) => {
+        const options = dbBet.getOptions(market.id)
+        return {
+          ...market,
+          options
+        }
+      })
+    )
+    res.status(200).json(activeMarketsWithOptions);
+})
+
+router.get('/wallet/:userId', async (req, res) => {
+    const { userId } = req.params;
+
+    if (!userId) {
+          return res.status(400).json({ success: false, message: "User ID is required." });
+      }
+      
+      // Assume getWalletBalance queries the UserWallets table
+      const walletData = dbBet.getWalletBalance(userId); 
+
+      if (walletData) {
+          return res.status(200).json(walletData);
+      } else {
+          // This should rarely happen if login is handled correctly, but good to guard against.
+          return res.status(404).json({ success: false, message: "Wallet not found. User may not exist." });
+      }
+})
+
+router.post('/parlay', async (req, res) => {
+    const { user, totalWager, betLegs } = req.body;
+
+    
+    // 1. Basic Input Validation
+    if (!user || !totalWager || totalWager <= 0 || !betLegs || betLegs.length === 0) {
+        return res.status(400).json({ success: false, message: "Invalid bet payload: Missing user, wager, or legs." });
+    }
+    
+    // 2. Execute the Core Transaction Logic
+    // This function will handle all database reads, writes, and validation inside a single transaction.
+    const result = dbBet.placeParlayBet(user.accountId, totalWager, betLegs);
+
+    if (result.success) {
+        // HTTP 201 Created is appropriate for a new ticket
+        return res.status(201).json({ 
+            success: true, 
+            ticketId: result.ticketId, 
+            message: "Bet placed successfully.",
+            finalOdds: result.finalOdds,
+        });
+    } else {
+        // If the transaction failed due to validation (e.g., wallet insufficient, market locked)
+        return res.status(400).json({ success: false, message: result.message });
+    }
 });
 
 export default router;

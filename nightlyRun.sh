@@ -21,4 +21,7 @@ echo "$(date) - Starting nightly jobs" >> "$LOG_FILE"
 
 /usr/bin/node /root/LeagueOfLads/checkPlayoffSeries.js >> "$LOG_FILE" 2>&1
 
+/usr/bin/node /root/LeagueOfLads/betting/nightly-settlement-job.js >> "$LOG_FILE" 2>&1
+
+
 echo "$(date) - Nightly jobs complete" >> "$LOG_FILE"

@@ -1,0 +1,30 @@
+.betting-page-layout {
+    /* Set up a grid with two columns */
+    display: grid;
+    /* Column widths: 3 parts for markets, 1 part for the slip */
+    grid-template-columns: 3fr 1fr; 
+    gap: 20px;
+    padding-bottom: 50px; 
+}
+
+.betting-slip-column {
+    /* 1. Enable sticky positioning */
+position: relative;    
+    /* 2. Define where it should stick */
+    top: 20px; 
+    
+    /* Optional: Ensure the slip content itself can scroll if it gets too long */
+
+}
+
+/* Optional: Mobile Optimization (Example) */
+@media (max-width: 768px) {
+    .betting-page-layout {
+        /* Stack columns vertically on small screens */
+        grid-template-columns: 1fr;
+    }
+    .betting-slip-column {
+        /* Disable sticky on mobile so the slip appears below the markets */
+        position: static;
+    }
+}

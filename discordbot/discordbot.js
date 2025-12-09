@@ -1,7 +1,5 @@
 import { Client, GatewayIntentBits } from 'discord.js';
 import db from '../database.js';
-
-import cron from 'node-cron';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -135,9 +133,9 @@ async function start() {
         // 2. Run the initial fetch immediately
         await fetchAndLogMatchups();
 
-        // 3. Schedule the job to run every 30 minutes
-        // The pattern '*/30 * * * *' means: at every 30th minute (0, 30)
 
+        if (client) client.destroy();
+        process.exit(1);
     } catch (err) {
         console.error('Fatal Initialization Error:', err.message);
         // Clean up client before exiting

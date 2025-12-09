@@ -17,6 +17,7 @@ import SearchPage from "./pages/SearchPage";
 import RecentMatchesPage from "./pages/RecentMatchesPage";
 import RequestPage from "./pages/RequestPage";
 import SeriesPage from "./pages/SeriesPage";
+import BettingPage from "./pages/BettingPage";
 
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/hero" element={<HeroesPage />} />
         <Route path="/request" element={<RequestPage />} />
         <Route path="/series/:seriesId" element={<SeriesPage />} />
+        <Route path="/betting" element={<BettingPage />} />
       </Route>
     </Routes>
   );

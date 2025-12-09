@@ -1,3 +1,4 @@
+import dbBet from './databaseBet.js';
 import Database from "better-sqlite3";
 import dotenv from 'dotenv';
 dotenv.config();
@@ -197,6 +198,38 @@ class DBInstance {
              ORDER BY li.LeagueId DESC`,
             [id]
         );
+    }
+
+    getLastNightSeries(){
+        return this.queryDatabase(`
+            WITH SeriesResults AS (
+                SELECT 
+                    SI.SeriesId,
+                    SI.Team1, -- Include Team1 and Team2 in the results set
+                    SI.Team2,
+                    SUM(CASE WHEN mt.WinnerId = SI.Team1 THEN 1 ELSE 0 END) as Team1Wins,
+                    SUM(CASE WHEN mt.WinnerId = SI.Team2 THEN 1 ELSE 0 END) as Team2Wins
+                FROM SeriesInfo SI
+                JOIN SeriesMatch SM ON SI.SeriesId = SM.SeriesId
+                JOIN MatchTeam mt on mt.MatchId = SM.MatchId
+                WHERE date(SI.DateCreated) = date('now', '-1 day')
+                GROUP BY SI.SeriesId, SI.Team1, SI.Team2 -- Group by teams to avoid ambiguity
+            )
+            SELECT
+                sr.SeriesId,
+                sr.Team1,
+                sr.Team2,
+                sr.Team1Wins,
+                sr.Team2Wins,
+                -- Now the aliases are available for the final calculation
+                CASE 
+                    WHEN sr.Team1Wins = 2 THEN sr.Team1 
+                    WHEN sr.Team2Wins = 2 THEN sr.Team2 
+                    -- Add a tie/not-finished condition if necessary
+                    ELSE NULL 
+                END AS WinnerId 
+            FROM SeriesResults sr
+        `);
     }
 
     getAllPlayers(leagueId){
@@ -1340,6 +1373,23 @@ class DBInstance {
         `,[leagueId]);
     }
 
+    getWinPercentage(teamId){
+        return this.queryDatabase(`
+            Select 
+            ROUND(100*Wins/(Wins+Losses),2) as WinPct
+            From LeagueStandings ls join 
+            LeagueInfo li on ls.LeagueId = li.LeagueId
+            WHERE li.Active = 1 AND ls.TeamId = ?`, [teamId]);
+    }
+
+    getScheduledSeries(team1Id, team2Id){
+        return this.queryDatabase(`
+            SELECT Date 
+            FROM ScheduledSeries
+            WHERE (Team1 = ? AND Team2 = ?)
+            OR (Team1 = ? AND Team2 = ?)`, [team1Id,team2Id,team2Id,team1Id]);
+    }
+
     insertTeam(team) {
         try {
             const insertQuery = `
@@ -2074,13 +2124,27 @@ class DBInstance {
 
     login(username, steamid, date){
         try {
+            let isNewUser = false;
+            const existingUser = this.queryDatabase(`
+                SELECT SteamID FROM Logins WHERE SteamId = ?`, [steamid]);
+
+            if(existingUser.length === 0)
+                isNewUser = true;
+
             const stmt = this.db.prepare(`INSERT OR REPLACE INTO Logins (Username, SteamID, LastLoginDate)
                                           VALUES (@username, @steamId, @LastLoginDate)`);
             stmt.run({
                 username: username,
-                steamId: steamid,
+                steamId: this.steamId64ToAccountId(steamid),
                 LastLoginDate: date
             });
+
+
+            if(isNewUser){
+                dbBet.createWallet(this.steamId64ToAccountId(steamid));
+            }
+
+
             return 1;
         } catch (err) {
             console.log(err);
@@ -2109,6 +2173,12 @@ class DBInstance {
                 ORDER BY mt.MatchId DESC
                 LIMIT 1
             `);
+    }
+
+
+    steamId64ToAccountId(steamId64) {
+        const base = BigInt('76561197960265728');
+        return (BigInt(steamId64) - base).toString(); // returns string to safely handle large numbers
     }
     
     

@@ -16,6 +16,8 @@ cd client
 npm run build
 sudo cp -r dist/* /var/www/leagueoflads/
 
+crontab -l
+
 
 cd .. 
 pm2 start /root/LeagueOfLads/index.js --name LeagueOfLads
