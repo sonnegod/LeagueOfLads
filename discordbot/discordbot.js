@@ -35,51 +35,50 @@ function parseMatchMessage(message) {
     const team2Name = rolesArray[1].name;
 
 
-    // 2. Clean the message content to isolate the date/time string
-    // Remove all user/role mention tags (<@&...>) and the "vs"
-    const contentWithoutMentions = message.content
-        .replace(/<@&?\d+>/g, '') // Removes all user/role mention tags
-        .replace(/\s+vs\s+/i, ' ') // Replaces ' vs ' with a single space
-        .trim();
-        
-    // The content should now look roughly like: "Sunday 12/7 7pm"
+    // 2. Locate the Month/Day component in the entire message content
+    // We look for any pattern like "12/8" or "1/15" anywhere in the message.
+    // (\d{1,2}\/\d{1,2}) captures the month/day (e.g., 12/8)
+    const dateRegex = /(\d{1,2}\/\d{1,2})/i;
+    const dateMatch = message.content.match(dateRegex);
 
-    // 3. Regex to isolate the date/time components
-    // Captures: DayName(Sunday), Month/Day(12/7), Time(7pm)
-    // (\w+) captures the day name (e.g., Sunday)
-    // (\d{1,2}\/\d{1,2}) captures the month/day (e.g., 12/7)
-    // (\d{1,2}(?::\d{2})?\s*[ap]m) captures the time (e.g., 7pm)
-    const dateRegex = /(\w+)\s+(\d{1,2}\/\d{1,2})\s+(\d{1,2}(?::\d{2})?\s*[ap]m)/i;
-    const dateMatch = contentWithoutMentions.match(dateRegex);
-
-    if (dateMatch && dateMatch.length > 3) {
-        // dateMatch[1] = Day name (e.g., Sunday) - not strictly needed for parsing, but good for validation
-        const monthDay = dateMatch[2]; // e.g., 12/7
-        const time = dateMatch[3];     // e.g., 7pm
-
-        // Construct a full date string for JavaScript's Date object
-        // NOTE: We must append the current year to the month/day for valid parsing.
-        const currentYear = new Date().getFullYear();
-        const fullDateString = `${monthDay}/${currentYear}`; 
-
-        // 4. Create and validate the Date object
-        let matchDate = new Date(fullDateString);
-
-        if (isNaN(matchDate.getTime())) {
-            console.warn(`[PARSING WARNING] Invalid date generated from: ${fullDateString}`);
-            return null;
-        }
-
-        matchDate = matchDate.toISOString().split('T')[0];
-
-        return {
-            team1: team1Name,
-            team2: team2Name,
-            date: matchDate
-        };
+    if (!dateMatch) {
+        console.warn("[PARSING WARNING] Failed to find a Month/Day pattern (e.g., 12/8).");
+        return null;
     }
+
+    const monthDay = dateMatch[1]; // e.g., 12/8
+
+    // 3. Construct a full date string and format it to YYYY-MM-DD
+    // We must append the current year to the month/day for valid parsing.
+    const currentYear = new Date().getFullYear();
     
-    return null; // Failed to match the date pattern
+    // NOTE: This uses the current year. If the match date is 1/1 and it's currently 12/31, 
+    // it will incorrectly assign the current year. Robust systems check if the month is
+    // less than the current month and increment the year if needed.
+    const fullDateString = `${monthDay}/${currentYear}`; 
+
+    // Create a temporary Date object
+    let matchDate = new Date(fullDateString);
+
+    if (isNaN(matchDate.getTime())) {
+        console.warn(`[PARSING WARNING] Invalid date generated from: ${fullDateString}`);
+        return null;
+    }
+
+    // Format to YYYY-MM-DD (Date-only string)
+    // Using UTC date components ensures it's consistently YYYY-MM-DD regardless of server time,
+    // though this only holds true if the Date object was created without a specific time zone.
+    const finalDate = [
+        matchDate.getFullYear(),
+        String(matchDate.getMonth() + 1).padStart(2, '0'), // Month is 0-indexed
+        String(matchDate.getDate()).padStart(2, '0')
+    ].join('-');
+    
+    return {
+        team1: team1Name,
+        team2: team2Name,
+        date: finalDate // e.g., "2025-12-08"
+    };
 }
 
 /**
