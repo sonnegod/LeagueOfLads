@@ -27,7 +27,7 @@ const MyBets = ({ userId }) => {
                 const response = await fetch(`${BETS_API_URL}/${userId}`); 
                 
                 if (!response.ok) {
-                    throw new Error(`Failed to fetch bets (Status: ${response.status})`);
+                    throw new Error(`Failed to fetch bets (Status: ${response.message})`);
                 }
                 
                 const data = await response.json(); // Expects an array of tickets/bets
