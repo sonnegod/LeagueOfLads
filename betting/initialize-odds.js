@@ -73,7 +73,7 @@ async function processMatchupMarkets(mainDB, bettingDB) {
             // a) Have both teams ready (Team 1 & Team 2 are not null)
             // b) Do NOT already have a linked Series ID (result not yet processed)
 
-            if (match.team1Id && match.team2Id && !match.seriesId) {
+            if (match.team1Id && match.team2Id && !match.seriesId && match.team1Score === 0 && match.team2Score === 0) {
                 upcomingMatches.push(match)
             }
         }
@@ -90,7 +90,7 @@ async function processMatchupMarkets(mainDB, bettingDB) {
             // NOTE: You could add logic here to update the odds if the market is still 'OPEN'
             continue; // Skip the rest of the creation logic for this match
         }
-        
+        console.log(match);
         // 1. Determine Win Probabilities
         let t1WinPct = db.getWinPercentage(team1Id)
         let t2WinPct = db.getWinPercentage(team2Id)

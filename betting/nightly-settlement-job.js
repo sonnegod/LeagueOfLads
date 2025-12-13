@@ -65,7 +65,7 @@ function determineWinningOption(market, series) {
     // 1. Get Winning Team Name
     const teamRow = db.getTeamInfo(WinnerId);
 
-    if (!teamRow) return { moneylineId: null, scoreId: null };
+    if (teamRow.length === 0) return { moneylineId: null, scoreId: null };
         
     const winningTeamName = teamRow[0].TeamName;
 

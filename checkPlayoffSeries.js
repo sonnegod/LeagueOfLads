@@ -79,7 +79,7 @@ const runJob = () => {
             // FILTER: We only care about matches that:
             // a) Have both teams ready (Team 1 & Team 2 are not null)
             // b) Do NOT already have a linked Series ID (result not yet processed)
-            if (match.team1Id && match.team2Id && !match.seriesId) {
+            if (match.team1Id && match.team2Id && !match.seriesId && match.team1Score === 0 && match.team2Score === 0) {
                 
                 console.log(`Checking Match ${match.id} (${match.team1Name} vs ${match.team2Name})...`);
 
