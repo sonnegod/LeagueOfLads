@@ -90,65 +90,73 @@ class DBInstance {
 
 
     recalculateMoneyLineOdds(marketId) {
-    
-    // Weighting Factors for Market Control
-    
-    // Alpha (POOL_INFLUENCE_RATE): The weight given to the user-driven pool's 'Fair Odds'.
-    // 0.10 means 10% of the movement is based on the pool, 90% remains the old line.
-    const POOL_INFLUENCE_RATE = 0.10; 
-    
-    // Gamma (HOUSE_VIG_FACTOR): The margin the house takes (5% margin)
-    const HOUSE_VIG_FACTOR = 0.95; 
-
-    try {
-        // 1. Fetch data for both options
-        const options = this.queryDatabase(`
-            SELECT id, pool, odds as odds_old 
-            FROM BettingOptions 
-            WHERE market_id = ?
-            AND name like '%Moneyline%';
-        `, [marketId]);
         
-        if (options.length !== 2) {
-             console.warn(`Market ${marketId} does not have exactly two options. Skipping odds update.`);
-             return;
+        // Weighting Factors for Market Control
+        
+        // Alpha (POOL_INFLUENCE_RATE): The weight given to the user-driven pool's 'Fair Odds'.
+        // 0.10 means 10% of the movement is based on the pool, 90% remains the old line.
+        const POOL_INFLUENCE_RATE = 0.10; 
+        
+        // Gamma (HOUSE_VIG_FACTOR): The margin the house takes (5% margin)
+        const HOUSE_VIG_FACTOR = 0.95; 
+
+        try {
+            // 1. Fetch data for both options
+            const options = this.queryDatabase(`
+                SELECT id, pool, odds as odds_old 
+                FROM BettingOptions 
+                WHERE market_id = ?
+                AND name like '%Moneyline%';
+            `, [marketId]);
+            
+            if (options.length !== 2) {
+                console.warn(`Market ${marketId} does not have exactly two options. Skipping odds update.`);
+                return;
+            }
+
+            const totalPool = options[0].pool + options[1].pool;
+
+            if (totalPool === 0) return;
+
+            // 2. Prepare the update statement
+            const stmtUpdateOdds = this.db.prepare("UPDATE BettingOptions SET odds = ? WHERE id = ?");
+
+            for (const option of options) {
+                if (option.pool === 0) continue; 
+
+                // A. Calculate Fair Odds (Implied Probability from Pool)
+                // This represents what the odds *should* be if based purely on pool money.
+                const impliedProbability = option.pool / totalPool;
+                const fairOdds = 1 / impliedProbability;
+                
+                // B. Apply Vig to Fair Odds
+                const odds_fair = fairOdds * HOUSE_VIG_FACTOR;
+                
+                // C. Apply the Weighted Average (Smoothing) Formula
+                const odds_old = option.odds_old;
+                
+                // The weight given to the existing, trusted line (e.g., 90%)
+                const OLD_WEIGHT = 1.0 - POOL_INFLUENCE_RATE; 
+
+                // Formula: New Odds = (Baseline Weight * Old Odds) + (Influence Weight * Pool-Fair Odds)
+                const newOdds = (OLD_WEIGHT * odds_old) + (POOL_INFLUENCE_RATE * odds_fair);
+                
+                // 3. Update the database
+                stmtUpdateOdds.run(newOdds.toFixed(2), option.id); 
+            }
+
+        } catch (error) {
+            console.error(`Error recalculating Moneyline odds for Market ${marketId}:`, error.message);
         }
-
-        const totalPool = options[0].pool + options[1].pool;
-
-        if (totalPool === 0) return;
-
-        // 2. Prepare the update statement
-        const stmtUpdateOdds = this.db.prepare("UPDATE BettingOptions SET odds = ? WHERE id = ?");
-
-        for (const option of options) {
-            if (option.pool === 0) continue; 
-
-            // A. Calculate Fair Odds (Implied Probability from Pool)
-            // This represents what the odds *should* be if based purely on pool money.
-            const impliedProbability = option.pool / totalPool;
-            const fairOdds = 1 / impliedProbability;
-            
-            // B. Apply Vig to Fair Odds
-            const odds_fair = fairOdds * HOUSE_VIG_FACTOR;
-            
-            // C. Apply the Weighted Average (Smoothing) Formula
-            const odds_old = option.odds_old;
-            
-            // The weight given to the existing, trusted line (e.g., 90%)
-            const OLD_WEIGHT = 1.0 - POOL_INFLUENCE_RATE; 
-
-            // Formula: New Odds = (Baseline Weight * Old Odds) + (Influence Weight * Pool-Fair Odds)
-            const newOdds = (OLD_WEIGHT * odds_old) + (POOL_INFLUENCE_RATE * odds_fair);
-            
-            // 3. Update the database
-            stmtUpdateOdds.run(newOdds.toFixed(2), option.id); 
-        }
-
-    } catch (error) {
-        console.error(`Error recalculating Moneyline odds for Market ${marketId}:`, error.message);
     }
-}
+
+    updateDate(marketId, closeTime){
+        return this.db.prepare(`
+            UPDATE Markets
+            SET close_time = ?
+            WHERE id = ?
+            `).run(closeTime,marketId);
+    }
 
     closeMarkets(time){
         return this.db.prepare(`

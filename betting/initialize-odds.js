@@ -86,9 +86,20 @@ async function processMatchupMarkets(mainDB, bettingDB) {
 
     
         if (existingMarket.length !== 0) {
-            console.log(`- Market ${existingMarket.id}: ${existingMarket.title} already exists and is open. Skipping creation.`);
-            // NOTE: You could add logic here to update the odds if the market is still 'OPEN'
-            continue; // Skip the rest of the creation logic for this match
+            if(existingMarket[0].close_time !== null)
+                console.log(`- Market ${existingMarket[0].id}: ${existingMarket[0].title} already exists and has schedule.`);
+            else{
+                let closeTime = calculateMatchCloseTime(team1Id, team2Id);
+
+                if(closeTime === -1){
+                    console.log(`- Market ${existingMarket[0].id}: ${existingMarket[0].title} does not have schedule.`);
+                }
+                else{
+                    dbBet.updateDate(existingMarket[0].id,closeTime)
+                    console.log(`- Added Schedule to Market ${existingMarket[0].id}: ${existingMarket[0].title}.`);
+                }
+            }
+            continue;
         }
         console.log(match);
         // 1. Determine Win Probabilities
