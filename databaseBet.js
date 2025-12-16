@@ -153,7 +153,7 @@ class DBInstance {
     updateDate(marketId, closeTime){
         return this.db.prepare(`
             UPDATE Markets
-            SET close_time = ?
+            SET close_time = ?, status = 'OPEN'
             WHERE id = ?
             `).run(closeTime,marketId);
     }
