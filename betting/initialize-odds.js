@@ -101,7 +101,6 @@ async function processMatchupMarkets(mainDB, bettingDB) {
             }
             continue;
         }
-        console.log(match);
         // 1. Determine Win Probabilities
         let t1WinPct = db.getWinPercentage(team1Id)
         let t2WinPct = db.getWinPercentage(team2Id)

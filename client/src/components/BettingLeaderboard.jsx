@@ -27,7 +27,6 @@ export default function BettingLeaderboard() {
         const loadData = async () => {
             try {
                 const data = await fetchLeaderboardData();
-                console.log(data);
                 setPerformanceData(data);
             } catch (err) {
                 console.error("Failed to fetch leaderboard data:", err);

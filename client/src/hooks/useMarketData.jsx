@@ -53,7 +53,6 @@ export function useMarketData() {
                 const data = await response.json();
 
                 const sortedData = sortMarkets(data);
-                console.log(sortedData)
                 
                 if (isMounted) {
                     setMarkets(sortedData);

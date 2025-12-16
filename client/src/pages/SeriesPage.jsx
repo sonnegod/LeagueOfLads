@@ -174,7 +174,6 @@ export default function SeriesPage() {
             try {
                 const res = await fetch(`/api/series/${seriesId}`);
                 const data = await res.json();
-                console.log(data);
                 setSeriesData(data);
                 setActiveMatchIndex(0); 
 
