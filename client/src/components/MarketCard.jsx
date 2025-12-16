@@ -14,7 +14,7 @@ export default function MarketCard({ market, selectedOptions, onSelectOption }) 
     } = market;
     
     // Check if the market is closed or pending
-    const isBettingAvailable = (status === 'OPEN' || status === 'PENDING');
+    const isBettingAvailable = (status === 'OPEN');
     
     // Group options by type (Moneyline, Score, etc.) for clean display
     const groupedOptions = options.reduce((acc, option) => {
@@ -140,7 +140,7 @@ export default function MarketCard({ market, selectedOptions, onSelectOption }) 
                     </div>
                 </div>
             ))}
-            {!isBettingAvailable && <div className="overlay-locked">LOCKED</div>}
+            {!isBettingAvailable && <div className="overlay-locked">LOCKED (Not scheduled or incorrect scheduling format)</div>}
         </div>
     );
 }
