@@ -6,3 +6,64 @@
     /* ADD THIS LINE: Adds 20 pixels of space below each card */
     margin-bottom: 20px; 
 }
+
+/* --- Styles for the Betting Pool Bar --- */
+
+.betting-bar-container {
+    margin: 10px 0 15px 0; /* Adds space above and below the bar */
+    width: 100%;
+}
+
+.labels {
+    display: flex;
+    justify-content: space-between; /* Pushes pool values to the left and right edges */
+    margin-bottom: 3px;
+    font-size: 0.8em;
+    font-weight: bold;
+    color: #555; /* A subtle color for the monetary values */
+}
+
+.bar-wrapper {
+    display: flex; 
+    height: 25px; /* A moderate height for the bar */
+    border-radius: 4px;
+    overflow: hidden; 
+    background-color: #eee; /* Fallback color for the bar */
+}
+
+.bar-segment {
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white; 
+    font-size: 0.7em;
+    font-weight: bold;
+    /* Optional: Add transition for smoother updates */
+    transition: width 0.3s ease-out; 
+    min-width: 15px; /* Ensures labels are visible even at low percentages */
+}
+
+/* Define distinct colors for the two teams/outcomes */
+.team-a {
+    background-color: #007bff; /* Primary Blue */
+}
+
+.team-b {
+    background-color: #28a745; /* Primary Green */
+}
+
+.percentage-label {
+    /* Optional: Style to ensure high contrast */
+    text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Other styles (you already have these or will need them for the rest of the component) */
+.market-card {
+    border: 1px solid #ccc;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+/* ... rest of your existing MarketCard.css styles ... */

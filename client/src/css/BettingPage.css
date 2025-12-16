@@ -1,30 +1,68 @@
 .betting-page-layout {
-    /* Set up a grid with two columns */
+    /* Set up a grid with three columns */
     display: grid;
-    /* Column widths: 3 parts for markets, 1 part for the slip */
-    grid-template-columns: 3fr 1fr; 
+    grid-template-columns: 1fr 3fr 1fr; 
     gap: 20px;
-    padding-bottom: 50px; 
+    /* Optional: Limit max-width and center if needed */
+    max-width: 1400px; 
+    margin: 0 auto;
+    /* ADD THIS: Ensure the grid has a defined positioning context for children. */
+    position: relative; 
 }
 
+/* New CSS for the Leaderboard Column */
+
+
+/* FIX: Sticky Positioning for the Betting Slip Column */
 .betting-slip-column {
-    /* 1. Enable sticky positioning */
-position: relative;    
-    /* 2. Define where it should stick */
-    top: 20px; 
+    /* Set height to allow the container itself to scroll */
+    height: 80vh; 
     
-    /* Optional: Ensure the slip content itself can scroll if it gets too long */
+    /* 1. Apply sticky positioning */
+    position: sticky; 
+    
+    /* 2. CRITICAL FIX: Set 'top' equal to the height of your fixed Navbar. */
+    /* Example: If your navbar is 60px tall: */
+    top: 40px; 
 
+    /* Add padding to align with the market list */
+    padding-top: 20px;
 }
 
-/* Optional: Mobile Optimization (Example) */
+
+/* Optional: Mobile Optimization (REVISED) */
+@media (max-width: 1024px) {
+    .betting-page-layout {
+        /* Collapse to two columns for slightly smaller screens: Leaderboard and Markets stacked, Slip remains sticky */
+        grid-template-columns: 1fr 2fr;
+    }
+    /* Move the leaderboard under the markets on small screens */
+    .leaderboard-column {
+        /* This places the leaderboard below the h1 in the second column */
+        grid-column: 1 / span 2; 
+        order: 3; /* Push it down */
+    }
+    .betting-slip-column {
+        /* Span the right two rows */
+        grid-column: 3;
+    }
+}
+
 @media (max-width: 768px) {
     .betting-page-layout {
-        /* Stack columns vertically on small screens */
+        /* Collapse to a single column for mobile */
         grid-template-columns: 1fr;
     }
     .betting-slip-column {
-        /* Disable sticky on mobile so the slip appears below the markets */
+        /* Disable sticky and place at the top, typically the first thing users interact with */
         position: static;
+        order: 1; 
+    }
+    .market-list-column {
+        order: 2;
+    }
+    .leaderboard-column {
+        order: 3; /* Push the leaderboard to the bottom */
+        grid-column: 1; 
     }
 }

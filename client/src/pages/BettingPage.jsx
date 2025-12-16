@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import React, { useState, useMemo, useCallback } from 'react';
 import MarketCard from '../components/MarketCard';
 import BettingSlip from '../components/BettingSlip';
+import BettingLeaderboard from '../components/BettingLeaderboard';
+
 import { useMarketData } from '../hooks/useMarketData';
 import { useWalletData } from '../hooks/useWalletData'; // Assumed hook for balance
 
@@ -131,9 +133,13 @@ export default function BettingPage() {
 
     return (
         <div className="betting-page-layout">
+            <div className="leaderboard-column">
+                <BettingLeaderboard/>
+            </div>
+
             <div className="market-list-column">
                 <h1>Playoff Markets</h1>
-                <div className="market-cards-grid">
+                <div className="market-cards-grid">    
                     {/* Markets render for everyone */}
                     {markets.map(market => (
                         <MarketCard 

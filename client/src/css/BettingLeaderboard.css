@@ -1,0 +1,43 @@
+/* --- Leaderboard Specific Styling (REVISED) --- */
+
+.leaderboard-card {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+}
+
+.leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 0.9em;
+}
+
+.leaderboard-table th, .leaderboard-table td {
+    padding: 8px 0;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.leaderboard-table th {
+    font-weight: bold;
+    text-align: center;
+}
+
+/* FIX 1: Increased Spacing for Net Gain column */
+.leaderboard-table td:nth-child(3) { 
+    padding-left: 15px; /* Added padding to push the amount away from the User ID */
+}
+
+/* FIX 2: Ensure the color classes (gain/loss) are applied forcefully */
+.leaderboard-table .gain {
+    color: #28a745 !important; /* Green for gain */
+    font-weight: bold;
+}
+
+.leaderboard-table .loss {
+    color: #dc3545 !important; /* Red for loss */
+    font-weight: bold;
+}

@@ -944,13 +944,31 @@ router.get('/markets', async (req, res) => {
     const activeMarketsWithOptions = await Promise.all(
       activeMarkets.map(async(market) => {
         const options = dbBet.getOptions(market.id)
+        const pools = dbBet.getPools(market.id);
         return {
           ...market,
-          options
+          options,
+          pools
         }
       })
     )
     res.status(200).json(activeMarketsWithOptions);
+})
+
+router.get('/bettingLeaderboard', async (req, res) => {
+    const leaderboard = dbBet.getPlayerLeaderboard(); 
+
+    const leaderboardWithNames = await Promise.all(
+      leaderboard.map(async(row) => {
+        const player = db.getPlayerInfo(row.user_id)
+        const name = player[0].PlayerName
+        return {
+          ...row,
+          name
+        }
+      })
+    )
+    res.status(200).json(leaderboardWithNames);
 })
 
 router.get('/wallet/:userId', async (req, res) => {

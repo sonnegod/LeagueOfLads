@@ -40,7 +40,8 @@ function runNightlySettlement() {
                         console.error(`❌ Failed to settle Market ${market.id}: ${result.message}`);
                     }
                 } else {
-                    console.warn(`Could not determine winning option for Market ${market.id}`);
+                    dbBet.void(market.id);
+                    console.warn(`Voiding Market ${market.id}`);
                 }
             }
         }
@@ -61,6 +62,9 @@ function determineWinningOption(market, series) {
     );
 
     const normalize = (str) => str.toLowerCase().trim();
+
+    if(WinnerId === null)
+        return { moneylineId: null, scoreId: null };
     
     // 1. Get Winning Team Name
     const teamRow = db.getTeamInfo(WinnerId);

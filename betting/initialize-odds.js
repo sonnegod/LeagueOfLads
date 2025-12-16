@@ -159,19 +159,19 @@ async function processMatchupMarkets(mainDB, bettingDB) {
         // 4. Insert Betting Options
         const options = [
             // Moneyline
-            { name: `${team1Name} Moneyline`, odds: oddsAML, line_value: null },
-            { name: `${team2Name} Moneyline`, odds: oddsBML, line_value: null },
+            { name: `${team1Name} Moneyline`, odds: oddsAML, line_value: null, TeamId: team1Id },
+            { name: `${team2Name} Moneyline`, odds: oddsBML, line_value: null, TeamId: team2Id },
             
             // Score Bets (Alt Spreads)
-            { name: `${team1Name} Win 2-0`, odds: oddsA_2_0, line_value: 2.0 }, 
-            { name: `${team2Name} Win 2-0`, odds: oddsB_2_0, line_value: 2.0 }, 
-            { name: `${team1Name} Win 2-1`, odds: oddsA_2_1, line_value: 2.1 }, 
-            { name: `${team2Name} Win 2-1`, odds: oddsB_2_1, line_value: 2.1 },
+            { name: `${team1Name} Win 2-0`, odds: oddsA_2_0, line_value: 2.0, TeamId: team1Id}, 
+            { name: `${team2Name} Win 2-0`, odds: oddsB_2_0, line_value: 2.0, TeamId: team2Id }, 
+            { name: `${team1Name} Win 2-1`, odds: oddsA_2_1, line_value: 2.1, TeamId: team1Id }, 
+            { name: `${team2Name} Win 2-1`, odds: oddsB_2_1, line_value: 2.1, TeamId: team2Id },
             
         ];
         
         for (const opt of options) {
-            dbBet.insertOption(marketId, opt.name, opt.line_value, opt.odds)
+            dbBet.insertOption(marketId, opt.name, opt.line_value, opt.odds, opt.TeamId)
         }
         console.log(`- Market ${marketId}: ${marketTitle} created. Odds: ${oddsAML}/${oddsBML}`);
     }

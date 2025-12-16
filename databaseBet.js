@@ -49,10 +49,10 @@ class DBInstance {
         return row;
     }
 
-    insertOption(marketId, name, line_value, odds){
+    insertOption(marketId, name, line_value, odds, teamId){
        const insertQuery = `
-                INSERT INTO BettingOptions (market_id, name, line_value, odds, pool)
-                VALUES (@marketId, @name, @line_value, @odds, @pool)
+                INSERT INTO BettingOptions (market_id, name, line_value, odds, pool, TeamId)
+                VALUES (@marketId, @name, @line_value, @odds, @pool, @TeamId)
             `;
         const insertStatement = this.db.prepare(insertQuery);
         const row = insertStatement.run({
@@ -60,7 +60,8 @@ class DBInstance {
             name:name,
             line_value : line_value,
             odds : odds,
-            pool: 0
+            pool: 0,
+            TeamId: teamId
         });        
         
         return row;
@@ -191,6 +192,48 @@ class DBInstance {
         return this.queryDatabase(`
             SELECT * FROM BettingOptions
             WHERE market_id = ?`,[market_id]);
+    }
+
+    getPools(market_id){
+        return this.queryDatabase(`
+            SELECT
+                SUM(CASE 
+                    WHEN BO.TeamId = M.Team1 THEN BO.pool 
+                    ELSE 0 
+                END) AS PoolA,
+                SUM(CASE 
+                    WHEN BO.TeamId = M.Team2 THEN BO.pool 
+                    ELSE 0 
+                END) AS PoolB
+            FROM
+                Markets M
+            JOIN
+                BettingOptions BO ON M.id = BO.market_id
+            WHERE
+                BO.market_id = ?
+                AND M.Status = 'OPEN';`,[market_id]);
+    }
+
+    getPlayerLeaderboard(){
+        return this.queryDatabase(`
+            SELECT
+                pt.user_id,
+                SUM(
+                    CASE
+                        WHEN PT.Status = 'WON' THEN PT.total_amount 
+
+                        WHEN PT.Status = 'LOST' THEN -PT.total_amount
+
+                        ELSE 0 
+                    END
+                ) AS NetGain
+            FROM
+                ParlayTickets PT
+            GROUP BY
+                pt.user_id
+            ORDER BY
+                NetGain DESC;
+            `);
     }
 
     getOpenMarketByTeamId(team1,team2){
@@ -331,6 +374,53 @@ class DBInstance {
             return { success: false, message: "A critical database error occurred. Funds reverted." };
         }
     }
+
+    void(marketId){
+         try {
+            // Use the better-sqlite3 transaction wrapper for atomic operations
+            this.db.transaction(() => { 
+                
+                // --- Step 1: Mark the Market and Winning Options as Settled/Won ---
+                
+                // Set the overall Market status and record the canonical winner (Moneyline)
+                this.db.prepare("UPDATE Markets SET status = 'VOIDED' WHERE id = ?")
+                    .run(marketId);
+                
+                // Mark the specific winning options as WON
+                this.db.prepare("UPDATE BettingOptions SET status = 'VOIDED' WHERE market_id = ?")
+                    .run(marketId);
+
+                const voidedTickets = this.db.prepare(`
+                    SELECT DISTINCT PT.id, PT.user_id, PT.total_amount
+                    FROM ParlayTickets PT
+                    JOIN BetLegs BL ON PT.id = BL.ticket_id
+                    JOIN BettingOptions bo on bo.id = BL.option_id
+                    WHERE bo.marketId = ?
+                    AND PT.status = 'PENDING';
+                `).all(marketId);
+
+                // Iterate through voided tickets and finalize payout
+                for (const ticket of voidedTickets) {
+                    
+                    // 2.1 Credit the User's Wallet
+                    this.db.prepare("UPDATE UserWallets SET balance = balance + ? WHERE user_id = ?")
+                        .run(ticket.total_amount, ticket.user_id);
+                    // 2.2 Update the Ticket Status
+                    this.db.prepare("UPDATE ParlayTickets SET status = 'VOIDED', settlement_time = ? WHERE id = ?")
+                        .run(new Date().toISOString(), ticket.id);
+                }
+
+            })(); // End of transaction wrapper
+
+                console.log(`Market ${marketId} Voided`);
+                return { success: true, message: `Market ${marketId} Voided successfully.` };
+
+            } catch (error) {
+                // If an error occurs, better-sqlite3 automatically ROLLBACKs all changes.
+                console.error(`❌ Void failed for Market ${marketId}:`, error.message);
+                return { success: false, message: `Settlement failed. No changes were committed.` };
+            }
+        }
 
     settleMarket(marketId, winningOptionsId){
         const {moneylineId, scoreId} = winningOptionsId;
