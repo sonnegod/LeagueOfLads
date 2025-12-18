@@ -193,7 +193,7 @@ class DBInstance {
     getActiveMarkets(){
         return this.queryDatabase(`
             SELECT * FROM Markets
-            WHERE STATUS NOT IN ('LOCKED','SETTLED')`);
+            WHERE STATUS NOT IN ('LOCKED','SETTLED','VOIDED')`);
     }
 
     getOptions(market_id){ 

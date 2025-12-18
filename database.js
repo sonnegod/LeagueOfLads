@@ -1866,28 +1866,53 @@ class DBInstance {
         );
     }
 
-    insertTempSeries(teamA,teamB,stage,leagueId,dateCreated){
+    getOrCreateSeriesId(teamA, teamB, stage, leagueId, dateCreated) {
         try {
-            const stmt = this.db.prepare(`INSERT INTO TempSeriesInfo (Team1, Team2,Stage,LeagueId, DateCreated)
-                                          VALUES (@team1, @team2,@stage,@LeagueId, @DateCreated)`);
-            const result = stmt.run({
+            // A. Check if the series exists in the MAIN table for this specific date
+            // We MUST check DateCreated to separate future matches between the same teams
+            const checkStmt = this.db.prepare(`
+                SELECT SeriesId FROM SeriesInfo 
+                WHERE ((Team1 = ? AND Team2 = ?) OR (Team1 = ? AND Team2 = ?))
+                AND DateCreated = ? 
+                AND LeagueId = ?
+            `);
+            
+            const existing = checkStmt.get(teamA, teamB, teamB, teamA, dateCreated, leagueId);
+
+            if (existing) {
+                return existing.SeriesId;
+            }
+
+            // B. If it doesn't exist, Insert into MAIN table immediately
+            const insertStmt = this.db.prepare(`
+                INSERT INTO SeriesInfo (Team1, Team2, Stage, LeagueId, DateCreated)
+                VALUES (@team1, @team2, @stage, @LeagueId, @DateCreated)
+            `);
+
+            const result = insertStmt.run({
                 team1: teamA,
                 team2: teamB,
                 stage: stage,
-                LeagueId:leagueId,
+                LeagueId: leagueId,
                 DateCreated: dateCreated
             });
+
+            // SQLite automatically generates the unique SeriesId here
             return result.lastInsertRowid;
+
         } catch (err) {
-            console.log(err);
-            return 2;
+            console.error("Error in getOrCreateSeriesId:", err);
+            throw err; // Throw so the main loop knows to stop or log
         }
     }
 
-    insertSeriesMatch(seriesId,matchId,date){
+    insertSeriesMatch(seriesId, matchId, date) {
         try {
-            const stmt = this.db.prepare(`INSERT INTO SeriesMatch (SeriesId, MatchId,DateCreated)
-                                          VALUES (@SeriesId, @MatchId,@DateCreated)`);
+            // Use INSERT OR IGNORE to prevent crashing if we run the script twice
+            const stmt = this.db.prepare(`
+                INSERT OR IGNORE INTO SeriesMatch (SeriesId, MatchId, DateCreated)
+                VALUES (@SeriesId, @MatchId, @DateCreated)
+            `);
             stmt.run({
                 SeriesId: seriesId,
                 MatchId: matchId,
@@ -1895,11 +1920,11 @@ class DBInstance {
             });
             return 1;
         } catch (err) {
-            console.log(err);
+            console.error(`Failed to link Match ${matchId} to Series ${seriesId}`, err);
             return 2;
         }
     }
-
+    
     insertScheduledSeries(matches){
         matches.forEach(match => {
             const team1 = this.getTeamIdByName(match.team1)
@@ -1960,26 +1985,6 @@ class DBInstance {
                 END AS Stage;
                 `
         )
-    }
-
-    insertTempIntoSeries(){
-        try {
-            const insertStmt = this.db.prepare(`
-                INSERT INTO SeriesInfo (SeriesId, Team1, Team2,Stage,LeagueId, DateCreated)
-                SELECT SeriesId, Team1, Team2,Stage,LeagueId, DateCreated FROM TempSeriesInfo
-            `);
-            const info = insertStmt.run();
-            console.log(`Inserted ${info.changes} rows into SeriesInfo`);
-
-            const deleteStmt = this.db.prepare(`DELETE FROM TempSeriesInfo`);
-            const delInfo = deleteStmt.run();
-            console.log(`Deleted ${delInfo.changes} rows from TempSeriesInfo`);
-
-            return info.changes; 
-        } catch (err) {
-            console.log(err);
-            return -1;
-        }
     }
 
 

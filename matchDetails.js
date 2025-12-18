@@ -104,47 +104,50 @@ async function getMatchDetails(matches){
                 db.insertDuration(match.MatchId,data.duration);
 
                 //creating series
-                let yesterdaysDate = new Date();
-                yesterdaysDate.setDate(yesterdaysDate.getDate() - 1);
-                yesterdaysDate = yesterdaysDate.toISOString().split('T')[0];
+                const yesterday = new Date(now);
+                yesterday.setDate(now.getDate() - 1);
 
-                const existing = db.checkSeries(data.dire_team_id,data.radiant_team_id);
+                // 3. Format specifically for New York (EST/EDT) in YYYY-MM-DD format
+                const yesterdaysDate = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: 'America/New_York',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }).format(yesterday);
 
-                let seriesId;
-                if (existing.length === 0) {
-                    const resultSeries = db.insertTempSeries(data.dire_team_id,data.radiant_team_id,currentStage,leagueId[0].LeagueId,yesterdaysDate)
+                
+                try {
+                    // 1. Get the Series ID (Finds existing one for today, or creates new one)
+                    const seriesId = db.getOrCreateSeriesId(
+                        data.dire_team_id, 
+                        data.radiant_team_id, 
+                        currentStage, 
+                        leagueId[0].LeagueId, 
+                        yesterdaysDate
+                    );
 
-                    if(resultSeries === 2)
-                        console.error(`Failed to insert series ${data.dire_team_id} - ${data.radiant_team_id}`);
-                        console.error(`Data for Failure 
-                            Dire TeamId: ${data.dire_team_id}, 
-                            Radiant Team Id: ${data.radiant_team_id}, 
-                            Current Stage: ${currentStage}, 
-                            LeagueId: ${leagueId[0].LeagueId}, 
-                            Date: ${yesterdaysDate}`);
+                    // 2. Link the Match to the Series
+                    const resultMatch = db.insertSeriesMatch(seriesId, match.MatchId, yesterdaysDate);
                     
-                    seriesId = resultSeries;
-                } else {
-                    seriesId = existing[0].SeriesId;
+                    if(resultMatch === 2) {
+                        console.warn(`Issue linking match ${match.MatchId} to series ${seriesId}`);
+                    }
+
+                    // 3. Handle Standings
+                    if (currentStage === 'g') {
+                        db.insertLeagueStanding(match.MatchId, winTeamId, loseTeamId);
+                    }
+
+                } catch (err) {
+                    console.error(`CRITICAL FAILURE processing match ${match.MatchId}:`, err);
+                    console.error(`Data dump: Dire: ${data.dire_team_id}, Radiant: ${data.radiant_team_id}, Date: ${yesterdaysDate}`);
                 }
-                
-                const seriesMatch = db.insertSeriesMatch(seriesId,match.MatchId,yesterdaysDate);
-                if(seriesMatch === 2)
-                    console.error(`Failed to insert series match ${seriesId} - ${match.MatchId}`);
-                
-                if(currentStage === 'g')
-                    db.insertLeagueStanding(match.MatchId, winTeamId, loseTeamId)
+
             }
         } catch (err) {
             console.error(`Failed to fetch match ${match.MatchId}:`, err);
         }
     }
-
-
-    const insertFromTemp = db.insertTempIntoSeries();
-
-    if(insertFromTemp === -1)
-        console.error(`Failed to insert into SeriesInfo from TempSeriesInfo match`);
 
 
     if(badMatches.length > 0)
