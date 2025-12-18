@@ -12,19 +12,11 @@ const HeadToHeadPage = () => {
       {/* Header - Owned by the page */}
       <header className="w-full bg-slate-900/50 backdrop-blur-md border-b border-slate-800 p-6 shrink-0">
         <h1 className="text-2xl font-bold text-blue-400 uppercase tracking-widest">
-          Analytics <span className="text-white">Hub</span>
+          Head To Head
         </h1>
       </header>
 
       {/* Main Content Area */}
-        <div className="mb-8">
-          <h2 className="text-4xl font-black italic mb-2 tracking-tight uppercase">
-            Head To Head
-          </h2>
-          <p className="text-slate-400 max-w-2xl">
-            Compare historical performance and direct matchup statistics between players.
-          </p>
-        </div>
 
         {/* Wrapper for the component:
           Using w-full ensures the HeadToHead component stays within the page bounds.
