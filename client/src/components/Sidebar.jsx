@@ -16,8 +16,9 @@ export default function Sidebar() {
         <Link to="/recentMatches">Recent Matches</Link>
         <Link to="/team">Teams</Link>
         <Link to="/player">Players</Link>
-        <Link to="/match">Matches</Link>
+        {/*<Link to="/match">Matches</Link> removing for performance issues*/}
         <Link to="/league">Leagues</Link>
+        <Link to="/h2h">Head to Head</Link>
         <Link to="/hero">Heroes</Link>
 
         <Link to="/betting">Betting</Link>

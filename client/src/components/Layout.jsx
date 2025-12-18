@@ -4,16 +4,18 @@ import { Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Layout() {
-  const { loading, user } = useAuth();
+  const { loading } = useAuth();
 
   if (loading) return <div>Loading...</div>;
 
   return (
-    <div className="app">
+    /* Use bg-white or bg-transparent here */
+    <div className="flex h-screen w-full bg-white overflow-hidden">
       <Sidebar />
-      <div className="main-container">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar />
-        <main className="content">
+        {/* The background of this main tag is what 'HeadToHeadPage' sits on */}
+        <main className="content flex-1 overflow-y-auto bg-transparent">
           <Outlet />
         </main>
       </div>

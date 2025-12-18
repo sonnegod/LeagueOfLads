@@ -18,7 +18,7 @@ import RecentMatchesPage from "./pages/RecentMatchesPage";
 import RequestPage from "./pages/RequestPage";
 import SeriesPage from "./pages/SeriesPage";
 import BettingPage from "./pages/BettingPage";
-
+import HeadToHeadPage from "./pages/HeadToHeadPage";
 
 export default function App() {
   return (
@@ -33,6 +33,7 @@ export default function App() {
         <Route path="/team/:teamId" element={<TeamPage />} />
         <Route path="/match/:matchId" element={<MatchPage />} />
         <Route path="/team" element={<TeamsPage />} />
+        <Route path="/h2h" element={<HeadToHeadPage />} />
         <Route path="/player" element={<PlayersPage />} />
         <Route path="/league" element={<LeaguesPage />} />
         <Route path="/league/:leagueId" element={<LeaguePage />} />

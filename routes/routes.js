@@ -625,6 +625,50 @@ router.get('/players', async (req, res) => {
   }
 });
 
+router.get('/h2h/:p1Id/:p2Id', async (req, res) => {
+    const { p1Id, p2Id } = req.params;
+        console.log( p1Id, p2Id);
+
+    try {
+        const p1Raw = await db.getPlayerStats(p1Id); // Using your new return format
+        const p2Raw = await db.getPlayerStats(p2Id);
+        const matches = await db.getHeadToHeadMatches(p1Id, p2Id);
+
+
+        console.log(matches);
+
+        const formatStats = (raw) => {
+            if (!raw) return { name: "N/A", winrate: 0, kda: 0, gpm: 0, cs: 0, recent: [] };
+            
+            // Calculate KDA (prevent division by zero)
+            const kda = raw.avg_deaths > 0 
+                ? ((raw.avg_kills + raw.avg_assists) / raw.avg_deaths).toFixed(2)
+                : (raw.avg_kills + raw.avg_assists).toFixed(2);
+
+            return {
+                name: raw.PlayerName,
+                winrate: raw.games_played > 0 ? Math.round((raw.wins / raw.games_played) * 100) : 0,
+                kda: kda,
+                gpm: Math.round(raw.avg_gpm || 0),
+                cs: Math.round(raw.avg_cs || 0),
+                recent: [] // Add your form logic here if available
+            };
+        };
+
+        res.json({
+            p1: formatStats(p1Raw),
+            p2: formatStats(p2Raw),
+            history: {
+                matches: matches || [],
+                p1Wins: matches.filter(m => m.P1Won === 1).length,
+                p2Wins: matches.filter(m => m.P1Won === 0).length
+            }
+        });
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+
 router.get('/player/:accountId', async (req, res) => {
   const { accountId } = req.params;
   try {

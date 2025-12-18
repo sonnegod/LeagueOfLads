@@ -25,8 +25,7 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
+  display: block;
   min-width: 320px;
   min-height: 100vh;
 }
@@ -71,7 +70,6 @@ button:focus-visible {
 main {
   margin-top: 60px;      /* height of navbar */
   margin-left: 180px;    /* width of sidebar */
-  padding: 20px;         /* inner spacing */
   min-height: calc(100vh - 60px); /* fill remaining height */
   background-color: transparent;  /* optional if you want the page bg to show */
   box-sizing: border-box;
