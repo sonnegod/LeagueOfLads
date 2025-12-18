@@ -26,6 +26,7 @@ jobs:
             cd client
             npm install
             npm run build
+            sudo cp -r dist/* /var/www/leagueoflads/
             
             # (Optional) Restart the server if you are using PM2
             cd ..
