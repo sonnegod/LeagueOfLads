@@ -44,11 +44,22 @@ function runNightlySettlement() {
                     console.warn(`Voiding Market ${market.id}`);
                 }
             }
+
+            const badMarkets = dbBet.getOpenMarketByTeamId(series.Team1,series.Team2);
+
+            console.log(`Processing Bad Bet with Series ID ${series.SeriesId}`);
+
+            for(const market of badMarkets){
+                dbBet.void(market.id);
+                console.warn(`Voiding Market ${market.id}`);
+            }
         }
         
     } catch (error) {
         console.error("Critical Error in Nightly Settlement:", error);
     }
+
+    console.log("Finishing Nightly Settlement Job...");
 }
 
 function determineWinningOption(market, series) {
