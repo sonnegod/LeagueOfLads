@@ -545,7 +545,8 @@ const styles = {
     padding: '10px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '5px'
+    gap: '5px',
+    color:"black"
   },
   cardHeader: {
     fontSize: '10px',

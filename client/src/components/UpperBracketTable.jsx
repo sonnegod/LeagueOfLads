@@ -5,19 +5,19 @@ import { Link } from 'react-router-dom';
 export default function UpperBracketTable({ teams }) {
   return (
     <div>
-      <h3 style={{ textAlign: "center" }}>Upper Bracket (Locked)</h3>
+      <h3 style={{ textAlign: "center", color: 'var(--text, #e6e6e6)' }}>Upper Bracket (Locked)</h3>
 
       <table style={tableStyle}>
         <thead>
-          <tr style={{ background: "#e0ffe0" }}>
-            <th style={th}>Team</th>
+          <tr style={{ background: 'var(--surface, #121315)' }}>
+            <th style={{ ...th, color: 'var(--text, #e6e6e6)', background: 'var(--surface, #121315)' }}>Team</th>
           </tr>
         </thead>
 
         <tbody>
           {teams.map((t, idx) => (
             <tr key={t.TeamId}>
-              <td style={td}><Link to={`/team/${t.TeamId}`}>{t.TeamName}</Link></td>
+              <td style={{ ...td, color: 'var(--text, #e6e6e6)' }}><Link to={`/team/${t.TeamId}`} style={{ color: 'inherit' }}>{t.TeamName}</Link></td>
             </tr>
           ))}
         </tbody>

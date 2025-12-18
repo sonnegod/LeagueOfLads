@@ -231,7 +231,7 @@ const styles = {
         alignItems: 'center',
         marginBottom: '20px',
         padding: '10px',
-        background: '#fff',
+    background: 'var(--surface, #121315)',
         borderBottom: '1px solid #ddd'
     },
     board: {
@@ -272,7 +272,6 @@ const styles = {
         flexGrow: 1
     },
     card: {
-        backgroundColor: 'white',
         borderRadius: '6px',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         marginBottom: '20px',

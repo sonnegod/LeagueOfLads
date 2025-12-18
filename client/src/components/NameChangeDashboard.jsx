@@ -37,24 +37,24 @@ export default function NameChangeDashboard() {
   };
 
   return (
-    <div className="p-4 max-w-sm bg-gray-50 dark:bg-gray-800 rounded shadow space-y-2">
+    <div className="p-4 max-w-sm rounded shadow space-y-2" style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}>
       <input
         type="text"
         value={newName}
         onChange={(e) => setNewName(e.target.value)}
         placeholder="Enter new name"
-        className="border rounded px-2 py-1 w-full text-black dark:text-white dark:bg-gray-700"
+        style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)' }}
       />
       <button
         onClick={handleConfirm}
-        className="bg-blue-600 border-2 border-black px-3 py-1 rounded w-full hover:bg-blue-700"
+        style={{ background: 'var(--primary)', border: 'none', padding: '8px 12px', borderRadius: 6, color: '#fff', width: '100%' }}
       >
         Confirm Name
       </button>
-      <div className="text-gray-700 dark:text-gray-300 text-sm">
+      <div style={{ color: 'var(--muted-text)', fontSize: '0.9rem' }}>
         You can only change your name once every 30 days.
       </div>
-      {status && <div className="text-sm text-gray-700 dark:text-gray-300">{status}</div>}
+      {status && <div style={{ fontSize: '0.9rem', color: 'var(--muted-text)' }}>{status}</div>}
     </div>
   );
 }

@@ -104,18 +104,20 @@ const leftColumnStyle = {
 
 const rightGridStyle = {
   display: "grid",
-  gridTemplateColumns: "1fr 1fr",  // 2 columns
-  gridTemplateRows: "1fr 1fr",     // 2 rows
+  // 2x2 grid layout for the right column widgets
+  gridTemplateColumns: "1fr 1fr",
+  gridTemplateRows: "auto auto",
   gap: "20px",
-  height: "100%",        // <--- match left column
-
+  // keep items aligned to the top of each cell and avoid vertical stretching
+  alignItems: "start",
+  alignContent: "start",
 };
 
 const placeholderBox = {
   border: "1px dashed #ccc",
   padding: "20px",
   borderRadius: "8px",
-  height: "100%",
+  height: "auto",
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
@@ -130,14 +132,15 @@ const tabBarStyle = {
 const tabButtonStyle = {
   padding: "10px 18px",
   borderRadius: "6px",
-  border: "1px solid #ccc",
-  background: "#f4f4f4",
+  border: "1px solid var(--border, #222428)",
+  background: "var(--surface, #0b0b0b)",
+  color: "var(--text, #e6e6e6)",
   cursor: "pointer",
 };
 
 const tabActiveStyle = {
   ...tabButtonStyle,
-  background: "#007bff",
+  background: "var(--primary, #646cff)",
   color: "white",
   borderColor: "#005fcc",
 };

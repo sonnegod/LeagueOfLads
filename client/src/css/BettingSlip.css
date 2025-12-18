@@ -1,0 +1,75 @@
+/* BettingSlip component styles - theme-aware */
+.betting-slip-container {
+    /* Default to dark card appearance so the betting area is fully dark by default */
+    background: var(--surface, #121315);
+    color: var(--text, #e9e9e9);
+    border: 1px solid var(--border, #222428);
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.betting-slip-container h2 {
+    margin-top: 0;
+}
+
+.slip-list {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0;
+}
+
+.slip-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border, #e9e9ef);
+}
+
+.remove-btn {
+    background: transparent;
+    border: 1px solid var(--border, #222428);
+    color: var(--text, #e9e9e9);
+    border-radius: 4px;
+    padding: 2px 6px;
+    cursor: pointer;
+}
+
+.wager-details input[type="number"] {
+    width: 100%;
+    padding: 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border, #222428);
+    background: var(--button-bg, #1a1a1a);
+    color: var(--text, #e9e9e9);
+}
+
+.place-bet-btn {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    background: var(--primary, #646cff);
+    color: #ffffff;
+    border: none;
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.place-bet-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.error-text {
+    color: var(--danger, #dc3545);
+}
+
+/* If user prefers dark at OS-level, keep the same dark defaults */
+@media (prefers-color-scheme: dark) {
+    .betting-slip-container {
+        background: var(--surface, #121315);
+        color: var(--text, #e9e9e9);
+    }
+}

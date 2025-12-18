@@ -1,10 +1,12 @@
 .market-card {
-    /* Your existing styles (e.g., background, padding, border) */
-    border: 1px solid #ccc;
+    /* Component-aware, theme-friendly defaults with fallbacks */
+    border: 1px solid var(--border, #ccc);
     padding: 15px;
-    
-    /* ADD THIS LINE: Adds 20 pixels of space below each card */
-    margin-bottom: 20px; 
+    margin-bottom: 20px;
+    background-color: var(--surface, #1a1a1a);
+    color: var(--text, #fff);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.06);
 }
 
 /* --- Styles for the Betting Pool Bar --- */
@@ -20,7 +22,7 @@
     margin-bottom: 3px;
     font-size: 0.8em;
     font-weight: bold;
-    color: #555; /* A subtle color for the monetary values */
+    color: var(--muted-text, #555);
 }
 
 .bar-wrapper {
@@ -28,7 +30,7 @@
     height: 25px; /* A moderate height for the bar */
     border-radius: 4px;
     overflow: hidden; 
-    background-color: #eee; /* Fallback color for the bar */
+    background-color: var(--border, #eee); /* Fallback color for the bar */
 }
 
 .bar-segment {
@@ -36,34 +38,63 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    color: white; 
     font-size: 0.7em;
     font-weight: bold;
-    /* Optional: Add transition for smoother updates */
     transition: width 0.3s ease-out; 
     min-width: 15px; /* Ensures labels are visible even at low percentages */
+    color: var(--text, #fff);
 }
 
 /* Define distinct colors for the two teams/outcomes */
 .team-a {
-    background-color: #007bff; /* Primary Blue */
+    background-color: var(--team-a, #007bff); /* Primary Blue */
 }
 
 .team-b {
-    background-color: #28a745; /* Primary Green */
+    background-color: var(--team-b, #28a745); /* Primary Green */
 }
 
 .percentage-label {
-    /* Optional: Style to ensure high contrast */
+    /* Ensure readable labels on both dark and light segments */
+    color: var(--text, #fff);
     text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+    font-size: 0.75em;
 }
 
 /* Other styles (you already have these or will need them for the rest of the component) */
-.market-card {
-    border: 1px solid #ccc;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
+/* consolidated .market-card rules are declared earlier in this file */
 /* ... rest of your existing MarketCard.css styles ... */
+
+/* Option buttons: force consistent appearance (white border, black background, white text)
+   regardless of site theme. Use !important to override theme variables if needed. */
+.option-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #ffffff !important;
+    background: #000000 !important;
+    color: #ffffff !important;
+    cursor: pointer;
+    font-weight: 600;
+    min-width: 120px;
+}
+
+.option-button:hover {
+    background: #0a0a0a !important;
+}
+
+.option-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Selected state: keep the same colors but add a subtle ring to indicate selection */
+.option-button.selected {
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.06), 0 2px 6px rgba(0,0,0,0.6);
+}
+
+.option-name { margin-right: 6px; }
+.option-odds { opacity: 0.95; font-variant-numeric: tabular-nums; }

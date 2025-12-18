@@ -99,7 +99,7 @@ const tdStyle = {
   border: '1px solid #ccc',
   padding: '8px',
   textAlign: 'left',
-  color: 'black'
+  color: 'var(--text, #e6e6e6)'
 };
 
 const tdCenter = {

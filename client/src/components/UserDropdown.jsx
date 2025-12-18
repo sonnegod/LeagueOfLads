@@ -18,12 +18,12 @@ export default function UserDropdown({ user }) {
         <span>{user.displayName}</span>
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-40 bg-white text-black shadow-lg rounded">
-          <button onClick={() => navigate('/dashboard')} className="block w-full px-4 py-2 hover:bg-gray-200">Dashboard</button>
+        <div className="absolute right-0 mt-2 w-40 shadow-lg rounded" style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}>
+          <button onClick={() => navigate('/dashboard')} className="block w-full px-4 py-2" style={{ background: 'transparent', color: 'inherit' }}>Dashboard</button>
 
           <NameChangeModal />
 
-          <button onClick={logout} className="block w-full px-4 py-2 hover:bg-gray-200">Logout</button>
+          <button onClick={logout} className="block w-full px-4 py-2" style={{ background: 'transparent', color: 'inherit' }}>Logout</button>
         </div>
       )}
     </div>

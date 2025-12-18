@@ -203,7 +203,6 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
           width: "100%",
           padding: "8px 12px",
           background: "#0077ff",
-          color: "#fff",
           border: "none",
           borderRadius: 6,
           cursor: "pointer"

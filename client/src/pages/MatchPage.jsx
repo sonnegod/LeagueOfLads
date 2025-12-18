@@ -33,13 +33,16 @@ export default function MatchPage() {
   const tableStyle = {
     width: '100%',
     borderCollapse: 'collapse',
-    border: '1px solid #ccc',
+    border: '1px solid var(--border, #222428)',
+    background: 'transparent',
+    color: 'var(--text, #e6e6e6)'
   };
 
   const thTdStyle = {
-    border: '1px solid #ccc',
+    border: '1px solid var(--border, #222428)',
     padding: '6px',
     textAlign: 'center',
+    color: 'var(--text, #e6e6e6)'
   };
 
   return (
@@ -51,10 +54,10 @@ export default function MatchPage() {
       {/* Teams side by side */}
       <div style={{ display: 'flex', gap: '2rem', marginTop: '2rem' }}>
         {/* Radiant */}
-        <div style={{ flex: 1, border: '2px solid #00796b', borderRadius: '8px', background: '#e0f7fa' }}>
-          <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #00796b' }}>
-            <Link to={`/team/${match.match[0].rad_team_id}`}>{match.match[0].rad_team_name}{match.match[0].WinnerSide === 'r' && '♔'}</Link>
-          </div>
+          <div style={{ flex: 1, border: '2px solid #0f6b58', borderRadius: '8px', background: 'var(--surface, #121315)' }}>
+            <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #0f6b58', color: 'var(--text, #e6e6e6)' }}>
+              <Link to={`/team/${match.match[0].rad_team_id}`} style={{ color: 'inherit' }}>{match.match[0].rad_team_name}{match.match[0].WinnerSide === 'r' && '♔'}</Link>
+            </div>
           <table style={tableStyle}>
             <thead>
               <tr>
@@ -92,9 +95,9 @@ export default function MatchPage() {
         </div>
 
         {/* Dire */}
-        <div style={{ flex: 1, border: '2px solid #c62828', borderRadius: '8px', background: '#ffebee' }}>
-          <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #c62828' }}>
-            <Link to={`/team/${match.match[0].dire_team_id}`}>{match.match[0].dire_team_name}{match.match[0].WinnerSide === 'd' && '♔'}</Link>
+        <div style={{ flex: 1, border: '2px solid #6b1a1a', borderRadius: '8px', background: 'var(--surface, #121315)' }}>
+          <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #6b1a1a', color: 'var(--text, #e6e6e6)' }}>
+            <Link to={`/team/${match.match[0].dire_team_id}`} style={{ color: 'inherit' }}>{match.match[0].dire_team_name}{match.match[0].WinnerSide === 'd' && '♔'}</Link>
           </div>
           <table style={tableStyle}>
             <thead>
@@ -133,11 +136,11 @@ export default function MatchPage() {
         </div>
       </div>
 
-      <div style={{ marginTop: '2rem', marginBottom: '2rem' }}> 
-            <h2 style={{ textAlign: 'center', marginBottom: '1rem' }}> 
-                Picks and Bans 
-                </h2> 
-                <table style={tableStyle}> 
+    <div style={{ marginTop: '2rem', marginBottom: '2rem' }}> 
+      <h2 style={{ textAlign: 'center', marginBottom: '1rem', color: 'var(--text, #e6e6e6)' }}> 
+        Picks and Bans 
+        </h2> 
+        <table style={tableStyle}> 
                     <thead> 
                     <tr> 
                         <th style={thTdStyle}>
@@ -156,9 +159,9 @@ export default function MatchPage() {
                         <tr key={index}>
                           <td style={thTdStyle}>
                             {pb.Team === 0 ? (
-                              <span style={{ color: '#00796b', fontWeight: 'bold' }}>Radiant</span>
+                              <span style={{ color: '#4fd6a3', fontWeight: 'bold' }}>Radiant</span>
                             ) : (
-                              <span style={{ color: '#b71c1c', fontWeight: 'bold' }}>Dire</span>
+                              <span style={{ color: '#ff8b8b', fontWeight: 'bold' }}>Dire</span>
                             )}
                           </td>
                           <td style={thTdStyle}>{pb.IsPick ? 'Pick' : 'Ban'}</td>

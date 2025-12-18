@@ -9,8 +9,8 @@ export default function Layout() {
   if (loading) return <div>Loading...</div>;
 
   return (
-    /* Use bg-white or bg-transparent here */
-    <div className="flex h-screen w-full bg-white overflow-hidden">
+    /* Use bg-transparent so the global page background shows through (prevents white gaps) */
+    <div className="flex h-screen w-full bg-transparent overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar />

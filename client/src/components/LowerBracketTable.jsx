@@ -9,25 +9,25 @@ export default function LowerBracketTable({ teams }) {
 
   return (
     <div>
-      <h3 style={{ textAlign: "center" }}>Lower Bracket (Locked)</h3>
+  <h3 style={{ textAlign: "center", color: 'var(--text, #e6e6e6)' }}>Lower Bracket (Locked)</h3>
 
       {/* HEADER ROW (same height as UpperBracketTable) */}
       <table style={{ ...tableStyle, marginBottom: "8px" }}>
         <thead>
           <tr>
-            <th style={headerTh}>Team</th>
+            <th style={{ ...headerTh, background: 'var(--surface, #121315)', color: 'var(--text, #e6e6e6)' }}>Team</th>
           </tr>
         </thead>
       </table>
 
       {/* TWO COLUMN GRID */}
-      <div style={gridWrapper}>
+  <div style={gridWrapper}>
         {/* LEFT COLUMN */}
         <table style={tableStyle}>
           <tbody>
             {col1.map((t) => (
               <tr key={t.TeamId}>
-                <td style={td}><Link to={`/team/${t.TeamId}`}>{t.TeamName}</Link></td>
+                <td style={{ ...td, color: 'var(--text, #e6e6e6)' }}><Link to={`/team/${t.TeamId}`} style={{ color: 'inherit' }}>{t.TeamName}</Link></td>
               </tr>
             ))}
           </tbody>
@@ -38,7 +38,7 @@ export default function LowerBracketTable({ teams }) {
           <tbody>
             {col2.map((t) => (
               <tr key={t.TeamId}>
-                <td style={td}><Link to={`/team/${t.TeamId}`}>{t.TeamName}</Link></td>
+                <td style={{ ...td, color: 'var(--text, #e6e6e6)' }}><Link to={`/team/${t.TeamId}`} style={{ color: 'inherit' }}>{t.TeamName}</Link></td>
               </tr>
             ))}
           </tbody>

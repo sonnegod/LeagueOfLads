@@ -1,6 +1,7 @@
 // src/components/BettingSlip.js
 
 import React from 'react';
+import '../css/BettingSlip.css';
 
 export default function BettingSlip({ slip, totalOdds, wager, setWager, placeBet, removeLeg, userBalance, isLoggedIn }) {
     const potentialPayout = (wager * totalOdds).toFixed(0);

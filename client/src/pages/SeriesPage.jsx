@@ -41,7 +41,7 @@ const MatchDetailsTable = ({ matchData, matchNum, styles }) => {
             {/* Teams side by side - Match Player Stats */}
             <div style={{ display: 'flex', gap: '2rem' }}>
                 {/* Radiant */}
-                <div style={{ flex: 1, border: '2px solid #00796b', borderRadius: '8px', background: '#e0f7fa' }}>
+                <div style={{ flex: 1, border: '2px solid #00796b', borderRadius: '8px'}}>
                     <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #00796b' }}>
                         <Link to={`/team/${match.rad_team_id}`}>{match.rad_team_name}{match.WinnerSide === 'r' && ' 👑'}</Link>
                     </div>
@@ -82,7 +82,7 @@ const MatchDetailsTable = ({ matchData, matchNum, styles }) => {
                 </div>
 
                 {/* Dire */}
-                <div style={{ flex: 1, border: '2px solid #c62828', borderRadius: '8px', background: '#ffebee' }}>
+                <div style={{ flex: 1, border: '2px solid #c62828', borderRadius: '8px' }}>
                     <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #c62828' }}>
                         <Link to={`/team/${match.dire_team_id}`}>{match.dire_team_name}{match.WinnerSide === 'd' && ' 👑'}</Link>
                     </div>
@@ -209,7 +209,6 @@ export default function SeriesPage() {
         button: {
             padding: '10px 15px',
             border: '1px solid #ccc',
-            backgroundColor: '#f8f8f8',
             cursor: 'pointer',
             borderRadius: '4px'
         },

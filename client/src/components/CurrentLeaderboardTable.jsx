@@ -25,12 +25,12 @@ export default function CurrentLeagueSeries({ seriesList }) {
   }, []);
 
     return (
-  <div style={containerStyle}>
+    <div style={containerStyle}>
     {groups.map(group => (
       <div key={group.GroupId} style={cardStyle}>
         <div style={{ flexGrow: 1 }}>
 
-        <h3 style={{ textAlign: "center", }}>
+          <h3 style={{ textAlign: "center", color: 'var(--text, #ffffff)' }}>
           {group.GroupName ? group.GroupName : `Group ${group.GroupId}`}
         </h3>
 
@@ -72,10 +72,11 @@ export default function CurrentLeagueSeries({ seriesList }) {
 }
 
 function getRowStyle(index, total) {
-  const greenStyle = { backgroundColor: "#d1fae5" };  // light green
-  const blueStyle = { backgroundColor: "#bfdbfe" };   // light blue
-  const redStyle = { backgroundColor: "#fecaca" };    // light red
-  const tanStyle = { backgroundColor: "#fef3c7" };    // light tan
+  // Use same dark palette as TieBreakerTable: darker green/red/orange, lighter blue
+  const greenStyle = { backgroundColor: "#123d1a" };  // dark green
+  const blueStyle = { backgroundColor: "#2a3a66" };   // slightly lighter blue
+  const redStyle = { backgroundColor: "#3d1212" };    // dark red
+  const tanStyle = { backgroundColor: "#4b3b1f" };    // darker orange (used for 'tan' rows)
 
   const isOdd = total % 2 === 1
 
@@ -126,15 +127,16 @@ function buildH2HMatrix(group) {
             <th style={h2hThStyle}>{rowTeam.TeamName}</th>
 
             {teams.map(colTeam => {
-              // Diagonal cells (same team)
+              // Diagonal cells (same team) — render white with black text per request
               if (rowTeam.TeamId === colTeam.TeamId) {
                 return (
                   <td
                     key={colTeam.TeamId}
                     style={{
-                      ...smallTd,
-                      background: "#eee"
-                    }}
+                        ...smallTd,
+                        background: "#d1d5db",
+                        color: "#000000"
+                      }}
                   >
                     —
                   </td>
@@ -148,7 +150,10 @@ function buildH2HMatrix(group) {
 
               if (!match) {
                 return (
-                  <td key={colTeam.TeamId} style={smallTd}>
+                  <td
+                    key={colTeam.TeamId}
+                    style={{ ...smallTd, background: "#d1d5db", color: "#000000" }}
+                  >
                     0–0
                   </td>
                 );
@@ -166,12 +171,22 @@ function buildH2HMatrix(group) {
                 winsCol = match.WinsA;
               }
 
-              // Determine background color
-              let bgColor = "white";
+              // Determine background color — use a slightly lighter TieBreakerTable palette
+              // default: white (non-highlighted)
+              let bgColor = "#ffffff";
+              let textColor = "#000000";
 
-              if (winsRow === 2 && winsCol === 0) bgColor = "#d1fae5"; // green
-              else if (winsRow === 0 && winsCol === 2) bgColor = "#fecaca"; // red
-              else if (winsRow === 1 && winsCol === 1) bgColor = "#fed7aa"; // orange
+              // Lighter highlight colors for better contrast on dark backgrounds
+              if (winsRow === 2 && winsCol === 0) {
+                bgColor = "#1f7a46"; // lighter green
+                textColor = "#f1f1f1";
+              } else if (winsRow === 0 && winsCol === 2) {
+                bgColor = "#7a2b2b"; // lighter red
+                textColor = "#f1f1f1";
+              } else if (winsRow === 1 && winsCol === 1) {
+                bgColor = "#8a6638"; // lighter orange
+                textColor = "#f1f1f1";
+              }
 
               return (
                 <td
@@ -179,6 +194,7 @@ function buildH2HMatrix(group) {
                   style={{
                     ...smallTd,
                     background: bgColor,
+                    color: textColor
                   }}
                 >
                   {winsRow}–{winsCol}
@@ -201,21 +217,20 @@ const containerStyle = {
   flexWrap: "wrap",
   gap: "16px",          // spacing between cards
   justifyContent: "center",
-  color: "black",
+  color: "var(--text, #e6e6e6)",
 };
 
 const cardStyle = {
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--border, #222428)",
+  background: "var(--surface, #121315)",
   borderRadius: "8px",
   padding: "12px",
   boxSizing: "border-box",
   flex: "1 1 340px",    // allow grow, allow shrink, base width 340px
   minWidth: 0,          // IMPORTANT: allow flex child to shrink
   maxWidth: "800px",    // optional: limit how wide each card grows
-  background: "white",
-  color: "black",
-   display: "flex",         // NEW
-  flexDirection: "column", // NEW
+  display: "flex",
+  flexDirection: "column",
 };
 
 const tableStyle = {
@@ -223,22 +238,23 @@ const tableStyle = {
   borderCollapse: "collapse",
   tableLayout: "fixed", // important: columns respect available width
   minWidth: 0,          // allow table to shrink to parent
-  color: "black",
-
+  color: 'var(--text, #e6e6e6)'
 };
 
 const thStyle = {
-  border: "1px solid #ccc",
+  border: "1px solid var(--border, #222428)",
   padding: "8px",
   textAlign: "center",
   whiteSpace: "nowrap",
+  color: 'var(--text, #e6e6e6)'
 };
 
 const tdStyle = {
-  border: "1px solid #ccc",
+  border: "1px solid var(--border, #222428)",
   padding: "8px",
   textAlign: "center",
   wordBreak: "break-word",
+  color: 'var(--text, #e6e6e6)'
 };
 
 const h2hThStyle = {

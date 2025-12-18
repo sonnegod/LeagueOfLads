@@ -44,19 +44,18 @@ export default function CurrentLeagueTeams({ refreshKey }) {
 
   return (
     <div style={adminWidgetStyle}>
-      <h3>Current Teams</h3>
+      <h3 style={{ color: "var(--text, #e6e6e6)" }}>Current Teams</h3>
 
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
-          <tr style={{ background: "#eee" }}>
-            <th style={{ padding: 8, border: "1px solid #ccc" }}>Team ID</th>
-            <th style={{ padding: 8, border: "1px solid #ccc" }}>Team Name</th>
-            <th style={{ padding: 8, border: "1px solid #ccc" }}>Matches Played</th>
-            <th style={{ padding: 8, border: "1px solid #ccc" }}>Wins</th>
-            <th style={{ padding: 8, border: "1px solid #ccc" }}>Losses</th>
+          <tr style={{ background: "transparent" }}>
+            <th style={{ padding: 8, border: "1px solid var(--border, #222428)", color: "var(--text, #e6e6e6)" }}>Team ID</th>
+            <th style={{ padding: 8, border: "1px solid var(--border, #222428)", color: "var(--text, #e6e6e6)" }}>Team Name</th>
+            <th style={{ padding: 8, border: "1px solid var(--border, #222428)", color: "var(--text, #e6e6e6)" }}>Matches Played</th>
+            <th style={{ padding: 8, border: "1px solid var(--border, #222428)", color: "var(--text, #e6e6e6)" }}>Wins</th>
+            <th style={{ padding: 8, border: "1px solid var(--border, #222428)", color: "var(--text, #e6e6e6)" }}>Losses</th>
           </tr>
         </thead>
-
         <tbody>
           {teams.map(team => (
             <React.Fragment key={team.TeamId}>
@@ -64,14 +63,15 @@ export default function CurrentLeagueTeams({ refreshKey }) {
                 onClick={() => toggleExpand(team.TeamId)}
                 style={{
                   cursor: "pointer",
-                  background: expandedTeamId === team.TeamId ? "#eef5ff" : "white"
+                  background: expandedTeamId === team.TeamId ? "var(--surfaceElevated, #0f1113)" : "transparent",
+                  color: "var(--text, #e6e6e6)"
                 }}
               >
-                <td>{team.TeamId}</td>
-                <td>{team.TeamName}</td>
-                <td style={{ textAlign: "center" }}>{team.MatchesPlayed}</td>
-                <td style={{ textAlign: "center" }}>{team.Wins}</td>
-                <td style={{ textAlign: "center" }}>{team.Losses}</td>
+                <td style={{ border: "1px solid var(--border, #222428)", padding: 8 }}>{team.TeamId}</td>
+                <td style={{ border: "1px solid var(--border, #222428)", padding: 8 }}>{team.TeamName}</td>
+                <td style={{ textAlign: "center", border: "1px solid var(--border, #222428)", padding: 8 }}>{team.MatchesPlayed}</td>
+                <td style={{ textAlign: "center", border: "1px solid var(--border, #222428)", padding: 8 }}>{team.Wins}</td>
+                <td style={{ textAlign: "center", border: "1px solid var(--border, #222428)", padding: 8 }}>{team.Losses}</td>
               </tr>
 
               {/* EXPANDED SECTION */}
@@ -83,21 +83,22 @@ export default function CurrentLeagueTeams({ refreshKey }) {
                       border="1"
                       cellPadding="6"
                       style={{
-                        width: "100%",
-                        background: "#fdfdfd",
-                        marginTop: 10
+                          width: "100%",
+                          background: "var(--surfaceElevated, #0f1113)",
+                          marginTop: 10,
+                          borderCollapse: "collapse"
                       }}
                     >
                       <thead>
                         <tr>
-                          <th>Match ID</th>
+                            <th style={{ border: "1px solid var(--border, #222428)", padding: 8, color: "var(--text, #e6e6e6)" }}>Match ID</th>
                         </tr>
                       </thead>
 
                       <tbody>
                         {teamMatches.length === 0 && (
                           <tr>
-                            <td colSpan="4" style={{ textAlign: "center" }}>
+                            <td colSpan="4" style={{ textAlign: "center", color: "var(--text, #e6e6e6)", padding: 8 }}>
                               No matches found
                             </td>
                           </tr>
@@ -121,9 +122,11 @@ export default function CurrentLeagueTeams({ refreshKey }) {
   );
 }
 const adminWidgetStyle = {
-  border: "1px solid #ccc",
+  border: "1px solid var(--border, #222428)",
   borderRadius: "8px",
   padding: "16px",
-  overflowY: "auto"       // <-- For scrollable widgets
+  overflowY: "auto",      // <-- For scrollable widgets
+  background: "var(--surface, #0b0b0b)",
+  color: "var(--text, #e6e6e6)"
 };
 

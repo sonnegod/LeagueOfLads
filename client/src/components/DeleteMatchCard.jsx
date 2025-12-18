@@ -114,7 +114,6 @@ export default function DeleteMatchCard({ onMatchDeleted }) {
       {matchData && (
         <div
           style={{
-            background: "#f4f4f4",
             padding: "10px",
             borderRadius: 6,
             marginBottom: "16px",

@@ -160,18 +160,19 @@ const tabBase = {
   padding: "10px 15px",
   borderRadius: "6px",
   cursor: "pointer",
-  border: "1px solid #ccc",
-  background: "#f5f5f5",
+  border: "1px solid var(--border, #222428)",
+  background: "#000",
+  color: "#fff",
 };
 
 const tabActive = {
   ...tabBase,
-  background: "#0077ff",
+  background: "var(--primary, #646cff)",
   color: "white",
   borderColor: "#0057cc",
 };
 
 const tabInactive = {
   ...tabBase,
-  background: "#e1e1e1",
+  background: "#0b0b0b",
 };

@@ -63,8 +63,8 @@ export default function PlayersPage() {
   if (loading || leaguesLoading) return <div>Loading players...</div>;
 
   return (
-    <div style={{ padding: "1rem", overflowX: "auto" }}>
-      <h1>Players</h1>
+    <div style={{ padding: "1rem", overflowX: "auto", background: "var(--surface, #000)", borderRadius: "8px" }}>
+      <h1 style={{ color: "var(--text, #e6e6e6)" }}>Players</h1>
       <LeagueFilter
         leagues={leagues}
         value={selectedLeague}
@@ -84,7 +84,7 @@ export default function PlayersPage() {
             <React.Fragment key={player.PlayerId}>
               <tr
                 onClick={() => toggleExpanded(player.PlayerId)}
-                style={{ cursor: "pointer", backgroundColor: expandedPlayers[player.PlayerId] ? "#f9f9f9" : "white" }}
+                style={{ cursor: "pointer", backgroundColor: expandedPlayers[player.PlayerId] ? "var(--surface, #0b0b0b)" : "transparent" }}
               >
                 <td style={tdStyle}><Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link></td>
                 <td style={tdStyle}>{player.GamesPlayed}</td>
@@ -93,7 +93,7 @@ export default function PlayersPage() {
 
               {expandedPlayers[player.PlayerId] && (
                 <tr>
-                  <td colSpan="3" style={{ paddingLeft: "2rem", background: "#f5f5f5" }}>
+                  <td colSpan="3" style={{ paddingLeft: "2rem", background: "var(--surface, #0b0b0b)" }}>
                     {selectedLeague === "all" ? (
                       // Show teams
                       <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem" }}>
@@ -159,14 +159,16 @@ export default function PlayersPage() {
 }
 
 const thStyle = {
-  border: "1px solid #ccc",
+  border: "1px solid var(--border, #222428)",
   padding: "8px",
   textAlign: "center",
+  color: "var(--text, #e6e6e6)",
+  background: "transparent",
 };
 
 const tdStyle = {
-  border: "1px solid #ccc",
+  border: "1px solid var(--border, #222428)",
   padding: "12px 16px",
   textAlign: "center",
-  color: 'black'
+  color: 'var(--text, #e6e6e6)'
 };

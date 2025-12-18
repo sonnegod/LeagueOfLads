@@ -49,19 +49,19 @@ export default function TieBreakerTable({ teams }) {
     <div style={wrapper}>
       {/* LEFT SIDE — Standings */}
       <div style={left}>
-        <h3 style={{ textAlign: "center" }}>Tiebreaker Standings</h3>
+        <h3 style={{ textAlign: "center", color: 'var(--text, #e6e6e6)' }}>Tiebreaker Standings</h3>
 
         <table style={tableStyle}>
           <thead>
             <tr>
-              <th style={headerTh}>Team</th>
+              <th style={{ ...headerTh, background: 'var(--surface, #121315)', color: 'var(--text, #e6e6e6)' }}>Team</th>
             </tr>
           </thead>
 
           <tbody>
             {teams.map((t) => (
               <tr key={t.TeamId}>
-                <td style={td}><Link to={`/team/${t.TeamId}`}>{t.TeamName}</Link></td>
+                <td style={{ ...td, color: 'var(--text, #e6e6e6)' }}><Link to={`/team/${t.TeamId}`} style={{ color: 'inherit' }}>{t.TeamName}</Link></td>
               </tr>
             ))}
           </tbody>
@@ -70,14 +70,14 @@ export default function TieBreakerTable({ teams }) {
 
       {/* RIGHT SIDE — Matrix */}
       <div style={right}>
-        <h3 style={{ textAlign: "center" }}>Head-to-Head</h3>
+        <h3 style={{ textAlign: "center", color: 'var(--text, #e6e6e6)' }}>Head-to-Head</h3>
 
         <table style={tableStyle}>
           <thead>
             <tr>
-              <th style={thSmall}></th>
+              <th style={{ ...thSmall, color: 'var(--text, #e6e6e6)' }}></th>
               {teams.map((t) => (
-                <th key={t.TeamId} style={thSmall}>
+                <th key={t.TeamId} style={{ ...thSmall, color: 'var(--text, #e6e6e6)' }}>
                   {t.TeamName}
                 </th>
               ))}
@@ -87,14 +87,14 @@ export default function TieBreakerTable({ teams }) {
           <tbody>
             {teams.map((row) => (
               <tr key={row.TeamId}>
-                <th style={thSmall}>{row.TeamName}</th>
+                <th style={{ ...thSmall, color: 'var(--text, #e6e6e6)' }}>{row.TeamName}</th>
 
                 {teams.map((col) => {
                   if (row.TeamId === col.TeamId)
                     return (
                       <td
                         key={col.TeamId}
-                        style={{ ...tdSmall, background: "#eee" }}
+                        style={{ ...tdSmall, background: "#222", color: 'var(--text, #e6e6e6)' }}
                       >
                         —
                       </td>
@@ -106,14 +106,14 @@ export default function TieBreakerTable({ teams }) {
                   let winsRow = result?.WinsA || 0;
                   let winsCol = result?.WinsB || 0;
 
-                  // Color coding
-                  let bg = "#fff";
-                  if (winsRow === winsCol) bg = "#ffe7c4"; // 1–1 tie
-                  else if (winsRow > winsCol) bg = "#d4ffd4"; // win
-                  else bg = "#ffd4d4"; // loss
+                  // Color coding (dark-friendly)
+                  let bg = "#181818";
+                  if (winsRow === winsCol) bg = "#4b3b1f"; // darker orange
+                  else if (winsRow > winsCol) bg = "#123d1a"; // darker green
+                  else bg = "#3d1212"; // darker red
 
                   return (
-                    <td key={col.TeamId} style={{ ...tdSmall, background: bg }}>
+                    <td key={col.TeamId} style={{ ...tdSmall, background: bg, color: 'var(--text, #e6e6e6)' }}>
                       {winsRow}–{winsCol}
                     </td>
                   );

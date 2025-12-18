@@ -29,13 +29,16 @@ export default function HeroesPage() {
 
   return (
     <div style={{ padding: '1rem' }}>
-      <h1>Heroes</h1>
-      <div style={gridStyle}>
-        {heroes.map(hero => (
-          <Link key={hero.HeroId} to={`/hero/${hero.HeroId}`} style={heroLinkStyle}>
-            {hero.HeroName}
-          </Link>
-        ))}
+      {/* Dark wrapper to remove any white panels for this page */}
+      <div style={{ padding: '1rem', backgroundColor: '#0f1112', color: '#e6e6e6', borderRadius: 8 }}>
+        <h1 style={{ marginTop: 0 }}>Heroes</h1>
+        <div style={gridStyle}>
+          {heroes.map(hero => (
+            <Link key={hero.HeroId} to={`/hero/${hero.HeroId}`} style={heroLinkStyleDark}>
+              {hero.HeroName}
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -57,5 +60,17 @@ const heroLinkStyle = {
   textDecoration: 'none',
   color: '#646cff',
   fontWeight: 500,
-  backgroundColor: '#e1e1e1ff',
+};
+
+// Dark variant used on Heroes page to ensure white border / dark bg
+const heroLinkStyleDark = {
+  display: 'block',
+  padding: '0.6rem',
+  border: '1px solid #ffffff',
+  borderRadius: '6px',
+  textAlign: 'center',
+  textDecoration: 'none',
+  backgroundColor: '#000000',
+  color: '#ffffff',
+  fontWeight: 600,
 };

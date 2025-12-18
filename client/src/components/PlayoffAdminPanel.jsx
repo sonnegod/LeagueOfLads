@@ -146,7 +146,6 @@ const panelStyle = {
   border: "1px solid #ddd",
   padding: "20px",
   borderRadius: "8px",
-  background: "white",
 };
 
 const buttonStyle = {

@@ -160,5 +160,5 @@ export default function MatchesPage() {
 }
 
 const thStyle = { border: '1px solid #ccc', padding: '8px', textAlign: 'center', cursor: 'pointer' };
-const tdStyle = { border: '1px solid #ccc', padding: '8px', textAlign: 'left',color: 'black' };
+const tdStyle = { border: '1px solid var(--border, #222428)', padding: '8px', textAlign: 'left', color: 'var(--text, #e6e6e6)' };
 const tdCenter = { border: '1px solid #ccc', padding: '8px', textAlign: 'center' };

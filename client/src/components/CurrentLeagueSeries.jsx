@@ -15,7 +15,7 @@ export default function CurrentLeagueSeries({ seriesList }) {
   if (seriesList.length === 0) return <div>No series today.</div>;
 
   return (
-    <div style={{ padding: "1rem", overflowX: "auto" }}>
+    <div style={{ padding: "1rem", overflowX: "auto", background: "var(--surface, #000)", borderRadius: "8px" }}>
       <table style={tableStyle}>
         <thead>
           <tr>
@@ -33,8 +33,8 @@ export default function CurrentLeagueSeries({ seriesList }) {
               style={{
                 cursor: "pointer",
                 backgroundColor: expandedSeries[s.SeriesId]
-                  ? "#f9f9f9"
-                  : "white",
+                  ? "var(--surface, #0b0b0b)"
+                  : "transparent",
               }}
             >
               <td style={tdStyle}>{s.DateCreated}</td>
@@ -98,5 +98,5 @@ export default function CurrentLeagueSeries({ seriesList }) {
 }
 
 const tableStyle = { width: "100%", borderCollapse: "collapse", minWidth: "900px" };
-const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
-const tdStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center",  color: "black" };
+const thStyle = { border: "1px solid var(--border, #222428)", padding: "8px", textAlign: "center", color: "var(--text, #e6e6e6)", background: "transparent" };
+const tdStyle = { border: "1px solid var(--border, #222428)", padding: "8px", textAlign: "center",  color: "var(--text, #e6e6e6)" };

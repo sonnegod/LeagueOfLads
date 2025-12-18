@@ -35,114 +35,118 @@ export default function HeroPage() {
   const { hero, heroPlayerStats, heroTeamStats, leagueHeroStats } = heroData;
 
   return (
-    <div>
-      <h1>{hero[0]?.HeroName || hero_id}</h1>
+    <div style={{ padding: '1rem' }}>
+      {/* Dark page container to avoid white panels */}
+      <div style={{ padding: '1rem', backgroundColor: '#0f1112', color: '#e6e6e6', borderRadius: 8 }}>
+        <h1 style={{ marginTop: 0 }}>{hero[0]?.HeroName || hero_id}</h1>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-        <button onClick={() => setActiveTab('heroMatches')} style={activeTab === 'heroMatches' ? activeTabStyle : tabStyle}>Recent Matches</button>
-        <button onClick={() => setActiveTab('players')} style={activeTab === 'players' ? activeTabStyle : tabStyle}>Players</button>
-        <button onClick={() => setActiveTab('teams')} style={activeTab === 'teams' ? activeTabStyle : tabStyle}>Teams</button>
-        <button onClick={() => setActiveTab('leagues')} style={activeTab === 'leagues' ? activeTabStyle : tabStyle}>Leagues</button>
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+          <button onClick={() => setActiveTab('heroMatches')} style={activeTab === 'heroMatches' ? activeTabStyleDark : tabStyleDark}>Recent Matches</button>
+          <button onClick={() => setActiveTab('players')} style={activeTab === 'players' ? activeTabStyleDark : tabStyleDark}>Players</button>
+          <button onClick={() => setActiveTab('teams')} style={activeTab === 'teams' ? activeTabStyleDark : tabStyleDark}>Teams</button>
+          <button onClick={() => setActiveTab('leagues')} style={activeTab === 'leagues' ? activeTabStyleDark : tabStyleDark}>Leagues</button>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'heroMatches' && <HeroStatsTable data={hero} />}
+        
+        {activeTab === 'players' && (
+          <table style={tableStyleDark}>
+            <thead>
+              <tr>
+                <th style={thStyleDark}>Player</th>
+                <th style={thStyleDark}>Games</th>
+                <th style={thStyleDark}>Win %</th>
+                <th style={thStyleDark}>Avg K/D/A</th>
+                <th style={thStyleDark}>Avg Last Hits</th>
+                <th style={thStyleDark}>Avg GPM</th>
+                <th style={thStyleDark}>Avg XPM</th>
+              </tr>
+            </thead>
+            <tbody>
+              {heroPlayerStats.map(player => (
+                <tr key={player.HeroId}>
+                  <td style={tdStyleDark}>
+                    <Link to={`/player/${player.PlayerId}`} style={{ color: '#9fb0ff' }}>{player.PlayerName}</Link>
+                  </td>
+                  <td style={tdStyleDark}>{player.GamesPlayed}</td>
+                  <td style={tdStyleDark}>{player.WinPercentage?.toFixed(2)}%</td>
+                  <td style={tdStyleDark}>{player.AvgKills.toFixed(1)}/{player.AvgDeaths.toFixed(1)}/{player.AvgAssists.toFixed(1)}</td>
+                  <td style={tdStyleDark}>{player.AvgLastHits.toFixed(1)}</td>
+                  <td style={tdStyleDark}>{player.AvgGPM.toFixed(1)}</td>
+                  <td style={tdStyleDark}>{player.AvgXPM.toFixed(1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {activeTab === 'teams' && (
+          <table style={tableStyleDark}>
+            <thead>
+              <tr>
+                <th style={thStyleDark}>Team</th>
+                <th style={thStyleDark}>Games</th>
+                <th style={thStyleDark}>Win %</th>
+                <th style={thStyleDark}>Avg K/D/A</th>
+                <th style={thStyleDark}>Avg Last Hits</th>
+                <th style={thStyleDark}>Avg GPM</th>
+                <th style={thStyleDark}>Avg XPM</th>
+              </tr>
+            </thead>
+            <tbody>
+              {heroTeamStats.map(team => (
+                <tr key={team.TeamId}>
+                  <td style={tdStyleDark}><Link to={`/team/${team.TeamId}`} style={{ color: '#9fb0ff' }}>{team.TeamName}</Link></td>
+                  <td style={tdStyleDark}>{team.GamesPlayed}</td>
+                  <td style={tdStyleDark}>{team.WinPercentage?.toFixed(2)}%</td>
+                  <td style={tdStyleDark}>{team.AvgKills.toFixed(1)}/{team.AvgDeaths.toFixed(1)}/{team.AvgAssists.toFixed(1)}</td>
+                  <td style={tdStyleDark}>{team.AvgLastHits?.toFixed(2)}</td>
+                  <td style={tdStyleDark}>{team.AvgGPM?.toFixed(2)}</td>
+                  <td style={tdStyleDark}>{team.AvgXPM?.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {activeTab === 'leagues' && (
+          <table style={tableStyleDark}>
+            <thead>
+              <tr>
+                <th style={thStyleDark}>League</th>
+                <th style={thStyleDark}>Games</th>
+                <th style={thStyleDark}>Win %</th>
+                <th style={thStyleDark}>Avg K/D/A</th>
+                <th style={thStyleDark}>Avg Last Hits</th>
+                <th style={thStyleDark}>Avg GPM</th>
+                <th style={thStyleDark}>Avg XPM</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leagueHeroStats.map(league => (
+                <tr key={league.LeagueId}>
+                  <td style={tdStyleDark}><Link to={`/league/${league.LeagueId}`} style={{ color: '#9fb0ff' }}>{league.LeagueName}</Link></td>
+                  <td style={tdStyleDark}>{league.GamesPlayed}</td>
+                  <td style={tdStyleDark}>{league.WinPercentage?.toFixed(2)}%</td>
+                  <td style={tdStyleDark}>{league.AvgKills.toFixed(1)}/{league.AvgDeaths.toFixed(1)}/{league.AvgAssists.toFixed(1)}</td>
+                  <td style={tdStyleDark}>{league.AvgLastHits?.toFixed(2)}</td>
+                  <td style={tdStyleDark}>{league.AvgGPM?.toFixed(2)}</td>
+                  <td style={tdStyleDark}>{league.AvgXPM?.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
-
-      {/* Tab Content */}
-      {activeTab === 'heroMatches' && <HeroStatsTable data={hero} />}
-      
-      {activeTab === 'players' && (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Player</th>
-              <th style={thStyle}>Games</th>
-              <th style={thStyle}>Win %</th>
-              <th style={thStyle}>Avg K/D/A</th>
-              <th style={thStyle}>Avg Last Hits</th>
-              <th style={thStyle}>Avg GPM</th>
-              <th style={thStyle}>Avg XPM</th>
-            </tr>
-          </thead>
-          <tbody>
-            {heroPlayerStats.map(player => (
-              <tr key={player.HeroId}>
-                <td style={tdStyle}>
-                  <Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link>
-                </td>
-                <td style={tdStyle}>{player.GamesPlayed}</td>
-                <td style={tdStyle}>{player.WinPercentage?.toFixed(2)}%</td>
-                <td style={tdStyle}>{player.AvgKills.toFixed(1)}/{player.AvgDeaths.toFixed(1)}/{player.AvgAssists.toFixed(1)}</td>
-                <td style={tdStyle}>{player.AvgLastHits.toFixed(1)}</td>
-                <td style={tdStyle}>{player.AvgGPM.toFixed(1)}</td>
-                <td style={tdStyle}>{player.AvgXPM.toFixed(1)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {activeTab === 'teams' && (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Team</th>
-              <th style={thStyle}>Games</th>
-              <th style={thStyle}>Win %</th>
-              <th style={thStyle}>Avg K/D/A</th>
-              <th style={thStyle}>Avg Last Hits</th>
-              <th style={thStyle}>Avg GPM</th>
-              <th style={thStyle}>Avg XPM</th>
-            </tr>
-          </thead>
-          <tbody>
-            {heroTeamStats.map(team => (
-              <tr key={team.TeamId}>
-                <td style={tdStyle}><Link to={`/team/${team.TeamId}`}>{team.TeamName}</Link></td>
-                <td style={tdStyle}>{team.GamesPlayed}</td>
-                <td style={tdStyle}>{team.WinPercentage?.toFixed(2)}%</td>
-                <td style={tdStyle}>{team.AvgKills.toFixed(1)}/{team.AvgDeaths.toFixed(1)}/{team.AvgAssists.toFixed(1)}</td>
-                <td style={tdStyle}>{team.AvgLastHits?.toFixed(2)}</td>
-                <td style={tdStyle}>{team.AvgGPM?.toFixed(2)}</td>
-                <td style={tdStyle}>{team.AvgXPM?.toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      {activeTab === 'leagues' && (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>League</th>
-              <th style={thStyle}>Games</th>
-              <th style={thStyle}>Win %</th>
-              <th style={thStyle}>Avg K/D/A</th>
-              <th style={thStyle}>Avg Last Hits</th>
-              <th style={thStyle}>Avg GPM</th>
-              <th style={thStyle}>Avg XPM</th>
-            </tr>
-          </thead>
-          <tbody>
-            {leagueHeroStats.map(league => (
-              <tr key={league.LeagueId}>
-                <td style={tdStyle}><Link to={`/league/${league.LeagueId}`}>{league.LeagueName}</Link></td>
-                <td style={tdStyle}>{league.GamesPlayed}</td>
-                <td style={tdStyle}>{league.WinPercentage?.toFixed(2)}%</td>
-                <td style={tdStyle}>{league.AvgKills.toFixed(1)}/{league.AvgDeaths.toFixed(1)}/{league.AvgAssists.toFixed(1)}</td>
-                <td style={tdStyle}>{league.AvgLastHits?.toFixed(2)}</td>
-                <td style={tdStyle}>{league.AvgGPM?.toFixed(2)}</td>
-                <td style={tdStyle}>{league.AvgXPM?.toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
     </div>
   );
 }
 
 // Styles
 const tableStyle = { width: "100%", borderCollapse: "collapse", minWidth: "700px" };
-const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
-const tdStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center"};
-const tabStyle = { padding: "0.5rem 1rem", cursor: "pointer" };
-const activeTabStyle = { ...tabStyle, fontWeight: "bold"};
+const tableStyleDark = { width: "100%", borderCollapse: "collapse", minWidth: "700px", background: 'transparent' };
+const thStyleDark = { border: "1px solid #222428", padding: "8px", textAlign: "center", color: '#e6e6e6', background: '#0f1112' };
+const tdStyleDark = { border: "1px solid #222428", padding: "8px", textAlign: "center", color: '#e6e6e6' };
+const tabStyleDark = { padding: "0.5rem 1rem", cursor: "pointer", background: '#0b0b0b', color: '#e6e6e6', border: '1px solid #222428', borderRadius: 6 };
+const activeTabStyleDark = { ...tabStyleDark, fontWeight: "bold", boxShadow: '0 0 0 2px rgba(255,255,255,0.04)'};
