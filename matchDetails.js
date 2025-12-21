@@ -104,6 +104,7 @@ async function getMatchDetails(matches){
                 db.insertDuration(match.MatchId,data.duration);
 
                 //creating series
+                const now = new Date();
                 const yesterday = new Date(now);
                 yesterday.setDate(now.getDate() - 1);
 
@@ -128,6 +129,7 @@ async function getMatchDetails(matches){
 
                     // 2. Link the Match to the Series
                     const resultMatch = db.insertSeriesMatch(seriesId, match.MatchId, yesterdaysDate);
+                    
                     
                     if(resultMatch === 2) {
                         console.warn(`Issue linking match ${match.MatchId} to series ${seriesId}`);
