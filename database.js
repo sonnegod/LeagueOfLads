@@ -871,6 +871,11 @@ class DBInstance {
     }
 
     findPlayoffSeries(team1Id, team2Id){
+
+        let yesterdaysDate = new Date();
+        yesterdaysDate.setDate(yesterdaysDate.getDate() - 1);
+        yesterdaysDate = yesterdaysDate.toISOString().split('T')[0];
+
         return this.queryDatabase(
             `SELECT 
                 SI.SeriesId,
@@ -887,10 +892,11 @@ class DBInstance {
                             OR 
                             (SI.Team1 = ? AND SI.Team2 = ?)
                         )
+                        AND DateCreated >= ?
                     GROUP BY SI.SeriesId
                     ORDER BY SI.SeriesId DESC
                     LIMIT 1
-                `,[team1Id,team2Id,team1Id,team2Id,team2Id,team1Id])
+                `,[team1Id,team2Id,team1Id,team2Id,team2Id,team1Id,yesterdaysDate])
     }
 
     getSeriesMatches(seriesId){
