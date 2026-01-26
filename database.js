@@ -892,7 +892,7 @@ class DBInstance {
                             OR 
                             (SI.Team1 = ? AND SI.Team2 = ?)
                         )
-                        AND DateCreated >= ?
+                        AND SI.DateCreated >= ?
                     GROUP BY SI.SeriesId
                     ORDER BY SI.SeriesId DESC
                     LIMIT 1
