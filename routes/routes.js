@@ -11,6 +11,18 @@ dotenv.config();
 
 const router = express.Router();
 
+function resolveActiveLeague() {
+  const active = db.getActiveLeague();
+  let leagueId = active?.[0]?.LeagueId;
+
+  if (!leagueId) {
+    const recent = db.getCurrentLeague();
+    leagueId = recent?.[0]?.LeagueId;
+  }
+
+  return leagueId;
+}
+
 router.get('/auth/steam',
   passport.authenticate('steam')
 );
@@ -240,9 +252,37 @@ router.post("/admin/activatePlayoffs", (req, res) => {
   return res.json({ success: true });
 });
 
+router.post("/admin/endSeason", (req, res) => {
+  const activeLeague = db.getActiveLeague();
+  const activeLeagueId = activeLeague[0].LeagueId;
+
+  /*  Dont Really need right now
+  
+  const last = db.getLastMatchForActiveLeague();
+  if (!last) return res.json({ success: false, error: "No matches found" });
+  const existing = db.getLeagueStageBoundaries(activeLeague[0].LeagueId);
+  */
+
+  db.closeSeason(activeLeagueId);
+
+  return res.json({ success: true });
+});
+
 router.get('/leagueStage', (req, res) => {
   try {
-    const row = db.getActiveLeagueBoundaries();
+    const leagueId = req.query.leagueId || resolveActiveLeague();
+
+    if (!leagueId) {
+      return res.json({
+        exists: false,
+        stageInfo: {
+          GroupEndMatchId: null,
+          TieBreakerEndMatchId: null
+        }
+      });
+    }
+
+    const row = db.getLeagueStageBoundaries(leagueId);
 
     if (row.length === 0) {
       return res.json({
@@ -267,8 +307,20 @@ router.get('/leagueStage', (req, res) => {
 
 router.get('/tiebreakerInfo', async (req, res) => {
   try {
-    
-    const groups = await db.getCurrentLeagueLeaderboard();
+    const leagueId = req.query.leagueId || resolveActiveLeague();
+
+    if (!leagueId) {
+      return res.json({
+        success: true,
+        groups: [],
+        tiebreakerTeams: [],
+        upperBracketTeams: [],
+        lowerBracketTeams: [],
+        eliminatedTeams: [],
+      });
+    }
+
+    const groups = await db.getLeagueLeaderboard(leagueId);
 
     const groupsWithTeams = await Promise.all(
       groups.map(async (group) => {
@@ -337,9 +389,13 @@ router.get('/tiebreakerInfo', async (req, res) => {
 router.get('/tiebreakerMatches', (req, res) => {
   try{
 
-    const boundaries = db.getActiveLeagueBoundaries();
+    const leagueId = req.query.leagueId || resolveActiveLeague();
 
-    const activeLeague = db.getActiveLeague();
+    if (!leagueId) {
+      return res.json([]);
+    }
+
+    const boundaries = db.getLeagueStageBoundaries(leagueId);
 
     if (!boundaries || !boundaries[0].GroupEndMatchId) {
       // No tiebreaker stage started yet
@@ -351,7 +407,7 @@ router.get('/tiebreakerMatches', (req, res) => {
 
 
 
-    const matches = db.getTieBreakerMatches(activeLeague[0].LeagueId,groupEndMatchId,tieBreakerEndMatchId);
+    const matches = db.getTieBreakerMatches(leagueId,groupEndMatchId,tieBreakerEndMatchId);
 
 
     if(matches.length === 0)
@@ -413,10 +469,17 @@ router.get('/admin/playoffBracket', (req, res) => {
 
 router.get('/getCurrentBracket', (req, res) => {
   try {
+    const leagueId = req.query.leagueId || resolveActiveLeague();
 
-    let result = -1;
+    if (!leagueId) {
+      return res.json({ playoffBracket: null });
+    }
 
-    const playoff = db.adminGetCurrentPlayoffBracket();
+    const playoff = db.getPlayoffBracket(leagueId);
+
+    if (!playoff || playoff.length === 0) {
+      return res.json({ playoffBracket: null });
+    }
 
     const playoffBracket = JSON.parse(playoff[0].PlayoffStructure);
 
@@ -492,6 +555,7 @@ router.get('/leagueData', async (req, res) => {
       res.status(500).json({ error: 'Failed to fetch leagues' });
     }
 });
+
 
 
 
@@ -933,7 +997,13 @@ router.get('/leagues/:leagueId', async (req, res) => {
 router.get('/homepageSeries', async (req, res) => {
 
   try {
-    const series = await db.getCurrentLeagueSeriesGroupstage();
+    const leagueId = req.query.leagueId || resolveActiveLeague();
+
+    if (!leagueId) {
+      return res.json([]);
+    }
+
+    const series = await db.getLeagueSeriesGroupstage(leagueId);
 
     const seriesWithMatches = await Promise.all(
       series.map(async (series) => {
@@ -957,7 +1027,13 @@ router.get('/homepageSeries', async (req, res) => {
 router.get('/currentLeaderboard', async (req, res) => {
 
   try {
-    const groups = await db.getCurrentLeagueLeaderboard();
+    const leagueId = req.query.leagueId || resolveActiveLeague();
+
+    if (!leagueId) {
+      return res.json([]);
+    }
+
+    const groups = await db.getLeagueLeaderboard(leagueId);
 
     const groupsWithTeams = await Promise.all(
       groups.map(async (group) => {

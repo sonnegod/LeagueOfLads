@@ -537,6 +537,15 @@ class DBInstance {
             `,[leagueId,groupEndMatchId,tieBreakerEndMatchId]);
     }
 
+    getPlayoffBracket(leagueId){
+        return this.queryDatabase(`
+           SELECT 
+                pb.PlayoffStructure
+            FROM PlayoffBracket pb
+            WHERE pb.LeagueId = ?
+            `, [leagueId]);
+    }
+
     adminGetCurrentPlayoffBracket(){
         return this.queryDatabase(`
            SELECT 
@@ -580,6 +589,14 @@ class DBInstance {
         return this.queryDatabase(`
             SELECT * FROM LeagueStageBoundaries WHERE LeagueId = ?
         `,[leagueId]);
+    }
+
+    closeSeason(leagueId){
+        this.db.prepare(`
+            UPDATE LeagueInfo
+            SET Active = 0
+            WHERE LeagueId = ?
+        `).run(leagueId);
     }
 
     //returning all teams that are currently in the active league (can have bad teams)
@@ -798,6 +815,78 @@ class DBInstance {
         );
     }
 
+    getLeagueSeriesGroupstage(leagueId){
+            return this.queryDatabase(
+            `SELECT 
+                si.SeriesId,
+                si.Team1,
+                si.Team2,
+                ti1.TeamName AS team_one,
+                ti2.TeamName AS team_two,
+                si.DateCreated
+            FROM SeriesInfo si
+            JOIN SeriesMatch sm ON si.SeriesId = sm.SeriesId
+            JOIN MatchLeague ml ON sm.MatchId = ml.MatchId
+            JOIN LeagueInfo li ON ml.LeagueId = li.LeagueId
+            LEFT JOIN LeagueStageBoundaries lsb ON lsb.LeagueId = li.LeagueId
+            JOIN TeamInfo ti1 ON ti1.TeamId = si.Team1
+            JOIN TeamInfo ti2 ON ti2.TeamId = si.Team2
+            WHERE li.LeagueId = ?
+              AND (lsb.GroupEndMatchId IS NULL OR sm.MatchId <= lsb.GroupEndMatchId)
+            GROUP BY si.SeriesId
+            ORDER BY si.SeriesId DESC;`,
+            [leagueId]
+        );
+    }
+
+    getLeagueSeriesTieBreakers(leagueId){
+            return this.queryDatabase(
+            `SELECT 
+                si.SeriesId,
+                si.Team1,
+                si.Team2,
+                ti1.TeamName AS team_one,
+                ti2.TeamName AS team_two,
+                si.DateCreated
+            FROM SeriesInfo si
+            JOIN SeriesMatch sm ON si.SeriesId = sm.SeriesId
+            JOIN MatchLeague ml ON sm.MatchId = ml.MatchId
+            JOIN LeagueInfo li ON ml.LeagueId = li.LeagueId
+            LEFT JOIN LeagueStageBoundaries lsb ON lsb.LeagueId = li.LeagueId
+            JOIN TeamInfo ti1 ON ti1.TeamId = si.Team1
+            JOIN TeamInfo ti2 ON ti2.TeamId = si.Team2
+            WHERE li.LeagueId = ?
+              AND (sm.MatchId > lsb.GroupEndMatchId AND sm.MatchId <= lsb.TieBreakerEndMatchId)
+            GROUP BY si.SeriesId
+            ORDER BY si.SeriesId DESC;`,
+            [leagueId]
+        );
+    }
+
+    getLeagueSeriesPlayoffs(leagueId){
+            return this.queryDatabase(
+            `SELECT 
+                si.SeriesId,
+                si.Team1,
+                si.Team2,
+                ti1.TeamName AS team_one,
+                ti2.TeamName AS team_two,
+                si.DateCreated
+            FROM SeriesInfo si
+            JOIN SeriesMatch sm ON si.SeriesId = sm.SeriesId
+            JOIN MatchLeague ml ON sm.MatchId = ml.MatchId
+            JOIN LeagueInfo li ON ml.LeagueId = li.LeagueId
+            LEFT JOIN LeagueStageBoundaries lsb ON lsb.LeagueId = li.LeagueId
+            JOIN TeamInfo ti1 ON ti1.TeamId = si.Team1
+            JOIN TeamInfo ti2 ON ti2.TeamId = si.Team2
+            WHERE li.LeagueId = ?
+              AND (sm.MatchId > lsb.TieBreakerEndMatchId)
+            GROUP BY si.SeriesId
+            ORDER BY si.SeriesId DESC;`,
+            [leagueId]
+        );
+    }
+
     async setSeeding(){
         try {
             const groups = await this.getCurrentLeagueLeaderboard();
@@ -955,6 +1044,17 @@ class DBInstance {
             ORDER BY lg.GroupID
         `);
         
+    }
+
+    getLeagueLeaderboard(leagueId){
+        return this.queryDatabase(`
+            SELECT DISTINCT lg.GroupID, g.GroupName, lg.LeagueId
+            FROM LeagueGroups lg
+            JOIN GroupNames g on g.GroupId = lg.GroupId
+            JOIN LeagueInfo l on l.LeagueId = lg.LeagueId
+            WHERE l.LeagueId = ?
+            ORDER BY lg.GroupID
+        `, [leagueId]);
     }
 
     getGroupStats(groupInfo){

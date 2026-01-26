@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from 'react-router-dom';
 
-export default function TieBreakerTable({ teams }) {
+export default function TieBreakerTable({ teams, leagueId }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -12,7 +12,10 @@ export default function TieBreakerTable({ teams }) {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/tiebreakerMatches");
+        const url = leagueId
+          ? `/api/tiebreakerMatches?leagueId=${leagueId}`
+          : "/api/tiebreakerMatches";
+        const res = await fetch(url);
         const data = await res.json();
 
         setMatches(data || []);
@@ -23,7 +26,7 @@ export default function TieBreakerTable({ teams }) {
       }
     }
     load();
-  }, []);
+  }, [leagueId]);
 
   if (loading) return <p>Loading tiebreaker data...</p>;
   if (!teams || teams.length === 0) return <p>No tiebreaker teams available.</p>;

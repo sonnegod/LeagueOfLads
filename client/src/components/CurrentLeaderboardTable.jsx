@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
-export default function CurrentLeagueSeries({ seriesList }) {
+export default function CurrentLeagueSeries({ leagueId }) {
 
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11,21 +11,26 @@ export default function CurrentLeagueSeries({ seriesList }) {
     async function fetchMatches() {
       setLoading(true);
       try {
-        const res = await fetch('/api/currentLeaderboard');
+        const url = leagueId
+          ? `/api/currentLeaderboard?leagueId=${leagueId}`
+          : "/api/currentLeaderboard";
+        const res = await fetch(url);
         const data = await res.json();
 
-        setGroups(data);
+        setGroups(data || []);
       } catch (err) {
         console.error(err);
+        setGroups([]);
       } finally {
         setLoading(false);
       }
     }
     fetchMatches();
-  }, []);
+  }, [leagueId]);
 
     return (
     <div style={containerStyle}>
+    {loading && <div>Loading leaderboard...</div>}
     {groups.map(group => (
       <div key={group.GroupId} style={cardStyle}>
         <div style={{ flexGrow: 1 }}>

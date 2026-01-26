@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 
 import CurrentLeagueSeries from "../components/CurrentLeagueSeries";
 import CurrentLeaderboardTable from "../components/CurrentLeaderboardTable";
@@ -7,35 +6,15 @@ import TieBreakerView from "../components/TieBreakerView";   // you will create
 import CurrentPlayoffBracketView from "../components/CurrentPlayoffBracketView"; // you will create
 
 export default function Home() {
-  const [series, setSeries] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const [stageInfo, setStageInfo] = useState(null);
   const [activeTab, setActiveTab] = useState("group"); // default tab
-
-  // ----------------------------------------------------
-  // Load recent series
-  // ----------------------------------------------------
-  useEffect(() => {
-    async function fetchRecentSeries() {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/homepageSeries");
-        const data = await res.json();
-        setSeries(data);
-      } catch (err) {
-        console.error("Error fetching series:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchRecentSeries();
-  }, []);
 
   // ----------------------------------------------------
   // Load stage info
   // ----------------------------------------------------
   useEffect(() => {
+    setLoading(true);
     fetch("/api/leagueStage")
       .then((res) => res.json())
       .then((data) => {
@@ -48,10 +27,18 @@ export default function Home() {
         } else if (data[0].GroupEndMatchId && data[0].TieBreakerEndMatchId) {
           setActiveTab("playoffs");
         }
+      })
+      .catch((err) => {
+        console.error("Error fetching league stage:", err);
+        setStageInfo(null);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   }, []);
 
-  if (loading || !stageInfo) return <div>Loading recent series...</div>;
+  if (loading) return <div>Loading recent series...</div>;
+  if (!stageInfo) return <div>Loading league stage...</div>;
 
   const inGroupStage = !stageInfo.GroupEndMatchId && !stageInfo.TieBreakerEndMatchId;
 
@@ -77,7 +64,7 @@ export default function Home() {
         <hr style={{ margin: "2rem 0" }} />
 
         <h2>Recent Series</h2>
-        <CurrentLeagueSeries seriesList={series} />
+        <CurrentLeagueSeries />
       </div>
     );
   }
@@ -132,7 +119,7 @@ export default function Home() {
             <CurrentLeaderboardTable />
             <hr style={{ margin: "2rem 0" }} />
             <h2>Recent Series</h2>
-            <CurrentLeagueSeries seriesList={series} />
+            <CurrentLeagueSeries />
           </>
         )}
 
