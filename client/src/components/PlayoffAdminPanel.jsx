@@ -98,6 +98,36 @@ export default function PlayoffAdminPanel() {
     loadStageInfo();
   };
 
+  const triggerEndOfSeason = async () => {
+
+    if (!window.confirm("Are you sure you want to End the Season?")) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/endSeason", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await res.json();
+
+
+
+      if (data.success) {
+        setMessage("Season Ended.");
+        setStageInfo(data.updatedRow);
+      } else {
+        setMessage("Failed to end season.");
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage("Server error.");
+    }
+
+    loadStageInfo();
+  };
+
   // -----------------------------------------------------
   // UI Logic
   // -----------------------------------------------------
@@ -110,6 +140,7 @@ export default function PlayoffAdminPanel() {
 
   const showTiebreakerBtn = !groupEndMatchId;                              // No record OR no group end match → can tiebreak
   const showPlayoffBtn = !(groupEndMatchId && tieBreakerEndMatchId);       // Show until both filled
+  const showEndSeasonBtn = showPlayoffBtn;
 
   return (
     <div style={panelStyle}>
@@ -129,6 +160,11 @@ export default function PlayoffAdminPanel() {
         {showPlayoffBtn && (
           <button style={buttonStyle} onClick={triggerPlayoffs}>
             Start Playoffs
+          </button>
+        )}
+        {showEndSeasonBtn && (
+          <button style={buttonStyle} onClick={triggerEndOfSeason}>
+            End Season
           </button>
         )}
       </div>

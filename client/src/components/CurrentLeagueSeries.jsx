@@ -1,9 +1,31 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-export default function CurrentLeagueSeries({ seriesList }) {
-    const [expandedSeries, setExpandedSeries] = useState({});
+export default function CurrentLeagueSeries({ leagueId }) {
+  const [seriesList, setSeriesList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedSeries, setExpandedSeries] = useState({});
 
+  useEffect(() => {
+    async function fetchSeries() {
+      setLoading(true);
+      try {
+        const url = leagueId
+          ? `/api/homepageSeries?leagueId=${leagueId}`
+          : "/api/homepageSeries";
+        const res = await fetch(url);
+        const data = await res.json();
+        setSeriesList(data || []);
+      } catch (err) {
+        console.error("Error fetching series:", err);
+        setSeriesList([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchSeries();
+  }, [leagueId]);
 
     const toggleExpanded = (SeriesId) => {
         setExpandedSeries(prev => ({
@@ -12,7 +34,8 @@ export default function CurrentLeagueSeries({ seriesList }) {
         }));
     };
 
-  if (seriesList.length === 0) return <div>No series today.</div>;
+  if (loading) return <div>Loading series...</div>;
+  if (seriesList.length === 0) return <div>No series available.</div>;
 
   return (
     <div style={{ padding: "1rem", overflowX: "auto", background: "var(--surface, #000)", borderRadius: "8px" }}>

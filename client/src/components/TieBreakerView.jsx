@@ -6,7 +6,7 @@ import LowerBracketTable from "./LowerBracketTable";
 import EliminatedBracketTable from "./EliminatedBracketTable";
 
 
-export default function TiebreakerView() {
+export default function TiebreakerView({ leagueId }) {
   const [tiebreakerTeams, setTiebreakerTeams] = useState([]);
   const [upperTeams, setUpperTeams] = useState([]);
   const [lowerTeams, setLowerTeams] = useState([]);
@@ -17,7 +17,10 @@ export default function TiebreakerView() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/tiebreakerInfo');
+        const url = leagueId
+          ? `/api/tiebreakerInfo?leagueId=${leagueId}`
+          : "/api/tiebreakerInfo";
+        const res = await fetch(url);
         const data = await res.json();
 
         setTiebreakerTeams(data.tiebreakerTeams || []);
@@ -31,7 +34,7 @@ export default function TiebreakerView() {
       }
     }
     load();
-  }, []);
+  }, [leagueId]);
 
   if (loading) return <p>Loading tiebreakers...</p>;
 
@@ -39,7 +42,7 @@ export default function TiebreakerView() {
     <div style={{ padding: "1rem" }}>
 
       {/* Top: Tiebreaker Table */}
-      <TieBreakerTable teams={tiebreakerTeams} />
+      <TieBreakerTable teams={tiebreakerTeams} leagueId={leagueId} />
 
       {/* Bottom: Upper + Lower Tables side-by-side */}
       <div

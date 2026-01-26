@@ -1,6 +1,10 @@
 // src/pages/LeaguePage.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
+import CurrentLeagueSeries from "../components/CurrentLeagueSeries";
+import CurrentLeaderboardTable from "../components/CurrentLeaderboardTable";
+import TieBreakerView from "../components/TieBreakerView";
+import CurrentPlayoffBracketView from "../components/CurrentPlayoffBracketView";
 
 export default function LeaguePage() {
   const { leagueId } = useParams();
@@ -9,6 +13,8 @@ export default function LeaguePage() {
   const [activeTab, setActiveTab] = useState("teams");
   const [expandedMatches, setExpandedMatches] = useState({});
   const [expandedHeroes, setExpandedHeroes] = useState({});
+  const [stageInfo, setStageInfo] = useState(null);
+  const [stageExists, setStageExists] = useState(false);
   
   useEffect(() => {
     async function fetchLeague() {
@@ -27,6 +33,36 @@ export default function LeaguePage() {
     fetchLeague();
   }, [leagueId]);
 
+  useEffect(() => {
+    async function fetchStageInfo() {
+      try {
+        const res = await fetch(`/api/leagueStage?leagueId=${leagueId}`);
+        const data = await res.json();
+        setStageInfo(data[0] || data.stageInfo || null);
+        setStageExists(Boolean(data.exists));
+
+        if (!data.exists) {
+          setActiveTab("teams");
+          return;
+        }
+
+        if (data[0].GroupEndMatchId && !data[0].TieBreakerEndMatchId) {
+          setActiveTab("tiebreakers");
+        } else if (data[0].GroupEndMatchId && data[0].TieBreakerEndMatchId) {
+          setActiveTab("playoffs");
+        } else {
+          setActiveTab("group");
+        }
+      } catch (err) {
+        console.error("Failed to load league stage info", err);
+        setStageInfo(null);
+        setStageExists(false);
+      }
+    }
+
+    fetchStageInfo();
+  }, [leagueId]);
+
   const toggleMatchExpanded = (matchId) => {
     setExpandedMatches(prev => ({ ...prev, [matchId]: !prev[matchId] }));
   };
@@ -38,6 +74,17 @@ export default function LeaguePage() {
 
   const { league, matchesWithPlayers, players, heroesWithPlayers, teams } = data;
 
+  const inTiebreakers =
+    stageInfo?.GroupEndMatchId &&
+    !stageInfo?.TieBreakerEndMatchId;
+
+  const inPlayoffs =
+    stageInfo?.GroupEndMatchId &&
+    stageInfo?.TieBreakerEndMatchId;
+
+  const noSeparateTiebreaker =
+    stageInfo?.GroupEndMatchId === stageInfo?.TieBreakerEndMatchId;
+
   return (
     <div style={{ padding: "1rem", overflowX: "auto" }}>
       <h1>{league[0].LeagueName}</h1>
@@ -45,11 +92,43 @@ export default function LeaguePage() {
 
       {/* Tabs */}
       <div style={{ marginBottom: "1rem" }}>
+        {stageExists && inPlayoffs && (
+          <button onClick={() => setActiveTab("playoffs")} style={activeTab === "playoffs" ? activeTabStyle : tabStyle}>Playoffs</button>
+        )}
+        {stageExists && inPlayoffs && !noSeparateTiebreaker && (
+          <button onClick={() => setActiveTab("tiebreakers")} style={activeTab === "tiebreakers" ? activeTabStyle : tabStyle}>Tiebreakers</button>
+        )}
+        {stageExists && inTiebreakers && (
+          <button onClick={() => setActiveTab("tiebreakers")} style={activeTab === "tiebreakers" ? activeTabStyle : tabStyle}>Tiebreakers</button>
+        )}
+        {stageExists && (
+          <button onClick={() => setActiveTab("group")} style={activeTab === "group" ? activeTabStyle : tabStyle}>Groups</button>
+        )}
         <button onClick={() => setActiveTab("teams")} style={activeTab === "teams" ? activeTabStyle : tabStyle}>Teams</button>
         <button onClick={() => setActiveTab("matches")} style={activeTab === "matches" ? activeTabStyle : tabStyle}>Matches</button>
         <button onClick={() => setActiveTab("players")} style={activeTab === "players" ? activeTabStyle : tabStyle}>Players</button>
         <button onClick={() => setActiveTab("heroes")} style={activeTab === "heroes" ? activeTabStyle : tabStyle}>Heroes</button>
       </div>
+
+      {/* Groups Tab */}
+      {activeTab === "group" && stageExists && (
+        <div>
+          <CurrentLeaderboardTable leagueId={leagueId} />
+          <hr style={{ margin: "2rem 0" }} />
+          <h2>Recent Series</h2>
+          <CurrentLeagueSeries leagueId={leagueId} />
+        </div>
+      )}
+
+      {/* Tiebreakers Tab */}
+      {activeTab === "tiebreakers" && stageExists && (
+        <TieBreakerView leagueId={leagueId} />
+      )}
+
+      {/* Playoffs Tab */}
+      {activeTab === "playoffs" && stageExists && (
+        <CurrentPlayoffBracketView leagueId={leagueId} />
+      )}
 
       {/* Teams Tab */}
       {activeTab === "teams" && (

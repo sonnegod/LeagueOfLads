@@ -92,7 +92,7 @@ const ReadOnlyMatchCard = ({ match, isGrandFinal, styles, onMatchClick }) => {
     );
 };
 
-const CurrentPlayoffBracketView = () => {
+const CurrentPlayoffBracketView = ({ leagueId }) => {
     const [bracket, setBracket] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -112,9 +112,12 @@ const CurrentPlayoffBracketView = () => {
             try {
                 setIsLoading(true);
                 setError(null);
-                
+
                 // Use the correct dedicated API endpoint
-                const response = await fetch("/api/getCurrentBracket");
+                const url = leagueId
+                    ? `/api/getCurrentBracket?leagueId=${leagueId}`
+                    : "/api/getCurrentBracket";
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 // The API should handle non-200 responses, but good to check status
@@ -137,7 +140,7 @@ const CurrentPlayoffBracketView = () => {
         };
 
         fetchBracket();
-    }, []);
+    }, [leagueId]);
 
     // --- Loading and Error States ---
     if (isLoading) {
