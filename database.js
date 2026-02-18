@@ -1000,7 +1000,7 @@ class DBInstance {
                 JOIN GroupNames g on g.GroupId = lg.GroupId and g.LeagueId = lg.LeagueId
                 Join LeagueInfo l on l.LeagueId = lg.LeagueId
                 JOIN LeagueStandings ls on ls.LeagueId = lg.LeagueId AND ls.TeamId = lg.TeamId
-                JOIN Neustadtl n on n.TeamId = lg.TeamId
+                JOIN Neustadtl n on n.TeamId = lg.TeamId and n.LeagueId = lg.LeagueId
                 WHERE lg.GroupId = ? AND lg.LeagueId = ?
                 ORDER BY ls.Wins DESC,n.Score DESC 
         `,[groupInfo.GroupId, groupInfo.LeagueId]);
@@ -2106,16 +2106,16 @@ class DBInstance {
 
     updateNeustadtl(standings){
         const insertQuery = `
-            INSERT INTO Neustadtl (TeamId, Score)
-                VALUES (?, ?)
-                ON CONFLICT(TeamId)
+            INSERT INTO Neustadtl (TeamId, Score, LeagueId)
+                VALUES (?, ?, ?)
+                ON CONFLICT(TeamId, LeagueId)
                 DO UPDATE SET Score = excluded.Score
             `;
         const insertStmt = this.db.prepare(insertQuery);
         
         const transaction = this.db.transaction((rows) => {
             rows.forEach(row => {
-                insertStmt.run(row.TeamId, row.Neustadtl);
+                insertStmt.run(row.TeamId, row.Neustadtl, row.LeagueId);
             })
         })
 

@@ -1195,6 +1195,7 @@ router.get('/currentLeaderboard', async (req, res) => {
 
     const groups = await db.getLeagueLeaderboard(leagueId);
 
+
     const groupsWithTeams = await Promise.all(
       groups.map(async (group) => {
         const groupTeams = await db.getGroupStats(group);

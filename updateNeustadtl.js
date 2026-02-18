@@ -26,6 +26,8 @@ function scoreMatchSet(teamId, results, opponentMapWins) {
 
 function computeNeustadtl() {
   const raw = db.getActiveTeamsGroups();
+  const activeLeague = db.getActiveLeague();
+  const leagueId = activeLeague?.[0]?.LeagueId;
 
   // Separate by group
   const groups = {};
@@ -52,7 +54,8 @@ function computeNeustadtl() {
 
       standings.push({
         TeamId: team.TeamId,
-        Neustadtl: neustadtl
+        Neustadtl: neustadtl,
+        LeagueId: leagueId
       });
     });
   }
