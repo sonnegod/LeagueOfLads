@@ -983,11 +983,12 @@ class DBInstance {
 
     getLeagueLeaderboard(leagueId){
         return this.queryDatabase(`
-            SELECT DISTINCT g.GroupID, g.GroupName, g.LeagueId
-            FROM GroupNames g 
-            JOIN LeagueInfo l on l.LeagueId = g.LeagueId
+            SELECT DISTINCT lg.GroupID, g.GroupName, lg.LeagueId
+            FROM LeagueGroups lg
+            JOIN GroupNames g on g.GroupId = lg.GroupId and g.LeagueId = lg.LeagueId
+            JOIN LeagueInfo l on l.LeagueId = lg.LeagueId
             WHERE l.LeagueId = ?
-            ORDER BY g.GroupID
+            ORDER BY lg.GroupID
         `, [leagueId]);
     }
 
