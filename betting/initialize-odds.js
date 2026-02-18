@@ -237,22 +237,25 @@ async function processPlayerStatMarkets(mainDB, bettingDB) {
 
 // --- Main Execution Block ---
 
+
 async function initializeOdds() {
     try {
+        const stage = db.getStage();
+        const currentStage = stage[0].Stage;
 
-        // Execute Market Processors
-        await processMatchupMarkets(db, dbBet);
+        if(currentStage === 'p'){
+            await processMatchupMarkets(db, dbBet);
         //await processPlayerStatMarkets(db, dbBet);
-
         console.log('\n All initial odds have been set successfully!');
+        }
+        else{
+            console.log(`Not in playoffs, ending job`);
+        }
 
     } catch (error) {
         console.error('CRITICAL ERROR during odds initialization. Rolling back changes:', error.message);
     } 
 }
 
-// Execute the main function
-// To run this script, navigate to its directory in your terminal and use:
-// node initialize_odds.js
 
 initializeOdds();

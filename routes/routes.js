@@ -167,6 +167,168 @@ router.get('/admin/teamStandings/:teamId', (req, res) => {
     }
 });
 
+router.get('/admin/teamGroup/:teamId', (req, res) => {
+  try {
+    const teamId = Number(req.params.teamId);
+
+    if (!Number.isFinite(teamId)) {
+      return res.status(400).json({ error: 'Invalid team id' });
+    }
+
+    const result = db.queryDatabase(
+      `
+      SELECT lg.TeamId, lg.GroupId
+      FROM LeagueGroups lg
+      JOIN LeagueInfo li ON li.LeagueId = lg.LeagueId
+      WHERE li.Active = 1
+      AND lg.TeamId = ?
+      LIMIT 1
+      `,
+      [teamId]
+    );
+
+    res.json({ result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/admin/upsertTeamGroup', (req, res) => {
+  try {
+    const teamId = Number(req.body.teamId);
+    const groupId = Number(req.body.groupId);
+
+    if (!Number.isFinite(teamId) || !Number.isFinite(groupId)) {
+      return res.status(400).json({ error: 'Invalid team/group id' });
+    }
+
+    const activeLeague = db.getActiveLeague();
+    const leagueId = activeLeague?.[0]?.LeagueId;
+
+    if (!leagueId) {
+      return res.status(400).json({ error: 'No active league found' });
+    }
+
+    const existing = db.queryDatabase(
+      `
+      SELECT TeamId
+      FROM LeagueGroups
+      WHERE LeagueId = ?
+      AND TeamId = ?
+      LIMIT 1
+      `,
+      [leagueId, teamId]
+    );
+
+    if (existing.length > 0) {
+      db.db.prepare(
+        `
+        UPDATE LeagueGroups
+        SET GroupId = ?
+        WHERE LeagueId = ?
+        AND TeamId = ?
+        `
+      ).run(groupId, leagueId, teamId);
+    } else {
+      db.db.prepare(
+        `
+        INSERT INTO LeagueGroups (LeagueId, TeamId, GroupId)
+        VALUES (?, ?, ?)
+        `
+      ).run(leagueId, teamId, groupId);
+    }
+
+    res.json({ success: true, inserted: existing.length === 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/admin/groupName/:groupId', (req, res) => {
+  try {
+    const groupId = Number(req.params.groupId);
+
+    if (!Number.isFinite(groupId)) {
+      return res.status(400).json({ error: 'Invalid group id' });
+    }
+
+    const result = db.queryDatabase(
+      `
+      SELECT gn.GroupId, gn.GroupName
+      FROM GroupNames gn
+      JOIN LeagueInfo li ON li.LeagueId = gn.LeagueId
+      WHERE li.Active = 1
+      AND gn.GroupId = ?
+      LIMIT 1
+      `,
+      [groupId]
+    );
+
+    res.json({ result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/admin/upsertGroupName', (req, res) => {
+  try {
+    const groupId = Number(req.body.groupId);
+    const groupName = (req.body.groupName || '').trim();
+
+    if (!Number.isFinite(groupId)) {
+      return res.status(400).json({ error: 'Invalid group id' });
+    }
+
+    if (!groupName) {
+      return res.status(400).json({ error: 'Group name cannot be empty' });
+    }
+
+    const activeLeague = db.getActiveLeague();
+    const leagueId = activeLeague?.[0]?.LeagueId;
+
+    if (!leagueId) {
+      return res.status(400).json({ error: 'No active league found' });
+    }
+
+    const existing = db.queryDatabase(
+      `
+      SELECT GroupId
+      FROM GroupNames
+      WHERE LeagueId = ?
+      AND GroupId = ?
+      LIMIT 1
+      `,
+      [leagueId, groupId]
+    );
+
+    if (existing.length > 0) {
+      db.db.prepare(
+        `
+        UPDATE GroupNames
+        SET GroupName = ?
+        WHERE LeagueId = ?
+        AND GroupId = ?
+        `
+      ).run(groupName, leagueId, groupId);
+    } else {
+      db.db.prepare(
+        `
+        INSERT INTO GroupNames (LeagueId, GroupId, GroupName)
+        VALUES (?, ?, ?)
+        `
+      ).run(leagueId, groupId, groupName);
+    }
+
+    res.json({ success: true, inserted: existing.length === 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.post('/admin/updateTeamStandings', (req, res) => {
   try {
       const teamId = req.body.teamId;
@@ -691,15 +853,12 @@ router.get('/players', async (req, res) => {
 
 router.get('/h2h/:p1Id/:p2Id', async (req, res) => {
     const { p1Id, p2Id } = req.params;
-        console.log( p1Id, p2Id);
 
     try {
         const p1Raw = await db.getPlayerStats(p1Id); // Using your new return format
         const p2Raw = await db.getPlayerStats(p2Id);
         const matches = await db.getHeadToHeadMatches(p1Id, p2Id);
 
-
-        console.log(matches);
 
         const formatStats = (raw) => {
             if (!raw) return { name: "N/A", winrate: 0, kda: 0, gpm: 0, cs: 0, recent: [] };
@@ -1015,6 +1174,7 @@ router.get('/homepageSeries', async (req, res) => {
       })
     );
 
+
     if (!series) return res.status(404).json({ error: 'Series not found' });
 
     res.json(seriesWithMatches);
@@ -1118,8 +1278,6 @@ router.get('/bets/:userId', async (req, res) => {
       
       // Assume getWalletBalance queries the UserWallets table
       const betData = dbBet.getBets(userId); 
-
-      console.log(betData)
 
       if (betData) {
           return res.status(200).json(betData);

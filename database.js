@@ -983,12 +983,11 @@ class DBInstance {
 
     getLeagueLeaderboard(leagueId){
         return this.queryDatabase(`
-            SELECT DISTINCT lg.GroupID, g.GroupName, lg.LeagueId
-            FROM LeagueGroups lg
-            JOIN GroupNames g on g.GroupId = lg.GroupId
-            JOIN LeagueInfo l on l.LeagueId = lg.LeagueId
+            SELECT DISTINCT g.GroupID, g.GroupName, g.LeagueId
+            FROM GroupNames g 
+            JOIN LeagueInfo l on l.LeagueId = g.LeagueId
             WHERE l.LeagueId = ?
-            ORDER BY lg.GroupID
+            ORDER BY g.GroupID
         `, [leagueId]);
     }
 
@@ -997,7 +996,7 @@ class DBInstance {
             SELECT lg.TeamId, t.TeamName, ls.Wins, ls.Losses, n.Score
                 FROM LeagueGroups lg
                 JOIN TeamInfo t ON t.TeamId = lg.TeamId
-                JOIN GroupNames g on g.GroupId = lg.GroupId
+                JOIN GroupNames g on g.GroupId = lg.GroupId and g.LeagueId = lg.LeagueId
                 Join LeagueInfo l on l.LeagueId = lg.LeagueId
                 JOIN LeagueStandings ls on ls.LeagueId = lg.LeagueId AND ls.TeamId = lg.TeamId
                 JOIN Neustadtl n on n.TeamId = lg.TeamId
@@ -1665,7 +1664,9 @@ class DBInstance {
                 t.TeamName,
                 COALESCE(m.MatchesPlayed, 0) AS MatchesPlayed,
                 ls.Wins,
-                ls.Losses
+                ls.Losses,
+                gn.GroupId,
+                gn.GroupName
             FROM TeamInfo t
 
             -- Aggregate matches first
@@ -1687,11 +1688,12 @@ class DBInstance {
                         ORDER BY MatchesPlayed DESC
             ) m ON m.TeamId = t.TeamId
 
-            -- Correct standings join (one row per team)
             LEFT JOIN LeagueStandings ls 
                 ON ls.TeamId = t.TeamId
             JOIN LeagueInfo li2 
                 ON ls.LeagueId = li2.LeagueId
+            LEFT JOIN LeagueGroups lg on lg.LeagueId = li2.LeagueId and lg.TeamId = t.TeamId
+            LEFT JOIN GroupNames gn on gn.GroupId = lg.GroupId and gn.LeagueId = li2.LeagueId
             WHERE li2.Active = 1
 
             GROUP BY 
