@@ -45,10 +45,7 @@ async function getMatchDetails(matches){
             }
             else{
                 if(data.picks_bans)
-                    db.insertPickBanData(match.MatchId,data.picks_bans);
-
-                db.insertMatchDetailsPlayer(match.MatchId, data.players);
-        
+                    db.insertPickBanData(match.MatchId,data.picks_bans);      
 
                 // Insert new players (optimized from earlier step) here...
                 const newPlayers = [];
@@ -99,6 +96,8 @@ async function getMatchDetails(matches){
                 const loseTeamId = data.radiant_win
                     ? data.dire_team_id
                     : data.radiant_team_id;
+
+                db.insertMatchDetailsPlayer(match.MatchId, data.players);
 
                 db.insertTeamWin(match.MatchId, winTeamId);
                 db.insertDuration(match.MatchId,data.duration);
