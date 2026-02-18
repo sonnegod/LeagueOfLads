@@ -1,8 +1,11 @@
 import dbBet from '../databaseBet.js';
 import db from '../database.js';
 
+
 function runNightlySettlement() {
     console.log("Starting Nightly Settlement Job...");
+    const stage = db.getStage();
+    const currentStage = stage[0].Stage;
 
     try {
         // --- STEP 1: Get Completed Series that are not yet settled ---

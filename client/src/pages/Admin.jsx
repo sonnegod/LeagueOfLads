@@ -4,6 +4,7 @@ import { Navigate } from 'react-router-dom';
 import MatchEditorPanel from "../components/MatchEditorPanel";
 import CurrentLeagueTeams from "../components/CurrentLeagueTeams";
 import TeamStandingEditor from "../components/TeamStandingEditor";
+import TeamGroupEditor from "../components/TeamGroupEditor";
 import DeleteMatchCard from "../components/DeleteMatchCard";
 import PlayoffAdminPanel from "../components/PlayoffAdminPanel";
 import PlayoffBracketEditor from "../components/PlayoffBracketEditor";
@@ -74,7 +75,7 @@ export default function AdminPage() {
               <MatchEditorPanel onMatchUpdated={triggerRefresh} />
               <TeamStandingEditor onTeamUpdated={triggerRefresh} />
               <DeleteMatchCard onMatchDeleted={triggerRefresh} />
-              <div style={placeholderBox}>[ Future Widget ]</div>
+              <TeamGroupEditor onTeamUpdated={triggerRefresh} />
             </div>
           </div>
         )}
@@ -111,16 +112,6 @@ const rightGridStyle = {
   // keep items aligned to the top of each cell and avoid vertical stretching
   alignItems: "start",
   alignContent: "start",
-};
-
-const placeholderBox = {
-  border: "1px dashed #ccc",
-  padding: "20px",
-  borderRadius: "8px",
-  height: "auto",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
 };
 
 const tabBarStyle = {

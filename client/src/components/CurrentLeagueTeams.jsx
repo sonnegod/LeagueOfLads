@@ -10,6 +10,7 @@ export default function CurrentLeagueTeams({ refreshKey }) {
     fetch("/api/admin/currentLeagueTeams")
       .then(res => res.json())
       .then(data => {
+        console.log(data);
         setTeams(data.result  || []);
         setLoading(false);
       })
@@ -44,7 +45,6 @@ export default function CurrentLeagueTeams({ refreshKey }) {
 
   return (
     <div style={adminWidgetStyle}>
-      <h3 style={{ color: "var(--text, #e6e6e6)" }}>Current Teams</h3>
 
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
@@ -54,6 +54,8 @@ export default function CurrentLeagueTeams({ refreshKey }) {
             <th style={{ padding: 8, border: "1px solid var(--border, #222428)", color: "var(--text, #e6e6e6)" }}>Matches Played</th>
             <th style={{ padding: 8, border: "1px solid var(--border, #222428)", color: "var(--text, #e6e6e6)" }}>Wins</th>
             <th style={{ padding: 8, border: "1px solid var(--border, #222428)", color: "var(--text, #e6e6e6)" }}>Losses</th>
+            <th style={{ padding: 8, border: "1px solid var(--border, #222428)", color: "var(--text, #e6e6e6)" }}>Group Id</th>
+            <th style={{ padding: 8, border: "1px solid var(--border, #222428)", color: "var(--text, #e6e6e6)" }}>Group Name</th>
           </tr>
         </thead>
         <tbody>
@@ -72,6 +74,8 @@ export default function CurrentLeagueTeams({ refreshKey }) {
                 <td style={{ textAlign: "center", border: "1px solid var(--border, #222428)", padding: 8 }}>{team.MatchesPlayed}</td>
                 <td style={{ textAlign: "center", border: "1px solid var(--border, #222428)", padding: 8 }}>{team.Wins}</td>
                 <td style={{ textAlign: "center", border: "1px solid var(--border, #222428)", padding: 8 }}>{team.Losses}</td>
+                <td style={{ textAlign: "center", border: "1px solid var(--border, #222428)", padding: 8 }}>{team.GroupId}</td>
+                <td style={{ textAlign: "center", border: "1px solid var(--border, #222428)", padding: 8 }}>{team.GroupName}</td>
               </tr>
 
               {/* EXPANDED SECTION */}
