@@ -1,0 +1,29 @@
+-- Run this against the public database file (db/public.db).
+-- Example:
+-- sqlite3 db/public.db < public_db_create_script.txt
+
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS PlayerInfo (
+  PlayerId INTEGER PRIMARY KEY,
+  PlayerName TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS PublicMatchPlayer (
+  MatchId INTEGER NOT NULL,
+  PlayerId INTEGER NOT NULL,
+  Won INTEGER NOT NULL CHECK (Won IN (0, 1)),
+  HeroId INTEGER NOT NULL,
+  Kills INTEGER NOT NULL,
+  Deaths INTEGER NOT NULL,
+  Assists INTEGER NOT NULL,
+  DateCreated TEXT,
+  PRIMARY KEY (MatchId, PlayerId),
+  FOREIGN KEY (PlayerId) REFERENCES PlayerInfo(PlayerId) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_PublicMatchPlayer_PlayerId ON PublicMatchPlayer(PlayerId);
+CREATE INDEX IF NOT EXISTS idx_PublicMatchPlayer_HeroId ON PublicMatchPlayer(HeroId);
+
+-- If PublicMatchPlayer already exists without DateCreated:
+-- ALTER TABLE PublicMatchPlayer ADD COLUMN DateCreated TEXT;

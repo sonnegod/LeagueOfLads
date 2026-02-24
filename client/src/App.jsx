@@ -19,6 +19,7 @@ import RequestPage from "./pages/RequestPage";
 import SeriesPage from "./pages/SeriesPage";
 import BettingPage from "./pages/BettingPage";
 import HeadToHeadPage from "./pages/HeadToHeadPage";
+import DraftGodPage from "./pages/DraftGod";
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/request" element={<RequestPage />} />
         <Route path="/series/:seriesId" element={<SeriesPage />} />
         <Route path="/betting" element={<BettingPage />} />
+        <Route path="/draftgod" element={<DraftGodPage />} />
       </Route>
     </Routes>
   );
