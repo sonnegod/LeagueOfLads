@@ -25,9 +25,8 @@ export default function Sidebar() {
 
         {user && <Link to="/request">Request</Link>}
         {/* Show admin button only if user is admin */}
-        {user?.accountId === ADMIN_ACCOUNT_ID && (
-          <Link to="/admin">Admin Portal</Link>
-        )}
+        {user?.canDraftGod && <Link to="/draftgod">DraftGod</Link>}
+        {user?.accountId === ADMIN_ACCOUNT_ID && <Link to="/admin">Admin Portal</Link>}
 
       </nav>
     </aside>

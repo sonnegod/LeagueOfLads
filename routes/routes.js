@@ -5,11 +5,13 @@ import { checkAdmin } from '../middleware/checkAdmin.js';
 
 import db from '../database.js';
 import dbBet from '../databaseBet.js';
+import dbPublic from '../databasePublic.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
+const STEAM_ID64_BASE = BigInt('76561197960265728');
 
 function resolveActiveLeague() {
   const active = db.getActiveLeague();
@@ -22,6 +24,55 @@ function resolveActiveLeague() {
 
   return leagueId;
 }
+const DRAFT_ADMIN_PLAYER_ID = process.env.ADMIN_ID || '49219700';
+
+function toNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function resolveAccountIdFromSteamId(steamId64) {
+  return (BigInt(steamId64) - STEAM_ID64_BASE).toString();
+}
+
+function hasDraftAccess(accountId) {
+  if (!accountId) return false;
+  const row = db.queryDatabase(
+    `
+    SELECT 1
+    FROM DraftAccess
+    WHERE PlayerId = ?
+    LIMIT 1
+    `,
+    [accountId]
+  )[0];
+  return !!row;
+}
+
+function checkDraftGodAccess(req, res, next) {
+  if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: 'Unauthorized: not logged in' });
+  }
+
+  try {
+    const accountId = resolveAccountIdFromSteamId(req.user.id);
+    let canDraftGod = typeof req.session?.canDraftGod === 'boolean'
+      ? req.session.canDraftGod
+      : hasDraftAccess(accountId);
+
+    if (req.session && typeof req.session.canDraftGod !== 'boolean') {
+      req.session.canDraftGod = canDraftGod;
+    }
+
+    if (!canDraftGod) {
+      return res.status(403).json({ error: 'Forbidden: draft access denied' });
+    }
+    return next();
+  } catch (err) {
+    console.error('Error in draft access middleware:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
 
 router.get('/auth/steam',
   passport.authenticate('steam')
@@ -31,21 +82,51 @@ router.get('/auth/steam/return',
   passport.authenticate('steam', { failureRedirect: '/' }),
   (req, res) => {
     db.login(req.user.displayName, req.user.id, new Date().toISOString());
-    if(process.env.ENVIRONMENT === 'DEV')
-      res.redirect(`http://localhost:${process.env.FRONTEND_PORT}/dashboard`);
-    else if(process.env.ENVIRONMENT === 'PROD')
-      res.redirect(`https://www.leagueoflads.com/dashboard`); 
+    const accountId = resolveAccountIdFromSteamId(req.user.id);
+    const canDraftGod = hasDraftAccess(accountId);
+
+    const redirectToDashboard = () => {
+      if (process.env.ENVIRONMENT === 'DEV') {
+        res.redirect(`http://localhost:${process.env.FRONTEND_PORT}/dashboard`);
+      } else if (process.env.ENVIRONMENT === 'PROD') {
+        res.redirect(`https://www.leagueoflads.com/dashboard`);
+      } else {
+        res.redirect('/dashboard');
+      }
+    };
+
+    if (!req.session) {
+      redirectToDashboard();
+      return;
+    }
+
+    req.session.accountId = accountId;
+    req.session.canDraftGod = canDraftGod;
+    req.session.save(() => {
+      redirectToDashboard();
+    });
   }
 );
 
 router.get('/auth/user', (req, res) => {
   if (req.isAuthenticated() && req.user) {
+    const accountId = resolveAccountIdFromSteamId(req.user.id);
+    let canDraftGod = typeof req.session?.canDraftGod === 'boolean'
+      ? req.session.canDraftGod
+      : hasDraftAccess(accountId);
+
+    if (req.session && typeof req.session.canDraftGod !== 'boolean') {
+      req.session.canDraftGod = canDraftGod;
+    }
+
     // You can customize what user info to send here
     res.json({
       steamid: req.user.id,
+      accountId,
       personaname: req.user.displayName,
       avatar: req.user.photos[2]?.value || req.user.photos[0]?.value,
       profileurl: req.user._json?.profileurl || '',
+      canDraftGod,
     });
   } else {
     res.status(401).json({ error: 'Not logged in' });
@@ -102,6 +183,388 @@ router.get('/dashboard', (req, res) => {
 
 router.get('/admin', checkAdmin, (req, res) => {
   res.json({ message: 'Welcome to the admin portal!' });
+});
+
+router.get('/draftgod', checkDraftGodAccess, (req, res) => {
+  try {
+    const leagueId = toNumber(req.query.leagueId || resolveActiveLeague(), null);
+
+    if (!leagueId) {
+      return res.json({
+        leagueId: null,
+        leagueName: null,
+        recentLeagueIds: [],
+        recentLeagues: [],
+        recent5LeagueIds: [],
+        recent5Leagues: [],
+        teams: [],
+        ourTeam: null,
+        selectedOpponentTeamId: null,
+        ourRoster: [],
+        opponentRoster: [],
+        heroPool: [],
+        currentLeagueDraftRows: [],
+        recentLeagueDraftRows: [],
+        recent5LeagueDraftRows: [],
+        ourTeamDraftRows: [],
+        opponentTeamDraftRows: [],
+        ourPlayerHeroRows: [],
+        opponentPlayerHeroRows: [],
+        ourPublicHeroRows: [],
+        opponentPublicHeroRows: [],
+        publicHeroBaselineRows: [],
+      });
+    }
+
+    const leagueRow = db.queryDatabase(
+      `
+      SELECT LeagueId, LeagueName
+      FROM LeagueInfo
+      WHERE LeagueId = ?
+      LIMIT 1
+      `,
+      [leagueId]
+    )[0];
+
+    const teams = db.queryDatabase(
+      `
+      SELECT
+        t.TeamId,
+        ti.TeamName
+      FROM (
+        SELECT mt.TeamRad AS TeamId
+        FROM MatchTeam mt
+        JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
+        WHERE ml.LeagueId = ?
+        UNION
+        SELECT mt.TeamDire AS TeamId
+        FROM MatchTeam mt
+        JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
+        WHERE ml.LeagueId = ?
+      ) t
+      JOIN TeamInfo ti ON ti.TeamId = t.TeamId
+      ORDER BY ti.TeamName ASC
+      `,
+      [leagueId, leagueId]
+    );
+
+    const ourTeam = db.queryDatabase(
+      `
+      SELECT
+        mtp.TeamId,
+        ti.TeamName,
+        COUNT(*) AS GamesPlayed
+      FROM MatchTeamPlayer mtp
+      JOIN MatchLeague ml ON ml.MatchId = mtp.MatchId
+      JOIN TeamInfo ti ON ti.TeamId = mtp.TeamId
+      WHERE mtp.PlayerId = ?
+        AND ml.LeagueId = ?
+      GROUP BY mtp.TeamId, ti.TeamName
+      ORDER BY GamesPlayed DESC
+      LIMIT 1
+      `,
+      [DRAFT_ADMIN_PLAYER_ID, leagueId]
+    )[0];
+
+    const ourTeamId = ourTeam ? toNumber(ourTeam.TeamId) : null;
+    const requestedOpponentId = req.query.opponentTeamId
+      ? toNumber(req.query.opponentTeamId)
+      : null;
+
+    const validTeamIds = new Set(teams.map((team) => toNumber(team.TeamId)));
+    let selectedOpponentTeamId =
+      requestedOpponentId && validTeamIds.has(requestedOpponentId)
+        ? requestedOpponentId
+        : null;
+
+    if (!selectedOpponentTeamId) {
+      const fallbackTeam =
+        teams.find((team) => toNumber(team.TeamId) !== ourTeamId) || teams[0];
+      selectedOpponentTeamId = fallbackTeam ? toNumber(fallbackTeam.TeamId) : null;
+    }
+
+    const recentLeagues = db
+      .queryDatabase(
+        `
+        SELECT DISTINCT ml.LeagueId, li.LeagueName
+        FROM MatchLeague ml
+        JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
+        ORDER BY ml.LeagueId DESC
+        LIMIT 3
+        `
+      )
+      .map((row) => ({
+        LeagueId: toNumber(row.LeagueId),
+        LeagueName: row.LeagueName || `League ${toNumber(row.LeagueId)}`,
+      }))
+      .filter((row) => row.LeagueId > 0);
+    const recentLeagueIds = recentLeagues.map((row) => row.LeagueId);
+
+    const recent5Leagues = db
+      .queryDatabase(
+        `
+        SELECT DISTINCT ml.LeagueId, li.LeagueName
+        FROM MatchLeague ml
+        JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
+        ORDER BY ml.LeagueId DESC
+        LIMIT 5
+        `
+      )
+      .map((row) => ({
+        LeagueId: toNumber(row.LeagueId),
+        LeagueName: row.LeagueName || `League ${toNumber(row.LeagueId)}`,
+      }))
+      .filter((row) => row.LeagueId > 0);
+    const recent5LeagueIds = recent5Leagues.map((row) => row.LeagueId);
+
+    const getRoster = (teamId) => {
+      if (!teamId) return [];
+      return db.queryDatabase(
+        `
+        SELECT
+          mtp.PlayerId,
+          pi.PlayerName,
+          COUNT(*) AS GamesPlayed
+        FROM MatchTeamPlayer mtp
+        JOIN MatchLeague ml ON ml.MatchId = mtp.MatchId
+        JOIN PlayerInfo pi ON pi.PlayerId = mtp.PlayerId
+        WHERE mtp.TeamId = ?
+          AND ml.LeagueId = ?
+        GROUP BY mtp.PlayerId, pi.PlayerName
+        ORDER BY GamesPlayed DESC
+        `,
+        [teamId, leagueId]
+      );
+    };
+
+    const ourRoster = getRoster(ourTeamId);
+    const opponentRoster = getRoster(selectedOpponentTeamId);
+
+    const getTeamDraftRows = (teamId) => {
+      if (!teamId || recentLeagueIds.length === 0) return [];
+      const placeholders = recentLeagueIds.map(() => '?').join(', ');
+      return db.queryDatabase(
+        `
+        SELECT
+          pi.MatchId,
+          ml.LeagueId,
+          pi.IsPick,
+          pi.Hero_Id AS HeroId,
+          hi.HeroName,
+          pi.OrderNum,
+          pi.Team AS DraftSide,
+          mt.TeamRad,
+          mt.TeamDire,
+          mt.WinnerId
+        FROM PickInfo pi
+        JOIN MatchLeague ml ON ml.MatchId = pi.MatchId
+        JOIN MatchTeam mt ON mt.MatchId = pi.MatchId
+        JOIN HeroInfo hi ON hi.HeroId = pi.Hero_Id
+        WHERE ml.LeagueId IN (${placeholders})
+          AND (
+            (mt.TeamRad = ? AND pi.Team = 0)
+            OR
+            (mt.TeamDire = ? AND pi.Team = 1)
+          )
+        ORDER BY ml.LeagueId DESC, pi.MatchId DESC, pi.OrderNum ASC
+        `,
+        [...recentLeagueIds, teamId, teamId]
+      );
+    };
+
+    const getLeagueDraftRows = (leagueIds) => {
+      if (!leagueIds.length) return [];
+      const placeholders = leagueIds.map(() => '?').join(', ');
+      return db.queryDatabase(
+        `
+        SELECT
+          pi.MatchId,
+          ml.LeagueId,
+          pi.IsPick,
+          pi.Hero_Id AS HeroId,
+          hi.HeroName,
+          pi.OrderNum,
+          pi.Team AS DraftSide,
+          mt.TeamRad,
+          mt.TeamDire,
+          mt.WinnerId
+        FROM PickInfo pi
+        JOIN MatchLeague ml ON ml.MatchId = pi.MatchId
+        JOIN MatchTeam mt ON mt.MatchId = pi.MatchId
+        JOIN HeroInfo hi ON hi.HeroId = pi.Hero_Id
+        WHERE ml.LeagueId IN (${placeholders})
+        ORDER BY ml.LeagueId DESC, pi.MatchId DESC, pi.OrderNum ASC
+        `,
+        [...leagueIds]
+      );
+    };
+
+    const getPlayerHeroRows = (playerIds) => {
+      if (!playerIds.length || recentLeagueIds.length === 0) return [];
+      const playerPlaceholders = playerIds.map(() => '?').join(', ');
+      const leaguePlaceholders = recentLeagueIds.map(() => '?').join(', ');
+      return db.queryDatabase(
+        `
+        SELECT
+          mp.MatchId,
+          ml.LeagueId,
+          mp.PlayerId,
+          pi.PlayerName,
+          mp.HeroId,
+          hi.HeroName,
+          mp.GPM,
+          (mp.Kills + mp.Assists) * 1.0 / CASE WHEN mp.Deaths = 0 THEN 1 ELSE mp.Deaths END AS KDA,
+          mp.HeroDamage,
+          CASE WHEN mtp.TeamId = mt.WinnerId THEN 1 ELSE 0 END AS WonMatch,
+          mtp.TeamId
+        FROM MatchPlayer mp
+        JOIN MatchLeague ml ON ml.MatchId = mp.MatchId
+        JOIN PlayerInfo pi ON pi.PlayerId = mp.PlayerId
+        JOIN HeroInfo hi ON hi.HeroId = mp.HeroId
+        JOIN MatchTeamPlayer mtp ON mtp.MatchId = mp.MatchId AND mtp.PlayerId = mp.PlayerId
+        JOIN MatchTeam mt ON mt.MatchId = mp.MatchId
+        WHERE mp.PlayerId IN (${playerPlaceholders})
+          AND ml.LeagueId IN (${leaguePlaceholders})
+          AND mt.WinnerId IS NOT NULL
+        ORDER BY ml.LeagueId DESC, mp.MatchId DESC
+        `,
+        [...playerIds, ...recentLeagueIds]
+      );
+    };
+
+    const getPublicHeroRows = (playerIds) => {
+      if (!playerIds.length) return [];
+      const playerPlaceholders = playerIds.map(() => '?').join(', ');
+      return dbPublic.queryDatabase(
+        `
+        SELECT
+          pmp.MatchId,
+          pmp.PlayerId,
+          pmp.HeroId,
+          pmp.Won,
+          pmp.DateCreated
+        FROM PublicMatchPlayer pmp
+        WHERE pmp.PlayerId IN (${playerPlaceholders})
+          AND pmp.DateCreated IS NOT NULL
+          AND datetime(pmp.DateCreated) >= datetime('now', '-30 day')
+        ORDER BY pmp.PlayerId ASC, pmp.DateCreated DESC, pmp.MatchId DESC
+        `,
+        [...playerIds]
+      );
+    };
+
+    const getPublicHeroBaselineRows = () =>
+      dbPublic.queryDatabase(
+        `
+        SELECT
+          pmp.HeroId,
+          COUNT(*) AS Games,
+          SUM(pmp.Won) AS Wins
+        FROM PublicMatchPlayer pmp
+        WHERE pmp.DateCreated IS NOT NULL
+          AND datetime(pmp.DateCreated) >= datetime('now', '-30 day')
+        GROUP BY pmp.HeroId
+        ORDER BY Games DESC
+        `
+      );
+
+    const ourPlayerIds = ourRoster.map((row) => toNumber(row.PlayerId)).filter((id) => id > 0);
+    const opponentPlayerIds = opponentRoster
+      .map((row) => toNumber(row.PlayerId))
+      .filter((id) => id > 0);
+
+    return res.json({
+      leagueId,
+      leagueName: leagueRow?.LeagueName || `League ${leagueId}`,
+      recentLeagueIds,
+      recentLeagues,
+      recent5LeagueIds,
+      recent5Leagues,
+      adminPlayerId: DRAFT_ADMIN_PLAYER_ID,
+      teams: teams.map((team) => ({
+        TeamId: toNumber(team.TeamId),
+        TeamName: team.TeamName,
+      })),
+      ourTeam: ourTeam
+        ? {
+            TeamId: ourTeamId,
+            TeamName: ourTeam.TeamName,
+            GamesPlayed: toNumber(ourTeam.GamesPlayed),
+          }
+        : null,
+      selectedOpponentTeamId,
+      ourRoster: ourRoster.map((row) => ({
+        PlayerId: toNumber(row.PlayerId),
+        PlayerName: row.PlayerName,
+        GamesPlayed: toNumber(row.GamesPlayed),
+      })),
+      opponentRoster: opponentRoster.map((row) => ({
+        PlayerId: toNumber(row.PlayerId),
+        PlayerName: row.PlayerName,
+        GamesPlayed: toNumber(row.GamesPlayed),
+      })),
+      heroPool: db.queryDatabase(
+        `
+        SELECT HeroId, HeroName
+        FROM HeroInfo
+        ORDER BY HeroName ASC
+        `
+      ).map((row) => ({
+        HeroId: toNumber(row.HeroId),
+        HeroName: row.HeroName,
+      })),
+      currentLeagueDraftRows: db.queryDatabase(
+        `
+        SELECT
+          pi.MatchId,
+          ml.LeagueId,
+          pi.IsPick,
+          pi.Hero_Id AS HeroId,
+          hi.HeroName,
+          pi.OrderNum,
+          pi.Team AS DraftSide,
+          mt.TeamRad,
+          mt.TeamDire,
+          mt.WinnerId
+        FROM PickInfo pi
+        JOIN MatchLeague ml ON ml.MatchId = pi.MatchId
+        JOIN MatchTeam mt ON mt.MatchId = pi.MatchId
+        JOIN HeroInfo hi ON hi.HeroId = pi.Hero_Id
+        WHERE ml.LeagueId = ?
+        ORDER BY pi.MatchId DESC, pi.OrderNum ASC
+        `,
+        [leagueId]
+      ),
+      recentLeagueDraftRows: getLeagueDraftRows(recentLeagueIds),
+      recent5LeagueDraftRows: getLeagueDraftRows(recent5LeagueIds),
+      ourTeamDraftRows: getTeamDraftRows(ourTeamId),
+      opponentTeamDraftRows: getTeamDraftRows(selectedOpponentTeamId),
+      ourPlayerHeroRows: getPlayerHeroRows(ourPlayerIds),
+      opponentPlayerHeroRows: getPlayerHeroRows(opponentPlayerIds),
+      ourPublicHeroRows: getPublicHeroRows(ourPlayerIds).map((row) => ({
+        MatchId: toNumber(row.MatchId),
+        PlayerId: toNumber(row.PlayerId),
+        HeroId: toNumber(row.HeroId),
+        Won: toNumber(row.Won),
+        DateCreated: row.DateCreated || null,
+      })),
+      opponentPublicHeroRows: getPublicHeroRows(opponentPlayerIds).map((row) => ({
+        MatchId: toNumber(row.MatchId),
+        PlayerId: toNumber(row.PlayerId),
+        HeroId: toNumber(row.HeroId),
+        Won: toNumber(row.Won),
+        DateCreated: row.DateCreated || null,
+      })),
+      publicHeroBaselineRows: getPublicHeroBaselineRows().map((row) => ({
+        HeroId: toNumber(row.HeroId),
+        Games: toNumber(row.Games),
+        Wins: toNumber(row.Wins),
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to load DraftGod data' });
+  }
 });
 
 router.post('/admin/updateMatchTeams', (req, res) => {
