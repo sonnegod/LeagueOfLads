@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const ADMIN_ACCOUNT_ID = '49219700';
 const BASE_SCORE = 50;
 const SCORE_MIN = 0;
 const SCORE_MAX = 100;
+const OUR_TEAM_DISPLAY_NAME = 'Cathoholics';
+const SHRINK_K_DEFAULT = 10;
+const SHRINK_K_PUBLIC = 12;
 
 const BASE_DRAFT_ORDER = [
   { phase: 1, type: 'ban', actor: 'R' },
@@ -38,6 +40,10 @@ function swapActor(actor) {
   return actor === 'R' ? 'D' : 'R';
 }
 
+function actorToken(actor) {
+  return actor === 'R' ? 'FP' : 'SP';
+}
+
 function buildDraftSequence(firstPickSide, ourDraftSide) {
   const invertActors = firstPickSide === 'D';
   const actorCounts = {
@@ -65,7 +71,7 @@ function buildDraftSequence(firstPickSide, ourDraftSide) {
       actorSlot: actorCounts[actor][step.type],
       pickOrder: step.type === 'pick' ? pickOrder : null,
       actionIndex: index,
-      label: `${actor} ${step.type === 'ban' ? 'Ban' : 'Pick'} ${actorCounts[actor][step.type]}`,
+      label: `${actorToken(actor)} ${step.type === 'ban' ? 'Ban' : 'Pick'} ${actorCounts[actor][step.type]}`,
     };
   });
 }
@@ -79,8 +85,93 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function shrunkRate(wins, games, baseline = 0.5, k = SHRINK_K_DEFAULT) {
+  const g = toNumber(games, 0);
+  const w = toNumber(wins, 0);
+  const b = clamp(toNumber(baseline, 0.5), 0, 1);
+  if (g <= 0) return b;
+  return clamp((w + k * b) / (g + k), 0, 1);
+}
+
+function sampleConfidence(games, low = 2, high = 10) {
+  const g = toNumber(games, 0);
+  if (g <= 0) return 0.4;
+  if (g <= low) return 0.55;
+  if (g >= high) return 1;
+  return clamp(0.55 + ((g - low) / (high - low)) * 0.45, 0.55, 1);
+}
+
+function monthlyWeightBySample(games) {
+  const g = toNumber(games, 0);
+  return clamp(g / 12, 0, 1);
+}
+
+function recencyDecayWeight(dateIso, halfLifeDays = 14) {
+  if (!dateIso) return 0.5;
+  const ts = Date.parse(dateIso);
+  if (Number.isNaN(ts)) return 0.5;
+  const daysAgo = Math.max(0, (Date.now() - ts) / (1000 * 60 * 60 * 24));
+  return Math.pow(0.5, daysAgo / halfLifeDays);
+}
+
+function phaseWeightProfile(currentAction, draftSequence) {
+  const total = draftSequence?.length || 1;
+  const idx = currentAction?.actionIndex ?? 0;
+  const progress = clamp(idx / Math.max(1, total - 1), 0, 1);
+  if (progress <= 0.33) {
+    return { trend: 1.2, comfort: 1.05, matchup: 0.8, contested: 1.2 };
+  }
+  if (progress <= 0.66) {
+    return { trend: 1, comfort: 1, matchup: 1, contested: 1 };
+  }
+  return { trend: 0.85, comfort: 0.95, matchup: 1.25, contested: 0.85 };
+}
+
+function blendMonthlySeasonSignal(monthlyValue, monthlyGames, seasonValue, seasonGames = 0) {
+  const monthWeight = monthlyWeightBySample(monthlyGames);
+  const biasedMonthlyWeight = clamp(0.1 + 0.9 * monthWeight, 0.1, 1);
+  const monthly = clamp(toNumber(monthlyValue, seasonValue), 0, 1);
+  const season = clamp(toNumber(seasonValue, 0.5), 0, 1);
+  const value = clamp(biasedMonthlyWeight * monthly + (1 - biasedMonthlyWeight) * season, 0, 1);
+  const confidence = clamp(
+    0.55 * sampleConfidence(monthlyGames, 2, 10) +
+      0.45 * sampleConfidence(seasonGames, 4, 24),
+    0.4,
+    1
+  );
+  return {
+    Value: value,
+    MonthlyWeight: biasedMonthlyWeight,
+    Confidence: confidence,
+  };
+}
+
+function weightedScore(components) {
+  let numerator = 0;
+  let denominator = 0;
+  (components || []).forEach((component) => {
+    const value = clamp(toNumber(component?.value, 0), 0, 1);
+    const weight = Math.max(0, toNumber(component?.weight, 0));
+    if (weight <= 0) return;
+    numerator += value * weight;
+    denominator += weight;
+  });
+  return denominator > 0 ? numerator / denominator : 0;
+}
+
 function formatPercent(value) {
   return `${toNumber(value).toFixed(2)}%`;
+}
+
+function rawWinRatePercent(wins, games) {
+  const g = toNumber(games, 0);
+  const w = toNumber(wins, 0);
+  if (g <= 0) return 0;
+  return clamp((w / g) * 100, 0, 100);
+}
+
+function formatWinRatePair(rawWinRate, shrunkWinRate) {
+  return `${formatPercent(rawWinRate)} | ${formatPercent(shrunkWinRate)}`;
 }
 
 function formatNumber(value, digits = 2) {
@@ -255,13 +346,15 @@ function buildPlayerProfiles(playerRows, roster, leagueWeights) {
   const list = [...byPlayer.values()].map((profile) => {
     const heroes = [...profile.HeroMapRaw.values()]
       .map((hero) => {
-        const winRate = hero.Games > 0 ? (hero.Wins / hero.Games) * 100 : 0;
+        const winRate = shrunkRate(hero.Wins, hero.Games, 0.5) * 100;
+        const rawWinRate = rawWinRatePercent(hero.Wins, hero.Games);
         const avgPerf = hero.WeightTotal > 0 ? hero.WeightedPerf / hero.WeightTotal : 0;
         const weighted = avgPerf * (0.6 + 0.4 * (winRate / 100));
         return {
           HeroId: hero.HeroId,
           HeroName: hero.HeroName,
           Games: hero.Games,
+          RawWinRate: rawWinRate,
           WinRate: winRate,
           AvgGpm: hero.Games > 0 ? hero.SumGpm / hero.Games : 0,
           AvgKda: hero.Games > 0 ? hero.SumKda / hero.Games : 0,
@@ -282,6 +375,7 @@ function buildPlayerProfiles(playerRows, roster, leagueWeights) {
           LeagueId: leagueId,
           Played: false,
           Games: 0,
+          RawWinRate: 0,
           WinRate: 0,
           AvgGpm: 0,
           AvgKda: 0,
@@ -293,7 +387,8 @@ function buildPlayerProfiles(playerRows, roster, leagueWeights) {
           HeroId: hero.HeroId,
           HeroName: hero.HeroName,
           Games: hero.Games,
-          WinRate: hero.Games > 0 ? (hero.Wins / hero.Games) * 100 : 0,
+          RawWinRate: rawWinRatePercent(hero.Wins, hero.Games),
+          WinRate: shrunkRate(hero.Wins, hero.Games, 0.5) * 100,
         }))
         .sort((a, b) => b.Games - a.Games || b.WinRate - a.WinRate)
         .slice(0, 3);
@@ -301,7 +396,8 @@ function buildPlayerProfiles(playerRows, roster, leagueWeights) {
         LeagueId: leagueId,
         Played: true,
         Games: season.Games,
-        WinRate: season.Games > 0 ? (season.Wins / season.Games) * 100 : 0,
+        RawWinRate: rawWinRatePercent(season.Wins, season.Games),
+        WinRate: shrunkRate(season.Wins, season.Games, 0.5) * 100,
         AvgGpm: season.Games > 0 ? season.SumGpm / season.Games : 0,
         AvgKda: season.Games > 0 ? season.SumKda / season.Games : 0,
         TopHeroes: topHeroes,
@@ -312,7 +408,8 @@ function buildPlayerProfiles(playerRows, roster, leagueWeights) {
       PlayerId: profile.PlayerId,
       PlayerName: profile.PlayerName,
       TotalGames: profile.TotalGames,
-      OverallWinRate: profile.TotalGames > 0 ? (profile.TotalWins / profile.TotalGames) * 100 : 0,
+      OverallRawWinRate: rawWinRatePercent(profile.TotalWins, profile.TotalGames),
+      OverallWinRate: shrunkRate(profile.TotalWins, profile.TotalGames, 0.5) * 100,
       Heroes: heroes,
       HeroMap: new Map(heroes.map((hero) => [hero.HeroId, hero])),
       Seasons: seasons,
@@ -356,7 +453,7 @@ function buildTeammateHeroWinRateMap(playerRows, recentLeagueIds, seasonLimit = 
   return new Map(
     [...raw.entries()]
       .filter(([, row]) => row.Games > 0)
-      .map(([heroId, row]) => [heroId, row.Wins / row.Games])
+      .map(([heroId, row]) => [heroId, shrunkRate(row.Wins, row.Games, 0.5)])
   );
 }
 
@@ -366,12 +463,21 @@ function emptyPublicTrendData() {
     ByPlayerHeroMap: new Map(),
     ByPlayerTopMap: new Map(),
     HeroScoreMap: new Map(),
+    HeroGamesMap: new Map(),
+    HeroBaselineMap: new Map(),
     BestPlayerByHero: new Map(),
   };
 }
 
-function buildPublicTrendData(publicRows, roster, excludedPlayerIds = null) {
+function buildPublicTrendData(
+  publicRows,
+  roster,
+  heroBaselineMap,
+  excludedPlayerIds = null,
+  baselineFallback = 0.5
+) {
   const excluded = excludedPlayerIds instanceof Set ? excludedPlayerIds : null;
+  const baselineMap = heroBaselineMap instanceof Map ? heroBaselineMap : new Map();
   const rosterMap = new Map(
     (roster || [])
       .map((row) => [toNumber(row.PlayerId, null), row.PlayerName || `Player ${toNumber(row.PlayerId)}`])
@@ -381,49 +487,95 @@ function buildPublicTrendData(publicRows, roster, excludedPlayerIds = null) {
   const rows = [];
   const byPlayerHeroMap = new Map();
   const byPlayerMap = new Map();
+  const byHeroRaw = new Map();
   const heroScoreMap = new Map();
+  const heroGamesMap = new Map();
+  const heroBaselineOutMap = new Map();
   const bestPlayerByHero = new Map();
 
   (publicRows || []).forEach((row) => {
     const playerId = toNumber(row.PlayerId, null);
     const heroId = toNumber(row.HeroId, null);
-    const games = toNumber(row.Games, 0);
-    const wins = toNumber(row.Wins, 0);
-    if (!playerId || !heroId || games <= 0) return;
+    const won = toNumber(row.Won, null);
+    if (!playerId || !heroId || won === null) return;
     if (excluded && excluded.has(playerId)) return;
 
-    const rowWinRate = toNumber(row.WinRate, null);
-    const winRate = rowWinRate === null ? (wins / games) * 100 : rowWinRate;
-    const confidence = clamp(games / 10, 0, 1);
-    const trendScore = clamp((winRate / 100) * (0.6 + 0.4 * confidence), 0, 1);
-    const out = {
-      PlayerId: playerId,
-      PlayerName: rosterMap.get(playerId) || `Player ${playerId}`,
-      HeroId: heroId,
-      Games: games,
-      Wins: wins,
-      WinRate: winRate,
-      TrendScore: trendScore,
-      LastMatchDate: row.LastMatchDate || null,
-    };
-
-    rows.push(out);
-    byPlayerHeroMap.set(`${playerId}|${heroId}`, out);
-
-    if (!byPlayerMap.has(playerId)) byPlayerMap.set(playerId, []);
-    byPlayerMap.get(playerId).push(out);
-
-    const currentScore = heroScoreMap.get(heroId);
-    if (currentScore === undefined || out.TrendScore > currentScore) {
-      heroScoreMap.set(heroId, out.TrendScore);
-      bestPlayerByHero.set(heroId, out);
+    const key = `${playerId}|${heroId}`;
+    if (!byPlayerHeroMap.has(key)) {
+      byPlayerHeroMap.set(key, {
+        PlayerId: playerId,
+        PlayerName: rosterMap.get(playerId) || `Player ${playerId}`,
+        HeroId: heroId,
+        Games: 0,
+        Wins: 0,
+        WeightedGames: 0,
+        WeightedWins: 0,
+        LastMatchDate: null,
+      });
     }
+    const entry = byPlayerHeroMap.get(key);
+    const decay = recencyDecayWeight(row.DateCreated);
+    entry.Games += 1;
+    entry.Wins += won > 0 ? 1 : 0;
+    entry.WeightedGames += decay;
+    entry.WeightedWins += decay * (won > 0 ? 1 : 0);
+    if (!entry.LastMatchDate || (row.DateCreated && row.DateCreated > entry.LastMatchDate)) {
+      entry.LastMatchDate = row.DateCreated || entry.LastMatchDate;
+    }
+
+    if (!byHeroRaw.has(heroId)) {
+      byHeroRaw.set(heroId, { Games: 0, Wins: 0, WeightedGames: 0, WeightedWins: 0 });
+    }
+    const byHero = byHeroRaw.get(heroId);
+    byHero.Games += 1;
+    byHero.Wins += won > 0 ? 1 : 0;
+    byHero.WeightedGames += decay;
+    byHero.WeightedWins += decay * (won > 0 ? 1 : 0);
+  });
+
+  byPlayerHeroMap.forEach((entry, key) => {
+    const baseline = baselineMap.get(entry.HeroId) || baselineFallback;
+    const wrShrunk = shrunkRate(entry.WeightedWins, entry.WeightedGames, baseline, SHRINK_K_PUBLIC);
+    const normalized = clamp(0.5 + (wrShrunk - baseline), 0, 1);
+    const confidence = sampleConfidence(entry.Games, 2, 10);
+    const trendScore = clamp(normalized * (0.65 + 0.35 * confidence), 0, 1);
+    const out = {
+      ...entry,
+      RawWinRate: rawWinRatePercent(entry.Wins, entry.Games),
+      WinRate: wrShrunk * 100,
+      BaselineHeroWinRate: baseline * 100,
+      TrendScore: trendScore,
+      Confidence: confidence,
+    };
+    rows.push(out);
+    byPlayerHeroMap.set(key, out);
+    if (!byPlayerMap.has(out.PlayerId)) byPlayerMap.set(out.PlayerId, []);
+    byPlayerMap.get(out.PlayerId).push(out);
+
+    const currentScore = heroScoreMap.get(out.HeroId);
+    if (currentScore === undefined || out.TrendScore > currentScore) {
+      heroScoreMap.set(out.HeroId, out.TrendScore);
+      bestPlayerByHero.set(out.HeroId, out);
+    }
+  });
+
+  byHeroRaw.forEach((raw, heroId) => {
+    const baseline = baselineMap.get(heroId) || baselineFallback;
+    const wrShrunk = shrunkRate(raw.WeightedWins, raw.WeightedGames, baseline, SHRINK_K_PUBLIC);
+    const normalized = clamp(0.5 + (wrShrunk - baseline), 0, 1);
+    const confidence = sampleConfidence(raw.Games, 2, 12);
+    const trendScore = clamp(normalized * (0.65 + 0.35 * confidence), 0, 1);
+    const best = bestPlayerByHero.get(heroId);
+    const finalScore = best ? Math.max(best.TrendScore, trendScore) : trendScore;
+    heroScoreMap.set(heroId, finalScore);
+    heroGamesMap.set(heroId, raw.Games);
+    heroBaselineOutMap.set(heroId, baseline);
   });
 
   const byPlayerTopMap = new Map();
   byPlayerMap.forEach((playerRows, playerId) => {
-    const sorted = [...playerRows].sort((a, b) => b.WinRate - a.WinRate || b.Games - a.Games);
-    let top = sorted.filter((row) => row.Games >= 3 && row.WinRate >= 55);
+    const sorted = [...playerRows].sort((a, b) => b.TrendScore - a.TrendScore || b.Games - a.Games);
+    let top = sorted.filter((row) => row.Games >= 3 && row.WinRate >= 54);
     if (top.length === 0) top = sorted.filter((row) => row.Games >= 3);
     if (top.length === 0) top = sorted;
     byPlayerTopMap.set(playerId, top.slice(0, 3));
@@ -434,6 +586,8 @@ function buildPublicTrendData(publicRows, roster, excludedPlayerIds = null) {
     ByPlayerHeroMap: byPlayerHeroMap,
     ByPlayerTopMap: byPlayerTopMap,
     HeroScoreMap: heroScoreMap,
+    HeroGamesMap: heroGamesMap,
+    HeroBaselineMap: heroBaselineOutMap,
     BestPlayerByHero: bestPlayerByHero,
   };
 }
@@ -449,6 +603,7 @@ function emptyTeamStats() {
     CurrentPickRateMap: new Map(),
     OverallHeroWinRateMap: new Map(),
     Recent2HeroWinRateMap: new Map(),
+    PickRowMap: new Map(),
     TopWeightedHeroes: [],
     SignatureCurrent: [],
   };
@@ -596,7 +751,8 @@ function buildTeamStats(draftRows, teamId, leagueWeights, currentLeagueId, allDr
 
   const pickRows = [...picks.values()].map((row) => ({
     ...row,
-    WinRate: row.DecidedGames > 0 ? (row.Wins / row.DecidedGames) * 100 : 0,
+    RawWinRate: rawWinRatePercent(row.Wins, row.DecidedGames),
+    WinRate: shrunkRate(row.Wins, row.DecidedGames, 0.5) * 100,
     CurrentPickRate: totalCurrent > 0 ? row.CurrentSeasonPicks / totalCurrent : 0,
     WeightedPickRate: totalWeighted > 0 ? row.WeightedPicks / totalWeighted : 0,
   }));
@@ -604,7 +760,8 @@ function buildTeamStats(draftRows, teamId, leagueWeights, currentLeagueId, allDr
   const firstPickRows = [...firstPicks.values()]
     .map((row) => ({
       ...row,
-      WinRateWhenPicked: row.DecidedGames > 0 ? (row.Wins / row.DecidedGames) * 100 : 0,
+      RawWinRateWhenPicked: rawWinRatePercent(row.Wins, row.DecidedGames),
+      WinRateWhenPicked: shrunkRate(row.Wins, row.DecidedGames, 0.5) * 100,
     }))
     .sort((a, b) => b.TimesPicked - a.TimesPicked || b.WinRateWhenPicked - a.WinRateWhenPicked);
 
@@ -627,7 +784,11 @@ function buildTeamStats(draftRows, teamId, leagueWeights, currentLeagueId, allDr
     }
   });
   const pairRows = [...pairRaw.values()]
-    .map((pair) => ({ ...pair, WinRate: pair.DecidedGames > 0 ? (pair.Wins / pair.DecidedGames) * 100 : 0 }))
+    .map((pair) => ({
+      ...pair,
+      RawWinRate: rawWinRatePercent(pair.Wins, pair.DecidedGames),
+      WinRate: shrunkRate(pair.Wins, pair.DecidedGames, 0.5) * 100,
+    }))
     .sort((a, b) => b.WinRate - a.WinRate || b.DecidedGames - a.DecidedGames);
 
   const seasonTopHeroes = new Map();
@@ -640,7 +801,8 @@ function buildTeamStats(draftRows, teamId, leagueWeights, currentLeagueId, allDr
     const rows = [...seasonMap.values()]
       .map((row) => ({
         ...row,
-        WinRate: row.DecidedGames > 0 ? (row.Wins / row.DecidedGames) * 100 : 0,
+        RawWinRate: rawWinRatePercent(row.Wins, row.DecidedGames),
+        WinRate: shrunkRate(row.Wins, row.DecidedGames, 0.5) * 100,
       }))
       .sort((a, b) => b.Picks - a.Picks || b.WinRate - a.WinRate)
       .slice(0, 5);
@@ -663,8 +825,9 @@ function buildTeamStats(draftRows, teamId, leagueWeights, currentLeagueId, allDr
     Recent2HeroWinRateMap: new Map(
       [...recent2HeroRaw.entries()]
         .filter(([, row]) => row.DecidedGames > 0)
-        .map(([heroId, row]) => [heroId, row.Wins / row.DecidedGames])
+        .map(([heroId, row]) => [heroId, shrunkRate(row.Wins, row.DecidedGames, 0.5)])
     ),
+    PickRowMap: new Map(pickRows.map((row) => [row.HeroId, row])),
     TopWeightedHeroes: [...pickRows].sort((a, b) => b.WeightedPicks - a.WeightedPicks),
     SignatureCurrent: [...pickRows].sort((a, b) => b.CurrentSeasonPicks - a.CurrentSeasonPicks),
   };
@@ -816,13 +979,20 @@ function buildSelfScoutBanRows(currentLeagueRows, ourTeamId, ourPickRateMap) {
   const weighted = [...byHero.values()].map((row) => {
     const rawRate = totalBans > 0 ? row.BanCount / totalBans : 0;
     const ourPickRate = ourPickRateMap.get(row.HeroId) || 0;
-    const oppWinRate = row.BanCount > 0 ? row.OpponentWinsAfterBan / row.BanCount : 0;
-    const weightedScore = rawRate * (0.15 + 0.55 * ourPickRate + 0.3 * (ourPickRate * oppWinRate));
+    const rawOppWinRate = rawWinRatePercent(row.OpponentWinsAfterBan, row.BanCount) / 100;
+    const oppWinRate = shrunkRate(row.OpponentWinsAfterBan, row.BanCount, 0.5);
+    const confidence = sampleConfidence(row.BanCount, 2, 8);
+    const weightedScore =
+      rawRate *
+      confidence *
+      (0.12 + 0.63 * ourPickRate + 0.25 * (ourPickRate * oppWinRate));
     return {
       ...row,
       BanRate: rawRate * 100,
       OurPickRate: ourPickRate * 100,
+      RawOpponentWinRateWhenBanned: rawOppWinRate * 100,
       OpponentWinRateWhenBanned: oppWinRate * 100,
+      Confidence: confidence,
       WeightedScore: weightedScore,
     };
   });
@@ -850,6 +1020,7 @@ function buildSideStrength(profiles, excludedPlayerIds = null) {
           PlayerId: profile.PlayerId,
           PlayerName: profile.PlayerName,
           Games: hero.Games,
+          RawWinRate: hero.RawWinRate,
           WinRate: hero.WinRate,
           Score: hero.WeightedPerformance,
         });
@@ -938,6 +1109,11 @@ function computeScore(board, context, currentActionIndex) {
   const ourPicks = filledSlots(board, 'our', 'pick');
   const oppPicks = filledSlots(board, 'opponent', 'pick');
   const ourBans = new Set(filledSlots(board, 'our', 'ban').map((slot) => slot.heroId));
+  const currentAction =
+    currentActionIndex >= 0
+      ? context.draftSequence?.[currentActionIndex] || null
+      : context.draftSequence?.[context.draftSequence.length - 1] || null;
+  const phase = phaseWeightProfile(currentAction, context.draftSequence || []);
 
   ourPicks.forEach((slot) => {
     const resolved = resolvePlayerHero(context.ourProfiles, slot.heroId, slot.playerId);
@@ -955,6 +1131,10 @@ function computeScore(board, context, currentActionIndex) {
       ? context.ourPublicTrend.ByPlayerHeroMap.get(`${resolvedPlayerId}|${slot.heroId}`)
       : null;
     const pubTrendScore = pubRow?.TrendScore ?? context.ourPublicTrend.HeroScoreMap.get(slot.heroId) ?? 0.5;
+    const pubGames = toNumber(pubRow?.Games, context.ourPublicTrend.HeroGamesMap.get(slot.heroId) || 0);
+    const trendBlend = blendMonthlySeasonSignal(pubTrendScore, pubGames, blendedFlexWr, games);
+    const comfortConfidence = sampleConfidence(games, 2, 10);
+    const trendConfidence = sampleConfidence(pubGames, 2, 12);
     let delta = 0;
     if (games >= 5 && rank <= 3) delta = 7;
     else if (games >= 2 && rank <= 3) delta = 4;
@@ -962,19 +1142,27 @@ function computeScore(board, context, currentActionIndex) {
     else delta = -4;
     if (games > 0) delta *= 0.85 + 0.3 * (winRate / 100);
     if (resolved.inferred) {
-      delta *= 0.75 + 0.5 * blendedFlexWr;
+      const bestPlayerWr = toNumber(resolved.hero?.WinRate, 50) / 100;
+      const flexBlend = clamp(
+        0.3 * bestPlayerWr + 0.35 * teammateHeroWr2 + 0.2 * overallHeroWr3 + 0.15 * pubTrendScore,
+        0,
+        1
+      );
+      const uncertainty =
+        resolved.hero && games >= 2 ? 0.9 + 0.2 * comfortConfidence : 0.72 + 0.18 * comfortConfidence;
+      delta *= (0.7 + 0.55 * flexBlend) * uncertainty;
       if (teammateHeroWr2 < 0.45) delta -= 1.2;
     }
-    delta *= 0.85 + 0.3 * pubTrendScore;
+    delta *= (0.8 + 0.35 * trendBlend.Value) * (0.7 + 0.3 * trendConfidence) * phase.comfort;
     contributions.push({
       signal: 'PlayerPool',
       actionIndex: slot.actionIndex,
       delta: clamp(delta, -8, 8),
       sampleOk: games >= 2,
       reason: resolved.inferred
-        ? `${slot.heroName} flex: team WR3 ${formatPercent(overallHeroWr3 * 100)}, teammate WR2 ${formatPercent(teammateHeroWr2 * 100)}, pubs ${formatPercent((pubRow?.WinRate ?? pubTrendScore * 100))}`
+        ? `${slot.heroName} flex: team WR3 ${formatPercent(overallHeroWr3 * 100)}, teammate WR2 ${formatPercent(teammateHeroWr2 * 100)}, pubs ${formatPercent((pubRow?.WinRate ?? trendBlend.Value * 100))}`
         : games >= 2
-        ? `${slot.heroName} is in player pool (pub trend ${formatPercent((pubRow?.WinRate ?? pubTrendScore * 100))})`
+        ? `${slot.heroName} is in player pool (pub trend ${formatPercent((pubRow?.WinRate ?? trendBlend.Value * 100))})`
         : `${slot.heroName} is low sample`,
     });
   });
@@ -996,6 +1184,10 @@ function computeScore(board, context, currentActionIndex) {
       : null;
     const pubTrendScore =
       pubRow?.TrendScore ?? context.opponentPublicTrend.HeroScoreMap.get(slot.heroId) ?? 0.5;
+    const pubGames = toNumber(pubRow?.Games, context.opponentPublicTrend.HeroGamesMap.get(slot.heroId) || 0);
+    const trendBlend = blendMonthlySeasonSignal(pubTrendScore, pubGames, blendedFlexWr, games);
+    const comfortConfidence = sampleConfidence(games, 2, 10);
+    const trendConfidence = sampleConfidence(pubGames, 2, 12);
     let delta = 0;
     if (games >= 5 && rank <= 3) delta = -5;
     else if (games >= 2 && rank <= 3) delta = -3.5;
@@ -1003,20 +1195,28 @@ function computeScore(board, context, currentActionIndex) {
     else delta = 1.5;
     if (games > 0) delta *= 0.85 + 0.3 * (winRate / 100);
     if (resolved.inferred) {
-      delta *= 0.75 + 0.5 * blendedFlexWr;
+      const bestPlayerWr = toNumber(resolved.hero?.WinRate, 50) / 100;
+      const flexBlend = clamp(
+        0.3 * bestPlayerWr + 0.35 * teammateHeroWr2 + 0.2 * overallHeroWr3 + 0.15 * pubTrendScore,
+        0,
+        1
+      );
+      const uncertainty =
+        resolved.hero && games >= 2 ? 0.9 + 0.2 * comfortConfidence : 0.72 + 0.18 * comfortConfidence;
+      delta *= (0.7 + 0.55 * flexBlend) * uncertainty;
       if (teammateHeroWr2 < 0.45) delta += 1.2;
       if (teammateHeroWr2 > 0.58) delta -= 1.2;
     }
-    delta *= 0.85 + 0.3 * pubTrendScore;
+    delta *= (0.8 + 0.35 * trendBlend.Value) * (0.7 + 0.3 * trendConfidence) * phase.comfort;
     contributions.push({
       signal: 'PlayerPool',
       actionIndex: slot.actionIndex,
       delta: clamp(delta, -8, 8),
       sampleOk: games >= 2,
       reason: resolved.inferred
-        ? `Opponent flex ${slot.heroName}: team WR3 ${formatPercent(overallHeroWr3 * 100)}, teammate WR2 ${formatPercent(teammateHeroWr2 * 100)}, pubs ${formatPercent((pubRow?.WinRate ?? pubTrendScore * 100))}`
+        ? `Opponent flex ${slot.heroName}: team WR3 ${formatPercent(overallHeroWr3 * 100)}, teammate WR2 ${formatPercent(teammateHeroWr2 * 100)}, pubs ${formatPercent((pubRow?.WinRate ?? trendBlend.Value * 100))}`
         : games >= 2
-        ? `Opponent comfort on ${slot.heroName} (pub trend ${formatPercent((pubRow?.WinRate ?? pubTrendScore * 100))})`
+        ? `Opponent comfort on ${slot.heroName} (pub trend ${formatPercent((pubRow?.WinRate ?? trendBlend.Value * 100))})`
         : `Opponent low sample on ${slot.heroName}`,
     });
   });
@@ -1035,10 +1235,11 @@ function computeScore(board, context, currentActionIndex) {
       else if (h2h.HeroAWinRate < 40) delta = -4.5;
       else if (h2h.HeroAWinRate <= 45) delta = -1.8;
       if (delta !== 0) {
+        const matchupConfidence = sampleConfidence(h2h.Games, 5, 24);
         contributions.push({
           signal: 'H2H',
           actionIndex: Math.max(our.actionIndex, opp.actionIndex),
-          delta,
+          delta: delta * matchupConfidence * phase.matchup,
           sampleOk: true,
           reason: `${our.heroName} vs ${opp.heroName}: ${formatNumber(h2h.HeroAWinRate)}%`,
         });
@@ -1058,10 +1259,11 @@ function computeScore(board, context, currentActionIndex) {
   const topOppFirst = context.opponentTeamStats.FirstPickRows[0];
   const oppPickSet = new Set(oppPicks.map((slot) => slot.heroId));
   if (topOppFirst && ourBans.has(topOppFirst.HeroId) && !oppPickSet.has(topOppFirst.HeroId)) {
+    const trendConfidence = sampleConfidence(topOppFirst.TimesPicked, 2, 8);
     contributions.push({
       signal: 'TeamTrend',
       actionIndex: currentActionIndex,
-      delta: 5,
+      delta: 5 * phase.trend * trendConfidence,
       sampleOk: topOppFirst.TimesPicked >= 3,
       reason: `Forced opponent off top phase-1 hero: ${topOppFirst.HeroName}`,
     });
@@ -1073,7 +1275,7 @@ function computeScore(board, context, currentActionIndex) {
       contributions.push({
         signal: 'TeamTrend',
         actionIndex: currentActionIndex,
-        delta: 2.5,
+        delta: 2.5 * phase.trend,
         sampleOk: true,
         reason: `Opponent is outside 3-season comfort pattern`,
       });
@@ -1086,7 +1288,7 @@ function computeScore(board, context, currentActionIndex) {
       contributions.push({
         signal: 'TeamTrend',
         actionIndex: currentActionIndex,
-        delta: 3,
+        delta: 3 * phase.trend,
         sampleOk: true,
         reason: 'Our signature lineup is forming',
       });
@@ -1104,7 +1306,7 @@ function computeScore(board, context, currentActionIndex) {
       contributions.push({
         signal: 'PhasePriority',
         actionIndex: slot.actionIndex,
-        delta: 3.5,
+        delta: 3.5 * phase.contested,
         sampleOk: true,
         reason: `Secured contested phase-1 hero: ${slot.heroName}`,
       });
@@ -1116,7 +1318,7 @@ function computeScore(board, context, currentActionIndex) {
       contributions.push({
         signal: 'PhasePriority',
         actionIndex: currentActionIndex,
-        delta: -1.5,
+        delta: -1.5 * phase.contested,
         sampleOk: true,
         reason: `${openContested.length} contested heroes still open in phase 2`,
       });
@@ -1130,7 +1332,7 @@ function computeScore(board, context, currentActionIndex) {
     contributions.push({
       signal: 'PhasePriority',
       actionIndex: context.lastPickActionIndex,
-      delta: 1.5,
+      delta: 1.5 * phase.matchup,
       sampleOk: true,
       reason: 'Last-pick advantage secured',
     });
@@ -1167,13 +1369,20 @@ function computeScore(board, context, currentActionIndex) {
 function averageH2H(heroId, enemyHeroes, h2hMap) {
   let sum = 0;
   let count = 0;
+  let totalGames = 0;
   enemyHeroes.forEach((enemyHeroId) => {
     const row = h2hMap.get(`${heroId}|${enemyHeroId}`);
     if (!row || row.Games < 5) return;
     sum += row.HeroAWinRate / 100;
     count += 1;
+    totalGames += row.Games;
   });
-  return count > 0 ? sum / count : 0.5;
+  return {
+    Value: count > 0 ? sum / count : 0.5,
+    PairCount: count,
+    Games: totalGames,
+    Confidence: count > 0 ? sampleConfidence(totalGames, 6, 28) : 0.45,
+  };
 }
 
 function buildRecommendations(
@@ -1188,6 +1397,8 @@ function buildRecommendations(
   if (!currentAction) {
     return { title: 'Draft complete', rows: [] };
   }
+  const phase = phaseWeightProfile(currentAction, context.draftSequence || []);
+
   if (currentAction.type === 'pick') {
     const side = currentAction.side;
     const teamStats = side === 'our' ? context.ourTeamStats : context.opponentTeamStats;
@@ -1198,13 +1409,22 @@ function buildRecommendations(
       : excludedComfortBySide?.opponent || new Set();
     const strength = buildSideStrength(sideProfiles, excludedComfortPlayers);
     const enemyPicks = filledSlots(board, side === 'our' ? 'opponent' : 'our', 'pick').map((slot) => slot.heroId);
+    const sideTeammateRecent2Map = side === 'our'
+      ? context.teammateRecent2WinMap.our
+      : context.teammateRecent2WinMap.opponent;
     const rows = (availableHeroes || [])
       .map((hero) => {
         const heroId = toNumber(hero.HeroId);
+        const pickRow = teamStats.PickRowMap.get(heroId);
+        const seasonGames = toNumber(pickRow?.Picks, 0);
+        const currentSeasonGames = toNumber(pickRow?.CurrentSeasonPicks, 0);
         const teamRate = teamStats.CurrentPickRateMap.get(heroId) || 0;
         const playerScore = strength.ScoreMap.get(heroId) || 0;
-        const publicScore = sidePublicTrend.HeroScoreMap.get(heroId) || 0;
+        const best = strength.BestPlayerMap.get(heroId);
+        const playerGames = toNumber(best?.Games, 0);
+        const publicScore = sidePublicTrend.HeroScoreMap.get(heroId) ?? 0.5;
         const publicBest = sidePublicTrend.BestPlayerByHero.get(heroId);
+        const publicGames = toNumber(sidePublicTrend.HeroGamesMap.get(heroId), 0);
         const h2h = averageH2H(heroId, enemyPicks, context.h2h.PairMap);
         const contested =
           currentAction.type === 'pick' &&
@@ -1213,18 +1433,53 @@ function buildRecommendations(
           context.contestedSet.has(heroId)
             ? 1
             : 0;
-        const score = 0.22 * teamRate + 0.28 * playerScore + 0.32 * publicScore + 0.13 * h2h + 0.05 * contested;
-        let reason = 'Balanced pick';
-        const best = strength.BestPlayerMap.get(heroId);
-        if (publicScore >= playerScore && publicScore >= teamRate && publicScore >= h2h) {
+        const overallHeroWr3 = teamStats.OverallHeroWinRateMap.get(heroId) ?? 0.5;
+        const teammateHeroWr2 =
+          sideTeammateRecent2Map.get(heroId) ??
+          teamStats.Recent2HeroWinRateMap.get(heroId) ??
+          overallHeroWr3;
+        const teamFallback = clamp(
+          0.28 * overallHeroWr3 + 0.37 * teammateHeroWr2 + 0.35 * publicScore,
+          0,
+          1
+        );
+        let comfortValue = best
+          ? clamp(0.68 * playerScore + 0.32 * teamFallback, 0, 1)
+          : clamp(teamFallback * 0.9, 0, 1);
+        const flexConfidence = sampleConfidence(playerGames + seasonGames + publicGames, 3, 18);
+        if (!best || playerGames < 2) {
+          comfortValue *= 0.8 + 0.2 * flexConfidence;
+        }
+        const seasonTrend = clamp(0.58 * teamRate + 0.42 * comfortValue, 0, 1);
+        const trendBlend = blendMonthlySeasonSignal(publicScore, publicGames, seasonTrend, seasonGames);
+
+        const teamConf = sampleConfidence(currentSeasonGames || seasonGames, 2, 10);
+        const comfortConf = best ? sampleConfidence(playerGames, 2, 10) : flexConfidence;
+        const matchupConf = h2h.Confidence;
+        const score = weightedScore([
+          { value: teamRate, weight: 0.2 * teamConf * phase.trend },
+          { value: comfortValue, weight: 0.29 * comfortConf * phase.comfort },
+          { value: trendBlend.Value, weight: 0.29 * trendBlend.Confidence * phase.trend },
+          { value: h2h.Value, weight: 0.16 * matchupConf * phase.matchup },
+          { value: contested, weight: 0.06 * phase.contested },
+        ]);
+
+        const reasonSignals = {
+          trend: trendBlend.Value * trendBlend.Confidence * phase.trend,
+          comfort: comfortValue * comfortConf * phase.comfort,
+          team: teamRate * teamConf * phase.trend,
+          matchup: h2h.Value * matchupConf * phase.matchup,
+        };
+        let reason = 'Balanced pick value profile';
+        if (reasonSignals.trend >= reasonSignals.comfort && reasonSignals.trend >= reasonSignals.team && reasonSignals.trend >= reasonSignals.matchup) {
           reason = publicBest
-            ? `High 30-day public trend on ${publicBest.PlayerName}`
-            : 'High 30-day public trend';
-        } else if (playerScore >= teamRate && playerScore >= h2h) {
+            ? `Strong recent public trend with ${publicBest.PlayerName}`
+            : 'Strong recent public trend';
+        } else if (reasonSignals.comfort >= reasonSignals.team && reasonSignals.comfort >= reasonSignals.matchup) {
           reason = best ? `${best.PlayerName} comfort hero` : 'Strong player comfort';
-        } else if (teamRate >= playerScore && teamRate >= h2h) {
+        } else if (reasonSignals.team >= reasonSignals.matchup) {
           reason = 'High current season pick rate';
-        } else if (h2h >= playerScore && h2h >= teamRate) {
+        } else {
           reason = 'Good into current enemy picks';
         }
         return {
@@ -1235,13 +1490,16 @@ function buildRecommendations(
           ComfortPlayerId: best?.PlayerId || null,
           ComfortPlayerName: best?.PlayerName || '',
           ComfortPlayerGames: best?.Games || 0,
+          ComfortPlayerRawWinRate: best?.RawWinRate || 0,
           ComfortPlayerWinRate: best?.WinRate || 0,
-          ComfortPercent: playerScore * 100,
+          ComfortPercent: comfortValue * 100,
           PublicTrendPlayerId: publicBest?.PlayerId || null,
           PublicTrendPlayerName: publicBest?.PlayerName || '',
           PublicTrendGames: publicBest?.Games || 0,
+          PublicTrendRawWinRate: publicBest?.RawWinRate || 0,
           PublicTrendWinRate: publicBest?.WinRate || 0,
-          PublicTrendPercent: publicScore * 100,
+          PublicTrendPercent: trendBlend.Value * 100,
+          TrendBlendMonthlyWeight: trendBlend.MonthlyWeight * 100,
         };
       })
       .sort((a, b) => b.Score - a.Score)
@@ -1262,6 +1520,9 @@ function buildRecommendations(
     : excludedComfortBySide?.opponent || new Set();
   const targetStrength = buildSideStrength(targetProfiles, excludedTargetPlayers);
   const ownPicks = filledSlots(board, banningSide, 'pick').map((slot) => slot.heroId);
+  const targetTeammateRecent2Map = targetSide === 'our'
+    ? context.teammateRecent2WinMap.our
+    : context.teammateRecent2WinMap.opponent;
   const excludedHeroIds = banningSide === 'our'
     ? excludedRecommendationHeroesBySide?.our || new Set()
     : excludedRecommendationHeroesBySide?.opponent || new Set();
@@ -1269,10 +1530,56 @@ function buildRecommendations(
     .filter((hero) => !excludedHeroIds.has(toNumber(hero.HeroId)))
     .map((hero) => {
       const heroId = toNumber(hero.HeroId);
+      const pickRow = targetStats.PickRowMap.get(heroId);
+      const seasonGames = toNumber(pickRow?.Picks, 0);
+      const currentSeasonGames = toNumber(pickRow?.CurrentSeasonPicks, 0);
       const targetRate = targetStats.CurrentPickRateMap.get(heroId) || 0;
       const targetPlayer = targetStrength.ScoreMap.get(heroId) || 0;
-      const targetPublic = targetPublicTrend.HeroScoreMap.get(heroId) || 0;
+      const targetBest = targetStrength.BestPlayerMap.get(heroId);
+      const targetPlayerGames = toNumber(targetBest?.Games, 0);
+      const targetPublic = targetPublicTrend.HeroScoreMap.get(heroId) ?? 0.5;
+      const targetPublicGames = toNumber(targetPublicTrend.HeroGamesMap.get(heroId), 0);
+      const targetPublicBest = targetPublicTrend.BestPlayerByHero.get(heroId);
+
+      const overallHeroWr3 = targetStats.OverallHeroWinRateMap.get(heroId) ?? 0.5;
+      const teammateHeroWr2 =
+        targetTeammateRecent2Map.get(heroId) ??
+        targetStats.Recent2HeroWinRateMap.get(heroId) ??
+        overallHeroWr3;
+      const teamFallbackThreat = clamp(
+        0.28 * overallHeroWr3 + 0.37 * teammateHeroWr2 + 0.35 * targetPublic,
+        0,
+        1
+      );
+      let comfortThreat = targetBest
+        ? clamp(0.68 * targetPlayer + 0.32 * teamFallbackThreat, 0, 1)
+        : clamp(teamFallbackThreat * 0.9, 0, 1);
+      const flexThreatConfidence = sampleConfidence(
+        targetPlayerGames + seasonGames + targetPublicGames,
+        3,
+        18
+      );
+      if (!targetBest || targetPlayerGames < 2) {
+        comfortThreat *= 0.8 + 0.2 * flexThreatConfidence;
+      }
+
+      const trendSeasonBase = clamp(0.58 * targetRate + 0.42 * comfortThreat, 0, 1);
+      const trendBlend = blendMonthlySeasonSignal(
+        targetPublic,
+        targetPublicGames,
+        trendSeasonBase,
+        seasonGames
+      );
+      const monthlyPickRate = clamp(targetPublicGames / 18, 0, 1);
+      const pickLikelihood = blendMonthlySeasonSignal(
+        monthlyPickRate,
+        targetPublicGames,
+        targetRate,
+        currentSeasonGames || seasonGames
+      );
+
       let h2hThreat = 0.5;
+      let h2hGames = 0;
       if (ownPicks.length > 0) {
         let sum = 0;
         let count = 0;
@@ -1281,19 +1588,37 @@ function buildRecommendations(
           if (!row || row.Games < 5) return;
           sum += 1 - row.HeroAWinRate / 100;
           count += 1;
+          h2hGames += row.Games;
         });
         if (count > 0) h2hThreat = sum / count;
       }
+      const h2hConfidence = ownPicks.length > 0 ? sampleConfidence(h2hGames, 6, 28) : 0.55;
+      const contestedThreat = context.contestedSet.has(heroId) ? 1 : 0;
       const selfScout = banningSide === 'our' ? selfScoutMap.get(heroId) || 0 : 0;
-      const score = 0.24 * targetRate + 0.22 * targetPlayer + 0.30 * targetPublic + 0.19 * h2hThreat + 0.05 * selfScout;
-      const targetBest = targetStrength.BestPlayerMap.get(heroId);
-      const targetPublicBest = targetPublicTrend.BestPlayerByHero.get(heroId);
+
+      const comfortConf = targetBest
+        ? sampleConfidence(targetPlayerGames, 2, 10)
+        : flexThreatConfidence;
+      const deniedValue = weightedScore([
+        { value: comfortThreat, weight: 0.33 * comfortConf * phase.comfort },
+        { value: trendBlend.Value, weight: 0.3 * trendBlend.Confidence * phase.trend },
+        { value: h2hThreat, weight: 0.27 * h2hConfidence * phase.matchup },
+        { value: contestedThreat, weight: 0.1 * phase.contested },
+      ]);
+      const expectedDeniedValue = deniedValue * pickLikelihood.Value;
+      const score = clamp(expectedDeniedValue * (0.86 + 0.28 * selfScout), 0, 1);
+
+      const reasonSignals = {
+        comfort: comfortThreat * comfortConf * phase.comfort,
+        trend: trendBlend.Value * trendBlend.Confidence * phase.trend,
+        matchup: h2hThreat * h2hConfidence * phase.matchup,
+      };
       const reason =
-        targetPublic >= targetPlayer && targetPublic >= targetRate
-          ? 'Denies high 30-day public trend hero'
-          : targetPlayer >= targetRate
-          ? 'Denies top player comfort'
-          : 'Denies high-frequency target hero';
+        reasonSignals.trend >= reasonSignals.comfort && reasonSignals.trend >= reasonSignals.matchup
+          ? 'Denies strong recent trend + pick likelihood'
+          : reasonSignals.comfort >= reasonSignals.matchup
+          ? 'Denies likely comfort value'
+          : 'Denies likely counter-pressure into our draft';
       return {
         HeroId: heroId,
         HeroName: hero.HeroName,
@@ -1302,13 +1627,17 @@ function buildRecommendations(
         ComfortPlayerId: targetBest?.PlayerId || null,
         ComfortPlayerName: targetBest?.PlayerName || '',
         ComfortPlayerGames: targetBest?.Games || 0,
+        ComfortPlayerRawWinRate: targetBest?.RawWinRate || 0,
         ComfortPlayerWinRate: targetBest?.WinRate || 0,
         ComfortPercent: targetPlayer * 100,
         PublicTrendPlayerId: targetPublicBest?.PlayerId || null,
         PublicTrendPlayerName: targetPublicBest?.PlayerName || '',
         PublicTrendGames: targetPublicBest?.Games || 0,
+        PublicTrendRawWinRate: targetPublicBest?.RawWinRate || 0,
         PublicTrendWinRate: targetPublicBest?.WinRate || 0,
-        PublicTrendPercent: targetPublic * 100,
+        PublicTrendPercent: trendBlend.Value * 100,
+        PickLikelihoodPercent: pickLikelihood.Value * 100,
+        DeniedValuePercent: expectedDeniedValue * 100,
       };
     })
     .sort((a, b) => b.Score - a.Score)
@@ -1410,8 +1739,10 @@ function buildBannedAgainstMap(rows, teamId) {
     }
   });
   map.forEach((entry) => {
+    entry.RawTeamWinRateWhenBanned =
+      rawWinRatePercent(entry.TeamWinsWhenBanned, entry.DecidedGames);
     entry.TeamWinRateWhenBanned =
-      entry.DecidedGames > 0 ? (entry.TeamWinsWhenBanned / entry.DecidedGames) * 100 : 0;
+      shrunkRate(entry.TeamWinsWhenBanned, entry.DecidedGames, 0.5) * 100;
   });
   return map;
 }
@@ -1472,15 +1803,50 @@ function buildModel(
   const leagueWeights = buildLeagueWeights(data.recentLeagueIds || [], data.leagueId);
   const ourProfiles = buildPlayerProfiles(data.ourPlayerHeroRows || [], data.ourRoster || [], leagueWeights);
   const opponentProfiles = buildPlayerProfiles(data.opponentPlayerHeroRows || [], data.opponentRoster || [], leagueWeights);
+  const publicBaselineRows = data.publicHeroBaselineRows || [];
+  const publicBaselineTotal = publicBaselineRows.reduce(
+    (sum, row) => ({
+      Games: sum.Games + toNumber(row.Games, 0),
+      Wins: sum.Wins + toNumber(row.Wins, 0),
+    }),
+    { Games: 0, Wins: 0 }
+  );
+  const publicBaselineDefault = shrunkRate(
+    publicBaselineTotal.Wins,
+    publicBaselineTotal.Games,
+    0.5,
+    SHRINK_K_PUBLIC
+  );
+  const publicHeroBaselineMap = new Map(
+    publicBaselineRows
+      .map((row) => {
+        const heroId = toNumber(row.HeroId, null);
+        if (!heroId) return null;
+        return [
+          heroId,
+          shrunkRate(
+            toNumber(row.Wins, 0),
+            toNumber(row.Games, 0),
+            publicBaselineDefault,
+            SHRINK_K_PUBLIC
+          ),
+        ];
+      })
+      .filter(Boolean)
+  );
   const ourPublicTrend = buildPublicTrendData(
     data.ourPublicHeroRows || [],
     data.ourRoster || [],
-    excludedComfortBySide?.our || new Set()
+    publicHeroBaselineMap,
+    excludedComfortBySide?.our || new Set(),
+    publicBaselineDefault
   );
   const opponentPublicTrend = buildPublicTrendData(
     data.opponentPublicHeroRows || [],
     data.opponentRoster || [],
-    excludedComfortBySide?.opponent || new Set()
+    publicHeroBaselineMap,
+    excludedComfortBySide?.opponent || new Set(),
+    publicBaselineDefault
   );
   const teammateRecent2WinMap = {
     our: buildTeammateHeroWinRateMap(data.ourPlayerHeroRows || [], data.recentLeagueIds || [], 2),
@@ -1544,6 +1910,7 @@ function buildModel(
       [...draftSequence]
         .reverse()
         .find((step) => step.type === 'pick')?.side ?? 'opponent',
+    draftSequence,
   };
   const scoreModel = computeScore(board, context, currentActionIndex);
   const recommendations = buildRecommendations(
@@ -1605,7 +1972,7 @@ function ScoreBar({ scoreModel, opponentName }) {
       </div>
       <div style={scoreSidesStyle}>
         <span>{opponentName || 'Opponent'}</span>
-        <span>Us</span>
+        <span>{OUR_TEAM_DISPLAY_NAME}</span>
       </div>
       <div style={{ ...scoreTrackStyle, border, opacity }}>
         <div style={scoreMidLineStyle} />
@@ -1709,7 +2076,7 @@ function TeamPlayerCards({
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
             <strong>{profile.PlayerName}</strong>
             <span style={tinyMutedTextStyle}>
-              {profile.TotalGames} games | {formatPercent(profile.OverallWinRate)}
+              {profile.TotalGames} games | {formatWinRatePair(profile.OverallRawWinRate, profile.OverallWinRate)}
             </span>
           </div>
           {(() => {
@@ -1721,7 +2088,7 @@ function TeamPlayerCards({
                 <div style={chipWrapStyle}>
                   {sets.current.map((hero) => (
                     <span key={`${profile.PlayerId}-c-${hero.HeroId}`} style={chipStyle}>
-                      {heroName(heroMap, hero.HeroId)} ({hero.Games}, {formatPercent(hero.WinRate)})
+                      {heroName(heroMap, hero.HeroId)} ({hero.Games}, {formatWinRatePair(hero.RawWinRate, hero.WinRate)})
                       {isThreat(hero.HeroId) && <span style={threatBadgeStyle}>Threat</span>}
                     </span>
                   ))}
@@ -1731,7 +2098,7 @@ function TeamPlayerCards({
                 <div style={chipWrapStyle}>
                   {sets.previous.map((hero) => (
                     <span key={`${profile.PlayerId}-p-${hero.HeroId}`} style={chipStyle}>
-                      {heroName(heroMap, hero.HeroId)} ({hero.Games}, {formatPercent(hero.WinRate)}, {hero.Confidence})
+                      {heroName(heroMap, hero.HeroId)} ({hero.Games}, {formatWinRatePair(hero.RawWinRate, hero.WinRate)}, {hero.Confidence})
                       {isThreat(hero.HeroId) && <span style={threatBadgeStyle}>Threat</span>}
                     </span>
                   ))}
@@ -1741,7 +2108,7 @@ function TeamPlayerCards({
                 <div style={chipWrapStyle}>
                   {publicTop.map((hero) => (
                     <span key={`${profile.PlayerId}-pub-${hero.HeroId}`} style={chipStyle}>
-                      {heroName(heroMap, hero.HeroId)} ({hero.Games}, {formatPercent(hero.WinRate)})
+                      {heroName(heroMap, hero.HeroId)} ({hero.Games}, {formatWinRatePair(hero.RawWinRate, hero.WinRate)})
                       {isThreat(hero.HeroId) && <span style={threatBadgeStyle}>Threat</span>}
                     </span>
                   ))}
@@ -1781,7 +2148,7 @@ export default function DraftGodPage() {
     typeof window !== 'undefined' ? window.innerWidth < 1200 : false
   );
 
-  const isAdmin = user?.accountId === ADMIN_ACCOUNT_ID;
+  const canDraftGod = !!user?.canDraftGod;
   const ourDraftSide = ourPickOrder === 'first' ? 'R' : 'D';
   const draftSequence = useMemo(() => buildDraftSequence('R', ourDraftSide), [ourDraftSide]);
 
@@ -1810,9 +2177,9 @@ export default function DraftGodPage() {
   }, [draftSequence.length]);
 
   useEffect(() => {
-    if (authLoading || !isAdmin) return;
+    if (authLoading || !canDraftGod) return;
     fetchDraftData();
-  }, [authLoading, isAdmin, fetchDraftData]);
+  }, [authLoading, canDraftGod, fetchDraftData]);
 
   async function onOpponentChange(nextTeamId) {
     setSelectedOpponentTeamId(nextTeamId);
@@ -2027,7 +2394,7 @@ export default function DraftGodPage() {
 
   if (authLoading) return <div>Loading...</div>;
   if (!user) return <div>You are not logged in.</div>;
-  if (!isAdmin) return <Navigate to="/" />;
+  if (!canDraftGod) return <Navigate to="/" />;
 
   const opponentTeamName =
     draftData?.teams?.find((team) => String(team.TeamId) === String(selectedOpponentTeamId))?.TeamName ||
@@ -2049,12 +2416,12 @@ export default function DraftGodPage() {
     : 0;
   const recommendationPercentDescription =
     currentAction?.type === 'ban'
-      ? 'Recommendation % is a weighted ban priority score (24% season pick trend, 22% player comfort, 30% last-30d public trend, 19% matchup denial, 5% self-scout).'
-      : 'Recommendation % is a weighted fit score, not win probability (22% season pick trend, 28% player comfort, 32% last-30d public trend, 13% matchup fit, 5% contested priority).';
+      ? 'Recommendation % is expected ban denial value: denied hero value x pick-likelihood, with phase-aware comfort/trend/matchup weighting and self-scout adjustment.'
+      : 'Recommendation % is phase-aware pick fit, blending current-season and 30-day trends by sample size, then weighting comfort, matchup, and contested priority.';
   const radiantSide = ourDraftSide === 'R' ? 'our' : 'opponent';
   const direSide = radiantSide === 'our' ? 'opponent' : 'our';
-  const radiantLabel = radiantSide === 'our' ? 'R (Us)' : `R (${opponentTeamName})`;
-  const direLabel = direSide === 'our' ? 'D (Us)' : `D (${opponentTeamName})`;
+  const radiantLabel = radiantSide === 'our' ? `FP (${OUR_TEAM_DISPLAY_NAME})` : `FP (${opponentTeamName})`;
+  const direLabel = direSide === 'our' ? `SP (${OUR_TEAM_DISPLAY_NAME})` : `SP (${opponentTeamName})`;
   const sideRosterMap = {
     our: ourRosterMap,
     opponent: opponentRosterMap,
@@ -2074,7 +2441,7 @@ export default function DraftGodPage() {
                 Current league: <strong>{draftData.leagueName || 'N/A'}</strong>
               </p>
               <p style={infoTextStyle}>
-                Your team: <strong>{draftData.ourTeam?.TeamName || 'Not found'}</strong>
+                Our team: <strong>{OUR_TEAM_DISPLAY_NAME}</strong>
               </p>
             </div>
             <div style={{ display: 'grid', gap: '0.45rem' }}>
@@ -2093,19 +2460,11 @@ export default function DraftGodPage() {
                   </option>
                 ))}
               </select>
-              <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
-                <label htmlFor="draftgod-pickorder-select">We are:</label>
-                <select
-                  id="draftgod-pickorder-select"
-                  value={ourPickOrder}
-                  onChange={(e) => setOurPickOrder(e.target.value)}
-                  style={selectStyle}
-                >
-                  <option value="first">First Pick</option>
-                  <option value="second">Second Pick</option>
-                </select>
-              </div>
             </div>
+          </div>
+
+          <div style={wrNoteStyle}>
+            <strong>Win rate display:</strong> Raw WR is literal wins/games. Shrunk WR applies Bayesian smoothing toward 50% (k=10; public trend uses k=12) so low-sample heroes do not over-rank from 1-3 games. Draft scoring and recommendations use shrunk WR.
           </div>
 
           <div style={tabsStyle}>
@@ -2147,7 +2506,7 @@ export default function DraftGodPage() {
                           <tr>
                             <th style={tableHeadStyle}>Hero</th>
                             <th style={tableHeadStyle}>Picks</th>
-                            <th style={tableHeadStyle}>Win %</th>
+                            <th style={tableHeadStyle}>WR (Raw/Shrunk)</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2157,7 +2516,7 @@ export default function DraftGodPage() {
                                 <Link to={`/hero/${row.HeroId}`}>{row.HeroName}</Link>
                               </td>
                               <td style={tableCellStyle}>{row.CurrentSeasonPicks}</td>
-                              <td style={tableCellStyle}>{formatPercent(row.WinRate)}</td>
+                              <td style={tableCellStyle}>{formatWinRatePair(row.RawWinRate, row.WinRate)}</td>
                             </tr>
                           ))}
                           {model.opponentTeamStats.SignatureCurrent.length === 0 && (
@@ -2178,7 +2537,7 @@ export default function DraftGodPage() {
                           <tr>
                             <th style={tableHeadStyle}>Hero</th>
                             <th style={tableHeadStyle}>Times</th>
-                            <th style={tableHeadStyle}>Win %</th>
+                            <th style={tableHeadStyle}>WR (Raw/Shrunk)</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2188,7 +2547,9 @@ export default function DraftGodPage() {
                                 <Link to={`/hero/${row.HeroId}`}>{row.HeroName}</Link>
                               </td>
                               <td style={tableCellStyle}>{row.TimesPicked}</td>
-                              <td style={tableCellStyle}>{formatPercent(row.WinRateWhenPicked)}</td>
+                              <td style={tableCellStyle}>
+                                {formatWinRatePair(row.RawWinRateWhenPicked, row.WinRateWhenPicked)}
+                              </td>
                             </tr>
                           ))}
                           {model.opponentTeamStats.FirstPickRows.length === 0 && (
@@ -2207,7 +2568,21 @@ export default function DraftGodPage() {
 
               <div style={isCompactDraftLayout ? draftMainStackStyle : draftMainSplitStyle}>
                 <section style={panelStyle}>
-                <h2 style={panelTitleStyle}>Live Draft Board</h2>
+                <div style={liveBoardHeaderStyle}>
+                  <h2 style={panelTitleStyle}>Live Draft Board</h2>
+                  <div style={liveBoardPickOrderControlStyle}>
+                    <label htmlFor="draftgod-pickorder-select">We are:</label>
+                    <select
+                      id="draftgod-pickorder-select"
+                      value={ourPickOrder}
+                      onChange={(e) => setOurPickOrder(e.target.value)}
+                      style={selectStyle}
+                    >
+                      <option value="first">First Pick</option>
+                      <option value="second">Second Pick</option>
+                    </select>
+                  </div>
+                </div>
                 <ScoreBar scoreModel={model.scoreModel} opponentName={opponentTeamName} />
                 <div style={phaseBadgeStyle}>
                   {currentAction
@@ -2224,7 +2599,7 @@ export default function DraftGodPage() {
                           : draftOrderChipStyle
                       }
                     >
-                      {step.actor} {step.type === 'ban' ? 'Ban' : 'Pick'}
+                      {actorToken(step.actor)} {step.type === 'ban' ? 'Ban' : 'Pick'}
                     </span>
                   ))}
                 </div>
@@ -2395,7 +2770,7 @@ export default function DraftGodPage() {
                       {row.ComfortPlayerName ? (
                         <div style={tinyMutedTextStyle}>
                           Comfort: {row.ComfortPlayerName} ({formatPercent(row.ComfortPercent)} fit, {row.ComfortPlayerGames} games,{' '}
-                          {formatPercent(row.ComfortPlayerWinRate)} WR)
+                          {formatWinRatePair(row.ComfortPlayerRawWinRate, row.ComfortPlayerWinRate)})
                         </div>
                       ) : (
                         <div style={tinyMutedTextStyle}>Comfort: no strong player fit identified</div>
@@ -2403,10 +2778,20 @@ export default function DraftGodPage() {
                       {row.PublicTrendPlayerName ? (
                         <div style={tinyMutedTextStyle}>
                           30d trend: {row.PublicTrendPlayerName} ({formatPercent(row.PublicTrendPercent)} fit, {row.PublicTrendGames} games,{' '}
-                          {formatPercent(row.PublicTrendWinRate)} WR)
+                          {formatWinRatePair(row.PublicTrendRawWinRate, row.PublicTrendWinRate)})
                         </div>
                       ) : (
                         <div style={tinyMutedTextStyle}>30d trend: no strong public signal</div>
+                      )}
+                      {currentAction?.type === 'pick' && row.TrendBlendMonthlyWeight !== undefined && (
+                        <div style={tinyMutedTextStyle}>
+                          Trend blend: {formatPercent(row.TrendBlendMonthlyWeight)} monthly / {formatPercent(100 - row.TrendBlendMonthlyWeight)} season
+                        </div>
+                      )}
+                      {currentAction?.type === 'ban' && row.DeniedValuePercent !== undefined && (
+                        <div style={tinyMutedTextStyle}>
+                          Denied value: {formatPercent(row.DeniedValuePercent)} | Pick likelihood: {formatPercent(row.PickLikelihoodPercent || 0)}
+                        </div>
                       )}
                       {currentAction?.type === 'pick' && comfortFocusSide && row.ComfortPlayerId && (
                         <div style={{ marginTop: '0.45rem' }}>
@@ -2522,7 +2907,7 @@ export default function DraftGodPage() {
                       >
                         <div style={{ fontWeight: 700 }}>{profile.PlayerName}</div>
                         <div style={tinyMutedTextStyle}>
-                          {profile.TotalGames} games | {formatPercent(profile.OverallWinRate)}
+                          {profile.TotalGames} games | {formatWinRatePair(profile.OverallRawWinRate, profile.OverallWinRate)}
                         </div>
                       </button>
                     ))}
@@ -2539,7 +2924,7 @@ export default function DraftGodPage() {
                         <h3 style={{ margin: 0 }}>{selectedProfile.PlayerName}</h3>
                         <div style={tinyMutedTextStyle}>
                           {selectedProfile.TotalGames} games over last 3 seasons |{' '}
-                          {formatPercent(selectedProfile.OverallWinRate)} win rate
+                          {formatWinRatePair(selectedProfile.OverallRawWinRate, selectedProfile.OverallWinRate)}
                         </div>
                       </div>
 
@@ -2558,12 +2943,12 @@ export default function DraftGodPage() {
                             ) : (
                               <div style={{ marginTop: '0.4rem' }}>
                                 <div style={tinyMutedTextStyle}>
-                                  {season.Games} games | {formatPercent(season.WinRate)} | Avg GPM {formatNumber(season.AvgGpm)} | Avg KDA {formatNumber(season.AvgKda)}
+                                  {season.Games} games | {formatWinRatePair(season.RawWinRate, season.WinRate)} | Avg GPM {formatNumber(season.AvgGpm)} | Avg KDA {formatNumber(season.AvgKda)}
                                 </div>
                                 <div style={chipWrapStyle}>
                                   {season.TopHeroes.map((hero) => (
                                     <span key={`sh-${season.LeagueId}-${hero.HeroId}`} style={chipStyle}>
-                                      {hero.HeroName} ({hero.Games}, {formatPercent(hero.WinRate)})
+                                      {hero.HeroName} ({hero.Games}, {formatWinRatePair(hero.RawWinRate, hero.WinRate)})
                                     </span>
                                   ))}
                                 </div>
@@ -2581,7 +2966,7 @@ export default function DraftGodPage() {
                               <tr>
                                 <th style={tableHeadStyle}>Hero</th>
                                 <th style={tableHeadStyle}>Games</th>
-                                <th style={tableHeadStyle}>Win %</th>
+                                <th style={tableHeadStyle}>WR (Raw/Shrunk)</th>
                                 <th style={tableHeadStyle}>Avg GPM</th>
                                 <th style={tableHeadStyle}>Avg KDA</th>
                                 <th style={tableHeadStyle}>Avg Damage</th>
@@ -2596,7 +2981,7 @@ export default function DraftGodPage() {
                                     <Link to={`/hero/${hero.HeroId}`}>{hero.HeroName}</Link>
                                   </td>
                                   <td style={tableCellStyle}>{hero.Games}</td>
-                                  <td style={tableCellStyle}>{formatPercent(hero.WinRate)}</td>
+                                  <td style={tableCellStyle}>{formatWinRatePair(hero.RawWinRate, hero.WinRate)}</td>
                                   <td style={tableCellStyle}>{formatNumber(hero.AvgGpm)}</td>
                                   <td style={tableCellStyle}>{formatNumber(hero.AvgKda)}</td>
                                   <td style={tableCellStyle}>{formatNumber(hero.AvgDamage, 0)}</td>
@@ -2698,9 +3083,9 @@ export default function DraftGodPage() {
                       <tr>
                         <th style={tableHeadStyle}>Hero</th>
                         <th style={tableHeadStyle}>Times</th>
-                        <th style={tableHeadStyle}>Win % (picked)</th>
+                        <th style={tableHeadStyle}>Win % (Picked)</th>
                         <th style={tableHeadStyle}>Banned Against</th>
-                        <th style={tableHeadStyle}>Win % (when banned)</th>
+                        <th style={tableHeadStyle}>Win % (When Banned)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2712,9 +3097,13 @@ export default function DraftGodPage() {
                               <Link to={`/hero/${row.HeroId}`}>{row.HeroName}</Link>
                             </td>
                             <td style={tableCellStyle}>{row.TimesPicked}</td>
-                            <td style={tableCellStyle}>{formatPercent(row.WinRateWhenPicked)}</td>
+                            <td style={tableCellStyle}>
+                              {formatPercent(row.RawWinRateWhenPicked)}
+                            </td>
                             <td style={tableCellStyle}>{banned?.TimesBannedAgainst || 0}</td>
-                            <td style={tableCellStyle}>{formatPercent(banned?.TeamWinRateWhenBanned || 0)}</td>
+                            <td style={tableCellStyle}>
+                              {formatPercent(banned?.RawTeamWinRateWhenBanned || 0)}
+                            </td>
                           </tr>
                         );
                       })}
@@ -2747,7 +3136,7 @@ export default function DraftGodPage() {
                             <Link to={`/hero/${pair.HeroB}`}>{heroName(model.heroMap, pair.HeroB)}</Link>
                           </td>
                           <td style={tableCellStyle}>{pair.DecidedGames}</td>
-                          <td style={tableCellStyle}>{formatPercent(pair.WinRate)}</td>
+                          <td style={tableCellStyle}>{formatPercent(pair.RawWinRate)}</td>
                         </tr>
                       ))}
                       {teamStats.PairRows.length === 0 && (
@@ -2801,7 +3190,7 @@ export default function DraftGodPage() {
                         <th style={tableHeadStyle}>Weighted Ban %</th>
                         <th style={tableHeadStyle}>Raw Ban %</th>
                         <th style={tableHeadStyle}>Our Pick %</th>
-                        <th style={tableHeadStyle}>Opp Win % (after ban)</th>
+                        <th style={tableHeadStyle}>Opp Win % After Ban</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2813,7 +3202,9 @@ export default function DraftGodPage() {
                           <td style={tableCellStyle}>{formatPercent(row.WeightedBanRate)}</td>
                           <td style={tableCellStyle}>{formatPercent(row.BanRate)}</td>
                           <td style={tableCellStyle}>{formatPercent(row.OurPickRate)}</td>
-                          <td style={tableCellStyle}>{formatPercent(row.OpponentWinRateWhenBanned)}</td>
+                          <td style={tableCellStyle}>
+                            {formatPercent(row.RawOpponentWinRateWhenBanned)}
+                          </td>
                         </tr>
                       ))}
                       {model.selfScout.length === 0 && (
@@ -2845,6 +3236,15 @@ const topRowStyle = {
   marginBottom: '0.8rem',
 };
 const infoTextStyle = { margin: '0.2rem 0' };
+const wrNoteStyle = {
+  marginBottom: '0.8rem',
+  border: '1px solid #2f3b4b',
+  borderRadius: 8,
+  background: '#111827',
+  padding: '0.5rem 0.65rem',
+  fontSize: '0.82rem',
+  color: '#cbd5e1',
+};
 const tabsStyle = { display: 'flex', gap: '0.5rem', marginBottom: '1rem' };
 const tabButtonStyle = {
   background: '#111827',
@@ -2862,6 +3262,21 @@ const panelStyle = {
   padding: '0.9rem',
 };
 const panelTitleStyle = { margin: '0 0 0.7rem 0' };
+const liveBoardHeaderStyle = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: '0.75rem',
+  flexWrap: 'wrap',
+};
+const liveBoardPickOrderControlStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.45rem',
+  flexWrap: 'wrap',
+  marginBottom: '0.7rem',
+  marginLeft: 'auto',
+};
 const draftTabStackStyle = {
   display: 'grid',
   gap: '1rem',

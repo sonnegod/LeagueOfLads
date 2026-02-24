@@ -11,6 +11,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
+const STEAM_ID64_BASE = BigInt('76561197960265728');
 
 function resolveActiveLeague() {
   const active = db.getActiveLeague();
@@ -23,11 +24,54 @@ function resolveActiveLeague() {
 
   return leagueId;
 }
-const DRAFT_ADMIN_PLAYER_ID = '49219700';
+const DRAFT_ADMIN_PLAYER_ID = process.env.ADMIN_ID || '49219700';
 
 function toNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function resolveAccountIdFromSteamId(steamId64) {
+  return (BigInt(steamId64) - STEAM_ID64_BASE).toString();
+}
+
+function hasDraftAccess(accountId) {
+  if (!accountId) return false;
+  const row = db.queryDatabase(
+    `
+    SELECT 1
+    FROM DraftAccess
+    WHERE PlayerId = ?
+    LIMIT 1
+    `,
+    [accountId]
+  )[0];
+  return !!row;
+}
+
+function checkDraftGodAccess(req, res, next) {
+  if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: 'Unauthorized: not logged in' });
+  }
+
+  try {
+    const accountId = resolveAccountIdFromSteamId(req.user.id);
+    let canDraftGod = typeof req.session?.canDraftGod === 'boolean'
+      ? req.session.canDraftGod
+      : hasDraftAccess(accountId);
+
+    if (req.session && typeof req.session.canDraftGod !== 'boolean') {
+      req.session.canDraftGod = canDraftGod;
+    }
+
+    if (!canDraftGod) {
+      return res.status(403).json({ error: 'Forbidden: draft access denied' });
+    }
+    return next();
+  } catch (err) {
+    console.error('Error in draft access middleware:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 }
 
 router.get('/auth/steam',
@@ -38,21 +82,51 @@ router.get('/auth/steam/return',
   passport.authenticate('steam', { failureRedirect: '/' }),
   (req, res) => {
     db.login(req.user.displayName, req.user.id, new Date().toISOString());
-    if(process.env.ENVIRONMENT === 'DEV')
-      res.redirect(`http://localhost:${process.env.FRONTEND_PORT}/dashboard`);
-    else if(process.env.ENVIRONMENT === 'PROD')
-      res.redirect(`https://www.leagueoflads.com/dashboard`); 
+    const accountId = resolveAccountIdFromSteamId(req.user.id);
+    const canDraftGod = hasDraftAccess(accountId);
+
+    const redirectToDashboard = () => {
+      if (process.env.ENVIRONMENT === 'DEV') {
+        res.redirect(`http://localhost:${process.env.FRONTEND_PORT}/dashboard`);
+      } else if (process.env.ENVIRONMENT === 'PROD') {
+        res.redirect(`https://www.leagueoflads.com/dashboard`);
+      } else {
+        res.redirect('/dashboard');
+      }
+    };
+
+    if (!req.session) {
+      redirectToDashboard();
+      return;
+    }
+
+    req.session.accountId = accountId;
+    req.session.canDraftGod = canDraftGod;
+    req.session.save(() => {
+      redirectToDashboard();
+    });
   }
 );
 
 router.get('/auth/user', (req, res) => {
   if (req.isAuthenticated() && req.user) {
+    const accountId = resolveAccountIdFromSteamId(req.user.id);
+    let canDraftGod = typeof req.session?.canDraftGod === 'boolean'
+      ? req.session.canDraftGod
+      : hasDraftAccess(accountId);
+
+    if (req.session && typeof req.session.canDraftGod !== 'boolean') {
+      req.session.canDraftGod = canDraftGod;
+    }
+
     // You can customize what user info to send here
     res.json({
       steamid: req.user.id,
+      accountId,
       personaname: req.user.displayName,
       avatar: req.user.photos[2]?.value || req.user.photos[0]?.value,
       profileurl: req.user._json?.profileurl || '',
+      canDraftGod,
     });
   } else {
     res.status(401).json({ error: 'Not logged in' });
@@ -111,7 +185,7 @@ router.get('/admin', checkAdmin, (req, res) => {
   res.json({ message: 'Welcome to the admin portal!' });
 });
 
-router.get('/draftgod', checkAdmin, (req, res) => {
+router.get('/draftgod', checkDraftGodAccess, (req, res) => {
   try {
     const leagueId = toNumber(req.query.leagueId || resolveActiveLeague(), null);
 
@@ -138,6 +212,7 @@ router.get('/draftgod', checkAdmin, (req, res) => {
         opponentPlayerHeroRows: [],
         ourPublicHeroRows: [],
         opponentPublicHeroRows: [],
+        publicHeroBaselineRows: [],
       });
     }
 
@@ -363,22 +438,35 @@ router.get('/draftgod', checkAdmin, (req, res) => {
       return dbPublic.queryDatabase(
         `
         SELECT
+          pmp.MatchId,
           pmp.PlayerId,
           pmp.HeroId,
-          COUNT(*) AS Games,
-          SUM(pmp.Won) AS Wins,
-          ROUND(100.0 * SUM(pmp.Won) / COUNT(*), 2) AS WinRate,
-          MAX(pmp.DateCreated) AS LastMatchDate
+          pmp.Won,
+          pmp.DateCreated
         FROM PublicMatchPlayer pmp
         WHERE pmp.PlayerId IN (${playerPlaceholders})
           AND pmp.DateCreated IS NOT NULL
           AND datetime(pmp.DateCreated) >= datetime('now', '-30 day')
-        GROUP BY pmp.PlayerId, pmp.HeroId
-        ORDER BY pmp.PlayerId ASC, WinRate DESC, Games DESC
+        ORDER BY pmp.PlayerId ASC, pmp.DateCreated DESC, pmp.MatchId DESC
         `,
         [...playerIds]
       );
     };
+
+    const getPublicHeroBaselineRows = () =>
+      dbPublic.queryDatabase(
+        `
+        SELECT
+          pmp.HeroId,
+          COUNT(*) AS Games,
+          SUM(pmp.Won) AS Wins
+        FROM PublicMatchPlayer pmp
+        WHERE pmp.DateCreated IS NOT NULL
+          AND datetime(pmp.DateCreated) >= datetime('now', '-30 day')
+        GROUP BY pmp.HeroId
+        ORDER BY Games DESC
+        `
+      );
 
     const ourPlayerIds = ourRoster.map((row) => toNumber(row.PlayerId)).filter((id) => id > 0);
     const opponentPlayerIds = opponentRoster
@@ -454,20 +542,23 @@ router.get('/draftgod', checkAdmin, (req, res) => {
       ourPlayerHeroRows: getPlayerHeroRows(ourPlayerIds),
       opponentPlayerHeroRows: getPlayerHeroRows(opponentPlayerIds),
       ourPublicHeroRows: getPublicHeroRows(ourPlayerIds).map((row) => ({
+        MatchId: toNumber(row.MatchId),
         PlayerId: toNumber(row.PlayerId),
         HeroId: toNumber(row.HeroId),
-        Games: toNumber(row.Games),
-        Wins: toNumber(row.Wins),
-        WinRate: toNumber(row.WinRate),
-        LastMatchDate: row.LastMatchDate || null,
+        Won: toNumber(row.Won),
+        DateCreated: row.DateCreated || null,
       })),
       opponentPublicHeroRows: getPublicHeroRows(opponentPlayerIds).map((row) => ({
+        MatchId: toNumber(row.MatchId),
         PlayerId: toNumber(row.PlayerId),
+        HeroId: toNumber(row.HeroId),
+        Won: toNumber(row.Won),
+        DateCreated: row.DateCreated || null,
+      })),
+      publicHeroBaselineRows: getPublicHeroBaselineRows().map((row) => ({
         HeroId: toNumber(row.HeroId),
         Games: toNumber(row.Games),
         Wins: toNumber(row.Wins),
-        WinRate: toNumber(row.WinRate),
-        LastMatchDate: row.LastMatchDate || null,
       })),
     });
   } catch (err) {
