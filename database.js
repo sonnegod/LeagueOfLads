@@ -564,9 +564,22 @@ class DBInstance {
                 ps.Seed,
                 ps.Bracket
             FROM PlayoffSeeding ps
+            JOIN (
+                SELECT LeagueId, TeamId, MAX(UID) AS LatestUid
+                FROM PlayoffSeeding
+                GROUP BY LeagueId, TeamId
+            ) latest ON latest.LatestUid = ps.UID
             JOIN LeagueInfo li on ps.LeagueId = li.LeagueId
             JOIN TeamInfo ti on ti.TeamId = ps.TeamId
             WHERE li.Active = 1
+            ORDER BY
+                CASE ps.Bracket
+                    WHEN 'upper' THEN 0
+                    WHEN 'lower' THEN 1
+                    ELSE 2
+                END,
+                ps.Seed,
+                ti.TeamName
             `)
     }
 
@@ -849,6 +862,9 @@ class DBInstance {
                 })
             );
 
+            const leagueIds = [...new Set(groupsWithTeams.map(group => group.LeagueId))];
+            leagueIds.forEach((leagueId) => this.clearPlayoffSeeding(leagueId));
+
             groupsWithTeams.forEach(group => {
                 group.teams.forEach((team,idx) => {
                     const seedNumber = idx + 1;
@@ -861,6 +877,13 @@ class DBInstance {
             } catch (err) {
             console.error(err);
         }
+    }
+
+    clearPlayoffSeeding(leagueId){
+        this.db.prepare(`
+            DELETE FROM PlayoffSeeding
+            WHERE LeagueId = ?
+        `).run(leagueId);
     }
 
     insertBracket(bracket){
