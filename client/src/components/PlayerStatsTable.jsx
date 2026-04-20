@@ -2,14 +2,12 @@ import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
 export default function PlayerStatsTable({ data }) {
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'MatchId', direction: 'desc' });
 
   if (!data || data.length === 0) return <div>No player data available.</div>;
 
   // Sorting function
   const sortedData = useMemo(() => {
-    if (!sortConfig.key) return data;
-
     return [...data].sort((a, b) => {
       let aVal = a[sortConfig.key];
       let bVal = b[sortConfig.key];
