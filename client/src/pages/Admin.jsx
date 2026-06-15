@@ -8,6 +8,7 @@ import TeamGroupEditor from "../components/TeamGroupEditor";
 import DeleteMatchCard from "../components/DeleteMatchCard";
 import PlayoffAdminPanel from "../components/PlayoffAdminPanel";
 import PlayoffBracketEditor from "../components/PlayoffBracketEditor";
+import LeagueAdminPanel from "../components/LeagueAdminPanel";
 
 
 export default function AdminPage() {
@@ -15,9 +16,7 @@ export default function AdminPage() {
   const [adminData, setAdminData] = useState(null);
   const [error, setError] = useState(null);
 
-  const [stageInfo, setStageInfo] = useState(null);
-
-  const [activeTab, setActiveTab] = useState("editor"); // editor | playoffs
+  const [activeTab, setActiveTab] = useState("editor"); // editor | playoffs | admin
 
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -51,14 +50,21 @@ export default function AdminPage() {
           style={activeTab === "editor" ? tabActiveStyle : tabButtonStyle}
           onClick={() => setActiveTab("editor")}
         >
-          Editor Page
+          Editor Tab
         </button>
 
         <button
           style={activeTab === "playoffs" ? tabActiveStyle : tabButtonStyle}
           onClick={() => setActiveTab("playoffs")}
         >
-          Playoff Page
+          Playoff Tab
+        </button>
+
+        <button
+          style={activeTab === "admin" ? tabActiveStyle : tabButtonStyle}
+          onClick={() => setActiveTab("admin")}
+        >
+          Admin Tab
         </button>
       </div>
 
@@ -86,6 +92,8 @@ export default function AdminPage() {
             <PlayoffBracketEditor />
           </div>
         )}
+
+        {activeTab === "admin" && <LeagueAdminPanel />}
     </div>
   );
 }
