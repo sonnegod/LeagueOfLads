@@ -503,9 +503,26 @@ class DBInstance {
 
     getActiveLeague(){
         return this.queryDatabase(`
-            SELECT LeagueId 
+            SELECT LeagueId, LeagueName
             FROM LeagueInfo 
             WHERE Active = 1`);
+    }
+
+    InsertNewLeague(leagueId, leagueName){
+        const insertLeague = this.db.transaction((id, name) => {
+            this.db.prepare(`
+                INSERT INTO LeagueInfo (LeagueId, LeagueName, Active)
+                VALUES (?, ?, 1)
+            `).run(id, name);
+
+            return this.db.prepare(`
+                SELECT LeagueId, LeagueName, Active
+                FROM LeagueInfo
+                WHERE LeagueId = ?
+            `).get(id);
+        });
+
+        return insertLeague(leagueId, leagueName);
     }
 
     getActiveLeagueBoundaries(){

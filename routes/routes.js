@@ -185,6 +185,42 @@ router.get('/admin', checkAdmin, (req, res) => {
   res.json({ message: 'Welcome to the admin portal!' });
 });
 
+router.get('/admin/activeLeague', checkAdmin, (req, res) => {
+  try {
+    const league = db.getActiveLeague()?.[0] || null;
+    res.json({ league });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load active league' });
+  }
+});
+
+router.post('/admin/leagues', checkAdmin, (req, res) => {
+  const { leagueId: rawLeagueId, leagueName: rawLeagueName } = req.body || {};
+  const leagueId = Number(rawLeagueId);
+  const leagueName = String(rawLeagueName || '').trim();
+
+  if (!Number.isSafeInteger(leagueId) || leagueId <= 0) {
+    return res.status(400).json({ error: 'League ID must be a positive integer' });
+  }
+
+  if (!leagueName || leagueName.length > 60) {
+    return res.status(400).json({ error: 'League name must be between 1 and 60 characters' });
+  }
+
+  try {
+    const league = db.InsertNewLeague(leagueId, leagueName);
+    return res.status(201).json({ success: true, league });
+  } catch (err) {
+    if (err.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: `League ID ${leagueId} already exists` });
+    }
+
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to add league' });
+  }
+});
+
 router.get('/draftgod', checkDraftGodAccess, (req, res) => {
   try {
     const leagueId = toNumber(req.query.leagueId || resolveActiveLeague(), null);
