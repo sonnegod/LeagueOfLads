@@ -1,25 +1,26 @@
 import db from './database.js';
 import apiUrl from './apiURL.js';
 
-console.log("Beginning match detail load");
-
 let matchDetailCallsToday = 0;
 const MAX_CALLS_PER_DAY = 2000;
 const MIN_INTERVAL_MS = 1000; // 1 call per second
 
 const knownPlayers = new Set(db.preloadedData.users.map(p => p.PlayerId));
+const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
 
-const unparsedMatches = db.getUnParsedMatchIds(); // This should return a Set or Array of MatchIds already processed
-console.log(`${unparsedMatches.length} Matches that need to be parsed by Open Dota`);
+if (!leagueId) {
+    console.log("No active league. Skipping match detail load.");
+} else {
+    console.log("Beginning match detail load");
 
-const stage = db.getStage();
-const currentStage = stage[0].Stage;
+    const unparsedMatches = db.getUnParsedMatchIds();
+    console.log(`${unparsedMatches.length} Matches that need to be parsed by Open Dota`);
 
-const leagueId = db.getCurrentLeague();
+    const currentStage = db.getStage()?.[0]?.Stage || 'g';
+    getMatchDetails(unparsedMatches, currentStage, leagueId);
+}
 
-getMatchDetails(unparsedMatches);
-
-async function getMatchDetails(matches){
+async function getMatchDetails(matches, currentStage, leagueId){
     const badMatches = [];
 
     for(const match of matches){
@@ -122,7 +123,7 @@ async function getMatchDetails(matches){
                         data.dire_team_id, 
                         data.radiant_team_id, 
                         currentStage, 
-                        leagueId[0].LeagueId, 
+                        leagueId,
                         yesterdaysDate
                     );
 

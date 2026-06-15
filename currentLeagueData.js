@@ -4,13 +4,16 @@ import apiURL from './apiURL.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
-console.log("Beginning load of new matches")
-
 async function runRecentMatches() {
-    const leagueId = db.getCurrentLeague();
+    const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+    if (!leagueId) {
+      console.log('No active league. Skipping current league match load.');
+      return;
+    }
 
-    const result = await checkMatches(leagueId[0].LeagueId);
-    console.log(`Completed pulling recent matchs for League ${leagueId[0].LeagueId}, ${result.totalNewMatches} new matches.`);
+    console.log("Beginning load of new matches");
+    const result = await checkMatches(leagueId);
+    console.log(`Completed pulling recent matchs for League ${leagueId}, ${result.totalNewMatches} new matches.`);
 }
 
 runRecentMatches();

@@ -23,6 +23,15 @@ LOG_FILE="$LOG_DIR/log_$(date +%F).txt"
 
 echo "$(date) - Starting nightly jobs" >> "$LOG_FILE"
 
+ACTIVE_LEAGUE_ID="$(/usr/bin/node /root/LeagueOfLads/getActiveLeagueId.js)"
+
+if [ -z "$ACTIVE_LEAGUE_ID" ]; then
+    echo "$(date) - No active league. Skipping nightly jobs." >> "$LOG_FILE"
+    exit 0
+fi
+
+echo "$(date) - Active league: $ACTIVE_LEAGUE_ID" >> "$LOG_FILE"
+
 /usr/bin/node /root/LeagueOfLads/currentLeagueData.js >> "$LOG_FILE" 2>&1
 /usr/bin/node /root/LeagueOfLads/matchDetails.js >> "$LOG_FILE" 2>&1
 /usr/bin/node /root/LeagueOfLads/populateTeamNames.js >> "$LOG_FILE" 2>&1
