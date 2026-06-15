@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import LeagueFilter from '../components/LeagueFilter';
 import { useLeagues } from '../context/LeagueContext';
+import HeroDisplay from '../components/HeroDisplay';
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState([]);
@@ -197,7 +198,7 @@ export default function TeamsPage() {
                                       {p.heroes?.map((h, idx) => (
                                         <tr key={idx}>
                                           <td style={tdStyle}>
-                                            <Link to={`/hero/${h.HeroId}`}>{h.HeroName}</Link>
+                                            <HeroDisplay heroId={h.HeroId} heroName={h.HeroName} />
                                           </td>
                                           <td style={tdStyle}>{h.GamesPlayed}</td>
                                           <td style={tdStyle}>{h.WinPercentage.toFixed(2)}%</td>

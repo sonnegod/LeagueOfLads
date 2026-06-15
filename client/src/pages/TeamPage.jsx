@@ -4,6 +4,7 @@ import TeamRecentMatches from '../components/TeamRecentMatches';
 import TeamAverages from '../components/TeamAverages';
 import TeamPlayers from '../components/TeamPlayers';
 import LeagueFilter from '../components/LeagueFilter';
+import HeroDisplay from '../components/HeroDisplay';
 
 
 export default function TeamPage() {
@@ -90,7 +91,7 @@ export default function TeamPage() {
             {heroes.map(hero => (
               <tr key={hero.HeroId}>
                 <td style={tdStyle}>
-                  <Link to={`/hero/${hero.HeroId}`}>{hero.HeroName}</Link>
+                  <HeroDisplay heroId={hero.HeroId} heroName={hero.HeroName} />
                   </td>
                 <td style={tdCenter}>{hero.GamesPlayed}</td>
                 <td style={tdCenter}>{hero.WinPercentage?.toFixed(2)}%</td>

@@ -5,6 +5,7 @@ import CurrentLeagueSeries from "../components/CurrentLeagueSeries";
 import CurrentLeaderboardTable from "../components/CurrentLeaderboardTable";
 import TieBreakerView from "../components/TieBreakerView";
 import CurrentPlayoffBracketView from "../components/CurrentPlayoffBracketView";
+import HeroDisplay from "../components/HeroDisplay";
 
 export default function LeaguePage() {
   const { leagueId } = useParams();
@@ -210,7 +211,7 @@ export default function LeaguePage() {
                               )}
                               <tr>
                                 <td style={tdStyle}><Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link></td>
-                                <td style={tdStyle}><Link to={`/hero/${p.HeroId}`}>{p.HeroName}</Link></td>
+                                <td style={tdStyle}><HeroDisplay heroId={p.HeroId} heroName={p.HeroName} /></td>
                                 <td style={tdCenter}>{p.Kills}</td>
                                 <td style={tdCenter}>{p.Deaths}</td>
                                 <td style={tdCenter}>{p.Assists}</td>
@@ -286,7 +287,7 @@ export default function LeaguePage() {
                     style={{ cursor: 'pointer'}}
                 >
                     <td style={tdStyle}>
-                        <Link to={`/hero/${hero.HeroId}`}>{hero.HeroName}</Link>
+                        <HeroDisplay heroId={hero.HeroId} heroName={hero.HeroName} />
                     </td>
                     <td style={tdStyle}>{hero.GamesPlayed}</td>
                     <td style={tdStyle}>{hero.WinPercentage?.toFixed(2)}%</td>

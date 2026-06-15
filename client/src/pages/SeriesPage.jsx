@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import HeroDisplay from '../components/HeroDisplay';
 
 // --- NEW COMPONENT: EXTRACTED MATCH DETAIL VIEW ---
 // This component displays the stats for a single game.
@@ -65,7 +66,7 @@ const MatchDetailsTable = ({ matchData, matchNum, styles }) => {
                             {radiantPlayers.map(p => (
                                 <tr key={p.PlayerId}>
                                     <td style={thTdStyle}><Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link></td>
-                                    <td style={thTdStyle}><Link to={`/hero/${p.HeroId}`}>{p.HeroName}</Link></td>
+                                    <td style={thTdStyle}><HeroDisplay heroId={p.HeroId} heroName={p.HeroName} /></td>
                                     <td style={thTdStyle}>{p.Kills}</td>
                                     <td style={thTdStyle}>{p.Deaths}</td>
                                     <td style={thTdStyle}>{p.Assists}</td>
@@ -106,7 +107,7 @@ const MatchDetailsTable = ({ matchData, matchNum, styles }) => {
                             {direPlayers.map(p => (
                                 <tr key={p.PlayerId}>
                                     <td style={thTdStyle}><Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link></td>
-                                    <td style={thTdStyle}><Link to={`/hero/${p.HeroId}`}>{p.HeroName}</Link></td>
+                                    <td style={thTdStyle}><HeroDisplay heroId={p.HeroId} heroName={p.HeroName} /></td>
                                     <td style={thTdStyle}>{p.Kills}</td>
                                     <td style={thTdStyle}>{p.Deaths}</td>
                                     <td style={thTdStyle}>{p.Assists}</td>
@@ -148,7 +149,7 @@ const MatchDetailsTable = ({ matchData, matchNum, styles }) => {
                             </td>
                             <td style={thTdStyle}>{pb.IsPick ? 'Pick' : 'Ban'}</td>
                             <td style={thTdStyle}>
-                                <Link to={`/hero/${pb.HeroId}`}>{pb.HeroName}</Link>
+                                <HeroDisplay heroId={pb.HeroId} heroName={pb.HeroName} iconSize={40} />
                             </td>
                             </tr>
                         ))}

@@ -1,6 +1,7 @@
 // src/pages/MatchPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import HeroDisplay from '../components/HeroDisplay';
 
 export default function MatchPage() {
   const { matchId } = useParams();
@@ -78,7 +79,7 @@ export default function MatchPage() {
               {radiantPlayers.map(p => (
                 <tr key={p.PlayerId}>
                   <td style={thTdStyle}><Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link></td>
-                  <td style={thTdStyle}><Link to={`/hero/${p.HeroId}`}>{p.HeroName}</Link></td>
+                  <td style={thTdStyle}><HeroDisplay heroId={p.HeroId} heroName={p.HeroName} /></td>
                   <td style={thTdStyle}>{p.Kills}</td>
                   <td style={thTdStyle}>{p.Deaths}</td>
                   <td style={thTdStyle}>{p.Assists}</td>
@@ -119,7 +120,7 @@ export default function MatchPage() {
               {direPlayers.map(p => (
                 <tr key={p.PlayerId}>
                   <td style={thTdStyle}><Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link></td>
-                  <td style={thTdStyle}><Link to={`/hero/${p.HeroId}`}>{p.HeroName}</Link></td>
+                  <td style={thTdStyle}><HeroDisplay heroId={p.HeroId} heroName={p.HeroName} /></td>
                   <td style={thTdStyle}>{p.Kills}</td>
                   <td style={thTdStyle}>{p.Deaths}</td>
                   <td style={thTdStyle}>{p.Assists}</td>
@@ -166,7 +167,7 @@ export default function MatchPage() {
                           </td>
                           <td style={thTdStyle}>{pb.IsPick ? 'Pick' : 'Ban'}</td>
                           <td style={thTdStyle}>
-                            <Link to={`/hero/${pb.HeroId}`}>{pb.HeroName}</Link>
+                            <HeroDisplay heroId={pb.HeroId} heroName={pb.HeroName} iconSize={40} />
                           </td>
                         </tr>
                       ))}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import PlayerStatsTable from "../components/PlayerStatsTable";
 import { Link } from 'react-router-dom';
+import HeroDisplay from '../components/HeroDisplay';
 
 export default function PlayerPage() {
   const { player_id } = useParams(); // gets :player_id from URL
@@ -66,7 +67,7 @@ export default function PlayerPage() {
             {playerHeroStats.map(hero => (
               <tr key={hero.HeroId}>
                 <td style={tdStyle}>
-                  <Link to={`/hero/${hero.HeroId}`}>{hero.HeroName}</Link>
+                  <HeroDisplay heroId={hero.HeroId} heroName={hero.HeroName} />
                 </td>
                 <td style={tdStyle}>{hero.GamesPlayed}</td>
                 <td style={tdStyle}>{hero.WinPercentage?.toFixed(2)}%</td>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import LeagueFilter from '../components/LeagueFilter';
 import { useLeagues } from '../context/LeagueContext';
+import HeroDisplay from '../components/HeroDisplay';
 
 export default function MatchesPage() {
   const [matches, setMatches] = useState([]);
@@ -138,7 +139,7 @@ export default function MatchesPage() {
                               }}
                             >
                               <td style={tdStyle}><Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link></td>
-                              <td style={tdStyle}><Link to={`/hero/${p.HeroId}`}>{p.HeroName}</Link></td>
+                              <td style={tdStyle}><HeroDisplay heroId={p.HeroId} heroName={p.HeroName} /></td>
                               <td style={tdCenter}>{p.Kills}/{p.Deaths}/{p.Assists}</td>
                               <td style={tdCenter}>{p.Lasthits}</td>
                               <td style={tdCenter}>{p.GPM}</td>

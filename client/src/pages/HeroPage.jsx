@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import HeroStatsTable from "../components/HeroStatsTable";
 import { Link } from 'react-router-dom';
+import HeroDisplay from '../components/HeroDisplay';
 
 
 export default function HeroPage() {
@@ -38,7 +39,9 @@ export default function HeroPage() {
     <div style={{ padding: '1rem' }}>
       {/* Dark page container to avoid white panels */}
       <div style={{ padding: '1rem', backgroundColor: '#0f1112', color: '#e6e6e6', borderRadius: 8 }}>
-        <h1 style={{ marginTop: 0 }}>{hero[0]?.HeroName || hero_id}</h1>
+        <h1 style={{ marginTop: 0 }}>
+          <HeroDisplay heroId={hero_id} heroName={hero[0]?.HeroName || hero_id} iconSize={64} link={false} />
+        </h1>
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
