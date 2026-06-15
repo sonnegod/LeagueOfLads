@@ -10,8 +10,14 @@ mkdir -p "$LOG_DIR"
 # Move existing nightly logs from the shared root into their own section.
 find "$LOG_ROOT" -maxdepth 1 -type f -name 'log_*.txt' -exec mv {} "$LOG_DIR/" \;
 
-# Keep today's log and the previous six days.
-find "$LOG_DIR" -maxdepth 1 -type f -name 'log_*.txt' -mtime +6 -delete
+# Keep today's log and the previous six calendar days.
+CUTOFF_DATE="$(date -d '6 days ago' +%F)"
+for file in "$LOG_DIR"/log_*.txt; do
+    [ -e "$file" ] || continue
+    FILE_DATE="${file##*/log_}"
+    FILE_DATE="${FILE_DATE%.txt}"
+    [[ "$FILE_DATE" < "$CUTOFF_DATE" ]] && rm -- "$file"
+done
 
 LOG_FILE="$LOG_DIR/log_$(date +%F).txt"
 
