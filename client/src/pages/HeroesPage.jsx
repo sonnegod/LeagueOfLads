@@ -1,6 +1,7 @@
 // src/pages/HeroesPage.jsx
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import HeroDisplay from '../components/HeroDisplay';
 
 export default function HeroesPage() {
   const [heroes, setHeroes] = useState([]);
@@ -35,7 +36,13 @@ export default function HeroesPage() {
         <div style={gridStyle}>
           {heroes.map(hero => (
             <Link key={hero.HeroId} to={`/hero/${hero.HeroId}`} style={heroLinkStyleDark}>
-              {hero.HeroName}
+              <HeroDisplay
+                heroId={hero.HeroId}
+                heroName={hero.HeroName}
+                iconSize={48}
+                link={false}
+                style={{ flexDirection: 'column' }}
+              />
             </Link>
           ))}
         </div>
@@ -52,19 +59,11 @@ const gridStyle = {
   marginTop: '1rem',
 };
 
-const heroLinkStyle = {
-  padding: '0.5rem',
-  border: '1px solid #ccc',
-  borderRadius: '6px',
-  textAlign: 'center',
-  textDecoration: 'none',
-  color: '#646cff',
-  fontWeight: 500,
-};
-
 // Dark variant used on Heroes page to ensure white border / dark bg
 const heroLinkStyleDark = {
-  display: 'block',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   padding: '0.6rem',
   border: '1px solid #ffffff',
   borderRadius: '6px',

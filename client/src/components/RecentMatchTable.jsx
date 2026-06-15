@@ -1,6 +1,7 @@
 // src/components/RecentMatchTable.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import HeroDisplay from './HeroDisplay';
 
 
 import {
@@ -203,7 +204,7 @@ function PlayerTable({ players }) {
                   <Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link>
               </td>
               <td style={{ textAlign: 'center' }}>
-                  <Link to={`/hero/${p.HeroId}`}>{p.HeroName}</Link>
+                  <HeroDisplay heroId={p.HeroId} heroName={p.HeroName} />
               </td>
               <td style={{ textAlign: 'center' }}>{p.Kills}</td>
               <td style={{ textAlign: 'center' }}>{p.Deaths}</td>

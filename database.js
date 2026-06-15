@@ -1448,7 +1448,7 @@ class DBInstance {
 
     getMatchPickBanInformation(matchId){
         return this.queryDatabase(
-            `SELECT pi.IsPick,pi.Hero_Id,pi.OrderNum,hi.HeroName, pi.Team
+            `SELECT pi.IsPick, pi.Hero_Id AS HeroId, pi.OrderNum, hi.HeroName, pi.Team
              FROM PickInfo pi
              JOIN HeroInfo hi on pi.Hero_Id = hi.HeroId
              WHERE MatchId = ?`,

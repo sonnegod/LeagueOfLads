@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import HeroDisplay from './HeroDisplay';
 
 export default function PlayerStatsTable({ data }) {
   const [sortConfig, setSortConfig] = useState({ key: 'MatchId', direction: 'desc' });
@@ -63,7 +64,7 @@ export default function PlayerStatsTable({ data }) {
               <Link to={`/match/${player.MatchId}`}>{player.MatchId}</Link>
             </td>
             <td style={tdStyle}>
-              <Link to={`/hero/${player.HeroId}`}>{player.HeroName}</Link>
+              <HeroDisplay heroId={player.HeroId} heroName={player.HeroName} />
             </td>
             <td style={tdCenter}>{player.Kills}</td>
             <td style={tdCenter}>{player.Deaths}</td>

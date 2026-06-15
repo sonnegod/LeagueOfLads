@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { HeroCard } from "./HeroCard";
+import HeroDisplay from "./HeroDisplay";
 
 export function PersonalStats({ accountId }) {
   const [playerData, setPlayerData] = useState(null);
@@ -33,6 +34,7 @@ export function PersonalStats({ accountId }) {
                 {playerData.recentLeagueStats.length ? playerData.recentLeagueStats.map((match) => {
                   const {
                     HeroName,
+                    HeroId,
                     Kills,
                     Deaths,
                     Assists,
@@ -43,11 +45,8 @@ export function PersonalStats({ accountId }) {
                   return (
                     <div className="flex-col mr-4">
                       <div className="text-center">
-                        <a
-                          href={`/match/${MatchId}`}
-                          className="text-center"
-                        >
-                          {HeroName}
+                        <a href={`/match/${MatchId}`} className="text-center">
+                          <HeroDisplay heroId={HeroId} heroName={HeroName} link={false} />
                         </a>
                       </div>
                       <div className="text-center">
