@@ -21,6 +21,7 @@ crontab -l
 
 cd .. 
 pm2 start /root/LeagueOfLads/index.js --name LeagueOfLads
+pm2 start pollLiveMatchData.js --name dota-live-poller
 ----
 
 FOR UPDATING SeriesInfo when the job doesnt catch all matches

@@ -525,6 +525,119 @@ class DBInstance {
         return insertLeague(leagueId, leagueName);
     }
 
+    getLiveMatchCurrentState(matchId){
+        return this.db.prepare(`
+            SELECT MatchId, SnapshotHash
+            FROM LiveMatchCurrentState
+            WHERE MatchId = ?
+        `).get(matchId);
+    }
+
+    insertLiveMatchSnapshot(matchData){
+        return this.db.prepare(`
+            INSERT INTO LiveMatchSnapshots (
+                MatchId,
+                LeagueId,
+                LobbyId,
+                RadiantTeamId,
+                DireTeamId,
+                RadiantScore,
+                DireScore,
+                GameDuration,
+                StreamDelaySeconds,
+                SnapshotHash,
+                ResponseJson
+            )
+            VALUES (
+                @MatchId,
+                @LeagueId,
+                @LobbyId,
+                @RadiantTeamId,
+                @DireTeamId,
+                @RadiantScore,
+                @DireScore,
+                @GameDuration,
+                @StreamDelaySeconds,
+                @SnapshotHash,
+                @ResponseJson
+            )
+        `).run({
+            MatchId: matchData.MatchId,
+            LeagueId: matchData.LeagueId,
+            LobbyId: matchData.LobbyId,
+            RadiantTeamId: matchData.RadiantTeamId,
+            DireTeamId: matchData.DireTeamId,
+            RadiantScore: matchData.RadiantScore,
+            DireScore: matchData.DireScore,
+            GameDuration: matchData.GameDuration,
+            StreamDelaySeconds: matchData.StreamDelaySeconds,
+            SnapshotHash: matchData.SnapshotHash,
+            ResponseJson: matchData.ResponseJson
+        });
+    }
+
+    upsertLiveMatchCurrentState(matchData){
+        return this.db.prepare(`
+            INSERT INTO LiveMatchCurrentState (
+                MatchId,
+                LeagueId,
+                LobbyId,
+                RadiantTeamId,
+                DireTeamId,
+                RadiantTeamName,
+                DireTeamName,
+                RadiantScore,
+                DireScore,
+                GameDuration,
+                StreamDelaySeconds,
+                SnapshotHash,
+                ResponseJson
+            )
+            VALUES (
+                @MatchId,
+                @LeagueId,
+                @LobbyId,
+                @RadiantTeamId,
+                @DireTeamId,
+                @RadiantTeamName,
+                @DireTeamName,
+                @RadiantScore,
+                @DireScore,
+                @GameDuration,
+                @StreamDelaySeconds,
+                @SnapshotHash,
+                @ResponseJson
+            )
+            ON CONFLICT(MatchId) DO UPDATE SET
+                LeagueId = excluded.LeagueId,
+                LobbyId = excluded.LobbyId,
+                RadiantTeamId = excluded.RadiantTeamId,
+                DireTeamId = excluded.DireTeamId,
+                RadiantTeamName = excluded.RadiantTeamName,
+                DireTeamName = excluded.DireTeamName,
+                RadiantScore = excluded.RadiantScore,
+                DireScore = excluded.DireScore,
+                GameDuration = excluded.GameDuration,
+                StreamDelaySeconds = excluded.StreamDelaySeconds,
+                SnapshotHash = excluded.SnapshotHash,
+                ResponseJson = excluded.ResponseJson,
+                LastUpdated = CURRENT_TIMESTAMP
+        `).run(matchData);
+    }
+
+    recordLiveMatchSnapshot(matchData){
+        const recordSnapshot = this.db.transaction((data) => {
+            const currentState = this.getLiveMatchCurrentState(data.MatchId);
+            if (currentState?.SnapshotHash === data.SnapshotHash) return false;
+
+            this.insertLiveMatchSnapshot(data);
+            this.upsertLiveMatchCurrentState(data);
+            return true;
+        });
+
+        return recordSnapshot(matchData);
+    }
+
     getActiveLeagueBoundaries(){
         return this.queryDatabase(`
                 SELECT lsb.LeagueId, lsb.GroupEndMatchId, lsb.TieBreakerEndMatchId
