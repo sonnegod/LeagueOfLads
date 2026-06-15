@@ -3,14 +3,18 @@ set -e
 
 cd /root/LeagueOfLads
 
-# Ensure log directory exists
-LOG_DIR="/root/LeagueOfLads/Logs"
+LOG_ROOT="/root/LeagueOfLads/Logs"
+LOG_DIR="$LOG_ROOT/League"
 mkdir -p "$LOG_DIR"
 
-# Filename in format log_YYYY-MM-DD.txt
+# Move existing nightly logs from the shared root into their own section.
+find "$LOG_ROOT" -maxdepth 1 -type f -name 'log_*.txt' -exec mv {} "$LOG_DIR/" \;
+
+# Keep today's log and the previous six days.
+find "$LOG_DIR" -maxdepth 1 -type f -name 'log_*.txt' -mtime +6 -delete
+
 LOG_FILE="$LOG_DIR/log_$(date +%F).txt"
 
-# Run both jobs, redirecting stdout+stderr into log file
 echo "$(date) - Starting nightly jobs" >> "$LOG_FILE"
 
 /usr/bin/node /root/LeagueOfLads/currentLeagueData.js >> "$LOG_FILE" 2>&1
