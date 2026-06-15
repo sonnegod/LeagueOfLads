@@ -21,6 +21,17 @@ crontab -l
 
 cd .. 
 pm2 start /root/LeagueOfLads/index.js --name LeagueOfLads
+mkdir -p /root/LeagueOfLads/Logs/LiveMatches
+pm2 start /root/LeagueOfLads/pollLiveMatchData.js \
+  --name dota-live-poller \
+  --output /root/LeagueOfLads/Logs/LiveMatches/output.log \
+  --error /root/LeagueOfLads/Logs/LiveMatches/error.log \
+  --time
+
+# One-time PM2 log rotation setup
+pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 10M
+pm2 set pm2-logrotate:retain 14
 ----
 
 FOR UPDATING SeriesInfo when the job doesnt catch all matches
