@@ -6,6 +6,42 @@ dotenv.config();
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
 const POLL_INTERVAL_MS = 10_000;
 const REQUEST_TIMEOUT_MS = 8_000;
+const REPEATED_ERROR_LOG_INTERVAL_MS = 5 * 60_000;
+
+let noActiveLeagueLogged = false;
+let lastErrorMessage = null;
+let lastErrorLoggedAt = 0;
+let lastSkippedMatchWarningAt = 0;
+
+function timestamp() {
+  return new Date().toISOString();
+}
+
+function logRateLimitedError(message, error = null) {
+  const now = Date.now();
+  const shouldLog =
+    message !== lastErrorMessage ||
+    now - lastErrorLoggedAt >= REPEATED_ERROR_LOG_INTERVAL_MS;
+
+  if (!shouldLog) return;
+
+  if (error) {
+    console.error(`[${timestamp()}] ${message}`, error);
+  } else {
+    console.error(`[${timestamp()}] ${message}`);
+  }
+
+  lastErrorMessage = message;
+  lastErrorLoggedAt = now;
+}
+
+function logRecovery() {
+  if (!lastErrorMessage) return;
+
+  console.log(`[${timestamp()}] Live polling recovered.`);
+  lastErrorMessage = null;
+  lastErrorLoggedAt = 0;
+}
 
 function stableStringify(value) {
   if (Array.isArray(value)) {
@@ -101,31 +137,51 @@ async function pollLiveMatches() {
 
   const activeLeagueId = db.getActiveLeague()?.[0]?.LeagueId;
   if (!activeLeagueId) {
-    console.log(`[${new Date().toISOString()}] No active league. Skipping live match poll.`);
+    if (!noActiveLeagueLogged) {
+      console.log(`[${timestamp()}] No active league. Pausing live match API calls.`);
+      noActiveLeagueLogged = true;
+    }
     return;
+  }
+
+  if (noActiveLeagueLogged) {
+    console.log(`[${timestamp()}] Active league ${activeLeagueId} found. Resuming live match polling.`);
+    noActiveLeagueLogged = false;
   }
 
   const games = await getLiveLeagueMatches(activeLeagueId);
   let changedMatches = 0;
+  let skippedMatches = 0;
 
   for (const game of games) {
     const matchData = normalizeLiveMatch(game, activeLeagueId);
     if (!matchData) {
-      console.warn(`[${new Date().toISOString()}] Skipping live game with no match ID.`);
+      skippedMatches += 1;
       continue;
     }
 
     if (db.recordLiveMatchSnapshot(matchData)) changedMatches += 1;
   }
 
-  console.log(`[${new Date().toISOString()}] Live poll complete. Games: ${games.length}, changed: ${changedMatches}.`);
+  if (skippedMatches > 0) {
+    const now = Date.now();
+    if (now - lastSkippedMatchWarningAt >= REPEATED_ERROR_LOG_INTERVAL_MS) {
+      console.warn(`[${timestamp()}] Skipped ${skippedMatches} live game(s) with no valid match ID.`);
+      lastSkippedMatchWarningAt = now;
+    }
+  }
+
+  if (changedMatches > 0) {
+    console.log(`[${timestamp()}] Recorded ${changedMatches} changed live match(es).`);
+  }
 }
 
 async function runPollingLoop() {
   try {
     await pollLiveMatches();
+    logRecovery();
   } catch (err) {
-    console.error(`[${new Date().toISOString()}] Live poll failed:`, err);
+    logRateLimitedError(`Live poll failed: ${err.message}`, err);
   } finally {
     setTimeout(runPollingLoop, POLL_INTERVAL_MS);
   }
