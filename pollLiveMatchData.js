@@ -8,12 +8,14 @@ const STEAM_API_KEY = process.env.STEAM_API_KEY;
 const POLL_INTERVAL_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 8_000;
 const REPEATED_ERROR_LOG_INTERVAL_MS = 5 * 60_000;
+const HEARTBEAT_LOG_INTERVAL_MS = 5 * 60_000;
 const STALE_LIVE_MATCH_SECONDS = 120;
 
 let noActiveLeagueLogged = false;
 let lastErrorMessage = null;
 let lastErrorLoggedAt = 0;
 let lastSkippedMatchWarningAt = 0;
+let lastHeartbeatLoggedAt = 0;
 
 function timestamp() {
   return new Date().toISOString();
@@ -43,6 +45,21 @@ function logRecovery() {
   console.log(`[${timestamp()}] Live polling recovered.`);
   lastErrorMessage = null;
   lastErrorLoggedAt = 0;
+}
+
+function logHeartbeat({ activeLeagueId, gamesCount, changedMatches, skippedMatches, removedMatches }) {
+  const now = Date.now();
+  if (now - lastHeartbeatLoggedAt < HEARTBEAT_LOG_INTERVAL_MS) return;
+
+  console.log(
+    `[${timestamp()}] Live polling heartbeat: ` +
+    `activeLeague=${activeLeagueId}, ` +
+    `games=${gamesCount}, ` +
+    `changed=${changedMatches}, ` +
+    `skipped=${skippedMatches}, ` +
+    `removed=${removedMatches}`
+  );
+  lastHeartbeatLoggedAt = now;
 }
 
 function stableStringify(value) {
@@ -258,7 +275,7 @@ async function pollLiveMatches() {
 
   const removedMatches = db.pruneMissingLiveMatches(
     seenMatchIds,
-    STALE_LIVE_MATCH_SECONDS,
+    games.length === 0 ? 0 : STALE_LIVE_MATCH_SECONDS,
     activeLeagueId
   );
 
@@ -277,6 +294,14 @@ async function pollLiveMatches() {
   if (removedMatches > 0) {
     console.log(`[${timestamp()}] Removed ${removedMatches} stale live match(es) from current state.`);
   }
+
+  logHeartbeat({
+    activeLeagueId,
+    gamesCount: games.length,
+    changedMatches,
+    skippedMatches,
+    removedMatches,
+  });
 }
 
 async function runPollingLoop() {
