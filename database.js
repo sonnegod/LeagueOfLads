@@ -12,11 +12,129 @@ class DBInstance {
                 : '/root/LeagueOfLads/db/LadsData.db';
                 
             this.db = new Database(dbPath);
+            this.ensureLiveMatchSchema();
             this.preloadedData = this.preloadData();
             DBInstance.instance = this;
         }
 
         return DBInstance.instance;
+    }
+
+    ensureLiveMatchSchema(){
+        const ensureColumn = (tableName, columnName, definition) => {
+            const columns = this.db.prepare(`PRAGMA table_info(${tableName})`).all();
+            const exists = columns.some((column) => column.name === columnName);
+            if (!exists) {
+                this.db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`).run();
+            }
+        };
+
+        [
+            'LiveMatchCurrentState',
+            'LiveMatchSnapshots'
+        ].forEach((tableName) => {
+            const table = this.db.prepare(`
+                SELECT name
+                FROM sqlite_master
+                WHERE type = 'table'
+                AND name = ?
+            `).get(tableName);
+
+            if (!table) return;
+
+            ensureColumn(tableName, 'RadiantTowerState', 'INTEGER');
+            ensureColumn(tableName, 'DireTowerState', 'INTEGER');
+            ensureColumn(tableName, 'RadiantBarracksState', 'INTEGER');
+            ensureColumn(tableName, 'DireBarracksState', 'INTEGER');
+        });
+
+        this.db.prepare(`
+            CREATE TABLE IF NOT EXISTS LiveMatchCurrentPlayer (
+                MatchId INTEGER NOT NULL,
+                AccountId INTEGER NOT NULL,
+                PlayerName TEXT,
+                Team INTEGER,
+                PlayerSlot INTEGER,
+                HeroId INTEGER,
+                Kills INTEGER,
+                Deaths INTEGER,
+                Assists INTEGER,
+                LastHits INTEGER,
+                Denies INTEGER,
+                Gold INTEGER,
+                Level INTEGER,
+                GPM INTEGER,
+                XPM INTEGER,
+                NetWorth INTEGER,
+                RespawnTimer INTEGER,
+                PositionX REAL,
+                PositionY REAL,
+                LastUpdated DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (MatchId, AccountId)
+            )
+        `).run();
+
+        this.db.prepare(`
+            CREATE TABLE IF NOT EXISTS LiveMatchSnapshotPlayer (
+                SnapshotId INTEGER NOT NULL,
+                MatchId INTEGER NOT NULL,
+                AccountId INTEGER NOT NULL,
+                PlayerName TEXT,
+                Team INTEGER,
+                PlayerSlot INTEGER,
+                HeroId INTEGER,
+                Kills INTEGER,
+                Deaths INTEGER,
+                Assists INTEGER,
+                LastHits INTEGER,
+                Denies INTEGER,
+                Gold INTEGER,
+                Level INTEGER,
+                GPM INTEGER,
+                XPM INTEGER,
+                NetWorth INTEGER,
+                RespawnTimer INTEGER,
+                PositionX REAL,
+                PositionY REAL,
+                PRIMARY KEY (SnapshotId, AccountId)
+            )
+        `).run();
+
+        this.db.prepare(`
+            CREATE TABLE IF NOT EXISTS LiveMatchCurrentDraft (
+                MatchId INTEGER NOT NULL,
+                RadiantPicksJson TEXT NOT NULL DEFAULT '[]',
+                DirePicksJson TEXT NOT NULL DEFAULT '[]',
+                RadiantBansJson TEXT NOT NULL DEFAULT '[]',
+                DireBansJson TEXT NOT NULL DEFAULT '[]',
+                DraftJson TEXT NOT NULL,
+                LastUpdated DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (MatchId)
+            )
+        `).run();
+
+        this.db.prepare(`
+            CREATE TABLE IF NOT EXISTS LiveMatchSnapshotDraft (
+                SnapshotId INTEGER NOT NULL,
+                MatchId INTEGER NOT NULL,
+                RadiantPicksJson TEXT NOT NULL DEFAULT '[]',
+                DirePicksJson TEXT NOT NULL DEFAULT '[]',
+                RadiantBansJson TEXT NOT NULL DEFAULT '[]',
+                DireBansJson TEXT NOT NULL DEFAULT '[]',
+                DraftJson TEXT NOT NULL,
+                PRIMARY KEY (SnapshotId)
+            )
+        `).run();
+
+        this.db.prepare(`
+            CREATE INDEX IF NOT EXISTS idx_LiveMatchSnapshotPlayer_MatchId_SnapshotId
+            ON LiveMatchSnapshotPlayer (MatchId, SnapshotId)
+        `).run();
+
+        this.db.prepare(`
+            CREATE INDEX IF NOT EXISTS idx_LiveMatchSnapshotDraft_MatchId_SnapshotId
+            ON LiveMatchSnapshotDraft (MatchId, SnapshotId)
+        `).run();
     }
 
     preloadData(){
@@ -533,8 +651,105 @@ class DBInstance {
         `).get(matchId);
     }
 
-    insertLiveMatchSnapshot(matchData){
+    getLiveMatchCount(){
         return this.db.prepare(`
+            SELECT COUNT(*) AS Count
+            FROM LiveMatchCurrentState
+        `).get()?.Count || 0;
+    }
+
+    getLiveMatchCurrentStates(){
+        const matches = this.queryDatabase(`
+            SELECT *
+            FROM LiveMatchCurrentState
+            ORDER BY LastUpdated DESC
+        `);
+
+        return matches.map((match) => ({
+            ...match,
+            Players: this.getLiveMatchCurrentPlayers(match.MatchId),
+            Draft: this.getLiveMatchCurrentDraft(match.MatchId)
+        }));
+    }
+
+    getRecentLiveMatchSnapshots(hours = 4){
+        const recentHours = Number.isFinite(Number(hours)) ? Number(hours) : 4;
+        const snapshots = this.queryDatabase(`
+            SELECT lms.*
+            FROM LiveMatchSnapshots lms
+            JOIN (
+                SELECT MatchId, MAX(SnapshotId) AS LatestSnapshotId
+                FROM LiveMatchSnapshots
+                WHERE CreatedAt >= datetime('now', ?)
+                GROUP BY MatchId
+            ) latest
+                ON latest.LatestSnapshotId = lms.SnapshotId
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM LiveMatchCurrentState lmcs
+                WHERE lmcs.MatchId = lms.MatchId
+            )
+            ORDER BY lms.CreatedAt DESC
+        `, [`-${recentHours} hours`]);
+
+        return snapshots.map((snapshot) => ({
+            ...snapshot,
+            Players: this.getLiveMatchSnapshotPlayers(snapshot.SnapshotId),
+            Draft: this.getLiveMatchSnapshotDraft(snapshot.SnapshotId)
+        }));
+    }
+
+    getLiveMatchSnapshots(matchId){
+        const snapshots = this.queryDatabase(`
+            SELECT *
+            FROM LiveMatchSnapshots
+            WHERE MatchId = ?
+            ORDER BY CreatedAt ASC
+        `, [matchId]);
+
+        return snapshots.map((snapshot) => ({
+            ...snapshot,
+            Players: this.getLiveMatchSnapshotPlayers(snapshot.SnapshotId),
+            Draft: this.getLiveMatchSnapshotDraft(snapshot.SnapshotId)
+        }));
+    }
+
+    getLiveMatchCurrentPlayers(matchId){
+        return this.queryDatabase(`
+            SELECT *
+            FROM LiveMatchCurrentPlayer
+            WHERE MatchId = ?
+            ORDER BY Team ASC, PlayerSlot ASC, AccountId ASC
+        `, [matchId]);
+    }
+
+    getLiveMatchSnapshotPlayers(snapshotId){
+        return this.queryDatabase(`
+            SELECT *
+            FROM LiveMatchSnapshotPlayer
+            WHERE SnapshotId = ?
+            ORDER BY Team ASC, PlayerSlot ASC, AccountId ASC
+        `, [snapshotId]);
+    }
+
+    getLiveMatchCurrentDraft(matchId){
+        return this.queryDatabase(`
+            SELECT *
+            FROM LiveMatchCurrentDraft
+            WHERE MatchId = ?
+        `, [matchId])[0] || null;
+    }
+
+    getLiveMatchSnapshotDraft(snapshotId){
+        return this.queryDatabase(`
+            SELECT *
+            FROM LiveMatchSnapshotDraft
+            WHERE SnapshotId = ?
+        `, [snapshotId])[0] || null;
+    }
+
+    insertLiveMatchSnapshot(matchData){
+        const result = this.db.prepare(`
             INSERT INTO LiveMatchSnapshots (
                 MatchId,
                 LeagueId,
@@ -545,6 +760,10 @@ class DBInstance {
                 DireScore,
                 GameDuration,
                 StreamDelaySeconds,
+                RadiantTowerState,
+                DireTowerState,
+                RadiantBarracksState,
+                DireBarracksState,
                 SnapshotHash,
                 ResponseJson
             )
@@ -558,6 +777,10 @@ class DBInstance {
                 @DireScore,
                 @GameDuration,
                 @StreamDelaySeconds,
+                @RadiantTowerState,
+                @DireTowerState,
+                @RadiantBarracksState,
+                @DireBarracksState,
                 @SnapshotHash,
                 @ResponseJson
             )
@@ -571,9 +794,15 @@ class DBInstance {
             DireScore: matchData.DireScore,
             GameDuration: matchData.GameDuration,
             StreamDelaySeconds: matchData.StreamDelaySeconds,
+            RadiantTowerState: matchData.RadiantTowerState,
+            DireTowerState: matchData.DireTowerState,
+            RadiantBarracksState: matchData.RadiantBarracksState,
+            DireBarracksState: matchData.DireBarracksState,
             SnapshotHash: matchData.SnapshotHash,
             ResponseJson: matchData.ResponseJson
         });
+
+        return result.lastInsertRowid;
     }
 
     upsertLiveMatchCurrentState(matchData){
@@ -590,6 +819,10 @@ class DBInstance {
                 DireScore,
                 GameDuration,
                 StreamDelaySeconds,
+                RadiantTowerState,
+                DireTowerState,
+                RadiantBarracksState,
+                DireBarracksState,
                 SnapshotHash,
                 ResponseJson
             )
@@ -605,6 +838,10 @@ class DBInstance {
                 @DireScore,
                 @GameDuration,
                 @StreamDelaySeconds,
+                @RadiantTowerState,
+                @DireTowerState,
+                @RadiantBarracksState,
+                @DireBarracksState,
                 @SnapshotHash,
                 @ResponseJson
             )
@@ -619,19 +856,287 @@ class DBInstance {
                 DireScore = excluded.DireScore,
                 GameDuration = excluded.GameDuration,
                 StreamDelaySeconds = excluded.StreamDelaySeconds,
+                RadiantTowerState = excluded.RadiantTowerState,
+                DireTowerState = excluded.DireTowerState,
+                RadiantBarracksState = excluded.RadiantBarracksState,
+                DireBarracksState = excluded.DireBarracksState,
                 SnapshotHash = excluded.SnapshotHash,
                 ResponseJson = excluded.ResponseJson,
                 LastUpdated = CURRENT_TIMESTAMP
         `).run(matchData);
     }
 
+    touchLiveMatchCurrentState(matchId){
+        return this.db.prepare(`
+            UPDATE LiveMatchCurrentState
+            SET LastUpdated = CURRENT_TIMESTAMP
+            WHERE MatchId = ?
+        `).run(matchId);
+    }
+
+    pruneMissingLiveMatches(activeMatchIds = [], staleSeconds = 120, leagueId = null){
+        const prune = this.db.transaction((matchIds, seconds, activeLeagueId) => {
+            const staleModifier = `-${Number(seconds) || 120} seconds`;
+            const staleMatches = this.queryDatabase(`
+                SELECT MatchId
+                FROM LiveMatchCurrentState
+                WHERE LastUpdated < datetime('now', ?)
+                ${activeLeagueId ? 'AND LeagueId = ?' : ''}
+            `, activeLeagueId ? [staleModifier, activeLeagueId] : [staleModifier]);
+            const activeIds = new Set(matchIds.map((id) => Number(id)));
+            const removeIds = staleMatches
+                .map((match) => Number(match.MatchId))
+                .filter((matchId) => !activeIds.has(matchId));
+
+            if (!removeIds.length) return 0;
+
+            const deleteCurrentPlayers = this.db.prepare(`
+                DELETE FROM LiveMatchCurrentPlayer
+                WHERE MatchId = ?
+            `);
+            const deleteCurrentDraft = this.db.prepare(`
+                DELETE FROM LiveMatchCurrentDraft
+                WHERE MatchId = ?
+            `);
+            const deleteCurrentState = this.db.prepare(`
+                DELETE FROM LiveMatchCurrentState
+                WHERE MatchId = ?
+            `);
+
+            removeIds.forEach((matchId) => {
+                deleteCurrentPlayers.run(matchId);
+                deleteCurrentDraft.run(matchId);
+                deleteCurrentState.run(matchId);
+            });
+
+            return removeIds.length;
+        });
+
+        return prune(activeMatchIds, staleSeconds, leagueId);
+    }
+
+    replaceLiveMatchCurrentPlayers(matchId, players){
+        const deleteStmt = this.db.prepare(`
+            DELETE FROM LiveMatchCurrentPlayer
+            WHERE MatchId = ?
+        `);
+        const insertStmt = this.db.prepare(`
+            INSERT INTO LiveMatchCurrentPlayer (
+                MatchId,
+                AccountId,
+                PlayerName,
+                Team,
+                PlayerSlot,
+                HeroId,
+                Kills,
+                Deaths,
+                Assists,
+                LastHits,
+                Denies,
+                Gold,
+                Level,
+                GPM,
+                XPM,
+                NetWorth,
+                RespawnTimer,
+                PositionX,
+                PositionY
+            )
+            VALUES (
+                @MatchId,
+                @AccountId,
+                @PlayerName,
+                @Team,
+                @PlayerSlot,
+                @HeroId,
+                @Kills,
+                @Deaths,
+                @Assists,
+                @LastHits,
+                @Denies,
+                @Gold,
+                @Level,
+                @GPM,
+                @XPM,
+                @NetWorth,
+                @RespawnTimer,
+                @PositionX,
+                @PositionY
+            )
+        `);
+
+        deleteStmt.run(matchId);
+        players.forEach((player) => insertStmt.run(player));
+    }
+
+    insertLiveMatchSnapshotPlayers(snapshotId, players){
+        const insertStmt = this.db.prepare(`
+            INSERT INTO LiveMatchSnapshotPlayer (
+                SnapshotId,
+                MatchId,
+                AccountId,
+                PlayerName,
+                Team,
+                PlayerSlot,
+                HeroId,
+                Kills,
+                Deaths,
+                Assists,
+                LastHits,
+                Denies,
+                Gold,
+                Level,
+                GPM,
+                XPM,
+                NetWorth,
+                RespawnTimer,
+                PositionX,
+                PositionY
+            )
+            VALUES (
+                @SnapshotId,
+                @MatchId,
+                @AccountId,
+                @PlayerName,
+                @Team,
+                @PlayerSlot,
+                @HeroId,
+                @Kills,
+                @Deaths,
+                @Assists,
+                @LastHits,
+                @Denies,
+                @Gold,
+                @Level,
+                @GPM,
+                @XPM,
+                @NetWorth,
+                @RespawnTimer,
+                @PositionX,
+                @PositionY
+            )
+        `);
+
+        players.forEach((player) => insertStmt.run({
+            ...player,
+            SnapshotId: snapshotId
+        }));
+    }
+
+    replaceLiveMatchSnapshotPlayers(snapshotId, players){
+        const deleteStmt = this.db.prepare(`
+            DELETE FROM LiveMatchSnapshotPlayer
+            WHERE SnapshotId = ?
+        `);
+
+        deleteStmt.run(snapshotId);
+        this.insertLiveMatchSnapshotPlayers(snapshotId, players);
+    }
+
+    replaceLiveMatchCurrentDraft(matchId, draft){
+        return this.db.prepare(`
+            INSERT INTO LiveMatchCurrentDraft (
+                MatchId,
+                RadiantPicksJson,
+                DirePicksJson,
+                RadiantBansJson,
+                DireBansJson,
+                DraftJson
+            )
+            VALUES (
+                @MatchId,
+                @RadiantPicksJson,
+                @DirePicksJson,
+                @RadiantBansJson,
+                @DireBansJson,
+                @DraftJson
+            )
+            ON CONFLICT(MatchId) DO UPDATE SET
+                RadiantPicksJson = excluded.RadiantPicksJson,
+                DirePicksJson = excluded.DirePicksJson,
+                RadiantBansJson = excluded.RadiantBansJson,
+                DireBansJson = excluded.DireBansJson,
+                DraftJson = excluded.DraftJson,
+                LastUpdated = CURRENT_TIMESTAMP
+        `).run(this.serializeLiveMatchDraft(matchId, draft));
+    }
+
+    insertLiveMatchSnapshotDraft(snapshotId, draft){
+        return this.db.prepare(`
+            INSERT INTO LiveMatchSnapshotDraft (
+                SnapshotId,
+                MatchId,
+                RadiantPicksJson,
+                DirePicksJson,
+                RadiantBansJson,
+                DireBansJson,
+                DraftJson
+            )
+            VALUES (
+                @SnapshotId,
+                @MatchId,
+                @RadiantPicksJson,
+                @DirePicksJson,
+                @RadiantBansJson,
+                @DireBansJson,
+                @DraftJson
+            )
+        `).run({
+            ...this.serializeLiveMatchDraft(draft?.MatchId, draft),
+            SnapshotId: snapshotId
+        });
+    }
+
+    replaceLiveMatchSnapshotDraft(snapshotId, draft){
+        const deleteStmt = this.db.prepare(`
+            DELETE FROM LiveMatchSnapshotDraft
+            WHERE SnapshotId = ?
+        `);
+
+        deleteStmt.run(snapshotId);
+        this.insertLiveMatchSnapshotDraft(snapshotId, draft);
+    }
+
+    serializeLiveMatchDraft(matchId, draft){
+        const radiantPicks = draft?.RadiantPicks || [];
+        const direPicks = draft?.DirePicks || [];
+        const radiantBans = draft?.RadiantBans || [];
+        const direBans = draft?.DireBans || [];
+        const draftJson = draft?.DraftJson || JSON.stringify({
+            radiant: {
+                picks: radiantPicks,
+                bans: radiantBans
+            },
+            dire: {
+                picks: direPicks,
+                bans: direBans
+            }
+        });
+
+        return {
+            MatchId: matchId,
+            RadiantPicksJson: JSON.stringify(radiantPicks),
+            DirePicksJson: JSON.stringify(direPicks),
+            RadiantBansJson: JSON.stringify(radiantBans),
+            DireBansJson: JSON.stringify(direBans),
+            DraftJson: draftJson
+        };
+    }
+
     recordLiveMatchSnapshot(matchData){
         const recordSnapshot = this.db.transaction((data) => {
             const currentState = this.getLiveMatchCurrentState(data.MatchId);
-            if (currentState?.SnapshotHash === data.SnapshotHash) return false;
+            if (currentState?.SnapshotHash === data.SnapshotHash) {
+                this.touchLiveMatchCurrentState(data.MatchId);
+                return false;
+            }
 
-            this.insertLiveMatchSnapshot(data);
+            const snapshotId = this.insertLiveMatchSnapshot(data);
+            this.insertLiveMatchSnapshotPlayers(snapshotId, data.Players || []);
+            this.insertLiveMatchSnapshotDraft(snapshotId, data.Draft || { MatchId: data.MatchId });
             this.upsertLiveMatchCurrentState(data);
+            this.replaceLiveMatchCurrentPlayers(data.MatchId, data.Players || []);
+            this.replaceLiveMatchCurrentDraft(data.MatchId, data.Draft || { MatchId: data.MatchId });
             return true;
         });
 

@@ -1,12 +1,14 @@
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import db from './database.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
-const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 8_000;
 const REPEATED_ERROR_LOG_INTERVAL_MS = 5 * 60_000;
+const STALE_LIVE_MATCH_SECONDS = 120;
 
 let noActiveLeagueLogged = false;
 let lastErrorMessage = null;
@@ -69,6 +71,89 @@ function nullableSafeInteger(value) {
   return Number.isSafeInteger(number) ? number : null;
 }
 
+function normalizeLivePlayers(game, matchId) {
+  const playerNames = new Map(
+    (game.players || []).map((player) => [
+      nullableSafeInteger(player.account_id),
+      {
+        PlayerName: player.name || null,
+        Team: nullableNumber(player.team),
+        HeroId: nullableNumber(player.hero_id),
+      },
+    ])
+  );
+
+  const scoreboardPlayers = [
+    ...(game.scoreboard?.radiant?.players || []).map((player) => ({ ...player, Team: 0 })),
+    ...(game.scoreboard?.dire?.players || []).map((player) => ({ ...player, Team: 1 })),
+  ];
+
+  const sourcePlayers = scoreboardPlayers.length
+    ? scoreboardPlayers
+    : (game.players || []).map((player) => ({
+        account_id: player.account_id,
+        hero_id: player.hero_id,
+        Team: player.team,
+      }));
+
+  return sourcePlayers
+    .map((player) => {
+      const accountId = nullableSafeInteger(player.account_id);
+      if (!accountId) return null;
+
+      const playerMeta = playerNames.get(accountId) || {};
+
+      return {
+        MatchId: matchId,
+        AccountId: accountId,
+        PlayerName: playerMeta.PlayerName || player.name || null,
+        Team: nullableNumber(player.Team ?? playerMeta.Team),
+        PlayerSlot: nullableNumber(player.player_slot),
+        HeroId: nullableNumber(player.hero_id ?? playerMeta.HeroId),
+        Kills: nullableNumber(player.kills),
+        Deaths: nullableNumber(player.death ?? player.deaths),
+        Assists: nullableNumber(player.assists),
+        LastHits: nullableNumber(player.last_hits),
+        Denies: nullableNumber(player.denies),
+        Gold: nullableNumber(player.gold),
+        Level: nullableNumber(player.level),
+        GPM: nullableNumber(player.gold_per_min),
+        XPM: nullableNumber(player.xp_per_min),
+        NetWorth: nullableNumber(player.net_worth),
+        RespawnTimer: nullableNumber(player.respawn_timer),
+        PositionX: nullableNumber(player.position_x),
+        PositionY: nullableNumber(player.position_y),
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeDraftState(game, matchId) {
+  const radiantPicks = game.scoreboard?.radiant?.picks || [];
+  const direPicks = game.scoreboard?.dire?.picks || [];
+  const radiantBans = game.scoreboard?.radiant?.bans || [];
+  const direBans = game.scoreboard?.dire?.bans || [];
+  const draft = {
+    radiant: {
+      picks: radiantPicks,
+      bans: radiantBans,
+    },
+    dire: {
+      picks: direPicks,
+      bans: direBans,
+    },
+  };
+
+  return {
+    MatchId: matchId,
+    RadiantPicks: radiantPicks,
+    DirePicks: direPicks,
+    RadiantBans: radiantBans,
+    DireBans: direBans,
+    DraftJson: stableStringify(draft),
+  };
+}
+
 function normalizeLiveMatch(game, activeLeagueId) {
   const matchId = nullableSafeInteger(game.match_id ?? game.matchId);
   if (!matchId) return null;
@@ -95,8 +180,14 @@ function normalizeLiveMatch(game, activeLeagueId) {
     StreamDelaySeconds: nullableNumber(
       game.stream_delay_seconds ?? game.stream_delay_s ?? game.delay
     ),
+    RadiantTowerState: nullableNumber(game.scoreboard?.radiant?.tower_state),
+    DireTowerState: nullableNumber(game.scoreboard?.dire?.tower_state),
+    RadiantBarracksState: nullableNumber(game.scoreboard?.radiant?.barracks_state),
+    DireBarracksState: nullableNumber(game.scoreboard?.dire?.barracks_state),
     SnapshotHash: createHash('sha256').update(responseJson).digest('hex'),
     ResponseJson: responseJson,
+    Players: normalizeLivePlayers(game, matchId),
+    Draft: normalizeDraftState(game, matchId),
   };
 }
 
@@ -152,6 +243,7 @@ async function pollLiveMatches() {
   const games = await getLiveLeagueMatches(activeLeagueId);
   let changedMatches = 0;
   let skippedMatches = 0;
+  const seenMatchIds = [];
 
   for (const game of games) {
     const matchData = normalizeLiveMatch(game, activeLeagueId);
@@ -160,8 +252,15 @@ async function pollLiveMatches() {
       continue;
     }
 
+    seenMatchIds.push(matchData.MatchId);
     if (db.recordLiveMatchSnapshot(matchData)) changedMatches += 1;
   }
+
+  const removedMatches = db.pruneMissingLiveMatches(
+    seenMatchIds,
+    STALE_LIVE_MATCH_SECONDS,
+    activeLeagueId
+  );
 
   if (skippedMatches > 0) {
     const now = Date.now();
@@ -173,6 +272,10 @@ async function pollLiveMatches() {
 
   if (changedMatches > 0) {
     console.log(`[${timestamp()}] Recorded ${changedMatches} changed live match(es).`);
+  }
+
+  if (removedMatches > 0) {
+    console.log(`[${timestamp()}] Removed ${removedMatches} stale live match(es) from current state.`);
   }
 }
 
@@ -187,4 +290,14 @@ async function runPollingLoop() {
   }
 }
 
-runPollingLoop();
+const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+
+if (isDirectRun) {
+  runPollingLoop();
+}
+
+export {
+  getLiveLeagueMatches,
+  normalizeLiveMatch,
+  pollLiveMatches,
+};
