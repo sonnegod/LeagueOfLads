@@ -49,6 +49,60 @@ function hasDraftAccess(accountId) {
   return !!row;
 }
 
+function parseJson(value, fallback = null) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function withLiveMatchJson(row) {
+  const response = parseJson(row.ResponseJson, {});
+  const scoreboard = response?.scoreboard || {};
+  const normalizedPlayers = (row.Players || []).map((player) => ({
+    account_id: player.AccountId,
+    name: player.PlayerName,
+    team: player.Team,
+    player_slot: player.PlayerSlot,
+    hero_id: player.HeroId,
+    kills: player.Kills,
+    death: player.Deaths,
+    assists: player.Assists,
+    last_hits: player.LastHits,
+    denies: player.Denies,
+    gold: player.Gold,
+    level: player.Level,
+    gold_per_min: player.GPM,
+    xp_per_min: player.XPM,
+    net_worth: player.NetWorth,
+    respawn_timer: player.RespawnTimer,
+    position_x: player.PositionX,
+    position_y: player.PositionY,
+  }));
+  const normalizedDraft = row.Draft || {};
+  const radiantPicks = parseJson(normalizedDraft.RadiantPicksJson, []);
+  const direPicks = parseJson(normalizedDraft.DirePicksJson, []);
+  const radiantBans = parseJson(normalizedDraft.RadiantBansJson, []);
+  const direBans = parseJson(normalizedDraft.DireBansJson, []);
+
+  return {
+    ...row,
+    RadiantTeamName: row.RadiantTeamName || response?.radiant_team?.team_name || null,
+    DireTeamName: row.DireTeamName || response?.dire_team?.team_name || null,
+    RadiantTowerState: row.RadiantTowerState ?? scoreboard?.radiant?.tower_state ?? null,
+    DireTowerState: row.DireTowerState ?? scoreboard?.dire?.tower_state ?? null,
+    RadiantBarracksState: row.RadiantBarracksState ?? scoreboard?.radiant?.barracks_state ?? null,
+    DireBarracksState: row.DireBarracksState ?? scoreboard?.dire?.barracks_state ?? null,
+    Players: normalizedPlayers.length ? normalizedPlayers : response?.players || [],
+    RadiantPicks: radiantPicks.length ? radiantPicks : scoreboard?.radiant?.picks || [],
+    DirePicks: direPicks.length ? direPicks : scoreboard?.dire?.picks || [],
+    RadiantBans: radiantBans.length ? radiantBans : scoreboard?.radiant?.bans || [],
+    DireBans: direBans.length ? direBans : scoreboard?.dire?.bans || [],
+    Raw: response,
+  };
+}
+
 function checkDraftGodAccess(req, res, next) {
   if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
     return res.status(401).json({ error: 'Unauthorized: not logged in' });
@@ -218,6 +272,46 @@ router.post('/admin/leagues', checkAdmin, (req, res) => {
 
     console.error(err);
     return res.status(500).json({ error: 'Failed to add league' });
+  }
+});
+
+router.get('/liveMatches/count', (req, res) => {
+  try {
+    res.json({ count: db.getLiveMatchCount() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load live match count' });
+  }
+});
+
+router.get('/liveMatches', (req, res) => {
+  try {
+    const matches = db.getLiveMatchCurrentStates().map(withLiveMatchJson);
+    res.json({ matches });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load live matches' });
+  }
+});
+
+router.get('/liveMatches/recent', (req, res) => {
+  try {
+    const hours = Number(req.query.hours || 4);
+    const matches = db.getRecentLiveMatchSnapshots(hours).map(withLiveMatchJson);
+    res.json({ matches });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load recent live matches' });
+  }
+});
+
+router.get('/liveMatches/:matchId/snapshots', (req, res) => {
+  try {
+    const snapshots = db.getLiveMatchSnapshots(req.params.matchId).map(withLiveMatchJson);
+    res.json({ snapshots });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load live match snapshots' });
   }
 });
 

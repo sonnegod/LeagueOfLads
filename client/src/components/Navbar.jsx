@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 export default function Navbar() {
   const { user, logout } = useAuth();
   const [query, setQuery] = useState("");
+  const [liveMatchCount, setLiveMatchCount] = useState(0);
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -25,6 +26,28 @@ export default function Navbar() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLiveMatchCount() {
+      try {
+        const res = await fetch('/api/liveMatches/count');
+        const data = await res.json();
+        if (!cancelled) setLiveMatchCount(Number(data.count) || 0);
+      } catch (err) {
+        if (!cancelled) setLiveMatchCount(0);
+      }
+    }
+
+    loadLiveMatchCount();
+    const interval = setInterval(loadLiveMatchCount, 10000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
 
@@ -63,6 +86,11 @@ export default function Navbar() {
         </div>
 
         <div className="navbar-right" ref={dropdownRef}>
+          <Link to="/live" className="live-match-button">
+            Live Matches
+            {liveMatchCount > 0 && <span className="live-match-badge">{liveMatchCount}</span>}
+          </Link>
+
           {!user ? (
             <a href="/api/auth/steam" className="steam-login-button">
               <img src={steamLogin} alt="Steam Login" className="steam-icon" />
