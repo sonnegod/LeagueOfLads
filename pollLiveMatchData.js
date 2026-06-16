@@ -318,6 +318,10 @@ async function runPollingLoop() {
 const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 
 if (isDirectRun) {
+  console.log(
+    `[${timestamp()}] Live polling worker started. ` +
+    `intervalMs=${POLL_INTERVAL_MS}, cwd=${process.cwd()}`
+  );
   runPollingLoop();
 }
 
