@@ -1846,6 +1846,7 @@ class DBInstance {
             FROM MatchPlayer mp
             JOIN MatchTeamPlayer mtp ON mtp.PlayerId = mp.PlayerId AND mp.MatchId = mtp.MatchId
             JOIN HeroInfo h ON mp.HeroId = h.HeroId
+            JOIN MatchLeague ml ON ml.MatchId = mp.MatchId
             WHERE mtp.TeamId = ?
         `;
 
