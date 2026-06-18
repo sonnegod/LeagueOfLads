@@ -1,4 +1,4 @@
-// scripts/downloadHeroIcons.js
+// scripts/assets/downloadHeroIcons.js
 
 import fs from "fs";
 import path from "path";

@@ -1,5 +1,5 @@
-import db from './database.js';
-import apiURL from './apiURL.js';
+import db from '../../database.js';
+import apiURL from '../../apiURL.js';
 
 import dotenv from 'dotenv';
 dotenv.config();

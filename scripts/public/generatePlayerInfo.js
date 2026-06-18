@@ -2,7 +2,7 @@ import {
   openPublicDataStores,
   closePublicDataStores,
   assertPublicSchema,
-} from './publicDatabase.js';
+} from '../../publicDatabase.js';
 
 function toNumber(value, fallback = null) {
   const parsed = Number(value);

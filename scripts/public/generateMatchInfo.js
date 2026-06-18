@@ -2,7 +2,7 @@ import {
   openPublicDataStores,
   closePublicDataStores,
   assertPublicSchema,
-} from './publicDatabase.js';
+} from '../../publicDatabase.js';
 
 const REQUEST_DELAY_MS = 350;
 const MAX_RETRIES = 3;

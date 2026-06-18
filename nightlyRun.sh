@@ -23,7 +23,7 @@ LOG_FILE="$LOG_DIR/log_$(date +%F).txt"
 
 echo "$(date) - Starting nightly jobs" >> "$LOG_FILE"
 
-ACTIVE_LEAGUE_ID="$(/usr/bin/node /root/LeagueOfLads/getActiveLeagueId.js)"
+ACTIVE_LEAGUE_ID="$(/usr/bin/node /root/LeagueOfLads/scripts/league/getActiveLeagueId.js)"
 
 if [ -z "$ACTIVE_LEAGUE_ID" ]; then
     echo "$(date) - No active league. Skipping nightly jobs." >> "$LOG_FILE"
@@ -32,17 +32,17 @@ fi
 
 echo "$(date) - Active league: $ACTIVE_LEAGUE_ID" >> "$LOG_FILE"
 
-/usr/bin/node /root/LeagueOfLads/currentLeagueData.js >> "$LOG_FILE" 2>&1
-/usr/bin/node /root/LeagueOfLads/matchDetails.js >> "$LOG_FILE" 2>&1
-/usr/bin/node /root/LeagueOfLads/populateTeamNames.js >> "$LOG_FILE" 2>&1
+/usr/bin/node /root/LeagueOfLads/scripts/league/currentLeagueData.js >> "$LOG_FILE" 2>&1
+/usr/bin/node /root/LeagueOfLads/scripts/league/matchDetails.js >> "$LOG_FILE" 2>&1
+/usr/bin/node /root/LeagueOfLads/scripts/league/populateTeamNames.js >> "$LOG_FILE" 2>&1
 
-/usr/bin/node /root/LeagueOfLads/updateNeustadtl.js >> "$LOG_FILE" 2>&1
+/usr/bin/node /root/LeagueOfLads/scripts/league/updateNeustadtl.js >> "$LOG_FILE" 2>&1
 
-/usr/bin/node /root/LeagueOfLads/checkPlayoffSeries.js >> "$LOG_FILE" 2>&1
+/usr/bin/node /root/LeagueOfLads/scripts/league/checkPlayoffSeries.js >> "$LOG_FILE" 2>&1
 
 /usr/bin/node /root/LeagueOfLads/betting/nightly-settlement-job.js >> "$LOG_FILE" 2>&1
 /usr/bin/node /root/LeagueOfLads/betting/initialize-odds.js >> "$LOG_FILE" 2>&1
 
-/bin/bash /root/LeagueOfLads/generatePublicMatchData.sh >> "$LOG_FILE" 2>&1
+/bin/bash /root/LeagueOfLads/scripts/db/backupDatabases.sh >> "$LOG_FILE" 2>&1
 
 echo "$(date) - Nightly jobs complete" >> "$LOG_FILE"
