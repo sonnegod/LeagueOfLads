@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import TeamRecentMatches from '../components/TeamRecentMatches';
 import TeamAverages from '../components/TeamAverages';
 import TeamPlayers from '../components/TeamPlayers';
 import LeagueFilter from '../components/LeagueFilter';
 import HeroDisplay from '../components/HeroDisplay';
+import TeamHomeTab from '../components/TeamHomeTab';
 
 
 export default function TeamPage() {
@@ -12,14 +13,23 @@ export default function TeamPage() {
   const [teamName, setTeamName] = useState('');
   const [matches, setMatches] = useState([]);
   const [heroes, setHeroes] = useState([]); // New: hero stats
+  const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('recent');
+  const [updating, setUpdating] = useState(false);
+  const [activeTab, setActiveTab] = useState('home');
   const [selectedLeague, setSelectedLeague] = useState('all');
   const [teamLeagues, setTeamLeagues] = useState([]);
+  const loadedTeamIdRef = useRef(null);
 
   useEffect(() => {
     async function fetchTeamInfo() {
-      setLoading(true);
+      const hasLoadedTeam = String(loadedTeamIdRef.current) === String(teamId);
+      if (hasLoadedTeam) {
+        setUpdating(true);
+      } else {
+        setLoading(true);
+      }
+
       try {
         const url = new URL(`/api/teams/${teamId}`, window.location.origin);
         if (selectedLeague !== 'all') {
@@ -37,10 +47,20 @@ export default function TeamPage() {
           setHeroes(data.teamHeroes); // Populate hero data if returned
         }
 
+        const playerUrl = new URL(`/api/teams/${teamId}/players`, window.location.origin);
+        if (selectedLeague !== 'all') {
+          playerUrl.searchParams.append('leagueId', selectedLeague);
+        }
+        const playersRes = await fetch(playerUrl.toString());
+        const playersData = await playersRes.json();
+        setPlayers(playersData || []);
+        loadedTeamIdRef.current = teamId;
+
       } catch (err) {
         console.error(err);
       } finally {
         setLoading(false);
+        setUpdating(false);
       }
     }
     fetchTeamInfo();
@@ -52,18 +72,20 @@ export default function TeamPage() {
     <div style={{ padding: '1rem' }}>
       <h1>{teamName}</h1>
 
-      {(activeTab === 'recent' || activeTab === 'players') && (
+      {(activeTab === 'home' || activeTab === 'recent' || activeTab === 'players' || activeTab === 'heroes') && (
         <div style={{ marginBottom: '1rem' }}>
           <LeagueFilter
             leagues={teamLeagues}
             value={selectedLeague}
             onChange={setSelectedLeague}
           />
+          {updating && <span style={{ marginLeft: '0.75rem', color: '#9ca3af' }}>Updating...</span>}
         </div>
       )}
 
       {/* Tab Buttons */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+        <button onClick={() => setActiveTab('home')}>Home</button>
         <button onClick={() => setActiveTab('recent')}>Recent Matches</button>
         <button onClick={() => setActiveTab('players')}>Players</button>
         {/*<button onClick={() => setActiveTab('averages')}>Averages</button>*/}
@@ -71,6 +93,16 @@ export default function TeamPage() {
       </div>
 
       {/* Tab Content */}
+      {activeTab === 'home' && (
+        <TeamHomeTab
+          teamName={teamName}
+          teamId={teamId}
+          selectedLeague={selectedLeague}
+          matches={matches}
+          heroes={heroes}
+          players={players}
+        />
+      )}
       {activeTab === 'recent' && <TeamRecentMatches matches={matches} leagueId={selectedLeague} />}
       {activeTab === 'players' && <TeamPlayers teamId={teamId} leagueId={selectedLeague} />}
       {/*activeTab === 'averages' && <TeamAverages teamId={teamId} />*/}

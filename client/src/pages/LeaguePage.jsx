@@ -6,12 +6,13 @@ import CurrentLeaderboardTable from "../components/CurrentLeaderboardTable";
 import TieBreakerView from "../components/TieBreakerView";
 import CurrentPlayoffBracketView from "../components/CurrentPlayoffBracketView";
 import HeroDisplay from "../components/HeroDisplay";
+import LeagueHomeTab from "../components/LeagueHomeTab";
 
 export default function LeaguePage() {
   const { leagueId } = useParams();
   const [data, setLeague] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("teams");
+  const [activeTab, setActiveTab] = useState("home");
   const [expandedMatches, setExpandedMatches] = useState({});
   const [expandedHeroes, setExpandedHeroes] = useState({});
   const [stageInfo, setStageInfo] = useState(null);
@@ -41,19 +42,6 @@ export default function LeaguePage() {
         const data = await res.json();
         setStageInfo(data[0] || data.stageInfo || null);
         setStageExists(Boolean(data.exists));
-
-        if (!data.exists) {
-          setActiveTab("teams");
-          return;
-        }
-
-        if (data[0].GroupEndMatchId && !data[0].TieBreakerEndMatchId) {
-          setActiveTab("tiebreakers");
-        } else if (data[0].GroupEndMatchId && data[0].TieBreakerEndMatchId) {
-          setActiveTab("playoffs");
-        } else {
-          setActiveTab("group");
-        }
       } catch (err) {
         console.error("Failed to load league stage info", err);
         setStageInfo(null);
@@ -89,10 +77,10 @@ export default function LeaguePage() {
   return (
     <div style={{ padding: "1rem", overflowX: "auto" }}>
       <h1>{league[0].LeagueName}</h1>
-      <h2>Winner: <Link to={`/team/${league[0].WinnerTeamId}`}>{league[0].WinnerTeamName}</Link></h2>
 
       {/* Tabs */}
       <div style={{ marginBottom: "1rem" }}>
+        <button onClick={() => setActiveTab("home")} style={activeTab === "home" ? activeTabStyle : tabStyle}>Home</button>
         {stageExists && inPlayoffs && (
           <button onClick={() => setActiveTab("playoffs")} style={activeTab === "playoffs" ? activeTabStyle : tabStyle}>Playoffs</button>
         )}
@@ -110,6 +98,19 @@ export default function LeaguePage() {
         <button onClick={() => setActiveTab("players")} style={activeTab === "players" ? activeTabStyle : tabStyle}>Players</button>
         <button onClick={() => setActiveTab("heroes")} style={activeTab === "heroes" ? activeTabStyle : tabStyle}>Heroes</button>
       </div>
+
+      {/* Home Tab */}
+      {activeTab === "home" && (
+        <LeagueHomeTab
+          league={league[0]}
+          teams={teams}
+          matches={matchesWithPlayers}
+          players={players}
+          heroes={heroesWithPlayers}
+          stageInfo={stageInfo}
+          stageExists={stageExists}
+        />
+      )}
 
       {/* Groups Tab */}
       {activeTab === "group" && stageExists && (
