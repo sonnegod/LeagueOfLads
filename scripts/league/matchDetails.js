@@ -1,5 +1,5 @@
-import db from './database.js';
-import apiUrl from './apiURL.js';
+import db from '../../database.js';
+import apiUrl from '../../apiURL.js';
 
 let matchDetailCallsToday = 0;
 const MAX_CALLS_PER_DAY = 2000;

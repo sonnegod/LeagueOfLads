@@ -3,8 +3,20 @@ To set up:
 2. NPM install in the main directory and in the /client file
 3. set up .env file (ping sonnegod for info)
 2. Download SQLITE Studio for ui for the flat file
-3. Add the database (choose the LadsData.db)
-4. LadsDataProd.db will be considered the official record of data and should not be modified, it will be occasionally pushed to by the server
+3. Add the database (choose `db/LadsData.db`)
+4. Use `./scripts/db/backupDatabases.sh` to create organized SQLite-safe backups instead of manual root-level `cp` copies.
+
+DATABASE BACKUPS
+---
+Create timestamped backups under `backups/<database-name>/`:
+
+```bash
+./scripts/db/backupDatabases.sh
+./scripts/db/backupDatabases.sh LadsData
+./scripts/db/backupDatabases.sh Betting
+```
+
+The script uses SQLite's `.backup` command so WAL-mode database changes are included safely.
 
 COMMANDS FOR THE SERVER
 ---

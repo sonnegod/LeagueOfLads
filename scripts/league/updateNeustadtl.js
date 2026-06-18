@@ -1,4 +1,4 @@
-import db from './database.js';
+import db from '../../database.js';
 
 function getGroupOpponents(groupTeams, teamId) {
   return groupTeams.filter(t => t.TeamId !== teamId);

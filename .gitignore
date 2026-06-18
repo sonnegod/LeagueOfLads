@@ -6,4 +6,9 @@ package-lock.json
 db/
 db/LadsData.db
 LadsData.db
+*.db
+*.db-shm
+*.db-wal
+!backups/
+!backups/**/*.db
 Logs/
