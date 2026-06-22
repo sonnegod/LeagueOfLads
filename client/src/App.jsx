@@ -21,6 +21,7 @@ import BettingPage from "./pages/BettingPage";
 import HeadToHeadPage from "./pages/HeadToHeadPage";
 import DraftGodPage from "./pages/DraftGod";
 import LiveMatchesPage from "./pages/LiveMatchesPage";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 export default function App() {
   return (
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/betting" element={<BettingPage />} />
         <Route path="/draftgod" element={<DraftGodPage />} />
         <Route path="/live" element={<LiveMatchesPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Route>
     </Routes>
   );
