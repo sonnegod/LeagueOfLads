@@ -275,8 +275,7 @@ async function pollLiveMatches() {
 
   const removedMatches = db.pruneMissingLiveMatches(
     seenMatchIds,
-    games.length === 0 ? 0 : STALE_LIVE_MATCH_SECONDS,
-    activeLeagueId
+    games.length === 0 ? 0 : STALE_LIVE_MATCH_SECONDS
   );
 
   if (skippedMatches > 0) {
