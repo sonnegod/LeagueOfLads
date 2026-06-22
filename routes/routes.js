@@ -103,6 +103,126 @@ function withLiveMatchJson(row) {
   };
 }
 
+function toNullableNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function getTeamNetWorth(players, team) {
+  return players.reduce((total, player) => {
+    if (Number(player.team) !== team) return total;
+    return total + toNumber(player.net_worth, 0);
+  }, 0);
+}
+
+function normalizeDraftItems(items = []) {
+  return items.map((item, index) => ({
+    order: index + 1,
+    heroId: toNullableNumber(item.hero_id ?? item.HeroId),
+  }));
+}
+
+function toAppLiveMatch(row, { includeRaw = false } = {}) {
+  const match = withLiveMatchJson(row);
+  const players = (match.Players || []).map((player) => ({
+    accountId: toNullableNumber(player.account_id),
+    name: player.name || null,
+    team: toNullableNumber(player.team),
+    playerSlot: toNullableNumber(player.player_slot),
+    heroId: toNullableNumber(player.hero_id),
+    stats: {
+      kills: toNullableNumber(player.kills),
+      deaths: toNullableNumber(player.death),
+      assists: toNullableNumber(player.assists),
+      lastHits: toNullableNumber(player.last_hits),
+      denies: toNullableNumber(player.denies),
+      gold: toNullableNumber(player.gold),
+      level: toNullableNumber(player.level),
+      gpm: toNullableNumber(player.gold_per_min),
+      xpm: toNullableNumber(player.xp_per_min),
+      netWorth: toNullableNumber(player.net_worth),
+      respawnTimer: toNullableNumber(player.respawn_timer),
+    },
+    position: {
+      x: toNullableNumber(player.position_x),
+      y: toNullableNumber(player.position_y),
+    },
+  }));
+
+  const payload = {
+    matchId: toNullableNumber(match.MatchId),
+    leagueId: toNullableNumber(match.LeagueId),
+    lobbyId: toNullableNumber(match.LobbyId),
+    snapshotId: toNullableNumber(match.SnapshotId),
+    snapshotHash: match.SnapshotHash || null,
+    status: match.SnapshotId ? 'recent' : 'live',
+    timestamps: {
+      lastUpdated: match.LastUpdated || null,
+      createdAt: match.CreatedAt || null,
+    },
+    teams: {
+      radiant: {
+        teamId: toNullableNumber(match.RadiantTeamId),
+        name: match.RadiantTeamName || null,
+        score: toNullableNumber(match.RadiantScore),
+        towerState: toNullableNumber(match.RadiantTowerState),
+        barracksState: toNullableNumber(match.RadiantBarracksState),
+        netWorth: getTeamNetWorth(match.Players || [], 0),
+      },
+      dire: {
+        teamId: toNullableNumber(match.DireTeamId),
+        name: match.DireTeamName || null,
+        score: toNullableNumber(match.DireScore),
+        towerState: toNullableNumber(match.DireTowerState),
+        barracksState: toNullableNumber(match.DireBarracksState),
+        netWorth: getTeamNetWorth(match.Players || [], 1),
+      },
+    },
+    game: {
+      duration: toNullableNumber(match.GameDuration),
+      streamDelaySeconds: toNullableNumber(match.StreamDelaySeconds),
+    },
+    players,
+    draft: {
+      radiant: {
+        picks: normalizeDraftItems(match.RadiantPicks),
+        bans: normalizeDraftItems(match.RadiantBans),
+      },
+      dire: {
+        picks: normalizeDraftItems(match.DirePicks),
+        bans: normalizeDraftItems(match.DireBans),
+      },
+    },
+  };
+
+  if (includeRaw) {
+    payload.raw = match.Raw || {};
+  }
+
+  return payload;
+}
+
+function getAppLiveMatchesPayload({ recentHours = 4, includeRecent = true } = {}) {
+  const liveMatches = db.getLiveMatchCurrentStates().map((match) => toAppLiveMatch(match));
+  const liveMatchIds = new Set(liveMatches.map((match) => Number(match.matchId)));
+  const recentMatches = includeRecent
+    ? db.getRecentLiveMatchSnapshots(recentHours)
+      .map((match) => toAppLiveMatch(match))
+      .filter((match) => !liveMatchIds.has(Number(match.matchId)))
+    : [];
+
+  return {
+    generatedAt: new Date().toISOString(),
+    counts: {
+      live: liveMatches.length,
+      recent: recentMatches.length,
+    },
+    liveMatches,
+    recentMatches,
+  };
+}
+
 function checkDraftGodAccess(req, res, next) {
   if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
     return res.status(401).json({ error: 'Unauthorized: not logged in' });
@@ -312,6 +432,48 @@ router.get('/liveMatches/:matchId/snapshots', (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load live match snapshots' });
+  }
+});
+
+router.get('/app/live-matches', (req, res) => {
+  try {
+    const recentHours = Number(req.query.recentHours || req.query.hours || 4);
+    const includeRecent = req.query.includeRecent !== 'false';
+    res.json(getAppLiveMatchesPayload({ recentHours, includeRecent }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load app live matches' });
+  }
+});
+
+router.get('/app/live-matches/count', (req, res) => {
+  try {
+    res.json({
+      generatedAt: new Date().toISOString(),
+      count: db.getLiveMatchCount(),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load app live match count' });
+  }
+});
+
+router.get('/app/live-matches/:matchId/snapshots', (req, res) => {
+  try {
+    const includeRaw = req.query.includeRaw === 'true';
+    const snapshots = db
+      .getLiveMatchSnapshots(req.params.matchId)
+      .map((snapshot) => toAppLiveMatch(snapshot, { includeRaw }));
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      matchId: toNullableNumber(req.params.matchId),
+      count: snapshots.length,
+      snapshots,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load app live match snapshots' });
   }
 });
 
