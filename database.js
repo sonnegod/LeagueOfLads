@@ -699,11 +699,22 @@ class DBInstance {
         }));
     }
 
-    getAllLiveMatchSnapshots(){
+    getAllRecentLiveMatchSnapshots(){
         const snapshots = this.queryDatabase(`
-            SELECT *
-            FROM LiveMatchSnapshots
-            ORDER BY CreatedAt DESC, SnapshotId DESC
+            SELECT lms.*
+            FROM LiveMatchSnapshots lms
+            JOIN (
+                SELECT MatchId, MAX(SnapshotId) AS LatestSnapshotId
+                FROM LiveMatchSnapshots
+                GROUP BY MatchId
+            ) latest
+                ON latest.LatestSnapshotId = lms.SnapshotId
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM LiveMatchCurrentState lmcs
+                WHERE lmcs.MatchId = lms.MatchId
+            )
+            ORDER BY lms.CreatedAt DESC, lms.SnapshotId DESC
         `);
 
         return snapshots.map((snapshot) => ({
