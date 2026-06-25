@@ -269,9 +269,8 @@ router.get('/liveMatches/:matchId/snapshots', (req, res) => {
 
 router.get('/app/live-matches', (req, res) => {
   try {
-    const recentHours = Number(req.query.recentHours || req.query.hours || 4);
     const includeRecent = req.query.includeRecent !== 'false';
-    res.json(getAppLiveMatchesPayload(db, { recentHours, includeRecent }));
+    res.json(getAppLiveMatchesPayload(db, { includeRecent }));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load app live matches' });

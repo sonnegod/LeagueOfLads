@@ -138,13 +138,10 @@ export function toAppLiveMatch(row, { includeRaw = false } = {}) {
   return payload;
 }
 
-export function getAppLiveMatchesPayload(db, { recentHours = 4, includeRecent = true } = {}) {
+export function getAppLiveMatchesPayload(db, { includeRecent = true } = {}) {
   const liveMatches = db.getLiveMatchCurrentStates().map((match) => toAppLiveMatch(match));
-  const liveMatchIds = new Set(liveMatches.map((match) => Number(match.matchId)));
   const recentMatches = includeRecent
-    ? db.getRecentLiveMatchSnapshots(recentHours)
-      .map((match) => toAppLiveMatch(match))
-      .filter((match) => !liveMatchIds.has(Number(match.matchId)))
+    ? db.getAllLiveMatchSnapshots().map((match) => toAppLiveMatch(match))
     : [];
 
   return {

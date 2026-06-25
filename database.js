@@ -699,6 +699,20 @@ class DBInstance {
         }));
     }
 
+    getAllLiveMatchSnapshots(){
+        const snapshots = this.queryDatabase(`
+            SELECT *
+            FROM LiveMatchSnapshots
+            ORDER BY CreatedAt DESC, SnapshotId DESC
+        `);
+
+        return snapshots.map((snapshot) => ({
+            ...snapshot,
+            Players: this.getLiveMatchSnapshotPlayers(snapshot.SnapshotId),
+            Draft: this.getLiveMatchSnapshotDraft(snapshot.SnapshotId)
+        }));
+    }
+
     getLiveMatchSnapshots(matchId){
         const snapshots = this.queryDatabase(`
             SELECT *
