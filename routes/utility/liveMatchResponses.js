@@ -141,7 +141,7 @@ export function toAppLiveMatch(row, { includeRaw = false } = {}) {
 export function getAppLiveMatchesPayload(db, { includeRecent = true } = {}) {
   const liveMatches = db.getLiveMatchCurrentStates().map((match) => toAppLiveMatch(match));
   const recentMatches = includeRecent
-    ? db.getAllLiveMatchSnapshots().map((match) => toAppLiveMatch(match))
+    ? db.getAllRecentLiveMatchSnapshots().map((match) => toAppLiveMatch(match))
     : [];
 
   return {
