@@ -2,6 +2,7 @@
 // These components are self-contained and only display data.
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import './CurrentPlayoffBracketView.css';
 
 const ReadOnlyRoundColumn = ({ title, children, styles }) => (
     <div style={styles.column}>
@@ -157,9 +158,9 @@ const CurrentPlayoffBracketView = ({ leagueId }) => {
 
     // --- Rendering the Read-Only Bracket View ---
     return (
-        <div style={styles.container}>
+        <div className="current-playoff-bracket" style={styles.container}>
 
-            <div style={styles.board}>
+            <div className="current-playoff-board" style={styles.board}>
                 {/* --- UPPER BRACKET ROW --- */}
                 <div style={styles.bracketRow}>
                     <div style={styles.bracketLabel}>Upper Bracket</div>

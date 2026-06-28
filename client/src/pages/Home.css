@@ -1,0 +1,22 @@
+@media (max-width: 767px) {
+  .home-page {
+    padding: 12px !important;
+  }
+
+  .home-page h2 {
+    margin: 0 0 12px;
+    font-size: 1.35rem;
+  }
+
+  .home-tabs {
+    max-width: 100%;
+    gap: 8px !important;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .home-tabs button {
+    min-height: 44px;
+    flex: 0 0 auto;
+  }
+}

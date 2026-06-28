@@ -1,21 +1,49 @@
+import { useEffect, useState } from 'react';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import './Layout.css';
 
 export default function Layout() {
   const { loading } = useAuth();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return undefined;
+
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setMobileNavOpen(false);
+    };
+
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [mobileNavOpen]);
 
   if (loading) return <div>Loading...</div>;
 
   return (
-    /* Use bg-transparent so the global page background shows through (prevents white gaps) */
-    <div className="flex h-screen w-full bg-transparent overflow-hidden">
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Navbar />
-        {/* The background of this main tag is what 'HeadToHeadPage' sits on */}
-        <main className="content flex-1 overflow-y-auto bg-transparent">
+    <div className="app-shell">
+      <Navbar
+        mobileNavOpen={mobileNavOpen}
+        onMenuToggle={() => setMobileNavOpen((open) => !open)}
+      />
+      <Sidebar open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+      {mobileNavOpen && (
+        <button
+          type="button"
+          className="sidebar-backdrop"
+          aria-label="Close navigation"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+      <div className="app-body">
+        <main className="content">
           <Outlet />
           <footer style={footerStyle}>
             <Link to="/privacy-policy" style={footerLinkStyle}>Privacy Policy</Link>

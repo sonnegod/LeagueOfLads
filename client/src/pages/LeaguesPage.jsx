@@ -1,6 +1,7 @@
 // src/pages/LeaguesPage.jsx
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import './DataListPages.css';
 
 export default function LeaguesPage() {
   const [leaguesData, setLeaguesData] = useState([]);
@@ -26,10 +27,10 @@ export default function LeaguesPage() {
   if (loading) return <div>Loading leagues...</div>;
 
   return (
-    <div style={{ padding: "1rem", overflowX: "auto" }}>
+    <div className="data-list-page leagues-list-page" style={{ padding: "1rem", overflowX: "auto" }}>
       <h1>Leagues</h1>
 
-      <table style={{ width: "100%", minWidth: "800px", borderCollapse: "collapse" }}>
+      <table className="responsive-data-table leagues-data-table" style={{ width: "100%", minWidth: "800px", borderCollapse: "collapse" }}>
         <thead>
           <tr>
             <th style={thStyle}>League</th>
@@ -40,13 +41,13 @@ export default function LeaguesPage() {
         <tbody>
           {leaguesData.map(league => (
             <tr key={league.LeagueId}>
-              <td style={tdStyle}>
+              <td data-label="League" style={tdStyle}>
                 <Link to={`/league/${league.LeagueId}`}>{league.LeagueName}</Link>
               </td>
-              <td style={tdStyle}>
+              <td data-label="Last match" style={tdStyle}>
                 <Link to={`/match/${league.LastMatchId}`}>{league.LastMatchId}</Link>
                 </td>
-              <td style={tdStyle}>
+              <td data-label="Winner" style={tdStyle}>
                 {league.WinnerTeamId ? (
                   <Link to={`/team/${league.WinnerTeamId}`}>{league.WinnerTeamName}</Link>
                 ) : "-"}

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import './CurrentLeagueSeries.css';
 
 export default function CurrentLeagueSeries({ leagueId }) {
   const [seriesList, setSeriesList] = useState([]);
@@ -38,8 +39,8 @@ export default function CurrentLeagueSeries({ leagueId }) {
   if (seriesList.length === 0) return <div>No series available.</div>;
 
   return (
-    <div style={{ padding: "1rem", overflowX: "auto", background: "var(--surface, #000)", borderRadius: "8px" }}>
-      <table style={tableStyle}>
+    <div className="current-series" style={{ padding: "1rem", overflowX: "auto", background: "var(--surface, #000)", borderRadius: "8px" }}>
+      <table className="current-series-table" style={tableStyle}>
         <thead>
           <tr>
             <th style={thStyle}>Time</th>
@@ -116,6 +117,51 @@ export default function CurrentLeagueSeries({ leagueId }) {
           ))}
         </tbody>
       </table>
+      <div className="current-series-cards">
+        {seriesList.map((series) => {
+          const expanded = expandedSeries[series.SeriesId];
+          return (
+            <article className="series-card" key={series.SeriesId}>
+              <button
+                type="button"
+                className="series-card-summary"
+                aria-expanded={Boolean(expanded)}
+                onClick={() => toggleExpanded(series.SeriesId)}
+              >
+                <span className="series-card-date">{series.DateCreated}</span>
+                <span className="series-card-matchup">
+                  <span>{series.team_one}</span>
+                  <span className="series-card-versus">vs</span>
+                  <span>{series.team_two}</span>
+                </span>
+                <span className="series-card-chevron" aria-hidden="true">{expanded ? '\u2212' : '+'}</span>
+              </button>
+              {expanded && (
+                <div className="series-match-list">
+                  {series.seriesMatches?.map((match) => (
+                    <div className="series-match-card" key={match.MatchId}>
+                      <Link className="series-match-id" to={`/match/${match.MatchId}`}>
+                        Match {match.MatchId}
+                      </Link>
+                      <div className="series-match-team">
+                        <Link to={`/team/${match.rad_team_id}`}>{match.rad_team_name}</Link>
+                        {match.WinnerSide === 'r' && <span className="series-winner">Winner</span>}
+                      </div>
+                      <div className="series-match-team">
+                        <Link to={`/team/${match.dire_team_id}`}>{match.dire_team_name}</Link>
+                        {match.WinnerSide === 'd' && <span className="series-winner">Winner</span>}
+                      </div>
+                      <span className="series-match-duration">
+                        {Math.floor(match.Duration / 60)}:{(match.Duration % 60).toString().padStart(2, '0')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </div>
     </div>
   );
 }

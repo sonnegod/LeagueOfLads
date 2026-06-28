@@ -1,0 +1,75 @@
+@media (max-width: 767px) {
+  .live-matches-page {
+    padding: 12px !important;
+  }
+
+  .live-match-card {
+    padding: 12px !important;
+  }
+
+  .live-match-header {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
+    gap: 7px !important;
+  }
+
+  .live-match-header > div:first-child {
+    text-align: left !important;
+  }
+
+  .live-match-header > div:last-child {
+    text-align: right !important;
+  }
+
+  .live-match-header > div:first-child > div:first-child,
+  .live-match-header > div:last-child > div:first-child {
+    font-size: 0.95rem !important;
+    overflow-wrap: anywhere;
+  }
+
+  .live-match-header > div:nth-child(2) {
+    min-width: 90px !important;
+  }
+
+  .live-match-header > div:nth-child(2) > div:nth-child(2) {
+    font-size: 1.8rem !important;
+  }
+
+  .live-overview-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .live-map-panel {
+    grid-row: 2;
+    padding: 10px !important;
+  }
+
+  .live-radiant-players {
+    grid-row: 1;
+  }
+
+  .live-dire-players {
+    grid-row: 3;
+  }
+
+  .live-player-row {
+    padding: 7px !important;
+  }
+
+  .live-player-name-row,
+  .live-player-stats {
+    flex-wrap: wrap !important;
+    white-space: normal !important;
+  }
+
+  .live-player-stats {
+    overflow: visible !important;
+  }
+
+  .live-draft-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .live-draft-panel {
+    padding: 10px !important;
+  }
+}

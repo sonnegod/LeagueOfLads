@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import DotaMapState from '../components/DotaMapState';
 import HeroDisplay from '../components/HeroDisplay';
+import './LiveMatchesPage.css';
 
 function formatDuration(seconds) {
   const value = Number(seconds);
@@ -28,7 +29,7 @@ function TeamPicks({ title, picks = [], bans = [] }) {
   if (!picks.length && !bans.length) return null;
 
   return (
-    <div style={pickBanPanelStyle}>
+    <div className="live-draft-panel" style={pickBanPanelStyle}>
       <h4 style={{ margin: '0 0 8px' }}>{title}</h4>
       {picks.length > 0 && (
         <div style={heroRowStyle}>
@@ -68,7 +69,7 @@ function PlayerRows({ players = [] }) {
   return (
     <div style={playersGridStyle}>
       {players.map((player) => (
-        <div key={`${player.team}-${player.account_id}`} style={playerRowStyle}>
+        <div className="live-player-row" key={`${player.team}-${player.account_id}`} style={playerRowStyle}>
           <div style={playerIdentityStyle}>
             {Number(player.hero_id) > 0 ? (
               <HeroDisplay heroId={player.hero_id} heroName={`Hero ${player.hero_id}`} showName={false} />
@@ -76,12 +77,12 @@ function PlayerRows({ players = [] }) {
               <span style={unpickedStyle}>No hero</span>
             )}
             <div>
-              <div style={playerNameRowStyle}>
+              <div className="live-player-name-row" style={playerNameRowStyle}>
                 <span style={playerNameStyle}>{player.name || player.account_id}</span>
                 <span style={playerInlineMetaStyle}>Lvl {formatStat(player.level)}</span>
                 <span style={playerInlineMetaStyle}>NW {formatStat(player.net_worth)}</span>
               </div>
-              <div style={playerStatsLineStyle}>
+              <div className="live-player-stats" style={playerStatsLineStyle}>
                 <span>KDA {formatStat(player.kills)}/{formatStat(player.death)}/{formatStat(player.assists)}</span>
                 <span>CS {formatStat(player.last_hits)}/{formatStat(player.denies)}</span>
                 <span>{formatStat(player.gold_per_min)} GPM</span>
@@ -121,8 +122,8 @@ function LiveMatchCard({ match, snapshots, variant = 'live' }) {
   const direNetWorth = totalNetWorth(direPlayers);
 
   return (
-    <section style={matchCardStyle}>
-      <div style={matchHeaderStyle}>
+    <section className="live-match-card" style={matchCardStyle}>
+      <div className="live-match-header" style={matchHeaderStyle}>
         <div style={teamHeaderStyle}>
           <div style={teamNameStyle}>{selected.RadiantTeamName || `Radiant ${selected.RadiantTeamId}`}</div>
           <div style={teamNetWorthStyle}>NW {formatStat(radiantNetWorth)}</div>
@@ -142,12 +143,12 @@ function LiveMatchCard({ match, snapshots, variant = 'live' }) {
         </div>
       </div>
 
-      <div style={liveOverviewGridStyle}>
-        <div style={sidePlayersStyle}>
+      <div className="live-overview-grid" style={liveOverviewGridStyle}>
+        <div className="live-radiant-players" style={sidePlayersStyle}>
           <div style={sidePlayersTitleStyle}>Radiant Players</div>
           <PlayerRows players={radiantPlayers} />
         </div>
-        <div style={mapPanelStyle}>
+        <div className="live-map-panel" style={mapPanelStyle}>
           <div style={mapTitleStyle}>Dota Map State</div>
           <DotaMapState
             radiantTowerState={selected.RadiantTowerState}
@@ -157,7 +158,7 @@ function LiveMatchCard({ match, snapshots, variant = 'live' }) {
             players={selected.Players || []}
           />
         </div>
-        <div style={sidePlayersStyle}>
+        <div className="live-dire-players" style={sidePlayersStyle}>
           <div style={sidePlayersTitleStyle}>Dire Players</div>
           <PlayerRows players={direPlayers} />
         </div>
@@ -189,7 +190,7 @@ function LiveMatchCard({ match, snapshots, variant = 'live' }) {
         </div>
       )}
 
-      <div style={draftGridStyle}>
+      <div className="live-draft-grid" style={draftGridStyle}>
         <TeamPicks title="Radiant Draft" picks={selected.RadiantPicks} bans={selected.RadiantBans} />
         <TeamPicks title="Dire Draft" picks={selected.DirePicks} bans={selected.DireBans} />
       </div>
@@ -262,7 +263,7 @@ export default function LiveMatchesPage() {
   if (loading) return <div>Loading live matches...</div>;
 
   return (
-    <div style={pageStyle}>
+    <div className="live-matches-page" style={pageStyle}>
       <div style={cardsStyle}>
         {matches.map((match) => (
           <LiveMatchCard

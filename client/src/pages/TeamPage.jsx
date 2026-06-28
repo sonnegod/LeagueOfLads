@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import TeamRecentMatches from '../components/TeamRecentMatches';
-import TeamAverages from '../components/TeamAverages';
 import TeamPlayers from '../components/TeamPlayers';
 import LeagueFilter from '../components/LeagueFilter';
 import HeroDisplay from '../components/HeroDisplay';
 import TeamHomeTab from '../components/TeamHomeTab';
+import './DetailPages.css';
 
 
 export default function TeamPage() {
@@ -69,11 +69,11 @@ export default function TeamPage() {
   if (loading) return <div>Loading...</div>;
 
   return (
-    <div style={{ padding: '1rem' }}>
+    <div className="detail-page team-detail-page" style={{ padding: '1rem' }}>
       <h1>{teamName}</h1>
 
       {(activeTab === 'home' || activeTab === 'recent' || activeTab === 'players' || activeTab === 'heroes') && (
-        <div style={{ marginBottom: '1rem' }}>
+        <div className="detail-page-filter" style={{ marginBottom: '1rem' }}>
           <LeagueFilter
             leagues={teamLeagues}
             value={selectedLeague}
@@ -84,7 +84,7 @@ export default function TeamPage() {
       )}
 
       {/* Tab Buttons */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+      <div className="detail-page-tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
         <button onClick={() => setActiveTab('home')}>Home</button>
         <button onClick={() => setActiveTab('recent')}>Recent Matches</button>
         <button onClick={() => setActiveTab('players')}>Players</button>
@@ -95,19 +95,17 @@ export default function TeamPage() {
       {/* Tab Content */}
       {activeTab === 'home' && (
         <TeamHomeTab
-          teamName={teamName}
           teamId={teamId}
-          selectedLeague={selectedLeague}
           matches={matches}
           heroes={heroes}
           players={players}
         />
       )}
-      {activeTab === 'recent' && <TeamRecentMatches matches={matches} leagueId={selectedLeague} />}
-      {activeTab === 'players' && <TeamPlayers teamId={teamId} leagueId={selectedLeague} />}
+      {activeTab === 'recent' && <div className="detail-table-scroll"><TeamRecentMatches matches={matches} leagueId={selectedLeague} /></div>}
+      {activeTab === 'players' && <div className="detail-table-scroll"><TeamPlayers teamId={teamId} leagueId={selectedLeague} /></div>}
       {/*activeTab === 'averages' && <TeamAverages teamId={teamId} />*/}
       {activeTab === 'heroes' && (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="detail-table-scroll"><table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               <th style={thStyle}>Hero</th>
@@ -136,7 +134,7 @@ export default function TeamPage() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );

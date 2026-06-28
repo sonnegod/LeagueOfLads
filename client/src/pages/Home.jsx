@@ -4,6 +4,7 @@ import CurrentLeagueSeries from "../components/CurrentLeagueSeries";
 import CurrentLeaderboardTable from "../components/CurrentLeaderboardTable";
 import TieBreakerView from "../components/TieBreakerView";   // you will create
 import CurrentPlayoffBracketView from "../components/CurrentPlayoffBracketView"; // you will create
+import './Home.css';
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -58,7 +59,7 @@ export default function Home() {
   // ----------------------------------------------------
   if (inGroupStage) {
     return (
-      <div style={{ padding: "1rem" }}>
+      <div className="home-page" style={{ padding: "1rem" }}>
         <CurrentLeaderboardTable />
 
         <hr style={{ margin: "2rem 0" }} />
@@ -74,9 +75,9 @@ export default function Home() {
   // ----------------------------------------------------
 
   return (
-    <div style={{ padding: "1rem" }}>
+    <div className="home-page" style={{ padding: "1rem" }}>
       {/* TABS */}
-      <div style={tabBarStyle}>
+      <div className="home-tabs" style={tabBarStyle}>
         {inPlayoffs && (
           <button
             style={activeTab === "playoffs" ? tabActive : tabInactive}

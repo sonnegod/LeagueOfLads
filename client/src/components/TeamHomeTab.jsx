@@ -4,9 +4,7 @@ import HeroDisplay from "./HeroDisplay";
 const PLAYER_LEADER_MIN_GAMES = 5;
 
 export default function TeamHomeTab({
-  teamName,
   teamId,
-  selectedLeague,
   matches = [],
   heroes = [],
   players = []
@@ -23,25 +21,15 @@ export default function TeamHomeTab({
   const recentMatches = teamMatches.slice(0, 6);
 
   return (
-    <div style={homeStyle}>
-      <section style={heroPanelStyle}>
-        <div>
-          <div style={eyebrowStyle}>{selectedLeague === "all" ? "All Leagues" : "Filtered League"}</div>
-          <h2 style={{ margin: "0.25rem 0" }}>{teamName} Home</h2>
-          <p style={subtleTextStyle}>
-            A quick look at form, player production, comfort heroes, and recent matches.
-          </p>
-        </div>
-      </section>
-
-      <div style={metricGridStyle}>
+    <div className="detail-home" style={homeStyle}>
+      <div className="detail-metric-grid" style={metricGridStyle}>
         <MetricCard label="Matches" value={teamMatches.length} />
         <MetricCard label="Wins" value={wins} />
         <MetricCard label="Win Rate" value={`${formatNumber(winRate, 2)}%`} />
         <MetricCard label="Heroes Played" value={teamHeroes.length} />
       </div>
 
-      <div style={featureGridStyle}>
+      <div className="detail-feature-grid" style={featureGridStyle}>
         <FeatureCard title="KDA Leaders">
           {topKdaPlayers.length > 0 ? (
             <div style={leaderListStyle}>
@@ -92,7 +80,7 @@ export default function TeamHomeTab({
         {recentMatches.length > 0 ? (
           <div style={{ display: "grid", gap: "0.6rem" }}>
             {recentMatches.map(match => (
-              <div key={match.MatchId} style={recentMatchStyle}>
+              <div className="detail-recent-match" key={match.MatchId} style={recentMatchStyle}>
                 <TeamResult match={match} side="r" />
                 <TeamResult match={match} side="d" />
                 <Link to={`/league/${match.LeagueId}`} style={smallLinkStyle}>{match.LeagueName}</Link>
@@ -236,15 +224,6 @@ function formatNumber(value, fractionDigits = 0) {
 
 const homeStyle = { display: "grid", gap: "1rem" };
 
-const heroPanelStyle = {
-  padding: "1.25rem",
-  border: "1px solid #334155",
-  borderRadius: "12px",
-  background: "linear-gradient(135deg, #111827, #1e1b4b)",
-  color: "#f8fafc",
-  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.22)"
-};
-
 const metricGridStyle = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
@@ -278,13 +257,6 @@ const panelStyle = {
 };
 
 const sectionHeaderStyle = { marginTop: 0, marginBottom: "0.75rem" };
-const eyebrowStyle = {
-  color: "#a5b4fc",
-  fontSize: "0.75rem",
-  fontWeight: "700",
-  letterSpacing: "0.08em",
-  textTransform: "uppercase"
-};
 const subtleTextStyle = { color: "#cbd5e1", fontSize: "0.92rem" };
 const featureLinkStyle = { fontSize: "1rem", fontWeight: "700", color: "#bfdbfe" };
 const smallLinkStyle = { color: "#bfdbfe", fontSize: "0.9rem" };

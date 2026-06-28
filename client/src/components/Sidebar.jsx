@@ -3,25 +3,25 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Sidebar.css';
 
-export default function Sidebar() {
+export default function Sidebar({ open, onClose }) {
   const { user } = useAuth();
   const ADMIN_ACCOUNT_ID = '49219700';
 
   return (
-    <aside className="sidebar">
-      <nav className="sidebar-nav">
-        <Link to="/">Home</Link>
+    <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
+      <nav className="sidebar-nav" id="primary-navigation" aria-label="Primary navigation">
+        <Link to="/" onClick={onClose}>Home</Link>
         {user ? <Link to="/dashboard">Dashboard</Link> : <a href="/api/auth/steam" >Login</a>}
 
-        <Link to="/recentMatches">Recent Matches</Link>
-        <Link to="/team">Teams</Link>
-        <Link to="/player">Players</Link>
+        <Link to="/recentMatches" onClick={onClose}>Recent Matches</Link>
+        <Link to="/team" onClick={onClose}>Teams</Link>
+        <Link to="/player" onClick={onClose}>Players</Link>
         {/*<Link to="/match">Matches</Link> removing for performance issues*/}
-        <Link to="/league">Leagues</Link>
-        <Link to="/h2h">Head to Head</Link>
-        <Link to="/hero">Heroes</Link>
+        <Link to="/league" onClick={onClose}>Leagues</Link>
+        <Link to="/h2h" onClick={onClose}>Head to Head</Link>
+        <Link to="/hero" onClick={onClose}>Heroes</Link>
 
-        <Link to="/betting">Betting</Link>
+        <Link to="/betting" onClick={onClose}>Betting</Link>
 
         {user && <Link to="/request">Request</Link>}
         {/* Show admin button only if user is admin */}

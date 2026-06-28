@@ -4,6 +4,7 @@ import TieBreakerTable from "./TieBreakerTable";
 import UpperBracketTable from "./UpperBracketTable";
 import LowerBracketTable from "./LowerBracketTable";
 import EliminatedBracketTable from "./EliminatedBracketTable";
+import './TieBreakerView.css';
 
 
 export default function TiebreakerView({ leagueId }) {
@@ -39,13 +40,14 @@ export default function TiebreakerView({ leagueId }) {
   if (loading) return <p>Loading tiebreakers...</p>;
 
   return (
-    <div style={{ padding: "1rem" }}>
+    <div className="tiebreaker-view" style={{ padding: "1rem" }}>
 
       {/* Top: Tiebreaker Table */}
       <TieBreakerTable teams={tiebreakerTeams} leagueId={leagueId} />
 
       {/* Bottom: Upper + Lower Tables side-by-side */}
       <div
+        className="tiebreaker-brackets"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr 1fr",

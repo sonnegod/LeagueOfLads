@@ -3,7 +3,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 60px;
+  height: var(--navbar-height);
   background-color: #1e1e1e;
   color: white;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
@@ -17,6 +17,10 @@
   width: 100%;
   justify-content: space-between;
   align-items: center;
+}
+
+.navbar-menu-button {
+  display: none;
 }
 
 
@@ -111,6 +115,10 @@
   align-items: center;
   gap: 10px;
   user-select: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
 }
 
 .avatar {
@@ -152,4 +160,112 @@
 
 .dropdown-menu button:hover {
   background-color: #3a3a3a;
+}
+
+@media (max-width: 767px) {
+  .navbar {
+    align-items: stretch;
+  }
+
+  .navbar-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 60px 48px;
+    padding: 0 12px 8px;
+    box-sizing: border-box;
+  }
+
+  .navbar-left {
+    min-width: 0;
+    gap: 8px;
+    margin-left: 0;
+  }
+
+  .navbar-menu-button {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: white;
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .navbar-logo {
+    height: 34px;
+  }
+
+  .navbar-title {
+    overflow: hidden;
+    font-size: 1.05rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .navbar-search {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+  }
+
+  .search-input {
+    box-sizing: border-box;
+    min-height: 40px;
+    font-size: 16px;
+  }
+
+  .navbar-right {
+    grid-column: 2;
+    grid-row: 1;
+    gap: 8px;
+    margin-right: 0;
+  }
+
+  .live-match-button {
+    min-width: 44px;
+    min-height: 40px;
+    justify-content: center;
+    padding: 6px 9px;
+  }
+
+  .steam-login-button img.steam-icon {
+    width: 116px;
+  }
+
+  .user-info {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .user-name,
+  .dropdown-arrow {
+    display: none;
+  }
+}
+
+@media (max-width: 430px) {
+  .navbar-title {
+    display: none;
+  }
+
+  .live-match-label {
+    font-size: 0;
+  }
+
+  .live-match-label::after {
+    content: 'Live';
+    font-size: 13px;
+  }
+
+  .steam-login-button img.steam-icon {
+    width: 104px;
+  }
 }

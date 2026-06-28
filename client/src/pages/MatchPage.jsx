@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import HeroDisplay from '../components/HeroDisplay';
+import './MatchSeriesPages.css';
 
 export default function MatchPage() {
   const { matchId } = useParams();
@@ -47,19 +48,19 @@ export default function MatchPage() {
   };
 
   return (
-    <div style={{ width: '100%', margin: '0 auto', padding: '1rem' }}>
+    <div className="match-detail-page" style={{ width: '100%', margin: '0 auto', padding: '1rem' }}>
       <h1>Match {match.match[0].MatchId}</h1>
       <p><strong>Date:</strong> {match.match[0].DatePlayed}</p>
       <p><strong>League:</strong><Link to={`/league/${match.match[0].LeagueId}`}> {match.match[0].LeagueName}</Link></p>
       <p><strong>Duration:</strong> {Math.floor(match.match[0].Duration / 60)}:{(match.match[0].Duration % 60).toString().padStart(2, '0')}</p>
       {/* Teams side by side */}
-      <div style={{ display: 'flex', gap: '2rem', marginTop: '2rem' }}>
+      <div className="match-team-grid" style={{ display: 'flex', gap: '2rem', marginTop: '2rem' }}>
         {/* Radiant */}
-          <div style={{ flex: 1, border: '2px solid #0f6b58', borderRadius: '8px', background: 'var(--surface, #121315)' }}>
+          <div className="match-team-panel" style={{ flex: 1, border: '2px solid #0f6b58', borderRadius: '8px', background: 'var(--surface, #121315)' }}>
             <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #0f6b58', color: 'var(--text, #e6e6e6)' }}>
               <Link to={`/team/${match.match[0].rad_team_id}`} style={{ color: 'inherit' }}>{match.match[0].rad_team_name}{match.match[0].WinnerSide === 'r' && '♔'}</Link>
             </div>
-          <table style={tableStyle}>
+          <table className="match-player-table" style={tableStyle}>
             <thead>
               <tr>
                 <th style={thTdStyle}>Player</th>
@@ -98,11 +99,11 @@ export default function MatchPage() {
         </div>
 
         {/* Dire */}
-        <div style={{ flex: 1, border: '2px solid #6b1a1a', borderRadius: '8px', background: 'var(--surface, #121315)' }}>
+        <div className="match-team-panel" style={{ flex: 1, border: '2px solid #6b1a1a', borderRadius: '8px', background: 'var(--surface, #121315)' }}>
           <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #6b1a1a', color: 'var(--text, #e6e6e6)' }}>
             <Link to={`/team/${match.match[0].dire_team_id}`} style={{ color: 'inherit' }}>{match.match[0].dire_team_name}{match.match[0].WinnerSide === 'd' && '♔'}</Link>
           </div>
-          <table style={tableStyle}>
+          <table className="match-player-table" style={tableStyle}>
             <thead>
               <tr>
                 <th style={thTdStyle}>Player</th>

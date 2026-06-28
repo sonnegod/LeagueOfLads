@@ -1,0 +1,124 @@
+.current-series-cards {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .current-series {
+    padding: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  .current-series-table {
+    display: none;
+  }
+
+  .current-series-cards {
+    display: grid;
+    gap: 10px;
+  }
+
+  .series-card {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .series-card-summary {
+    position: relative;
+    display: grid;
+    width: 100%;
+    min-height: 76px;
+    gap: 5px;
+    padding: 12px 42px 12px 14px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    text-align: left;
+  }
+
+  .series-card-date {
+    color: var(--muted-text);
+    font-size: 0.78rem;
+  }
+
+  .series-card-matchup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    font-weight: 700;
+  }
+
+  .series-card-matchup span:last-child {
+    text-align: right;
+  }
+
+  .series-card-versus {
+    color: var(--muted-text);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+
+  .series-card-chevron {
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    color: var(--primary);
+    font-size: 1.4rem;
+    transform: translateY(-50%);
+  }
+
+  .series-match-list {
+    display: grid;
+    gap: 8px;
+    padding: 0 10px 10px;
+  }
+
+  .series-match-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #0b0b0b;
+  }
+
+  .series-match-id {
+    grid-column: 1 / -1;
+    font-size: 0.8rem;
+  }
+
+  .series-match-team {
+    display: flex;
+    min-width: 0;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .series-match-team a {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .series-winner {
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: #123d1a;
+    color: #c7f9cf;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+  }
+
+  .series-match-duration {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    align-self: center;
+    color: var(--muted-text);
+    font-variant-numeric: tabular-nums;
+  }
+}

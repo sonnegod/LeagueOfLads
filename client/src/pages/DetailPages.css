@@ -1,0 +1,70 @@
+@media (max-width: 767px) {
+  .detail-page {
+    max-width: 100%;
+    padding: 12px !important;
+    box-sizing: border-box;
+  }
+
+  .detail-page h1 {
+    margin: 8px 0 14px;
+    overflow-wrap: anywhere;
+  }
+
+  .detail-page-filter {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .detail-page-filter .league-filter {
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 10px !important;
+    font-size: 16px;
+  }
+
+  .detail-page-tabs {
+    max-width: 100%;
+    gap: 8px !important;
+    overflow-x: auto;
+    padding-bottom: 5px;
+    overscroll-behavior-inline: contain;
+  }
+
+  .detail-page-tabs button {
+    min-height: 44px;
+    flex: 0 0 auto;
+    padding: 8px 12px !important;
+    white-space: nowrap;
+  }
+
+  .detail-table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    border-radius: 8px;
+    overscroll-behavior-inline: contain;
+  }
+
+  .detail-table-scroll > table {
+    min-width: 700px;
+  }
+
+  .detail-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .detail-feature-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .detail-recent-match {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 6px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .detail-metric-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}

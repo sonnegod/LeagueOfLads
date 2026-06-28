@@ -17,6 +17,7 @@ export default function LeagueFilter({ value, onChange, leagues: customLeagues }
 
   return (
     <select
+      className="league-filter"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       style={{ background: 'black', color: 'white', border: '1px solid var(--border, #222428)', padding: '6px', borderRadius: 6 }}

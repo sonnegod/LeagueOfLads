@@ -3,13 +3,14 @@ import { Link } from "react-router-dom";
 import LeagueFilter from '../components/LeagueFilter';
 import { useLeagues } from '../context/LeagueContext';
 import HeroDisplay from '../components/HeroDisplay';
+import './DataListPages.css';
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedLeague, setSelectedLeague] = useState('all');
   const [expandedPlayers, setExpandedPlayers] = useState({});
-  const [customLeagues, setCustomLeagues] = useState([]);
+  const [customLeagues] = useState([]);
   const { leagues: globalLeagues, loading: leaguesLoading } = useLeagues();
 
   const leagues = customLeagues.length > 0 ? customLeagues : globalLeagues;
@@ -64,7 +65,7 @@ export default function PlayersPage() {
   if (loading || leaguesLoading) return <div>Loading players...</div>;
 
   return (
-    <div style={{ padding: "1rem", overflowX: "auto", background: "var(--surface, #000)", borderRadius: "8px" }}>
+    <div className="data-list-page players-list-page" style={{ padding: "1rem", overflowX: "auto", background: "var(--surface, #000)", borderRadius: "8px" }}>
       <h1 style={{ color: "var(--text, #e6e6e6)" }}>Players</h1>
       <LeagueFilter
         leagues={leagues}
@@ -72,7 +73,7 @@ export default function PlayersPage() {
         onChange={setSelectedLeague}
       />
 
-      <table style={{ width: "100%", minWidth: "1200px", borderCollapse: "collapse" }}>
+      <table className="responsive-data-table players-data-table" style={{ width: "100%", minWidth: "1200px", borderCollapse: "collapse" }}>
         <thead>
           <tr>
             <th style={thStyle}>Player</th>
@@ -87,14 +88,14 @@ export default function PlayersPage() {
                 onClick={() => toggleExpanded(player.PlayerId)}
                 style={{ cursor: "pointer", backgroundColor: expandedPlayers[player.PlayerId] ? "var(--surface, #0b0b0b)" : "transparent" }}
               >
-                <td style={tdStyle}><Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link></td>
-                <td style={tdStyle}>{player.GamesPlayed}</td>
-                <td style={tdStyle}>{player.WinPercentage?.toFixed(2)}%</td>
+                <td data-label="Player" style={tdStyle}><Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link></td>
+                <td data-label="Games" style={tdStyle}>{player.GamesPlayed}</td>
+                <td data-label="Win rate" style={tdStyle}>{player.WinPercentage?.toFixed(2)}%</td>
               </tr>
 
               {expandedPlayers[player.PlayerId] && (
                 <tr>
-                  <td colSpan="3" style={{ paddingLeft: "2rem", background: "var(--surface, #0b0b0b)" }}>
+                  <td className="data-table-expanded" colSpan="3" style={{ paddingLeft: "2rem", background: "var(--surface, #0b0b0b)" }}>
                     {selectedLeague === "all" ? (
                       // Show teams
                       <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem" }}>

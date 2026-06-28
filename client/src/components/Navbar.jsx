@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 
 
 
-export default function Navbar() {
+export default function Navbar({ mobileNavOpen, onMenuToggle }) {
   const { user, logout } = useAuth();
   const [query, setQuery] = useState("");
   const [liveMatchCount, setLiveMatchCount] = useState(0);
@@ -36,7 +36,7 @@ export default function Navbar() {
         const res = await fetch('/api/liveMatches/count');
         const data = await res.json();
         if (!cancelled) setLiveMatchCount(Number(data.count) || 0);
-      } catch (err) {
+      } catch {
         if (!cancelled) setLiveMatchCount(0);
       }
     }
@@ -69,6 +69,16 @@ export default function Navbar() {
     <nav className="navbar">
       <div className="navbar-content">
         <div className="navbar-left">
+          <button
+            type="button"
+            className="navbar-menu-button"
+            aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'}
+            aria-expanded={mobileNavOpen}
+            aria-controls="primary-navigation"
+            onClick={onMenuToggle}
+          >
+            <span aria-hidden="true">{mobileNavOpen ? '\u00d7' : '\u2630'}</span>
+          </button>
           <img src={logo} alt="League of Lads Logo" className="navbar-logo" />
           <div className="navbar-title"><Link to="/" style={{ color: 'white', textDecoration: 'none' }}>League Of Lads</Link></div>
         </div>
@@ -87,7 +97,7 @@ export default function Navbar() {
 
         <div className="navbar-right" ref={dropdownRef}>
           <Link to="/live" className="live-match-button">
-            Live Matches
+            <span className="live-match-label">Live Matches</span>
             {liveMatchCount > 0 && <span className="live-match-badge">{liveMatchCount}</span>}
           </Link>
 
@@ -96,9 +106,9 @@ export default function Navbar() {
               <img src={steamLogin} alt="Steam Login" className="steam-icon" />
             </a>
           ) : (
-            <div className="user-info" onClick={() => setDropdownOpen(!dropdownOpen)}>
+            <button type="button" className="user-info" onClick={() => setDropdownOpen(!dropdownOpen)}>
               <img src={user.avatar} alt="avatar" className="avatar" />
-              <span>{user.personaname}</span>
+              <span className="user-name">{user.personaname}</span>
               <span className={`dropdown-arrow ${dropdownOpen ? 'up' : ''}`}>&#9662;</span>
               {dropdownOpen && (
                 <div className="dropdown-menu">
@@ -106,7 +116,7 @@ export default function Navbar() {
                   <button onClick={handleLogout}>Logout</button>
                 </div>
               )}
-            </div>
+            </button>
           )}
         </div>
       </div>

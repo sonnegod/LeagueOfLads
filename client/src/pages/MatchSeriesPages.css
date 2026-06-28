@@ -1,0 +1,63 @@
+.match-team-panel {
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .match-detail-page,
+  .series-detail-page {
+    max-width: 100%;
+    padding: 12px !important;
+    box-sizing: border-box;
+  }
+
+  .match-detail-page h1 {
+    margin: 8px 0 12px;
+  }
+
+  .match-detail-page > p {
+    margin: 6px 0;
+  }
+
+  .match-team-grid {
+    flex-direction: column !important;
+    gap: 14px !important;
+    margin-top: 18px !important;
+  }
+
+  .match-team-panel {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  .match-player-table {
+    min-width: 850px;
+  }
+
+  .series-matchup-title {
+    font-size: 1.35rem !important;
+    line-height: 1.35 !important;
+    overflow-wrap: anywhere;
+  }
+
+  .series-detail-page > hr {
+    margin: 1rem 0 !important;
+  }
+
+  .series-game-tabs {
+    max-width: 100%;
+    gap: 8px !important;
+    overflow-x: auto;
+    padding-bottom: 5px;
+  }
+
+  .series-game-tabs button {
+    min-height: 44px;
+    flex: 0 0 auto;
+  }
+
+  .series-match-details {
+    margin-top: 1rem !important;
+  }
+}

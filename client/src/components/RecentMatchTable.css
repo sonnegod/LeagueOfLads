@@ -1,0 +1,91 @@
+.recent-match-cards {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .recent-matches {
+    width: 100% !important;
+    padding: 12px !important;
+  }
+
+  .recent-matches-desktop {
+    display: none;
+  }
+
+  .recent-match-cards {
+    display: grid;
+    gap: 10px;
+  }
+
+  .recent-match-card {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .recent-match-card-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8rem;
+  }
+
+  .recent-match-card-header a:last-child {
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recent-match-teams {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    min-height: 64px;
+    padding: 10px 12px;
+  }
+
+  .recent-match-teams > a {
+    overflow-wrap: anywhere;
+    font-weight: 700;
+  }
+
+  .recent-match-teams > a:last-child {
+    text-align: right;
+  }
+
+  .recent-match-teams > span {
+    color: var(--muted-text);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+  }
+
+  .recent-match-winner {
+    color: #7ee2a8;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+  }
+
+  .recent-match-expand {
+    width: 100%;
+    min-height: 44px;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    color: var(--primary);
+  }
+
+  .recent-player-table-scroll {
+    max-width: 100%;
+    padding: 8px;
+    overflow-x: auto;
+  }
+
+  .recent-player-table {
+    min-width: 900px;
+  }
+}

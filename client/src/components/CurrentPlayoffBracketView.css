@@ -1,0 +1,12 @@
+@media (max-width: 767px) {
+  .current-playoff-bracket {
+    min-height: 0 !important;
+    margin: 0 -12px;
+    padding: 14px 12px !important;
+  }
+
+  .current-playoff-board {
+    padding-bottom: 16px !important;
+    overscroll-behavior-inline: contain;
+  }
+}

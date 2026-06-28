@@ -1,0 +1,60 @@
+.leaderboard-h2h-mobile {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .leaderboard-groups {
+    display: block !important;
+  }
+
+  .leaderboard-group-card {
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 10px !important;
+  }
+
+  .leaderboard-standings th,
+  .leaderboard-standings td {
+    padding: 7px 4px !important;
+    font-size: 0.82rem;
+  }
+
+  .leaderboard-standings th:first-child,
+  .leaderboard-standings td:first-child {
+    width: 43%;
+    text-align: left !important;
+  }
+
+  .leaderboard-h2h-desktop {
+    display: none !important;
+  }
+
+  .leaderboard-h2h-mobile {
+    display: block;
+    margin-top: 12px;
+  }
+
+  .leaderboard-h2h-mobile summary {
+    min-height: 44px;
+    padding: 11px 4px;
+    box-sizing: border-box;
+    color: var(--primary);
+    cursor: pointer;
+  }
+
+  .leaderboard-h2h-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  .leaderboard-h2h-table {
+    width: max-content !important;
+    min-width: 100% !important;
+  }
+
+  .leaderboard-h2h-table th,
+  .leaderboard-h2h-table td {
+    min-width: 52px;
+  }
+}

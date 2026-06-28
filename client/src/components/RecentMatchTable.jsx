@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import HeroDisplay from './HeroDisplay';
+import './RecentMatchTable.css';
 
 
 import {
@@ -14,6 +15,7 @@ import {
 export default function RecentMatchTable() {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [mobileExpanded, setMobileExpanded] = useState({});
 
   // Fetch match data on mount
   useEffect(() => {
@@ -47,8 +49,6 @@ export default function RecentMatchTable() {
       accessorKey: 'MatchId',
       header: 'Match ID',
       cell: info => {
-        const winner = info.row.original.WinnerSide;
-        const isWinner = winner === 'r';
         return (
           <Link to={`/match/${info.row.original.MatchId}`}>
             {info.getValue()}
@@ -104,7 +104,7 @@ export default function RecentMatchTable() {
   });
 
   return (
-    <div style={{
+    <div className="recent-matches" style={{
     width: '80vw',
     padding: '1rem',
     boxSizing: 'border-box',
@@ -112,7 +112,7 @@ export default function RecentMatchTable() {
       }}>
       {loading && <div>Loading...</div>}
       {!loading && (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table className="recent-matches-desktop" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id}>
@@ -155,6 +155,48 @@ export default function RecentMatchTable() {
           </tbody>
         </table>
       )}
+      {!loading && (
+        <div className="recent-match-cards">
+          {matches.map((match) => {
+            const expanded = Boolean(mobileExpanded[match.MatchId]);
+            return (
+              <article className="recent-match-card" key={match.MatchId}>
+                <div className="recent-match-card-header">
+                  <Link to={`/match/${match.MatchId}`}>Match {match.MatchId}</Link>
+                  <Link to={`/league/${match.LeagueId}`}>{match.LeagueName}</Link>
+                </div>
+                <div className="recent-match-teams">
+                  <Link to={`/team/${match.rad_team_id}`}>
+                    {match.rad_team_name} {match.WinnerSide === 'r' && <span className="recent-match-winner">Winner</span>}
+                  </Link>
+                  <span>vs</span>
+                  <Link to={`/team/${match.dire_team_id}`}>
+                    {match.dire_team_name} {match.WinnerSide === 'd' && <span className="recent-match-winner">Winner</span>}
+                  </Link>
+                </div>
+                {match.players?.length > 0 && (
+                  <button
+                    type="button"
+                    className="recent-match-expand"
+                    aria-expanded={expanded}
+                    onClick={() => setMobileExpanded((current) => ({
+                      ...current,
+                      [match.MatchId]: !current[match.MatchId],
+                    }))}
+                  >
+                    {expanded ? 'Hide player stats' : 'View player stats'}
+                  </button>
+                )}
+                {expanded && (
+                  <div className="recent-player-table-scroll">
+                    <PlayerTable players={match.players} />
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -163,7 +205,7 @@ function PlayerTable({ players }) {
   if (!players?.length) return <div>No player data</div>;
 
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <table className="recent-player-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
       <thead>
         <tr>
           <th>Player</th>

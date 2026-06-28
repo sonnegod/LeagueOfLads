@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import './CurrentLeaderboardTable.css';
 
 export default function CurrentLeagueSeries({ leagueId }) {
 
@@ -29,17 +30,17 @@ export default function CurrentLeagueSeries({ leagueId }) {
   }, [leagueId]);
 
     return (
-    <div style={containerStyle}>
+    <div className="leaderboard-groups" style={containerStyle}>
     {loading && <div>Loading leaderboard...</div>}
     {groups.map(group => (
-      <div key={group.GroupId} style={cardStyle}>
+      <div key={group.GroupId} className="leaderboard-group-card" style={cardStyle}>
         <div style={{ flexGrow: 1 }}>
 
           <h3 style={{ textAlign: "center", color: 'var(--text, #ffffff)' }}>
           {group.GroupName ? group.GroupName : `Group ${group.GroupId}`}
         </h3>
 
-        <table style={tableStyle}>
+        <table className="leaderboard-standings" style={tableStyle}>
           <thead>
             <tr>
               <th style={thStyle}>Team</th>
@@ -65,9 +66,13 @@ export default function CurrentLeagueSeries({ leagueId }) {
           </tbody>
         </table>
         </div>
-        <div style={h2hContainerStyle}>
-      {buildH2HMatrix(group)}
-    </div>
+        <div className="leaderboard-h2h-desktop" style={h2hContainerStyle}>
+          {buildH2HMatrix(group)}
+        </div>
+        <details className="leaderboard-h2h-mobile">
+          <summary>Head-to-head results</summary>
+          <div className="leaderboard-h2h-scroll">{buildH2HMatrix(group)}</div>
+        </details>
       </div>
       
     ))}
@@ -114,7 +119,7 @@ function buildH2HMatrix(group) {
   };
 
   return (
-    <table style={{ ...tableStyle, marginTop: "12px" }}>
+    <table className="leaderboard-h2h-table" style={{ ...tableStyle, marginTop: "12px" }}>
       <thead>
         <tr>
           <th style={h2hThStyle}></th>

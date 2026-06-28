@@ -1,0 +1,141 @@
+ .mobile-sort-controls {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .data-list-page {
+    padding: 12px !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  .data-list-page h1 {
+    margin: 8px 0 14px;
+  }
+
+  .data-list-page .league-filter {
+    width: 100%;
+    min-height: 44px;
+    margin-bottom: 14px;
+    padding: 8px 10px !important;
+    font-size: 16px;
+  }
+
+  .mobile-sort-controls {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 12px;
+    overflow-x: auto;
+  }
+
+  .mobile-sort-controls span {
+    flex: 0 0 auto;
+    color: var(--muted-text);
+    font-size: 0.8rem;
+  }
+
+  .mobile-sort-controls button {
+    min-height: 38px;
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    font-size: 0.82rem;
+  }
+
+  .responsive-data-table {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .responsive-data-table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .responsive-data-table > tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .responsive-data-table > tbody > tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .responsive-data-table > tbody > tr > td {
+    display: flex;
+    min-width: 0;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 12px !important;
+    border: 0 !important;
+    border-top: 1px solid var(--border) !important;
+    text-align: right !important;
+  }
+
+  .responsive-data-table > tbody > tr > td::before {
+    content: attr(data-label);
+    color: var(--muted-text);
+    font-size: 0.76rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .responsive-data-table > tbody > tr > td:first-child {
+    grid-column: 1 / -1;
+    border-top: 0 !important;
+    font-size: 1.05rem;
+    font-weight: 700;
+    text-align: left !important;
+  }
+
+  .responsive-data-table > tbody > tr > td:first-child::before {
+    display: none;
+  }
+
+  .responsive-data-table > tbody > tr:has(> .data-table-expanded) {
+    display: block;
+    margin-top: -10px;
+    border-top: 0;
+    border-radius: 0 0 10px 10px;
+  }
+
+  .responsive-data-table > tbody > tr > .data-table-expanded {
+    display: block;
+    max-width: calc(100vw - 26px);
+    min-height: 0;
+    padding: 8px !important;
+    overflow-x: auto;
+    text-align: left !important;
+  }
+
+  .responsive-data-table > tbody > tr > .data-table-expanded::before {
+    display: none;
+  }
+
+  .data-table-expanded table {
+    min-width: 680px;
+  }
+
+  .leagues-data-table > tbody > tr {
+    grid-template-columns: 1fr;
+  }
+
+  .leagues-data-table > tbody > tr > td {
+    grid-column: 1;
+  }
+
+  .leagues-data-table > tbody > tr > td:first-child {
+    grid-column: 1;
+  }
+}

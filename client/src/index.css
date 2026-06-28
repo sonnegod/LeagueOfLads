@@ -12,6 +12,8 @@
   --primary: #646cff;
   --border: #222428;
   --button-bg: #1a1a1a;
+  --navbar-height: 60px;
+  --sidebar-width: 180px;
 
   color-scheme: light dark;
   color: var(--text);
@@ -72,9 +74,24 @@ button:focus-visible {
    a dedicated `[data-theme="light"] { ... }` block. */
 /* Main content area */
 main {
-  margin-top: 60px;      /* height of navbar */
-  margin-left: 180px;    /* width of sidebar */
-  min-height: calc(100vh - 60px); /* fill remaining height */
+  margin-top: var(--navbar-height);
+  margin-left: var(--sidebar-width);
+  min-height: calc(100vh - var(--navbar-height));
+  min-height: calc(100dvh - var(--navbar-height));
   background-color: transparent;  /* optional if you want the page bg to show */
   box-sizing: border-box;
+}
+
+@media (max-width: 767px) {
+  :root {
+    --navbar-height: 108px;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 10vw, 2.6rem);
+  }
+
+  main {
+    margin-left: 0;
+  }
 }

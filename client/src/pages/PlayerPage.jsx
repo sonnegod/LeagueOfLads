@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import HeroDisplay from '../components/HeroDisplay';
 import PlayerHomeTab from '../components/PlayerHomeTab';
 import LeagueFilter from '../components/LeagueFilter';
+import './DetailPages.css';
 
 export default function PlayerPage() {
   const { player_id } = useParams(); // gets :player_id from URL
@@ -36,7 +37,7 @@ export default function PlayerPage() {
   if (loading) return <div>Loading player info...</div>;
   if (!playerData) return <div>Player not found.</div>;
 
-  const { playerStats, playerHeroStats, playerTeamStats } = playerData;
+  const { playerStats, playerTeamStats } = playerData;
   const playerLeagues = getPlayerLeagues(playerStats);
   const selectedPlayerStats = selectedLeague === 'all'
     ? playerStats
@@ -45,11 +46,11 @@ export default function PlayerPage() {
   const selectedHeroStats = getHeroStatsFromMatches(selectedPlayerStats);
 
   return (
-    <div className='p-4'>
+    <div className='p-4 detail-page player-detail-page'>
       <h1 className="mb-4">{playerStats[0]?.PlayerName || player_id}</h1>
 
       {(activeTab === 'home' || activeTab === 'season' || activeTab === 'allMatches' || activeTab === 'heroes') && (
-        <div style={{ marginBottom: '1rem' }}>
+        <div className="detail-page-filter" style={{ marginBottom: '1rem' }}>
           <LeagueFilter
             leagues={playerLeagues}
             value={selectedLeague}
@@ -59,7 +60,7 @@ export default function PlayerPage() {
       )}
 
       {/* Tabs */}
-      <div className='flex gap-2 mb-4'>
+      <div className='flex gap-2 mb-4 detail-page-tabs'>
         <button onClick={() => setActiveTab('home')} style={activeTab === 'home' ? activeTabStyle : tabStyle}>Home</button>
         <button onClick={() => setActiveTab('season')} style={activeTab === 'season' ? activeTabStyle : tabStyle}>Season Stats</button>
         <button onClick={() => setActiveTab('allMatches')} style={activeTab === 'allMatches' ? activeTabStyle : tabStyle}>Total Matches</button>
@@ -70,17 +71,16 @@ export default function PlayerPage() {
       {/* Tab content */}
       {activeTab === 'home' && (
         <PlayerHomeTab
-          playerName={playerStats[0]?.PlayerName || player_id}
           playerStats={selectedPlayerStats}
           currentSeasonPlayerData={selectedSeasonStats}
           playerHeroStats={selectedHeroStats}
           playerTeamStats={playerTeamStats}
         />
       )}
-      {activeTab === 'season' && <PlayerStatsTable data={selectedSeasonStats} />}
-      {activeTab === 'allMatches' && <PlayerStatsTable data={selectedPlayerStats} />}
+      {activeTab === 'season' && <div className="detail-table-scroll"><PlayerStatsTable data={selectedSeasonStats} /></div>}
+      {activeTab === 'allMatches' && <div className="detail-table-scroll"><PlayerStatsTable data={selectedPlayerStats} /></div>}
       {activeTab === 'heroes' && (
-        <table style={tableStyle}>
+        <div className="detail-table-scroll"><table style={tableStyle}>
           <thead>
             <tr>
               <th style={thStyle}>Hero</th>
@@ -107,11 +107,11 @@ export default function PlayerPage() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
 
       {activeTab === 'teams' && (
-        <table style={tableStyle}>
+        <div className="detail-table-scroll"><table style={tableStyle}>
           <thead>
             <tr>
               <th style={thStyle}>Team</th>
@@ -130,7 +130,7 @@ export default function PlayerPage() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );

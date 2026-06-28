@@ -3,12 +3,13 @@ import { Link } from "react-router-dom";
 import LeagueFilter from '../components/LeagueFilter';
 import { useLeagues } from '../context/LeagueContext';
 import HeroDisplay from '../components/HeroDisplay';
+import './DataListPages.css';
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedLeague, setSelectedLeague] = useState('all');
-  const [customLeagues, setCustomLeagues] = useState([]);
+  const [customLeagues] = useState([]);
   const [expandedTeams, setExpandedTeams] = useState({});
   const [expandedPlayers, setExpandedPlayers] = useState({});
   const [sortConfig, setSortConfig] = useState({ key: 'GamesPlayed', direction: 'desc' });
@@ -102,14 +103,26 @@ export default function TeamsPage() {
   if (loading || leaguesLoading) return <div>Loading...</div>;
 
   return (
-    <div style={{ padding: '1rem' }}>
+    <div className="data-list-page teams-list-page" style={{ padding: '1rem' }}>
       <h1>Teams</h1>
       <LeagueFilter
         leagues={leagues}
         value={selectedLeague}
         onChange={setSelectedLeague}
       />
-      <table style={{ width: '100%', minWidth: '1200px', borderCollapse: 'collapse', cursor: 'pointer' }}>
+      <div className="mobile-sort-controls" aria-label="Sort teams">
+        <span>Sort by</span>
+        <button type="button" onClick={() => setSortConfig({ key: 'TeamName', direction: sortConfig.key === 'TeamName' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })}>
+          Name
+        </button>
+        <button type="button" onClick={() => setSortConfig({ key: 'GamesPlayed', direction: sortConfig.key === 'GamesPlayed' && sortConfig.direction === 'desc' ? 'asc' : 'desc' })}>
+          Games
+        </button>
+        <button type="button" onClick={() => setSortConfig({ key: 'WinPercentage', direction: sortConfig.key === 'WinPercentage' && sortConfig.direction === 'desc' ? 'asc' : 'desc' })}>
+          Win %
+        </button>
+      </div>
+      <table className="responsive-data-table teams-data-table" style={{ width: '100%', minWidth: '1200px', borderCollapse: 'collapse', cursor: 'pointer' }}>
         <thead>
           <tr>
             <th style={thStyle} onClick={() => setSortConfig({ key: 'TeamName', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })}>
@@ -132,18 +145,18 @@ export default function TeamsPage() {
                   cursor: "pointer",
                 }}
               >
-                <td style={tdStyle}>
+                <td data-label="Team" style={tdStyle}>
                   <Link to={`/team/${team.TeamId}`}> 
                     {team.TeamName}
                   </Link>              
                 </td>
-                <td style={tdStyle}>{team.GamesPlayed}</td>
-                <td style={tdStyle}>{team.WinPercentage?.toFixed(2)}%</td>
+                <td data-label="Games" style={tdStyle}>{team.GamesPlayed}</td>
+                <td data-label="Win rate" style={tdStyle}>{team.WinPercentage?.toFixed(2)}%</td>
               </tr>
 
               {expandedTeams[team.TeamId] && (
                 <tr>
-                  <td colSpan="3" style={{ paddingLeft: "2rem"}}>
+                  <td className="data-table-expanded" colSpan="3" style={{ paddingLeft: "2rem"}}>
                     {/* Nested Player Table */}
                     <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem" }}>
                       <thead>

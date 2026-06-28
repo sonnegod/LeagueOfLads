@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import HeroDisplay from '../components/HeroDisplay';
+import './MatchSeriesPages.css';
 
 // --- NEW COMPONENT: EXTRACTED MATCH DETAIL VIEW ---
 // This component displays the stats for a single game.
-const MatchDetailsTable = ({ matchData, matchNum, styles }) => {
+const MatchDetailsTable = ({ matchData, styles }) => {
     // Note: matchData here is expected to be a single item from the series matches array
     const match = matchData; // Access the main match info
     
@@ -24,7 +25,7 @@ const MatchDetailsTable = ({ matchData, matchNum, styles }) => {
     const durationSeconds = (match.Duration % 60).toString().padStart(2, '0');
 
     return (
-        <div style={{ marginTop: '2rem' }}>
+        <div className="series-match-details" style={{ marginTop: '2rem' }}>
             <h3 style={{ marginBottom: '1rem', textAlign: 'center' }}>
                 Duration:
                 <span style={{ fontSize: '0.8em', color: '#666', marginLeft: '10px' }}>
@@ -40,13 +41,13 @@ const MatchDetailsTable = ({ matchData, matchNum, styles }) => {
             </p>
 
             {/* Teams side by side - Match Player Stats */}
-            <div style={{ display: 'flex', gap: '2rem' }}>
+            <div className="match-team-grid" style={{ display: 'flex', gap: '2rem' }}>
                 {/* Radiant */}
-                <div style={{ flex: 1, border: '2px solid #00796b', borderRadius: '8px'}}>
+                <div className="match-team-panel" style={{ flex: 1, border: '2px solid #00796b', borderRadius: '8px'}}>
                     <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #00796b' }}>
                         <Link to={`/team/${match.rad_team_id}`}>{match.rad_team_name}{match.WinnerSide === 'r' && ' 👑'}</Link>
                     </div>
-                    <table style={tableStyle}>
+                    <table className="match-player-table" style={tableStyle}>
                         <thead>
                             <tr>
                                 <th style={thTdStyle}>Player</th>
@@ -83,11 +84,11 @@ const MatchDetailsTable = ({ matchData, matchNum, styles }) => {
                 </div>
 
                 {/* Dire */}
-                <div style={{ flex: 1, border: '2px solid #c62828', borderRadius: '8px' }}>
+                <div className="match-team-panel" style={{ flex: 1, border: '2px solid #c62828', borderRadius: '8px' }}>
                     <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #c62828' }}>
                         <Link to={`/team/${match.dire_team_id}`}>{match.dire_team_name}{match.WinnerSide === 'd' && ' 👑'}</Link>
                     </div>
-                    <table style={tableStyle}>
+                    <table className="match-player-table" style={tableStyle}>
                         <thead>
                              <tr>
                                 <th style={thTdStyle}>Player</th>
@@ -226,10 +227,10 @@ export default function SeriesPage() {
 
     // --- Render ---
     return (
-        <div style={{ width: '100%', margin: '0 auto', padding: '1rem' }}>
+        <div className="series-detail-page" style={{ width: '100%', margin: '0 auto', padding: '1rem' }}>
             
             {/* 1. MATCHUP HEADER */}
-            <h1 style={{ textAlign: 'center', fontSize: '2rem', marginBottom: '0.5rem' }}>
+            <h1 className="series-matchup-title" style={{ textAlign: 'center', fontSize: '2rem', marginBottom: '0.5rem' }}>
                 <Link to={`/team/${seriesData.series[0].Team1}`}>{seriesData.series[0].Team1Name}</Link> ({seriesData.series[0].Team1Wins}) vs. ({seriesData.series[0].Team2Wins}) <Link to={`/team/${seriesData.series[0].Team2}`}>{seriesData.series[0].Team2Name}</Link>
             </h1>
 
@@ -237,7 +238,7 @@ export default function SeriesPage() {
             <hr style={{ margin: '2rem 0', borderColor: '#ddd' }} />
 
             {/* 2. MATCH TABS (Buttons to select which game to view) */}
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+            <div className="series-game-tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
                 {seriesData.seriesMatchesWithData.map((matchData, index) => (
                     <button 
                         key={matchData.MatchId} 
@@ -253,7 +254,6 @@ export default function SeriesPage() {
             {currentMatchData && (
                 <MatchDetailsTable 
                     matchData={currentMatchData} 
-                    matchNum={activeMatchIndex + 1} 
                     styles={styles}
                 />
             )}

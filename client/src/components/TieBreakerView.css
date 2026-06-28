@@ -1,0 +1,11 @@
+@media (max-width: 767px) {
+  .tiebreaker-view {
+    padding: 0 !important;
+  }
+
+  .tiebreaker-brackets {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+    margin-top: 1rem !important;
+  }
+}

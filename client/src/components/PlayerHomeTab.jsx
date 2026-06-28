@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import HeroDisplay from "./HeroDisplay";
 
 export default function PlayerHomeTab({
-  playerName,
   playerStats = [],
   currentSeasonPlayerData = [],
   playerHeroStats = [],
@@ -19,25 +18,15 @@ export default function PlayerHomeTab({
   const averages = getAverages(playerStats);
 
   return (
-    <div style={homeStyle}>
-      <section style={heroPanelStyle}>
-        <div>
-          <div style={eyebrowStyle}>Player Dashboard</div>
-          <h2 style={{ margin: "0.25rem 0" }}>{playerName} Home</h2>
-          <p style={subtleTextStyle}>
-            A quick read on form, comfort heroes, team history, and recent match production.
-          </p>
-        </div>
-      </section>
-
-      <div style={metricGridStyle}>
+    <div className="detail-home" style={homeStyle}>
+      <div className="detail-metric-grid" style={metricGridStyle}>
         <MetricCard label="Total Matches" value={playerStats.length} />
         <MetricCard label="Total Win Rate" value={`${formatNumber(totalWinRate, 2)}%`} />
         <MetricCard label="Current Season" value={`${formatNumber(seasonWinRate, 2)}%`} />
         <MetricCard label="Unique Heroes" value={playerHeroStats.length} />
       </div>
 
-      <div style={featureGridStyle}>
+      <div className="detail-feature-grid" style={featureGridStyle}>
         <FeatureCard title="Average Line">
           <div style={featureValueStyle}>
             {formatNumber(averages.kills, 1)}/{formatNumber(averages.deaths, 1)}/{formatNumber(averages.assists, 1)}
@@ -79,7 +68,7 @@ export default function PlayerHomeTab({
         {recentMatches.length > 0 ? (
           <div style={{ display: "grid", gap: "0.6rem" }}>
             {recentMatches.map(match => (
-              <div key={match.MatchId} style={recentMatchStyle}>
+              <div className="detail-recent-match" key={match.MatchId} style={recentMatchStyle}>
                 <Link to={`/match/${match.MatchId}`} style={featureLinkStyle}>
                   <HeroDisplay heroId={match.HeroId} heroName={match.HeroName} />
                 </Link>
@@ -212,15 +201,6 @@ function formatNumber(value, fractionDigits = 0) {
 
 const homeStyle = { display: "grid", gap: "1rem" };
 
-const heroPanelStyle = {
-  padding: "1.25rem",
-  border: "1px solid #334155",
-  borderRadius: "12px",
-  background: "linear-gradient(135deg, #111827, #1e1b4b)",
-  color: "#f8fafc",
-  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.22)"
-};
-
 const metricGridStyle = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
@@ -255,13 +235,6 @@ const panelStyle = {
 };
 
 const sectionHeaderStyle = { marginTop: 0, marginBottom: "0.75rem" };
-const eyebrowStyle = {
-  color: "#a5b4fc",
-  fontSize: "0.75rem",
-  fontWeight: "700",
-  letterSpacing: "0.08em",
-  textTransform: "uppercase"
-};
 const subtleTextStyle = { color: "#cbd5e1", fontSize: "0.92rem" };
 const featureLinkStyle = { fontSize: "1rem", fontWeight: "700", color: "#bfdbfe" };
 const smallLinkStyle = { color: "#bfdbfe", fontSize: "0.9rem" };
