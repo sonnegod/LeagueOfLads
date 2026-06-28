@@ -211,7 +211,7 @@ export default function LiveMatchesPage() {
       try {
         const [liveRes, recentRes] = await Promise.all([
           fetch('/api/liveMatches'),
-          fetch('/api/liveMatches/recent?hours=4'),
+          fetch('/api/liveMatches/recent?hours=24'),
         ]);
         const [liveData, recentData] = await Promise.all([
           liveRes.json(),
