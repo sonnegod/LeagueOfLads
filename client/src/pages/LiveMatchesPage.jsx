@@ -277,7 +277,7 @@ export default function LiveMatchesPage() {
       <section style={recentSectionStyle}>
         <div style={sectionHeaderStyle}>
           <h2 style={{ margin: 0 }}>Recent Matches</h2>
-          <span style={metaStyle}>Last 4 hours</span>
+          <span style={metaStyle}>Last 24 hours</span>
         </div>
         {recentCount > 0 ? (
           <div style={cardsStyle}>
