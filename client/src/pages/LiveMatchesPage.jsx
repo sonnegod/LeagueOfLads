@@ -183,9 +183,11 @@ function LiveMatchCard({ match, snapshots, variant = 'live' }) {
           <div style={metaStyle}>
             Showing {selected.CreatedAt || selected.LastUpdated}.{' '}
             {!isLive && 'New snapshots will load without moving this view. '}
-            <button type="button" onClick={() => setSelectedSnapshotIndex(null)} style={smallButtonStyle}>
-              Return to live
-            </button>
+            {variant === 'live' && (
+              <button type="button" onClick={() => setSelectedSnapshotIndex(null)} style={smallButtonStyle}>
+                Return to live
+              </button>
+            )}
           </div>
         </div>
       )}
