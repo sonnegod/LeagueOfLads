@@ -9,10 +9,11 @@ import DeleteMatchCard from "../components/DeleteMatchCard";
 import PlayoffAdminPanel from "../components/PlayoffAdminPanel";
 import PlayoffBracketEditor from "../components/PlayoffBracketEditor";
 import LeagueAdminPanel from "../components/LeagueAdminPanel";
+import LeagueRulesCard from "../components/LeagueRulesCard";
 
 
 export default function AdminPage() {
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
   const [adminData, setAdminData] = useState(null);
   const [error, setError] = useState(null);
 
@@ -93,7 +94,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {activeTab === "admin" && <LeagueAdminPanel />}
+        {activeTab === "admin" && <><LeagueAdminPanel /><LeagueRulesCard /></>}
     </div>
   );
 }

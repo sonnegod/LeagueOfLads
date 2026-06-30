@@ -1,0 +1,36 @@
+@media (max-width: 767px) {
+  .league-page {
+    max-width: 100%;
+    padding: 12px !important;
+    overflow: hidden !important;
+    box-sizing: border-box;
+  }
+
+  .league-page > h1 {
+    margin: 8px 0 14px;
+    overflow-wrap: anywhere;
+  }
+
+  .league-page-tabs {
+    display: flex;
+    max-width: 100%;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 5px;
+    overscroll-behavior-inline: contain;
+  }
+
+  .league-page-tabs button {
+    min-height: 44px;
+    flex: 0 0 auto;
+    margin-right: 0 !important;
+    white-space: nowrap;
+  }
+
+  .league-page > table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+}

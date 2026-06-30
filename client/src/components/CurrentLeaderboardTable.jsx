@@ -50,10 +50,10 @@ export default function CurrentLeagueSeries({ leagueId }) {
             </tr>
           </thead>
           <tbody>
-            {group.groupTeams.map((team, index) => (
+            {group.groupTeams.map((team) => (
                 <tr
                   key={team.TeamId}
-                  style={getRowStyle(index, group.groupTeams.length)}
+                  style={getRowStyle(team.Qualification)}
                 >
                   <td style={tdStyle}>
                     <Link to={`/team/${team.TeamId}`}>{team.TeamName}</Link>
@@ -81,23 +81,11 @@ export default function CurrentLeagueSeries({ leagueId }) {
 
 }
 
-function getRowStyle(index, total) {
-  // Use same dark palette as TieBreakerTable: darker green/red/orange, lighter blue
-  const greenStyle = { backgroundColor: "#123d1a" };  // dark green
-  const blueStyle = { backgroundColor: "#2a3a66" };   // slightly lighter blue
-  const redStyle = { backgroundColor: "#3d1212" };    // dark red
-  const tanStyle = { backgroundColor: "#4b3b1f" };    // darker orange (used for 'tan' rows)
-
-  const isOdd = total % 2 === 1
-
-
-  if (index < 2) return greenStyle;                  // top 2
-  if (index === 2) return blueStyle;                 // 3rd
-
-  if (isOdd && index >= total - 3) return redStyle;      //bottom 3 for odd nmber
-  if (!isOdd && index >= total - 2) return redStyle;
-  
-  return tanStyle;                                  // rest (middle)
+function getRowStyle(qualification) {
+  if (qualification === 'upper') return { backgroundColor: "#123d1a" };
+  if (qualification === 'tiebreaker') return { backgroundColor: "#2a3a66" };
+  if (qualification === 'lower') return { backgroundColor: "#4b3b1f" };
+  return { backgroundColor: "#3d1212" };
 }
 
 function buildH2HMatrix(group) {

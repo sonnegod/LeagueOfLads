@@ -1,6 +1,7 @@
 import dbBet from './databaseBet.js';
 import Database from "better-sqlite3";
 import dotenv from 'dotenv';
+import { classifyStandings, DEFAULT_LEAGUE_RULES, normalizeLeagueRules } from './config/leagueRules.js';
 dotenv.config();
 
 class DBInstance {
@@ -12,12 +13,48 @@ class DBInstance {
                 : '/root/LeagueOfLads/db/LadsData.db';
                 
             this.db = new Database(dbPath);
+            this.ensureLeagueRulesSchema();
             this.ensureLiveMatchSchema();
             this.preloadedData = this.preloadData();
             DBInstance.instance = this;
         }
 
         return DBInstance.instance;
+    }
+
+    ensureLeagueRulesSchema(){
+        this.db.prepare(`CREATE TABLE IF NOT EXISTS LeagueRules (
+            LeagueId INTEGER PRIMARY KEY,
+            UpperBracketTeams INTEGER NOT NULL,
+            LowerBracketTeams INTEGER NOT NULL,
+            EliminatedTeams INTEGER NOT NULL,
+            HasTiebreaker INTEGER NOT NULL DEFAULT 0,
+            TiebreakerPosition INTEGER,
+            UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )`).run();
+    }
+
+    getLeagueRules(leagueId){
+        return this.db.prepare(`SELECT * FROM LeagueRules WHERE LeagueId = ?`).get(leagueId) || null;
+    }
+
+    saveLeagueRules(leagueId, rules){
+        const normalized = normalizeLeagueRules(rules);
+        this.db.prepare(`INSERT INTO LeagueRules
+            (LeagueId, UpperBracketTeams, LowerBracketTeams, EliminatedTeams, HasTiebreaker, TiebreakerPosition, UpdatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(LeagueId) DO UPDATE SET
+              UpperBracketTeams=excluded.UpperBracketTeams,
+              LowerBracketTeams=excluded.LowerBracketTeams,
+              EliminatedTeams=excluded.EliminatedTeams,
+              HasTiebreaker=excluded.HasTiebreaker,
+              TiebreakerPosition=excluded.TiebreakerPosition,
+              UpdatedAt=CURRENT_TIMESTAMP`).run(
+                leagueId, normalized.UpperBracketTeams, normalized.LowerBracketTeams,
+                normalized.EliminatedTeams, normalized.HasTiebreaker ? 1 : 0,
+                normalized.TiebreakerPosition
+            );
+        return this.getLeagueRules(leagueId);
     }
 
     ensureLiveMatchSchema(){
@@ -1512,7 +1549,9 @@ class DBInstance {
 
                     });
 
-                    const playoffTeams = groupTeams.slice(0, 8);        // top 2
+                    const rules = this.getLeagueRules(group.LeagueId) || DEFAULT_LEAGUE_RULES;
+                    const playoffTeams = classifyStandings(groupTeams, rules)
+                        .filter((team) => team.Qualification === 'upper' || team.Qualification === 'lower');
 
 
                     return {
@@ -1528,7 +1567,7 @@ class DBInstance {
             groupsWithTeams.forEach(group => {
                 group.teams.forEach((team,idx) => {
                     const seedNumber = idx + 1;
-                    const bracket = seedNumber <= 3 ? 'upper' : 'lower';
+                    const bracket = team.Qualification;
 
                     this.addSeeding(group.LeagueId,team.TeamId,seedNumber,bracket)
                 });
@@ -2026,16 +2065,16 @@ class DBInstance {
             li.LeagueId,
             li.LeagueName,
             ml.MatchId AS LastMatchId,
-            CASE WHEN mt.TeamRad = mt.WinnerId THEN mt.TeamRad
-                WHEN mt.TeamDire = mt.WinnerId THEN mt.TeamDire
+            CASE WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
+                WHEN li.Active = 0 AND mt.TeamDire = mt.WinnerId THEN mt.TeamDire
                 ELSE NULL END AS WinnerTeamId,
             ti.TeamName AS WinnerTeamName
             FROM LeagueInfo li
             LEFT JOIN MatchLeague ml ON li.LeagueId = ml.LeagueId
             LEFT JOIN MatchTeam mt ON ml.MatchId = mt.MatchId
             LEFT JOIN TeamInfo ti ON ti.TeamId = 
-                CASE WHEN mt.TeamRad = mt.WinnerId THEN mt.TeamRad
-                    WHEN mt.TeamDire = mt.WinnerId THEN mt.TeamDire END
+                CASE WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
+                    WHEN li.Active = 0 AND mt.TeamDire = mt.WinnerId THEN mt.TeamDire END
             WHERE ml.MatchId = (
                 SELECT MAX(ml2.MatchId)
                 FROM MatchLeague ml2
@@ -2050,16 +2089,16 @@ class DBInstance {
             li.Active,
             li.LeagueId,
             li.LeagueName,
-            CASE WHEN mt.TeamRad = mt.WinnerId THEN mt.TeamRad
-                WHEN mt.TeamDire = mt.WinnerId THEN mt.TeamDire
+            CASE WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
+                WHEN li.Active = 0 AND mt.TeamDire = mt.WinnerId THEN mt.TeamDire
                 ELSE NULL END AS WinnerTeamId,
             ti.TeamName AS WinnerTeamName
             FROM LeagueInfo li
             LEFT JOIN MatchLeague ml ON li.LeagueId = ml.LeagueId
             LEFT JOIN MatchTeam mt ON ml.MatchId = mt.MatchId
             LEFT JOIN TeamInfo ti ON ti.TeamId = 
-                CASE WHEN mt.TeamRad = mt.WinnerId THEN mt.TeamRad
-                    WHEN mt.TeamDire = mt.WinnerId THEN mt.TeamDire END
+                CASE WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
+                    WHEN li.Active = 0 AND mt.TeamDire = mt.WinnerId THEN mt.TeamDire END
             WHERE ml.MatchId = (
                 SELECT MAX(ml2.MatchId)
                 FROM MatchLeague ml2

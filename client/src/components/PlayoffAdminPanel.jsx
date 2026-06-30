@@ -4,6 +4,7 @@ export default function PlayoffAdminPanel() {
   const [stageInfo, setStageInfo] = useState(null);     // row from LeagueStageBoundaries OR null
   const [stage, setStage] = useState(null);
   const [message, setMessage] = useState("");
+  const [leagueRules, setLeagueRules] = useState(null);
 
   // -----------------------------------------------------
   // Load existing stage info + latest match ID
@@ -15,6 +16,9 @@ export default function PlayoffAdminPanel() {
 
 
       setStageInfo(data[0] || data.stageInfo);
+      const rulesRes = await fetch('/api/admin/leagueRules');
+      const rulesData = await rulesRes.json();
+      setLeagueRules(rulesData.rules || null);
       
       if (!data.exists) {
         setStage("Group Stage in Progress");
@@ -136,11 +140,11 @@ export default function PlayoffAdminPanel() {
     return <div>Loading stage info...</div>;
   }
   
-  const { groupEndMatchId, tieBreakerEndMatchId } = stageInfo;
+  const { GroupEndMatchId, TieBreakerEndMatchId } = stageInfo;
 
-  const showTiebreakerBtn = !groupEndMatchId;                              // No record OR no group end match → can tiebreak
-  const showPlayoffBtn = !(groupEndMatchId && tieBreakerEndMatchId);       // Show until both filled
-  const showEndSeasonBtn = showPlayoffBtn;
+  const showTiebreakerBtn = !GroupEndMatchId && Boolean(Number(leagueRules?.HasTiebreaker));
+  const showPlayoffBtn = !(GroupEndMatchId && TieBreakerEndMatchId);
+  const showEndSeasonBtn = Boolean(GroupEndMatchId && TieBreakerEndMatchId);
 
   return (
     <div style={panelStyle}>

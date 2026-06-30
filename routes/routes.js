@@ -6,6 +6,7 @@ import { checkAdmin } from '../middleware/checkAdmin.js';
 import db from '../database.js';
 import dbBet from '../databaseBet.js';
 import dbPublic from '../databasePublic.js';
+import { classifyStandings, DEFAULT_LEAGUE_RULES } from '../config/leagueRules.js';
 import {
   getAppLiveMatchesPayload,
   toAppLiveMatch,
@@ -199,6 +200,26 @@ router.get('/admin/activeLeague', checkAdmin, (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Failed to load active league' });
   }
+});
+
+router.get('/admin/leagueRules', checkAdmin, (req, res) => {
+  const league = db.getActiveLeague()?.[0];
+  if (!league) return res.status(404).json({ error: 'No active league' });
+  res.json({ league, rules: db.getLeagueRules(league.LeagueId) });
+});
+
+router.post('/admin/leagueRules', checkAdmin, (req, res) => {
+  const league = db.getActiveLeague()?.[0];
+  if (!league) return res.status(404).json({ error: 'No active league' });
+  const values = req.body || {};
+  const counts = ['UpperBracketTeams', 'LowerBracketTeams', 'EliminatedTeams'];
+  if (counts.some((key) => !Number.isInteger(Number(values[key])) || Number(values[key]) < 0)) {
+    return res.status(400).json({ error: 'Team counts must be non-negative integers' });
+  }
+  if (values.HasTiebreaker && (!Number.isInteger(Number(values.TiebreakerPosition)) || Number(values.TiebreakerPosition) < 1)) {
+    return res.status(400).json({ error: 'Tiebreaker position must be a positive integer' });
+  }
+  res.json({ success: true, rules: db.saveLeagueRules(league.LeagueId, values) });
 });
 
 router.post('/admin/leagues', checkAdmin, (req, res) => {
@@ -957,6 +978,10 @@ router.post("/admin/activateTiebreakers", (req, res) => {
   if (!last) return res.json({ success: false, error: "No matches found" });
 
   const activeLeague = db.getActiveLeague();
+  const rules = db.getLeagueRules(activeLeague[0].LeagueId) || DEFAULT_LEAGUE_RULES;
+  if (!Boolean(Number(rules.HasTiebreaker))) {
+    return res.json({ success: false, error: "Tiebreakers are disabled for this league" });
+  }
 
   const existing = db.getLeagueStageBoundaries(activeLeague[0].LeagueId);
 
@@ -988,6 +1013,7 @@ router.post("/admin/activatePlayoffs", (req, res) => {
   // Case 1: No record — create both fields set
   if (existing.length === 0) {
     db.insertNewLeagueStageBoundaries(activeLeague[0].LeagueId, last[0].MatchId, last[0].MatchId);
+    db.setSeeding();
     return res.json({ 
       success: true, 
       created: true
@@ -1035,7 +1061,9 @@ router.get('/leagueStage', (req, res) => {
     if (row.length === 0) {
       return res.json({
         exists: false,
+        leagueId: Number(leagueId),
         stageInfo: {
+          LeagueId: Number(leagueId),
           GroupEndMatchId: null,
           TieBreakerEndMatchId: null
         }
@@ -1084,14 +1112,16 @@ router.get('/tiebreakerInfo', async (req, res) => {
         });
 
         // ---- BUCKET LOGIC ----
-        const upper = groupTeams.slice(0, 2);        // top 2
-        const tiebreaker = groupTeams.slice(2, 3);   // 3rd place → 1 per group
-        const lower = groupTeams.slice(3, 8);        // next 5
-        const eliminated = groupTeams.slice(8);      // rest
+        const rules = db.getLeagueRules(leagueId) || DEFAULT_LEAGUE_RULES;
+        const classified = classifyStandings(groupTeams, rules);
+        const upper = classified.filter((team) => team.Qualification === 'upper');
+        const tiebreaker = classified.filter((team) => team.Qualification === 'tiebreaker');
+        const lower = classified.filter((team) => team.Qualification === 'lower');
+        const eliminated = classified.filter((team) => team.Qualification === 'eliminated');
 
         return {
           ...group,
-          groupTeams,
+          groupTeams: classified,
           upperBracket: upper,
           tiebreakerTeams: tiebreaker,
           lowerBracket: lower,
@@ -1786,9 +1816,11 @@ router.get('/currentLeaderboard', async (req, res) => {
       groups.map(async (group) => {
         const groupTeams = await db.getGroupStats(group);
         const groupH2H = await db.getHeadToHeadStats(group);
+        const rules = db.getLeagueRules(leagueId) || DEFAULT_LEAGUE_RULES;
         return {
           ...group,
-          groupTeams, 
+          groupTeams: classifyStandings(groupTeams, rules),
+          rules,
           groupH2H
         };
       })
