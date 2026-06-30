@@ -9,9 +9,7 @@ export default function LeagueHomeTab({
   teams = [],
   matches = [],
   players = [],
-  heroes = [],
-  stageInfo,
-  stageExists
+  heroes = []
 }) {
   const topTeams = getTopTeams(teams);
   const kdaLeaders = getKdaLeaders(players);
@@ -19,27 +17,17 @@ export default function LeagueHomeTab({
   const topHeroes = getTopHeroes(heroes);
   const bestWinRateHeroes = getBestWinRateHeroes(heroes);
   const recentMatches = matches.slice(0, 6);
-  const stageLabel = getStageLabel(stageInfo, stageExists);
 
   return (
     <div style={homeStyle}>
-      <div style={heroPanelStyle}>
-        <div>
-          <div style={eyebrowStyle}>{stageLabel}</div>
-          <h2 style={{ margin: "0.25rem 0" }}>{league?.LeagueName} Home</h2>
-          <p style={subtleTextStyle}>
-            A quick pulse check for the league: standings, player heaters, hero trends, and recent games.
-          </p>
+      {league?.WinnerTeamId && (
+        <div style={winnerCardStyle}>
+          <div style={eyebrowStyle}>Champion</div>
+          <Link to={`/team/${league.WinnerTeamId}`} style={featureLinkStyle}>
+            {league.WinnerTeamName}
+          </Link>
         </div>
-        {league?.WinnerTeamId && (
-          <div style={winnerCardStyle}>
-            <div style={eyebrowStyle}>Champion</div>
-            <Link to={`/team/${league.WinnerTeamId}`} style={featureLinkStyle}>
-              {league.WinnerTeamName}
-            </Link>
-          </div>
-        )}
-      </div>
+      )}
 
       <div style={metricGridStyle}>
         <MetricCard label="Teams" value={teams.length} />
@@ -249,13 +237,6 @@ function getKda(player) {
   return (toNumber(player.AvgKills) + toNumber(player.AvgAssists)) / Math.max(1, toNumber(player.AvgDeaths));
 }
 
-function getStageLabel(stageInfo, stageExists) {
-  if (!stageExists || !stageInfo) return "League Dashboard";
-  if (stageInfo.GroupEndMatchId && stageInfo.TieBreakerEndMatchId) return "Playoff Push";
-  if (stageInfo.GroupEndMatchId) return "Tiebreaker Watch";
-  return "Group Stage";
-}
-
 function toNumber(value, fallback = 0) {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : fallback;
@@ -275,19 +256,6 @@ function formatPercent(value) {
 const homeStyle = {
   display: "grid",
   gap: "1rem"
-};
-
-const heroPanelStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "1rem",
-  alignItems: "stretch",
-  padding: "1.25rem",
-  border: "1px solid #334155",
-  borderRadius: "12px",
-  background: "linear-gradient(135deg, #111827, #1e1b4b)",
-  color: "#f8fafc",
-  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.22)"
 };
 
 const winnerCardStyle = {

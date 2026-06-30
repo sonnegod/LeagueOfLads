@@ -1,5 +1,5 @@
 // src/pages/LeaguePage.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import CurrentLeagueSeries from "../components/CurrentLeagueSeries";
 import CurrentLeaderboardTable from "../components/CurrentLeaderboardTable";
@@ -7,9 +7,16 @@ import TieBreakerView from "../components/TieBreakerView";
 import CurrentPlayoffBracketView from "../components/CurrentPlayoffBracketView";
 import HeroDisplay from "../components/HeroDisplay";
 import LeagueHomeTab from "../components/LeagueHomeTab";
+import './LeaguePage.css';
 
-export default function LeaguePage() {
-  const { leagueId } = useParams();
+export default function LeaguePage({
+  leagueIdOverride,
+  stageTabsFirst = false,
+  defaultToCurrentStage = false,
+  alwaysShowGroups = false
+}) {
+  const { leagueId: routeLeagueId } = useParams();
+  const leagueId = leagueIdOverride || routeLeagueId;
   const [data, setLeague] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("home");
@@ -17,6 +24,7 @@ export default function LeaguePage() {
   const [expandedHeroes, setExpandedHeroes] = useState({});
   const [stageInfo, setStageInfo] = useState(null);
   const [stageExists, setStageExists] = useState(false);
+  const defaultedLeagueRef = useRef(null);
   
   useEffect(() => {
     async function fetchLeague() {
@@ -34,6 +42,23 @@ export default function LeaguePage() {
     }
     fetchLeague();
   }, [leagueId]);
+
+  useEffect(() => {
+    defaultedLeagueRef.current = null;
+  }, [leagueId]);
+
+  useEffect(() => {
+    if (!defaultToCurrentStage || !stageInfo || defaultedLeagueRef.current === String(leagueId)) return;
+
+    if (stageInfo.GroupEndMatchId && stageInfo.TieBreakerEndMatchId) {
+      setActiveTab("playoffs");
+    } else if (stageInfo.GroupEndMatchId) {
+      setActiveTab("tiebreakers");
+    } else {
+      setActiveTab("group");
+    }
+    defaultedLeagueRef.current = String(leagueId);
+  }, [defaultToCurrentStage, leagueId, stageInfo]);
 
   useEffect(() => {
     async function fetchStageInfo() {
@@ -74,25 +99,34 @@ export default function LeaguePage() {
   const noSeparateTiebreaker =
     stageInfo?.GroupEndMatchId === stageInfo?.TieBreakerEndMatchId;
 
+  const showGroups = stageExists || alwaysShowGroups;
+
+  const stageButtons = (
+    <>
+      {stageExists && inPlayoffs && (
+        <button onClick={() => setActiveTab("playoffs")} style={activeTab === "playoffs" ? activeTabStyle : tabStyle}>Playoffs</button>
+      )}
+      {stageExists && inPlayoffs && !noSeparateTiebreaker && (
+        <button onClick={() => setActiveTab("tiebreakers")} style={activeTab === "tiebreakers" ? activeTabStyle : tabStyle}>Tiebreakers</button>
+      )}
+      {stageExists && inTiebreakers && (
+        <button onClick={() => setActiveTab("tiebreakers")} style={activeTab === "tiebreakers" ? activeTabStyle : tabStyle}>Tiebreakers</button>
+      )}
+      {showGroups && (
+        <button onClick={() => setActiveTab("group")} style={activeTab === "group" ? activeTabStyle : tabStyle}>Groups</button>
+      )}
+    </>
+  );
+
   return (
-    <div style={{ padding: "1rem", overflowX: "auto" }}>
+    <div className="league-page" style={{ padding: "1rem", overflowX: "auto" }}>
       <h1>{league[0].LeagueName}</h1>
 
       {/* Tabs */}
-      <div style={{ marginBottom: "1rem" }}>
+      <div className="league-page-tabs" style={{ marginBottom: "1rem" }}>
+        {stageTabsFirst && stageButtons}
         <button onClick={() => setActiveTab("home")} style={activeTab === "home" ? activeTabStyle : tabStyle}>Home</button>
-        {stageExists && inPlayoffs && (
-          <button onClick={() => setActiveTab("playoffs")} style={activeTab === "playoffs" ? activeTabStyle : tabStyle}>Playoffs</button>
-        )}
-        {stageExists && inPlayoffs && !noSeparateTiebreaker && (
-          <button onClick={() => setActiveTab("tiebreakers")} style={activeTab === "tiebreakers" ? activeTabStyle : tabStyle}>Tiebreakers</button>
-        )}
-        {stageExists && inTiebreakers && (
-          <button onClick={() => setActiveTab("tiebreakers")} style={activeTab === "tiebreakers" ? activeTabStyle : tabStyle}>Tiebreakers</button>
-        )}
-        {stageExists && (
-          <button onClick={() => setActiveTab("group")} style={activeTab === "group" ? activeTabStyle : tabStyle}>Groups</button>
-        )}
+        {!stageTabsFirst && stageButtons}
         <button onClick={() => setActiveTab("teams")} style={activeTab === "teams" ? activeTabStyle : tabStyle}>Teams</button>
         <button onClick={() => setActiveTab("matches")} style={activeTab === "matches" ? activeTabStyle : tabStyle}>Matches</button>
         <button onClick={() => setActiveTab("players")} style={activeTab === "players" ? activeTabStyle : tabStyle}>Players</button>
@@ -107,13 +141,11 @@ export default function LeaguePage() {
           matches={matchesWithPlayers}
           players={players}
           heroes={heroesWithPlayers}
-          stageInfo={stageInfo}
-          stageExists={stageExists}
         />
       )}
 
       {/* Groups Tab */}
-      {activeTab === "group" && stageExists && (
+      {activeTab === "group" && showGroups && (
         <div>
           <CurrentLeaderboardTable leagueId={leagueId} />
           <hr style={{ margin: "2rem 0" }} />
