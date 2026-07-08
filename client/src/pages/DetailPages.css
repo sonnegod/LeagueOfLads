@@ -49,6 +49,10 @@
     min-width: 700px;
   }
 
+  .team-drafts-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
   .detail-metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
@@ -66,5 +70,225 @@
 @media (max-width: 360px) {
   .detail-metric-grid {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+.team-drafts-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: 16px;
+  align-items: start;
+}
+
+.team-drafts-main {
+  display: grid;
+  gap: 14px;
+}
+
+.team-draft-card,
+.team-draft-stat-panel {
+  border: 1px solid var(--border, #2a2d33);
+  border-radius: 8px;
+  background: var(--surface, #121315);
+  color: var(--text, #e6e6e6);
+}
+
+.team-draft-card {
+  padding: 14px;
+}
+
+.team-draft-card-header,
+.team-draft-side-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.team-draft-card-header {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border, #2a2d33);
+}
+
+.team-draft-match-link {
+  color: var(--primary, #8ab4ff);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.team-draft-meta,
+.team-draft-empty {
+  color: var(--muted, #9ca3af);
+  font-size: 0.9rem;
+}
+
+.team-draft-result {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.team-draft-result.win {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+}
+
+.team-draft-result.loss {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+}
+
+.team-draft-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.team-draft-side {
+  border: 1px solid var(--border, #2a2d33);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.team-draft-stat-panel h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.team-draft-team-name {
+  margin: 0;
+  color: var(--text, #e6e6e6);
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.team-draft-team-name span {
+  margin-left: 6px;
+  color: var(--muted, #9ca3af);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.team-draft-group {
+  margin-top: 12px;
+}
+
+.team-draft-group.compact {
+  padding-top: 10px;
+  border-top: 1px solid var(--border, #2a2d33);
+}
+
+.team-draft-group-label {
+  margin-bottom: 8px;
+  color: var(--muted, #9ca3af);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.team-draft-heroes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.team-draft-hero {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border-radius: 6px;
+  padding: 5px 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.team-draft-hero-number {
+  min-width: 14px;
+  color: var(--muted, #9ca3af);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+}
+
+.team-drafts-stats {
+  position: sticky;
+  top: 12px;
+  display: grid;
+  gap: 14px;
+}
+
+.team-draft-stat-panel {
+  padding: 12px;
+}
+
+.team-draft-stat-table {
+  display: grid;
+  gap: 2px;
+  margin-top: 10px;
+}
+
+.team-draft-stat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px 74px;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid var(--border, #2a2d33);
+  font-size: 0.9rem;
+}
+
+.team-draft-stat-row.head {
+  border-top: 0;
+  color: var(--muted, #9ca3af);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.team-draft-stat-row > span:not(:first-child) {
+  text-align: right;
+}
+
+.team-draft-stat-hero {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.team-draft-stat-hero a,
+.team-draft-hero a {
+  max-width: 100%;
+}
+
+.team-draft-stat-hero span,
+.team-draft-hero span {
+  min-width: 0;
+}
+
+.team-draft-stat-hero span span,
+.team-draft-hero span span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat-empty {
+  padding-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .team-drafts-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .team-draft-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .team-drafts-stats {
+    position: static;
   }
 }

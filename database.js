@@ -2026,6 +2026,87 @@ class DBInstance {
         );
     }
 
+    getTeamDraftRows(teamId, leagueId) {
+        let query = `
+            SELECT
+                mt.MatchId,
+                ml.DatePlayed,
+                li.LeagueId,
+                li.LeagueName,
+                mt.TeamRad,
+                mt.TeamDire,
+                mt.WinnerId,
+                radTeam.TeamName AS RadiantTeamName,
+                direTeam.TeamName AS DireTeamName,
+                CASE WHEN mt.TeamRad = ? THEN 0 ELSE 1 END AS SelectedTeamSide,
+                CASE WHEN mt.TeamRad = ? THEN mt.TeamDire ELSE mt.TeamRad END AS EnemyTeamId,
+                CASE WHEN mt.TeamRad = ? THEN direTeam.TeamName ELSE radTeam.TeamName END AS EnemyTeamName,
+                CASE WHEN mt.WinnerId = ? THEN 1 ELSE 0 END AS SelectedTeamWon,
+                pi.IsPick,
+                pi.Hero_Id AS HeroId,
+                pi.OrderNum,
+                pi.Team AS DraftSide,
+                hi.HeroName
+            FROM MatchTeam mt
+            JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
+            JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
+            JOIN TeamInfo radTeam ON radTeam.TeamId = mt.TeamRad
+            JOIN TeamInfo direTeam ON direTeam.TeamId = mt.TeamDire
+            LEFT JOIN PickInfo pi ON pi.MatchId = mt.MatchId
+            LEFT JOIN HeroInfo hi ON hi.HeroId = pi.Hero_Id
+            WHERE (mt.TeamRad = ? OR mt.TeamDire = ?)
+        `;
+
+        const params = [teamId, teamId, teamId, teamId, teamId, teamId];
+
+        if (leagueId && leagueId !== 'all') {
+            query += ` AND li.LeagueId = ?`;
+            params.push(leagueId);
+        }
+
+        query += `
+            ORDER BY ml.DatePlayed DESC, mt.MatchId DESC, pi.OrderNum ASC
+        `;
+
+        return this.queryDatabase(query, params);
+    }
+
+    getTeamDraftHeroStats(teamId, leagueId) {
+        let query = `
+            SELECT
+                pi.IsPick,
+                pi.Hero_Id AS HeroId,
+                hi.HeroName,
+                COUNT(*) AS TimesUsed,
+                SUM(CASE WHEN mt.WinnerId = ? THEN 1 ELSE 0 END) AS Wins,
+                ROUND(100.0 * SUM(CASE WHEN mt.WinnerId = ? THEN 1 ELSE 0 END) / COUNT(*), 2) AS WinRate
+            FROM PickInfo pi
+            JOIN MatchTeam mt ON mt.MatchId = pi.MatchId
+            JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
+            JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
+            JOIN HeroInfo hi ON hi.HeroId = pi.Hero_Id
+            WHERE (
+                (mt.TeamRad = ? AND pi.Team = 0)
+                OR
+                (mt.TeamDire = ? AND pi.Team = 1)
+            )
+        `;
+
+        const params = [teamId, teamId, teamId, teamId];
+
+        if (leagueId && leagueId !== 'all') {
+            query += ` AND li.LeagueId = ?`;
+            params.push(leagueId);
+        }
+
+        query += `
+            GROUP BY pi.IsPick, pi.Hero_Id, hi.HeroName
+            ORDER BY pi.IsPick DESC, TimesUsed DESC, WinRate DESC, hi.HeroName ASC
+        `;
+
+        return this.queryDatabase(query, params);
+    }
+
     getPlayerHeroHighlights(playerId, leagueId){
         let query = `
             SELECT 
