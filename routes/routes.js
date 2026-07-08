@@ -1684,6 +1684,85 @@ router.get('/teams/:teamId', async (req, res) => {
 });
 
 
+router.get('/teams/:teamId/drafts', async (req, res) => {
+  const { teamId } = req.params;
+  const { leagueId } = req.query;
+
+  try {
+    const draftRows = await db.getTeamDraftRows(teamId, leagueId);
+    const statRows = await db.getTeamDraftHeroStats(teamId, leagueId);
+    const matchMap = new Map();
+
+    draftRows.forEach((row) => {
+      if (!matchMap.has(row.MatchId)) {
+        matchMap.set(row.MatchId, {
+          MatchId: row.MatchId,
+          DatePlayed: row.DatePlayed,
+          LeagueId: row.LeagueId,
+          LeagueName: row.LeagueName,
+          WinnerId: row.WinnerId,
+          SelectedTeamWon: row.SelectedTeamWon,
+          selectedTeam: {
+            TeamId: Number(teamId),
+            TeamName: Number(row.SelectedTeamSide) === 0 ? row.RadiantTeamName : row.DireTeamName,
+            Side: Number(row.SelectedTeamSide) === 0 ? 'Radiant' : 'Dire',
+            picks: [],
+            bans: [],
+          },
+          enemyTeam: {
+            TeamId: row.EnemyTeamId,
+            TeamName: row.EnemyTeamName,
+            Side: Number(row.SelectedTeamSide) === 0 ? 'Dire' : 'Radiant',
+            picks: [],
+            bans: [],
+          },
+        });
+      }
+
+      if (!row.HeroId) return;
+
+      const match = matchMap.get(row.MatchId);
+      const target =
+        Number(row.DraftSide) === Number(row.SelectedTeamSide)
+          ? match.selectedTeam
+          : match.enemyTeam;
+      const list = Number(row.IsPick) === 1 ? target.picks : target.bans;
+
+      list.push({
+        HeroId: row.HeroId,
+        HeroName: row.HeroName,
+        OrderNum: row.OrderNum,
+      });
+    });
+
+    const sortDraftList = (list) =>
+      list.sort((a, b) => Number(a.OrderNum || 0) - Number(b.OrderNum || 0));
+
+    const matches = [...matchMap.values()].map((match) => ({
+      ...match,
+      selectedTeam: {
+        ...match.selectedTeam,
+        picks: sortDraftList(match.selectedTeam.picks),
+        bans: sortDraftList(match.selectedTeam.bans),
+      },
+      enemyTeam: {
+        ...match.enemyTeam,
+        picks: sortDraftList(match.enemyTeam.picks),
+        bans: sortDraftList(match.enemyTeam.bans),
+      },
+    }));
+
+    res.json({
+      matches,
+      topPicks: statRows.filter((row) => Number(row.IsPick) === 1),
+      topBans: statRows.filter((row) => Number(row.IsPick) === 0),
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
 
 router.get('/teams/:teamId/players', async (req, res) => {
   const { teamId } = req.params;
