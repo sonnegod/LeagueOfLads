@@ -1,6 +1,7 @@
 // config/passport.js
 import passport from 'passport';
 import { Strategy as SteamStrategy } from 'passport-steam';
+import { getSteamAccountId, steamId64ToAccountId } from '../utils/steamIds.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
@@ -8,7 +9,13 @@ dotenv.config();
 const STEAM_API_KEY = process.env.STEAM_API_KEY; // Replace with your real API key
 
 passport.serializeUser((user, done) => done(null, user));
-passport.deserializeUser((obj, done) => done(null, obj));
+passport.deserializeUser((obj, done) => {
+  try {
+    done(null, { ...obj, accountId: getSteamAccountId(obj) });
+  } catch (err) {
+    done(err);
+  }
+});
 
 let returnURL = '';
 let realmURL = '';
@@ -26,6 +33,10 @@ passport.use(new SteamStrategy({
   realm: realmURL,
   apiKey: STEAM_API_KEY
 }, (identifier, profile, done) => {
-
-  return done(null, profile);
+  try {
+    profile.accountId = steamId64ToAccountId(profile.id);
+    return done(null, profile);
+  } catch (err) {
+    return done(err);
+  }
 }));

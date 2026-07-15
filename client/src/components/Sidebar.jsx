@@ -5,7 +5,6 @@ import './Sidebar.css';
 
 export default function Sidebar({ open, onClose }) {
   const { user } = useAuth();
-  const ADMIN_ACCOUNT_ID = '49219700';
 
   return (
     <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
@@ -26,7 +25,7 @@ export default function Sidebar({ open, onClose }) {
         {user && <Link to="/request">Request</Link>}
         {/* Show admin button only if user is admin */}
         {user?.canDraftGod && <Link to="/draftgod">DraftGod</Link>}
-        {user?.accountId === ADMIN_ACCOUNT_ID && <Link to="/admin">Admin Portal</Link>}
+        {user?.isAdmin && <Link to="/admin">Admin Portal</Link>}
 
       </nav>
     </aside>

@@ -57,6 +57,16 @@ class DBInstance {
         return this.getLeagueRules(leagueId);
     }
 
+    getAdminInfo(accountId){
+        if (!accountId) return null;
+
+        return this.db.prepare(`
+            SELECT AccountId, HeadAdmin, SystemAdmin, CreatedAt
+            FROM AdminInfo
+            WHERE AccountId = ?
+        `).get(String(accountId)) || null;
+    }
+
     ensureLiveMatchSchema(){
         const ensureColumn = (tableName, columnName, definition) => {
             const columns = this.db.prepare(`PRAGMA table_info(${tableName})`).all();
@@ -3073,26 +3083,26 @@ class DBInstance {
         }
     }
 
-    login(username, steamid, date){
+    login(username, accountId, date){
         try {
             let isNewUser = false;
             const existingUser = this.queryDatabase(`
-                SELECT SteamID FROM Logins WHERE SteamId = ?`, [steamid]);
+                SELECT AccountId FROM Logins WHERE AccountId = ?`, [accountId]);
 
             if(existingUser.length === 0)
                 isNewUser = true;
 
-            const stmt = this.db.prepare(`INSERT OR REPLACE INTO Logins (Username, SteamID, LastLoginDate)
+            const stmt = this.db.prepare(`INSERT OR REPLACE INTO Logins (Username, AccountId, LastLoginDate)
                                           VALUES (@username, @steamId, @LastLoginDate)`);
             stmt.run({
                 username: username,
-                steamId: this.steamId64ToAccountId(steamid),
+                steamId: accountId,
                 LastLoginDate: date
             });
 
 
             if(isNewUser){
-                dbBet.createWallet(this.steamId64ToAccountId(steamid));
+                dbBet.createWallet(accountId);
             }
 
 
@@ -3127,12 +3137,6 @@ class DBInstance {
     }
 
 
-    steamId64ToAccountId(steamId64) {
-        const base = BigInt('76561197960265728');
-        return (BigInt(steamId64) - base).toString(); // returns string to safely handle large numbers
-    }
-    
-    
 }
 
 const dbInstance = new DBInstance();

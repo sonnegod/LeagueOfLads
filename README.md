@@ -18,6 +18,22 @@ Create timestamped backups under `backups/<database-name>/`:
 
 The script uses SQLite's `.backup` command so WAL-mode database changes are included safely.
 
+ADMIN SCHEMA
+---
+Create or update the admin schema and seed account ID `49219700` as a system
+admin (not a head admin):
+
+```bash
+node scripts/db/createAdminSchema.js
+```
+
+The command uses `db/LadsData.db` by default. To target a different database,
+pass its path directly:
+
+```bash
+node scripts/db/createAdminSchema.js /path/to/LadsData.db
+```
+
 COMMANDS FOR THE SERVER
 ---
 sudo nano /etc/nginx/sites-available/dotawebsite

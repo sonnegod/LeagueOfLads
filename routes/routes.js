@@ -13,12 +13,12 @@ import {
   toNullableNumber,
   withLiveMatchJson,
 } from './utility/liveMatchResponses.js';
+import { getSteamAccountId } from '../utils/steamIds.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
-const STEAM_ID64_BASE = BigInt('76561197960265728');
 
 function resolveActiveLeague() {
   const active = db.getActiveLeague();
@@ -38,10 +38,6 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function resolveAccountIdFromSteamId(steamId64) {
-  return (BigInt(steamId64) - STEAM_ID64_BASE).toString();
-}
-
 function hasDraftAccess(accountId) {
   if (!accountId) return false;
   const row = db.queryDatabase(
@@ -56,13 +52,25 @@ function hasDraftAccess(accountId) {
   return !!row;
 }
 
+function getAdminAccess(accountId) {
+  const admin = db.getAdminInfo(accountId);
+  const headAdmin = !!admin?.HeadAdmin;
+  const systemAdmin = !!admin?.SystemAdmin;
+
+  return {
+    isAdmin: !!admin,
+    headAdmin,
+    systemAdmin,
+  };
+}
+
 function checkDraftGodAccess(req, res, next) {
   if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
     return res.status(401).json({ error: 'Unauthorized: not logged in' });
   }
 
   try {
-    const accountId = resolveAccountIdFromSteamId(req.user.id);
+    const accountId = getSteamAccountId(req.user);
     let canDraftGod = typeof req.session?.canDraftGod === 'boolean'
       ? req.session.canDraftGod
       : hasDraftAccess(accountId);
@@ -88,9 +96,10 @@ router.get('/auth/steam',
 router.get('/auth/steam/return',
   passport.authenticate('steam', { failureRedirect: '/' }),
   (req, res) => {
-    db.login(req.user.displayName, req.user.id, new Date().toISOString());
-    const accountId = resolveAccountIdFromSteamId(req.user.id);
+    const accountId = getSteamAccountId(req.user);
+    db.login(req.user.displayName, accountId, new Date().toISOString());
     const canDraftGod = hasDraftAccess(accountId);
+    const adminAccess = getAdminAccess(accountId);
 
     const redirectToDashboard = () => {
       if (process.env.ENVIRONMENT === 'DEV') {
@@ -109,6 +118,9 @@ router.get('/auth/steam/return',
 
     req.session.accountId = accountId;
     req.session.canDraftGod = canDraftGod;
+    req.session.isAdmin = adminAccess.isAdmin;
+    req.session.headAdmin = adminAccess.headAdmin;
+    req.session.systemAdmin = adminAccess.systemAdmin;
     req.session.save(() => {
       redirectToDashboard();
     });
@@ -117,13 +129,25 @@ router.get('/auth/steam/return',
 
 router.get('/auth/user', (req, res) => {
   if (req.isAuthenticated() && req.user) {
-    const accountId = resolveAccountIdFromSteamId(req.user.id);
+    const accountId = getSteamAccountId(req.user);
     let canDraftGod = typeof req.session?.canDraftGod === 'boolean'
       ? req.session.canDraftGod
       : hasDraftAccess(accountId);
+    const adminAccess = typeof req.session?.isAdmin === 'boolean'
+      ? {
+          isAdmin: req.session.isAdmin,
+          headAdmin: !!req.session.headAdmin,
+          systemAdmin: !!req.session.systemAdmin,
+        }
+      : getAdminAccess(accountId);
 
     if (req.session && typeof req.session.canDraftGod !== 'boolean') {
       req.session.canDraftGod = canDraftGod;
+    }
+    if (req.session && typeof req.session.isAdmin !== 'boolean') {
+      req.session.isAdmin = adminAccess.isAdmin;
+      req.session.headAdmin = adminAccess.headAdmin;
+      req.session.systemAdmin = adminAccess.systemAdmin;
     }
 
     // You can customize what user info to send here
@@ -134,6 +158,7 @@ router.get('/auth/user', (req, res) => {
       avatar: req.user.photos[2]?.value || req.user.photos[0]?.value,
       profileurl: req.user._json?.profileurl || '',
       canDraftGod,
+      ...adminAccess,
     });
   } else {
     res.status(401).json({ error: 'Not logged in' });
@@ -188,11 +213,17 @@ router.get('/dashboard', (req, res) => {
   `);
 });
 
-router.get('/admin', checkAdmin, (req, res) => {
-  res.json({ message: 'Welcome to the admin portal!' });
+router.use('/admin', checkAdmin);
+
+router.get('/admin', (req, res) => {
+  res.json({
+    message: 'Welcome to the admin portal!',
+    headAdmin: !!req.session?.headAdmin,
+    systemAdmin: !!req.session?.systemAdmin,
+  });
 });
 
-router.get('/admin/activeLeague', checkAdmin, (req, res) => {
+router.get('/admin/activeLeague', (req, res) => {
   try {
     const league = db.getActiveLeague()?.[0] || null;
     res.json({ league });
@@ -202,13 +233,13 @@ router.get('/admin/activeLeague', checkAdmin, (req, res) => {
   }
 });
 
-router.get('/admin/leagueRules', checkAdmin, (req, res) => {
+router.get('/admin/leagueRules', (req, res) => {
   const league = db.getActiveLeague()?.[0];
   if (!league) return res.status(404).json({ error: 'No active league' });
   res.json({ league, rules: db.getLeagueRules(league.LeagueId) });
 });
 
-router.post('/admin/leagueRules', checkAdmin, (req, res) => {
+router.post('/admin/leagueRules', (req, res) => {
   const league = db.getActiveLeague()?.[0];
   if (!league) return res.status(404).json({ error: 'No active league' });
   const values = req.body || {};
@@ -222,7 +253,7 @@ router.post('/admin/leagueRules', checkAdmin, (req, res) => {
   res.json({ success: true, rules: db.saveLeagueRules(league.LeagueId, values) });
 });
 
-router.post('/admin/leagues', checkAdmin, (req, res) => {
+router.post('/admin/leagues', (req, res) => {
   const { leagueId: rawLeagueId, leagueName: rawLeagueName } = req.body || {};
   const leagueId = Number(rawLeagueId);
   const leagueName = String(rawLeagueName || '').trim();

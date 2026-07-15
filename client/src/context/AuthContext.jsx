@@ -12,11 +12,7 @@ export function AuthProvider({ children }) {
         if (res.ok) return res.json();
         throw new Error('Not logged in');
       })
-      .then(
-        userData => {
-        const accountId = steamId64ToAccountId(userData.steamid); // assumes field is 'steamId'
-        setUser({ ...userData, accountId });
-    })
+      .then(userData => setUser(userData))
     .catch(() => setUser(null))
     .finally(() => setLoading(false));
   }, []);
@@ -32,11 +28,6 @@ export function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   );
-
-  function steamId64ToAccountId(steamId64) {
-    const base = BigInt('76561197960265728');
-    return (BigInt(steamId64) - base).toString(); // returns string to safely handle large numbers
-  }
 }
 
 export function useAuth() {
