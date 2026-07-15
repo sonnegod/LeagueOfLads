@@ -23,6 +23,9 @@ LOG_FILE="$LOG_DIR/log_$(date +%F).txt"
 
 echo "$(date) - Starting nightly jobs" >> "$LOG_FILE"
 
+/usr/bin/node /root/LeagueOfLads/scripts/db/cleanupLiveMatchSnapshots.js 7 >> "$LOG_FILE" 2>&1
+/bin/bash /root/LeagueOfLads/scripts/db/backupDatabases.sh prune >> "$LOG_FILE" 2>&1
+
 ACTIVE_LEAGUE_ID="$(/usr/bin/node /root/LeagueOfLads/scripts/league/getActiveLeagueId.js)"
 
 if [ -z "$ACTIVE_LEAGUE_ID" ]; then

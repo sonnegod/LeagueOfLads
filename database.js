@@ -172,6 +172,11 @@ class DBInstance {
             CREATE INDEX IF NOT EXISTS idx_LiveMatchSnapshotDraft_MatchId_SnapshotId
             ON LiveMatchSnapshotDraft (MatchId, SnapshotId)
         `).run();
+
+        this.db.prepare(`
+            CREATE INDEX IF NOT EXISTS idx_LiveMatchSnapshots_CreatedAt
+            ON LiveMatchSnapshots (CreatedAt)
+        `).run();
     }
 
     preloadData(){
@@ -774,6 +779,47 @@ class DBInstance {
             Players: this.getLiveMatchSnapshotPlayers(snapshot.SnapshotId),
             Draft: this.getLiveMatchSnapshotDraft(snapshot.SnapshotId)
         }));
+    }
+
+    deleteLiveMatchSnapshotsOlderThan(retentionDays = 7){
+        const days = Number(retentionDays);
+        if (!Number.isInteger(days) || days < 1) {
+            throw new Error('Snapshot retention must be a positive whole number of days');
+        }
+
+        const cutoffModifier = `-${days} days`;
+        const deleteExpiredSnapshots = this.db.transaction((modifier) => {
+            const cutoff = this.db.prepare(`
+                SELECT datetime('now', ?) AS Cutoff
+            `).get(modifier).Cutoff;
+
+            const players = this.db.prepare(`
+                DELETE FROM LiveMatchSnapshotPlayer
+                WHERE SnapshotId IN (
+                    SELECT SnapshotId
+                    FROM LiveMatchSnapshots
+                    WHERE CreatedAt < ?
+                )
+            `).run(cutoff).changes;
+
+            const drafts = this.db.prepare(`
+                DELETE FROM LiveMatchSnapshotDraft
+                WHERE SnapshotId IN (
+                    SELECT SnapshotId
+                    FROM LiveMatchSnapshots
+                    WHERE CreatedAt < ?
+                )
+            `).run(cutoff).changes;
+
+            const snapshots = this.db.prepare(`
+                DELETE FROM LiveMatchSnapshots
+                WHERE CreatedAt < ?
+            `).run(cutoff).changes;
+
+            return { snapshots, players, drafts };
+        });
+
+        return deleteExpiredSnapshots(cutoffModifier);
     }
 
     getLiveMatchCurrentPlayers(matchId){
