@@ -13,6 +13,7 @@ import {
   toNullableNumber,
   withLiveMatchJson,
 } from './utility/liveMatchResponses.js';
+import { getAppStandingsPayload } from './utility/standingsResponses.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
@@ -326,6 +327,43 @@ router.get('/app/live-matches/:matchId/snapshots', (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load app live match snapshots' });
+  }
+});
+
+router.get('/app/standings', async (req, res) => {
+  try {
+    const rawLeagueId = req.query.leagueId || resolveActiveLeague();
+    const leagueId = Number(rawLeagueId);
+    const hasGroupFilter = req.query.groupId !== undefined;
+    const groupId = hasGroupFilter ? Number(req.query.groupId) : null;
+
+    if (!rawLeagueId) {
+      return res.json({
+        generatedAt: new Date().toISOString(),
+        leagueId: null,
+        rules: null,
+        groups: [],
+        qualification: {
+          upperBracket: [],
+          tiebreaker: [],
+          lowerBracket: [],
+          eliminated: [],
+        },
+      });
+    }
+
+    if (!Number.isSafeInteger(leagueId) || leagueId <= 0) {
+      return res.status(400).json({ error: 'Invalid league id' });
+    }
+
+    if (hasGroupFilter && (!Number.isSafeInteger(groupId) || groupId <= 0)) {
+      return res.status(400).json({ error: 'Invalid group id' });
+    }
+
+    return res.json(await getAppStandingsPayload(db, leagueId, { groupId }));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to load app standings' });
   }
 });
 
