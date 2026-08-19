@@ -1,137 +1,8 @@
 import React, { useState, useEffect } from 'react';
-
-// ==========================================
-// SECTION 1: THE BRACKET GENERATOR (PURE JS)
-// ==========================================
-
-const generatePlayoffBracket = (teams) => {
-  const ubTeams = teams.filter(t => t.Bracket === 'upper');
-  const lbTeams = teams.filter(t => t.Bracket === 'lower');
-
-  // Ensure UB is power of 2 (8, 16, etc). If not, bye logic would be needed here.
-  const ubCount = ubTeams.length;
-  const lbStartCount = lbTeams.length;
-  
-  // Math: UB Rounds = Log2(N)
-  const ubRounds = Math.ceil(Math.log2(ubCount));
-  
-  // Math: LB Rounds = (UB Rounds * 2) + 1 (The Extended Format)
-  // Logic: 2 LB rounds for every 1 UB round (Consolidate -> Drop), plus finals.
-  const lbRounds = (ubRounds * 2) + 1;
-
-  const structure = {
-    upperBracket: [],
-    lowerBracket: [],
-    grandFinals: []
-  };
-
-  // --- 1. UPPER BRACKET GENERATION ---
-  for (let r = 1; r <= ubRounds; r++) {
-    const matchCount = ubCount / Math.pow(2, r);
-    const matches = [];
-
-    for (let m = 1; m <= matchCount; m++) {
-      matches.push({
-        id: `ub-r${r}-m${m}`,
-        bracket: 'upper',
-        round: r,
-        matchNum: m,
-        team1Id: null, // Admin fills R1
-        team1Name: null,
-        team2Id: null, // Admin fills R1
-        team2Name: null,
-        // DROP LOGIC: UB R1 -> LB R3, UB R2 -> LB R5, etc.
-        loserTo: `lb-r${(r * 2) + 1}-m${m}`,
-        // WINNER LOGIC: Standard Pyramid
-        winnerTo: r < ubRounds ? `ub-r${r+1}-m${Math.ceil(m/2)}` : 'gf-m1',
-        // Destination Slot Logic: Odd matches -> Slot 1, Even matches -> Slot 2
-        winnerToSlot: Math.ceil(m % 2) === 1 ? 1 : 2,
-        team1Score: 0,
-        team2Score: 0,
-        seriesId: null
-      });
-    }
-    structure.upperBracket.push({ round: r, matches });
-  }
-
-  // --- 2. LOWER BRACKET GENERATION ---
-  // We start with LB Teams / 2 matches (e.g., 16 teams -> 8 matches)
-  let currentMatchCount = lbStartCount / 2;
-
-  for (let r = 1; r <= lbRounds; r++) {
-    // CONSOLIDATION CHECK: Halve matches on even rounds (2, 4, 6...)
-    if (r > 1 && r % 2 === 0) {
-      currentMatchCount = currentMatchCount / 2;
-    }
-    
-    // Safety break if math goes weird
-    if (currentMatchCount < 1) break;
-
-    // DROP CHECK: Odd rounds starting at R3 receive UB losers
-    const isDropRound = (r > 2 && r % 2 !== 0); 
-    const matches = [];
-
-    for (let m = 1; m <= currentMatchCount; m++) {
-      const match = {
-        id: `lb-r${r}-m${m}`,
-        bracket: 'lower',
-        round: r,
-        matchNum: m,
-        team1Id: null,
-        team2Id: null,
-        isDropRound: isDropRound,
-        team1Score: 0,
-        team2Score: 0,
-        loserTo: null, // Eliminated
-        seriesId: null
-      };
-
-      // --- LB Winner Path ---
-      const nextRound = r + 1;
-      if (nextRound > lbRounds) {
-        // To Grand Finals
-        match.winnerTo = 'gf-m1';
-        match.winnerToSlot = 2; // Usually UB winner is slot 1, LB winner slot 2
-      } else {
-        // If next is Drop (Odd), match count is same (1-to-1 mapping)
-        // If next is Consolidation (Even), match count halves (2-to-1 mapping)
-        const isNextRoundDrop = (nextRound > 2 && nextRound % 2 !== 0);
-        
-        if (isNextRoundDrop) {
-          // 1-to-1 mapping to Slot 1 (Slot 2 is reserved for UB Drop)
-          match.winnerTo = `lb-r${nextRound}-m${m}`;
-          match.winnerToSlot = 1; 
-        } else {
-          // 2-to-1 mapping
-          match.winnerTo = `lb-r${nextRound}-m${Math.ceil(m/2)}`;
-          match.winnerToSlot = Math.ceil(m % 2) === 1 ? 1 : 2;
-        }
-      }
-
-      // Explicitly label where the UB Drop comes from for the UI
-      if (isDropRound) {
-        match.dropSourceRound = (r - 1) / 2; // e.g., LB R3 gets UB R1
-      }
-
-      matches.push(match);
-    }
-    structure.lowerBracket.push({ round: r, matches });
-  }
-
-  // --- 3. GRAND FINALS ---
-  structure.grandFinals.push({
-    id: 'gf-m1',
-    bracket: 'grand',
-    round: 1,
-    team1Id: null, // From UB
-    team2Id: null, // From LB
-    team1Score: 0,
-    team2Score: 0,
-    seriesId: null
-  });
-
-  return structure;
-};
+import {
+  generatePlayoffBracket,
+  normalizeEqualSizePlayoffBracket
+} from '../utils/playoffBracket.js';
 
 // ==========================================
 // SECTION 2: THE COMPONENT
@@ -152,19 +23,21 @@ const PlayoffBracketEditor = () => {
       const data = await res.json();
 
       // Simulate checking for existing bracket
-      const existingBracket = JSON.stringify(data.playoffBracket); // Set this to response.bracket if exists
+      const existingBracket = data.playoffBracket;
 
-      setTeams(data.result);
-
+      setTeams(data.result || []);
 
       if (existingBracket) {
-        setBracket(data.playoffBracket);
+        const normalized = normalizeEqualSizePlayoffBracket(existingBracket);
+        setBracket(normalized.bracket);
         setExisting(true)
+        setDirty(normalized.changed);
+        if (normalized.error) console.error(normalized.error);
         setLoading(false);
 
       } else {
         // Generate Fresh Logic
-        const newStruct = generatePlayoffBracket(data.result);
+        const newStruct = generatePlayoffBracket(data.result || []);
         setBracket(newStruct);
         setExisting(false);
         setLoading(false);

@@ -1,4 +1,5 @@
 import db from '../../database.js';
+import { normalizeEqualSizePlayoffBracket } from '../../client/src/utils/playoffBracket.js';
 
 // ==========================================
 // HELPER: Match Advancement Logic
@@ -63,7 +64,17 @@ const runJob = () => {
         return;
     }
 
-    let dirty = false; // Flag to track if we made changes and need to save
+    const normalized = normalizeEqualSizePlayoffBracket(bracket);
+    if (normalized.error) {
+        console.error(normalized.error);
+        return;
+    }
+
+    bracket = normalized.bracket;
+    let dirty = normalized.changed;
+    if (normalized.changed) {
+        console.log('Updated saved equal-size bracket to use LB R2 as the first UB drop round.');
+    }
 
     // Helper list to iterate through all sections uniformly
     const allRounds = [
