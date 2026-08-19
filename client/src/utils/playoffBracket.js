@@ -10,18 +10,22 @@ const getWinner = (match) => {
     : { id: match.team2Id, name: match.team2Name };
 };
 
+const getLoser = (match) => {
+  if (!match?.team1Id || !match?.team2Id) return null;
+
+  const team1Score = Number(match.team1Score || 0);
+  const team2Score = Number(match.team2Score || 0);
+  if (team1Score === team2Score) return null;
+
+  return team1Score < team2Score
+    ? { id: match.team1Id, name: match.team1Name }
+    : { id: match.team2Id, name: match.team2Name };
+};
+
 const hasResult = (match) => {
   const team1Score = Number(match.team1Score || 0);
   const team2Score = Number(match.team2Score || 0);
   return Boolean(match.seriesId) || team1Score !== 0 || team2Score !== 0;
-};
-
-const rewriteLowerTarget = (target, roundOffset) => {
-  if (!target?.startsWith('lb-r')) return target;
-
-  return target.replace(/^lb-r(\d+)-/, (_, round) => (
-    `lb-r${Number(round) + roundOffset}-`
-  ));
 };
 
 export const generatePlayoffBracket = (teams) => {
@@ -167,44 +171,51 @@ export const normalizeEqualSizePlayoffBracket = (bracket) => {
   }
 
   const normalized = JSON.parse(JSON.stringify(bracket));
+  const startingTeamCount = upperFirstRound.matches.length * 2;
+  const templateTeams = [
+    ...Array.from({ length: startingTeamCount }, () => ({ Bracket: 'upper' })),
+    ...Array.from({ length: startingTeamCount }, () => ({ Bracket: 'lower' }))
+  ];
+  const correctedTemplate = generatePlayoffBracket(templateTeams);
+
   normalized.upperBracket.forEach((round) => {
     round.matches.forEach((match) => {
       match.loserTo = `lb-r${round.round * 2}-m${match.matchNum}`;
     });
   });
 
-  normalized.lowerBracket = normalized.lowerBracket
-    .filter((round) => round.round !== 2)
-    .map((round) => {
-      if (round.round === 1) {
-        round.matches.forEach((match) => {
-          match.winnerTo = `lb-r2-m${match.matchNum}`;
-          match.winnerToSlot = 1;
-        });
-        return round;
-      }
+  const correctedFirstRound = correctedTemplate.lowerBracket[0];
+  normalized.lowerBracket = correctedTemplate.lowerBracket.map((round) => {
+    if (round.round !== 1) return round;
 
-      round.round -= 1;
-      round.matches.forEach((match) => {
-        match.round -= 1;
-        match.id = `lb-r${match.round}-m${match.matchNum}`;
-        match.winnerTo = rewriteLowerTarget(match.winnerTo, -1);
-        match.isDropRound = match.round % 2 === 0;
+    return {
+      ...round,
+      matches: lowerFirstRound.matches.map((match, index) => ({
+        ...match,
+        winnerTo: correctedFirstRound.matches[index].winnerTo,
+        winnerToSlot: correctedFirstRound.matches[index].winnerToSlot,
+        isDropRound: false
+      }))
+    };
+  });
 
-        if (match.isDropRound) {
-          match.dropSourceRound = match.round / 2;
-        } else {
-          delete match.dropSourceRound;
-        }
-      });
-      return round;
+  const correctedLowerMatches = normalized.lowerBracket.flatMap((round) => round.matches);
+  const placeTeam = (matchId, slot, team) => {
+    if (!team) return;
+    const target = correctedLowerMatches.find((match) => match.id === matchId);
+    if (!target) return;
+    target[`team${slot}Id`] = team.id;
+    target[`team${slot}Name`] = team.name;
+  };
+
+  normalized.lowerBracket[0].matches.forEach((match) => {
+    placeTeam(match.winnerTo, match.winnerToSlot, getWinner(match));
+  });
+
+  normalized.upperBracket.forEach((round) => {
+    round.matches.forEach((match) => {
+      placeTeam(match.loserTo, 2, getLoser(match));
     });
-
-  const firstDropRound = normalized.lowerBracket.find((round) => round.round === 2);
-  firstDropRound.matches.forEach((match, index) => {
-    const winner = getWinner(normalized.lowerBracket[0].matches[index]);
-    match.team1Id = winner?.id ?? null;
-    match.team1Name = winner?.name ?? null;
   });
 
   return { bracket: normalized, changed: true };

@@ -39,8 +39,13 @@ test('larger lower bracket retains the existing round 3 first drop', () => {
 });
 
 test('legacy equal-size brackets are shifted without losing first-round winners or UB drops', () => {
-  const bracket = generatePlayoffBracket(teams(8, 16));
-  bracket.lowerBracket[0].matches = bracket.lowerBracket[0].matches.slice(0, 4);
+  const bracket = generatePlayoffBracket(teams(8, 8));
+  bracket.upperBracket.forEach((round) => {
+    round.matches.forEach((match) => {
+      match.loserTo = `lb-r${(round.round * 2) + 1}-m${match.matchNum}`;
+    });
+  });
+  bracket.lowerBracket[1].matches = bracket.lowerBracket[1].matches.slice(0, 2);
   bracket.lowerBracket[0].matches.forEach((match, index) => {
     match.matchNum = index + 1;
     match.id = `lb-r1-m${index + 1}`;
@@ -51,15 +56,20 @@ test('legacy equal-size brackets are shifted without losing first-round winners 
     match.team1Score = 2;
     match.team2Score = 0;
   });
-  bracket.lowerBracket[2].matches.forEach((match, index) => {
-    match.team2Id = 40 + index;
+  bracket.upperBracket[0].matches.forEach((match, index) => {
+    match.team1Id = 40 + index;
+    match.team1Name = `UB winner ${index + 1}`;
+    match.team2Id = 50 + index;
     match.team2Name = `UB loser ${index + 1}`;
+    match.team1Score = 2;
+    match.team2Score = 0;
   });
 
   const normalized = normalizeEqualSizePlayoffBracket(bracket);
 
   assert.equal(normalized.changed, true);
   assert.equal(normalized.bracket.lowerBracket.length, 6);
+  assert.deepEqual(normalized.bracket.lowerBracket.map((round) => round.matches.length), [4, 4, 2, 2, 1, 1]);
   assert.equal(normalized.bracket.lowerBracket[1].matches[0].id, 'lb-r2-m1');
   assert.equal(normalized.bracket.lowerBracket[1].matches[0].team1Name, 'Winner 1');
   assert.equal(normalized.bracket.lowerBracket[1].matches[0].team2Name, 'UB loser 1');
@@ -67,8 +77,12 @@ test('legacy equal-size brackets are shifted without losing first-round winners 
 });
 
 test('legacy migration refuses to remove a lower round that already has results', () => {
-  const bracket = generatePlayoffBracket(teams(8, 16));
-  bracket.lowerBracket[0].matches = bracket.lowerBracket[0].matches.slice(0, 4);
+  const bracket = generatePlayoffBracket(teams(8, 8));
+  bracket.upperBracket.forEach((round) => {
+    round.matches.forEach((match) => {
+      match.loserTo = `lb-r${(round.round * 2) + 1}-m${match.matchNum}`;
+    });
+  });
   bracket.lowerBracket[1].matches[0].team1Score = 2;
   bracket.lowerBracket[1].matches[0].team2Score = 1;
 
@@ -76,5 +90,5 @@ test('legacy migration refuses to remove a lower round that already has results'
 
   assert.equal(normalized.changed, false);
   assert.match(normalized.error, /already has a result/);
-  assert.equal(normalized.bracket.lowerBracket.length, 7);
+  assert.equal(normalized.bracket.lowerBracket.length, 6);
 });
