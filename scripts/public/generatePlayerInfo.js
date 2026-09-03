@@ -51,8 +51,7 @@ function syncPublicPlayerInfo(publicDb, players) {
     `
     INSERT INTO PlayerInfo (PlayerId, PlayerName)
     VALUES (?, ?)
-    ON CONFLICT(PlayerId) DO UPDATE SET
-      PlayerName = excluded.PlayerName
+    ON CONFLICT(PlayerId) DO NOTHING
     `
   );
 
@@ -60,17 +59,6 @@ function syncPublicPlayerInfo(publicDb, players) {
     for (const row of rows) {
       upsertStmt.run(row.PlayerId, row.PlayerName);
     }
-
-    if (rows.length === 0) {
-      publicDb.prepare(`DELETE FROM PlayerInfo`).run();
-      return;
-    }
-
-    const placeholders = rows.map(() => '?').join(', ');
-    const keepIds = rows.map((row) => row.PlayerId);
-    publicDb
-      .prepare(`DELETE FROM PlayerInfo WHERE PlayerId NOT IN (${placeholders})`)
-      .run(...keepIds);
   });
 
   syncTxn(players);
