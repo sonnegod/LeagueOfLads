@@ -5,6 +5,7 @@ import TeamPlayers from '../components/TeamPlayers';
 import LeagueFilter from '../components/LeagueFilter';
 import HeroDisplay from '../components/HeroDisplay';
 import TeamHomeTab from '../components/TeamHomeTab';
+import TeamDrafts from '../components/TeamDrafts';
 import './DetailPages.css';
 
 
@@ -14,6 +15,7 @@ export default function TeamPage() {
   const [matches, setMatches] = useState([]);
   const [heroes, setHeroes] = useState([]); // New: hero stats
   const [players, setPlayers] = useState([]);
+  const [draftData, setDraftData] = useState({ matches: [], topPicks: [], topBans: [] });
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
@@ -54,6 +56,18 @@ export default function TeamPage() {
         const playersRes = await fetch(playerUrl.toString());
         const playersData = await playersRes.json();
         setPlayers(playersData || []);
+
+        const draftsUrl = new URL(`/api/teams/${teamId}/drafts`, window.location.origin);
+        if (selectedLeague !== 'all') {
+          draftsUrl.searchParams.append('leagueId', selectedLeague);
+        }
+        const draftsRes = await fetch(draftsUrl.toString());
+        const draftsData = await draftsRes.json();
+        setDraftData({
+          matches: draftsData.matches || [],
+          topPicks: draftsData.topPicks || [],
+          topBans: draftsData.topBans || [],
+        });
         loadedTeamIdRef.current = teamId;
 
       } catch (err) {
@@ -72,7 +86,7 @@ export default function TeamPage() {
     <div className="detail-page team-detail-page" style={{ padding: '1rem' }}>
       <h1>{teamName}</h1>
 
-      {(activeTab === 'home' || activeTab === 'recent' || activeTab === 'players' || activeTab === 'heroes') && (
+      {(activeTab === 'home' || activeTab === 'recent' || activeTab === 'players' || activeTab === 'heroes' || activeTab === 'drafts') && (
         <div className="detail-page-filter" style={{ marginBottom: '1rem' }}>
           <LeagueFilter
             leagues={teamLeagues}
@@ -90,6 +104,7 @@ export default function TeamPage() {
         <button onClick={() => setActiveTab('players')}>Players</button>
         {/*<button onClick={() => setActiveTab('averages')}>Averages</button>*/}
         <button onClick={() => setActiveTab('heroes')}>Heroes</button>
+        <button onClick={() => setActiveTab('drafts')}>Drafts</button>
       </div>
 
       {/* Tab Content */}
@@ -136,6 +151,7 @@ export default function TeamPage() {
           </tbody>
         </table></div>
       )}
+      {activeTab === 'drafts' && <TeamDrafts draftData={draftData} />}
     </div>
   );
 }

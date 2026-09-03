@@ -13,6 +13,7 @@ import {
   toNullableNumber,
   withLiveMatchJson,
 } from './utility/liveMatchResponses.js';
+import { getAppStandingsPayload } from './utility/standingsResponses.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
@@ -326,6 +327,43 @@ router.get('/app/live-matches/:matchId/snapshots', (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load app live match snapshots' });
+  }
+});
+
+router.get('/app/standings', async (req, res) => {
+  try {
+    const rawLeagueId = req.query.leagueId || resolveActiveLeague();
+    const leagueId = Number(rawLeagueId);
+    const hasGroupFilter = req.query.groupId !== undefined;
+    const groupId = hasGroupFilter ? Number(req.query.groupId) : null;
+
+    if (!rawLeagueId) {
+      return res.json({
+        generatedAt: new Date().toISOString(),
+        leagueId: null,
+        rules: null,
+        groups: [],
+        qualification: {
+          upperBracket: [],
+          tiebreaker: [],
+          lowerBracket: [],
+          eliminated: [],
+        },
+      });
+    }
+
+    if (!Number.isSafeInteger(leagueId) || leagueId <= 0) {
+      return res.status(400).json({ error: 'Invalid league id' });
+    }
+
+    if (hasGroupFilter && (!Number.isSafeInteger(groupId) || groupId <= 0)) {
+      return res.status(400).json({ error: 'Invalid group id' });
+    }
+
+    return res.json(await getAppStandingsPayload(db, leagueId, { groupId }));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to load app standings' });
   }
 });
 
@@ -1677,6 +1715,85 @@ router.get('/teams/:teamId', async (req, res) => {
       teamMatches,
       teamLeagues,
       teamHeroes
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+router.get('/teams/:teamId/drafts', async (req, res) => {
+  const { teamId } = req.params;
+  const { leagueId } = req.query;
+
+  try {
+    const draftRows = await db.getTeamDraftRows(teamId, leagueId);
+    const statRows = await db.getTeamDraftHeroStats(teamId, leagueId);
+    const matchMap = new Map();
+
+    draftRows.forEach((row) => {
+      if (!matchMap.has(row.MatchId)) {
+        matchMap.set(row.MatchId, {
+          MatchId: row.MatchId,
+          DatePlayed: row.DatePlayed,
+          LeagueId: row.LeagueId,
+          LeagueName: row.LeagueName,
+          WinnerId: row.WinnerId,
+          SelectedTeamWon: row.SelectedTeamWon,
+          selectedTeam: {
+            TeamId: Number(teamId),
+            TeamName: Number(row.SelectedTeamSide) === 0 ? row.RadiantTeamName : row.DireTeamName,
+            Side: Number(row.SelectedTeamSide) === 0 ? 'Radiant' : 'Dire',
+            picks: [],
+            bans: [],
+          },
+          enemyTeam: {
+            TeamId: row.EnemyTeamId,
+            TeamName: row.EnemyTeamName,
+            Side: Number(row.SelectedTeamSide) === 0 ? 'Dire' : 'Radiant',
+            picks: [],
+            bans: [],
+          },
+        });
+      }
+
+      if (!row.HeroId) return;
+
+      const match = matchMap.get(row.MatchId);
+      const target =
+        Number(row.DraftSide) === Number(row.SelectedTeamSide)
+          ? match.selectedTeam
+          : match.enemyTeam;
+      const list = Number(row.IsPick) === 1 ? target.picks : target.bans;
+
+      list.push({
+        HeroId: row.HeroId,
+        HeroName: row.HeroName,
+        OrderNum: row.OrderNum,
+      });
+    });
+
+    const sortDraftList = (list) =>
+      list.sort((a, b) => Number(a.OrderNum || 0) - Number(b.OrderNum || 0));
+
+    const matches = [...matchMap.values()].map((match) => ({
+      ...match,
+      selectedTeam: {
+        ...match.selectedTeam,
+        picks: sortDraftList(match.selectedTeam.picks),
+        bans: sortDraftList(match.selectedTeam.bans),
+      },
+      enemyTeam: {
+        ...match.enemyTeam,
+        picks: sortDraftList(match.enemyTeam.picks),
+        bans: sortDraftList(match.enemyTeam.bans),
+      },
+    }));
+
+    res.json({
+      matches,
+      topPicks: statRows.filter((row) => Number(row.IsPick) === 1),
+      topBans: statRows.filter((row) => Number(row.IsPick) === 0),
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
