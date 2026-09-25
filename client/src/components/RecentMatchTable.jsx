@@ -102,7 +102,7 @@ export default function RecentMatchTable() {
 
   return (
     <div className="recent-matches" style={{
-    width: '80vw',
+    width: '100%',
     padding: '1rem',
     boxSizing: 'border-box',
     flex: 1 // allows it to grow

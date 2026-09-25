@@ -14,7 +14,7 @@ import LeaguesPage from './pages/LeaguesPage';
 import MatchPage from './pages/MatchPage';
 import MatchesPage from './pages/MatchesPage';
 import SearchPage from "./pages/SearchPage";
-import RecentMatchesPage from "./pages/RecentMatchesPage";
+import RecentsPage from "./pages/RecentsPage";
 import RequestPage from "./pages/RequestPage";
 import SeriesPage from "./pages/SeriesPage";
 import BettingPage from "./pages/BettingPage";
@@ -29,7 +29,8 @@ export default function App() {
       <Route path="/" element={<Layout />}>
         <Route index element={<Home />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/recentMatches" element={<RecentMatchesPage />} />
+        <Route path="/recents" element={<RecentsPage />} />
+        <Route path="/recentMatches" element={<RecentsPage />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/player/:player_id" element={<PlayerPage />} />
         <Route path="/hero/:hero_id" element={<HeroPage />} />

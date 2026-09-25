@@ -13,7 +13,8 @@ export default function LeaguePage({
   leagueIdOverride,
   stageTabsFirst = false,
   defaultToCurrentStage = false,
-  alwaysShowGroups = false
+  alwaysShowGroups = false,
+  showRecentSeries = true
 }) {
   const { leagueId: routeLeagueId } = useParams();
   const leagueId = leagueIdOverride || routeLeagueId;
@@ -149,9 +150,13 @@ export default function LeaguePage({
       {activeTab === "group" && showGroups && (
         <div>
           <CurrentLeaderboardTable leagueId={leagueId} />
-          <hr style={{ margin: "2rem 0" }} />
-          <h2>Recent Series</h2>
-          <CurrentLeagueSeries leagueId={leagueId} />
+          {showRecentSeries && (
+            <>
+              <hr style={{ margin: "2rem 0" }} />
+              <h2>Recent Series</h2>
+              <CurrentLeagueSeries leagueId={leagueId} />
+            </>
+          )}
         </div>
       )}
 

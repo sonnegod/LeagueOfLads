@@ -17,9 +17,7 @@
   color: var(--text);
 }
 
-/* The head-to-head matrices retain their existing local colors. */
-.leaderboard-h2h-desktop,
-.leaderboard-h2h-mobile,
+/* The admin results editor retains its own local colors. */
 .admin-matrix-widget {
   --surface: #121315;
   --text: #e6e6e6;
