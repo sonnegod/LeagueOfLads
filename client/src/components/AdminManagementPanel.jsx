@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
   const [admins, setAdmins] = useState([]);
   const [players, setPlayers] = useState([]);
   const [playerId, setPlayerId] = useState('');
+  const [playerSearch, setPlayerSearch] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [activePlayerIndex, setActivePlayerIndex] = useState(0);
   const [newRole, setNewRole] = useState('0');
   const [roleChoices, setRoleChoices] = useState({});
   const [savingRole, setSavingRole] = useState(null);
@@ -13,8 +16,51 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const pickerButtonRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const activeOptionRef = useRef(null);
   const canManage = isHeadAdmin && !selfDemoted;
   const headCount = admins.filter((admin) => admin.HeadAdmin).length;
+  const search = playerSearch.trim().toLowerCase();
+  const filteredPlayers = search
+    ? players.filter((player) => String(player.PlayerId).includes(search) ||
+      String(player.PlayerName).toLowerCase().includes(search))
+    : players;
+  const selectedPlayer = players.find((player) => String(player.PlayerId) === playerId);
+
+  function choosePlayer(player) {
+    setPlayerId(String(player.PlayerId));
+    setPlayerSearch('');
+    setPickerOpen(false);
+    pickerButtonRef.current?.focus();
+  }
+
+  useEffect(() => {
+    if (pickerOpen) searchInputRef.current?.focus();
+  }, [pickerOpen]);
+
+  useEffect(() => {
+    if (pickerOpen) activeOptionRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [pickerOpen, activePlayerIndex, playerSearch]);
+
+  function handlePickerKeyDown(event) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (filteredPlayers.length) {
+        setActivePlayerIndex((index) => Math.min(index + 1, filteredPlayers.length - 1));
+      }
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActivePlayerIndex((index) => Math.max(index - 1, 0));
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      if (filteredPlayers[activePlayerIndex]) choosePlayer(filteredPlayers[activePlayerIndex]);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      setPickerOpen(false);
+      pickerButtonRef.current?.focus();
+    }
+  }
 
   const loadAdmins = useCallback(async (signal) => {
     const response = await fetch('/api/admin/admins', { signal });
@@ -59,6 +105,8 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to add admin');
       setPlayerId('');
+      setPlayerSearch('');
+      setPickerOpen(false);
       setNewRole('0');
       setMessage(`${data.admin.AdminPlayerName} can now access the admin portal.`);
       await Promise.all([loadAdmins(), loadPlayers()]);
@@ -119,30 +167,55 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
 
       {canManage && (
         <form onSubmit={addAdmin} style={formStyle}>
-          <label style={fieldStyle} htmlFor="new-admin-id">
-            Player ID (Steam account ID)
-            <select id="new-admin-id" required value={playerId}
-              onChange={(event) => setPlayerId(event.target.value)} style={inputStyle}>
-              <option value="">Select a player ID</option>
-              {[...players].sort((a, b) => a.PlayerId - b.PlayerId).map((player) => (
-                <option key={player.PlayerId} value={player.PlayerId}>
-                  {player.PlayerId} — {player.PlayerName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label style={fieldStyle} htmlFor="new-admin-name">
-            Display name
-            <select id="new-admin-name" required value={playerId}
-              onChange={(event) => setPlayerId(event.target.value)} style={inputStyle}>
-              <option value="">Select a display name</option>
-              {players.map((player) => (
-                <option key={player.PlayerId} value={player.PlayerId}>
-                  {player.PlayerName} ({player.PlayerId})
-                </option>
-              ))}
-            </select>
-          </label>
+          <div style={fieldStyle} onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setPickerOpen(false);
+          }}>
+            <label htmlFor="admin-player-picker">Player</label>
+            <div style={pickerStyle}>
+              <button id="admin-player-picker" ref={pickerButtonRef} type="button"
+                aria-haspopup="listbox" aria-expanded={pickerOpen}
+                aria-controls={pickerOpen ? 'admin-player-options' : undefined}
+                onClick={() => {
+                  setPickerOpen((open) => !open);
+                  setPlayerSearch('');
+                  setActivePlayerIndex(0);
+                }} style={pickerButtonStyle}>
+                {selectedPlayer
+                  ? `${selectedPlayer.PlayerName} (${selectedPlayer.PlayerId})`
+                  : 'Select a player by name or ID'}
+                <span aria-hidden="true">▾</span>
+              </button>
+              {pickerOpen && (
+                <div style={pickerMenuStyle}>
+                  <input ref={searchInputRef} type="search" value={playerSearch}
+                    role="combobox" aria-label="Search players by name or ID"
+                    aria-expanded="true" aria-controls="admin-player-options"
+                    aria-activedescendant={filteredPlayers[activePlayerIndex]
+                      ? `admin-player-option-${filteredPlayers[activePlayerIndex].PlayerId}` : undefined}
+                    onChange={(event) => {
+                      setPlayerSearch(event.target.value);
+                      setActivePlayerIndex(0);
+                    }}
+                    onKeyDown={handlePickerKeyDown}
+                    placeholder="Search by name or ID" style={inputStyle} />
+                  <div id="admin-player-options" role="listbox" aria-label="Players" style={pickerOptionsStyle}>
+                    {filteredPlayers.map((player, index) => (
+                      <button key={player.PlayerId} id={`admin-player-option-${player.PlayerId}`}
+                        ref={index === activePlayerIndex ? activeOptionRef : null}
+                        type="button" role="option" tabIndex={-1}
+                        aria-selected={playerId === String(player.PlayerId)}
+                        onMouseEnter={() => setActivePlayerIndex(index)}
+                        onClick={() => choosePlayer(player)}
+                        style={{ ...pickerOptionStyle, ...(index === activePlayerIndex ? pickerOptionActiveStyle : {}) }}>
+                        {player.PlayerName} ({player.PlayerId})
+                      </button>
+                    ))}
+                    {filteredPlayers.length === 0 && <div style={pickerEmptyStyle}>No players match that search.</div>}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
           <label style={fieldStyle} htmlFor="new-admin-role">
             Role
             <select id="new-admin-role" value={newRole} onChange={(event) => setNewRole(event.target.value)}
@@ -226,6 +299,43 @@ const inputStyle = {
   background: 'var(--button-bg, #1a1a1a)',
   color: 'var(--text, #e6e6e6)',
 };
+const pickerStyle = { position: 'relative' };
+const pickerButtonStyle = {
+  ...inputStyle,
+  width: '100%',
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: '12px',
+  textAlign: 'left',
+  cursor: 'pointer',
+};
+const pickerMenuStyle = {
+  position: 'absolute',
+  zIndex: 20,
+  top: 'calc(100% + 4px)',
+  left: 0,
+  width: '100%',
+  minWidth: '280px',
+  padding: '8px',
+  boxSizing: 'border-box',
+  border: '1px solid var(--border, #222428)',
+  borderRadius: '6px',
+  background: 'var(--surface, #0b0b0b)',
+  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+};
+const pickerOptionsStyle = { maxHeight: '240px', overflowY: 'auto', marginTop: '8px' };
+const pickerOptionStyle = {
+  display: 'block',
+  width: '100%',
+  padding: '8px',
+  border: 0,
+  background: 'transparent',
+  color: 'var(--text, #e6e6e6)',
+  textAlign: 'left',
+  cursor: 'pointer',
+};
+const pickerOptionActiveStyle = { background: 'var(--primary, #646cff)', color: 'white' };
+const pickerEmptyStyle = { padding: '8px', color: 'var(--muted-text, #9aa0b4)' };
 const tableStyle = { width: '100%', borderCollapse: 'collapse', textAlign: 'left' };
 const cellStyle = { padding: '10px', borderBottom: '1px solid var(--border, #222428)' };
 const removeButtonStyle = { marginLeft: '8px', color: '#e57373' };
