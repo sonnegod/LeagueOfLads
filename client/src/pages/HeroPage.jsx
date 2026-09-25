@@ -36,19 +36,19 @@ export default function HeroPage() {
   const { hero, heroPlayerStats, heroTeamStats, leagueHeroStats } = heroData;
 
   return (
-    <div style={{ padding: '1rem' }}>
+    <div className="ui-page">
       {/* Dark page container to avoid white panels */}
-      <div style={{ padding: '1rem', backgroundColor: '#0f1112', color: '#e6e6e6', borderRadius: 8 }}>
+      <div className="ui-panel">
         <h1 style={{ marginTop: 0 }}>
           <HeroDisplay heroId={hero_id} heroName={hero[0]?.HeroName || hero_id} iconSize={64} link={false} />
         </h1>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-          <button onClick={() => setActiveTab('heroMatches')} style={activeTab === 'heroMatches' ? activeTabStyleDark : tabStyleDark}>Recent Matches</button>
-          <button onClick={() => setActiveTab('players')} style={activeTab === 'players' ? activeTabStyleDark : tabStyleDark}>Players</button>
-          <button onClick={() => setActiveTab('teams')} style={activeTab === 'teams' ? activeTabStyleDark : tabStyleDark}>Teams</button>
-          <button onClick={() => setActiveTab('leagues')} style={activeTab === 'leagues' ? activeTabStyleDark : tabStyleDark}>Leagues</button>
+        <div className="ui-tabs">
+          <button className="ui-tab" aria-pressed={activeTab === 'heroMatches'} onClick={() => setActiveTab('heroMatches')} style={activeTab === 'heroMatches' ? activeTabStyleDark : tabStyleDark}>Recent Matches</button>
+          <button className="ui-tab" aria-pressed={activeTab === 'players'} onClick={() => setActiveTab('players')} style={activeTab === 'players' ? activeTabStyleDark : tabStyleDark}>Players</button>
+          <button className="ui-tab" aria-pressed={activeTab === 'teams'} onClick={() => setActiveTab('teams')} style={activeTab === 'teams' ? activeTabStyleDark : tabStyleDark}>Teams</button>
+          <button className="ui-tab" aria-pressed={activeTab === 'leagues'} onClick={() => setActiveTab('leagues')} style={activeTab === 'leagues' ? activeTabStyleDark : tabStyleDark}>Leagues</button>
         </div>
 
         {/* Tab Content */}
@@ -147,7 +147,6 @@ export default function HeroPage() {
 }
 
 // Styles
-const tableStyle = { width: "100%", borderCollapse: "collapse", minWidth: "700px" };
 const tableStyleDark = { width: "100%", borderCollapse: "collapse", minWidth: "700px", background: 'transparent' };
 const thStyleDark = { border: "1px solid #222428", padding: "8px", textAlign: "center", color: '#e6e6e6', background: '#0f1112' };
 const tdStyleDark = { border: "1px solid #222428", padding: "8px", textAlign: "center", color: '#e6e6e6' };

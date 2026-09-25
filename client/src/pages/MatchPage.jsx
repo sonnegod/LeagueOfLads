@@ -48,7 +48,7 @@ export default function MatchPage() {
   };
 
   return (
-    <div className="match-detail-page" style={{ width: '100%', margin: '0 auto', padding: '1rem' }}>
+    <div className="match-detail-page ui-page" style={{ width: '100%', margin: '0 auto', padding: '1rem' }}>
       <h1>Match {match.match[0].MatchId}</h1>
       <p><strong>Date:</strong> {match.match[0].DatePlayed}</p>
       <p><strong>League:</strong><Link to={`/league/${match.match[0].LeagueId}`}> {match.match[0].LeagueName}</Link></p>

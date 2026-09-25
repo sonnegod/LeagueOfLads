@@ -7,7 +7,7 @@ const HeadToHeadPage = () => {
       2. min-w-0: Critical flexbox fix to prevent content from pushing width past 100%.
       3. bg-slate-950: The page owns its background color here.
     */
-    <div className="flex-1 min-w-0 min-h-full bg-slate-950 text-white flex flex-col">
+    <div className="h2h-page flex-1 min-w-0 min-h-full bg-slate-950 text-white flex flex-col">
       
       {/* Header - Owned by the page */}
       <header className="w-full bg-slate-900/50 backdrop-blur-md border-b border-slate-800 p-6 shrink-0">

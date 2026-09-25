@@ -2428,7 +2428,7 @@ export default function DraftGodPage() {
   };
 
   return (
-    <div style={pageStyle}>
+    <div className="ui-page draftgod-page" style={pageStyle}>
       <h1 style={{ marginTop: 0 }}>Draft Assistant</h1>
       {error && <p style={{ color: '#ef4444' }}>{error}</p>}
       {loading && !draftData && <p>Loading draft model...</p>}
@@ -2467,10 +2467,10 @@ export default function DraftGodPage() {
             <strong>Win rate display:</strong> Raw WR is literal wins/games. Shrunk WR applies Bayesian smoothing toward 50% (k=10; public trend uses k=12) so low-sample heroes do not over-rank from 1-3 games. Draft scoring and recommendations use shrunk WR.
           </div>
 
-          <div style={tabsStyle}>
-            <button type="button" style={activeTab === 'draft' ? activeTabButtonStyle : tabButtonStyle} onClick={() => setActiveTab('draft')}>Draft</button>
-            <button type="button" style={activeTab === 'players' ? activeTabButtonStyle : tabButtonStyle} onClick={() => setActiveTab('players')}>Players</button>
-            <button type="button" style={activeTab === 'teams' ? activeTabButtonStyle : tabButtonStyle} onClick={() => setActiveTab('teams')}>Teams</button>
+          <div className="ui-tabs" style={tabsStyle}>
+            <button className="ui-tab" aria-pressed={activeTab === 'draft'} type="button" style={activeTab === 'draft' ? activeTabButtonStyle : tabButtonStyle} onClick={() => setActiveTab('draft')}>Draft</button>
+            <button className="ui-tab" aria-pressed={activeTab === 'players'} type="button" style={activeTab === 'players' ? activeTabButtonStyle : tabButtonStyle} onClick={() => setActiveTab('players')}>Players</button>
+            <button className="ui-tab" aria-pressed={activeTab === 'teams'} type="button" style={activeTab === 'teams' ? activeTabButtonStyle : tabButtonStyle} onClick={() => setActiveTab('teams')}>Teams</button>
           </div>
 
           {activeTab === 'draft' && (
@@ -3238,9 +3238,9 @@ const topRowStyle = {
 const infoTextStyle = { margin: '0.2rem 0' };
 const wrNoteStyle = {
   marginBottom: '0.8rem',
-  border: '1px solid #2f3b4b',
-  borderRadius: 8,
-  background: '#111827',
+  border: '1px solid var(--border)',
+  borderRadius: 12,
+  background: 'var(--surface)',
   padding: '0.5rem 0.65rem',
   fontSize: '0.82rem',
   color: '#cbd5e1',
@@ -3254,12 +3254,13 @@ const tabButtonStyle = {
   padding: '0.4rem 0.75rem',
   cursor: 'pointer',
 };
-const activeTabButtonStyle = { ...tabButtonStyle, background: '#0f766e', border: '1px solid #0f766e' };
+const activeTabButtonStyle = { ...tabButtonStyle, background: '#1d4ed8', border: '1px solid #3b82f6' };
 const panelStyle = {
-  background: '#0f1720',
-  border: '1px solid #1f2937',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 12,
   padding: '0.9rem',
+  boxShadow: 'var(--ui-shadow)',
 };
 const panelTitleStyle = { margin: '0 0 0.7rem 0' };
 const liveBoardHeaderStyle = {
@@ -3397,33 +3398,33 @@ const draftOrderChipActiveStyle = {
 };
 const controlsStyle = { display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginBottom: '0.9rem' };
 const inputStyle = {
-  background: '#0b0f14',
+  background: '#020617',
   color: '#f3f4f6',
-  border: '1px solid #2a3440',
-  borderRadius: 6,
+  border: '1px solid #475569',
+  borderRadius: 8,
   padding: '0.35rem 0.5rem',
   minWidth: 180,
 };
 const selectStyle = {
-  background: '#0b0f14',
+  background: '#020617',
   color: '#f3f4f6',
-  border: '1px solid #2a3440',
-  borderRadius: 6,
+  border: '1px solid #475569',
+  borderRadius: 8,
   padding: '0.35rem 0.5rem',
 };
 const primaryButtonStyle = {
-  background: '#0f766e',
+  background: '#1d4ed8',
   color: '#fff',
-  border: 'none',
-  borderRadius: 6,
+  border: '1px solid #3b82f6',
+  borderRadius: 8,
   padding: '0.35rem 0.6rem',
   cursor: 'pointer',
 };
 const secondaryButtonStyle = {
-  background: '#1f2937',
+  background: '#17243a',
   color: '#f3f4f6',
-  border: '1px solid #374151',
-  borderRadius: 6,
+  border: '1px solid #334155',
+  borderRadius: 8,
   padding: '0.35rem 0.6rem',
   cursor: 'pointer',
 };
@@ -3481,6 +3482,6 @@ const playerButtonStyle = {
 };
 const playerButtonActiveStyle = {
   ...playerButtonStyle,
-  border: '1px solid #0f766e',
-  background: '#0f1d2b',
+  border: '1px solid #3b82f6',
+  background: '#1e3a5f',
 };

@@ -29,9 +29,9 @@ export default function HeroesPage() {
   if (loading) return <div>Loading heroes...</div>;
 
   return (
-    <div style={{ padding: '1rem' }}>
+    <div className="ui-page">
       {/* Dark wrapper to remove any white panels for this page */}
-      <div style={{ padding: '1rem', backgroundColor: '#0f1112', color: '#e6e6e6', borderRadius: 8 }}>
+      <div className="ui-panel">
         <h1 style={{ marginTop: 0 }}>Heroes</h1>
         <div style={gridStyle}>
           {heroes.map(hero => (

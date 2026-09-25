@@ -56,24 +56,23 @@ const PlayoffBracketEditor = () => {
 
     // 1. Helper to find match in the tree
     let targetMatch = null;
-    let category = null;
     
     // Search UB
     for (const r of newBracket.upperBracket) {
       const found = r.matches.find(m => m.id === matchId);
-      if (found) { targetMatch = found; category = 'upperBracket'; break; }
+      if (found) { targetMatch = found; break; }
     }
     // Search LB
     if (!targetMatch) {
       for (const r of newBracket.lowerBracket) {
         const found = r.matches.find(m => m.id === matchId);
-        if (found) { targetMatch = found; category = 'lowerBracket'; break; }
+        if (found) { targetMatch = found; break; }
       }
     }
     // Search GF
     if (!targetMatch) {
         const found = newBracket.grandFinals.find(m => m.id === matchId);
-        if(found) { targetMatch = found; category = 'grandFinals'; }
+        if(found) { targetMatch = found; }
     }
 
     if (!targetMatch) return;
@@ -177,9 +176,9 @@ const PlayoffBracketEditor = () => {
   }
 
   return (
-    <div style={styles.container}>
+    <div className="playoff-bracket-editor" style={styles.container}>
       <div style={styles.header}>
-        <button onClick={handleSave} style={styles.saveBtn}>Save Bracket</button>
+        <button className="ui-button-primary" onClick={handleSave} style={styles.saveBtn}>Save Bracket</button>
         {dirty && <span style={styles.unsaved}>Unsaved Changes</span>}
       </div>
 
@@ -218,7 +217,7 @@ const PlayoffBracketEditor = () => {
         </div>
 
         {/* --- DIVIDER --- */}
-        <hr style={{borderColor: '#444', margin: '30px 0'}} />
+        <hr style={{borderColor: 'var(--border)', margin: '30px 0'}} />
 
         {/* --- LOWER BRACKET ROW --- */}
         <div style={styles.bracketRow}>
@@ -274,8 +273,8 @@ const MatchCard = ({ match, teams, onUpdate, manualSelect, isGrandFinal, existin
   const isDropRound = match.isDropRound;
   const cardStyle = {
     ...styles.card,
-    borderLeft: isDropRound ? '4px solid #ff6b6b' : '4px solid #4ecdc4',
-    borderColor: isGrandFinal ? 'gold' : '#ccc'
+    border: isGrandFinal ? '1px solid #d4a72c' : '1px solid var(--border)',
+    borderLeft: isDropRound ? '4px solid #f87171' : '4px solid #60a5fa'
   };
 
   return (
@@ -316,7 +315,7 @@ const MatchCard = ({ match, teams, onUpdate, manualSelect, isGrandFinal, existin
   );
 };
 
-const TeamRow = ({ slot, teamId, teamName, score, manualSelect, pool, onChange, onScore, readOnlyName, placeholder, teamNameResolver }) => (
+const TeamRow = ({ teamId, teamName, score, manualSelect, pool, onChange, onScore, placeholder }) => (
   <div style={styles.teamRow}>
     <div style={styles.teamName}>
       {manualSelect ? (
@@ -325,7 +324,7 @@ const TeamRow = ({ slot, teamId, teamName, score, manualSelect, pool, onChange, 
           {pool.map(t => <option key={t.TeamId} value={t.TeamId}>{t.TeamName}</option>)}
         </select>
       ) : (
-        <span style={{ color: teamId ? '#000' : '#999', fontSize: '12px' }}>
+        <span style={{ color: teamId ? 'var(--text)' : 'var(--muted-text)', fontSize: '12px' }}>
           {teamId ? teamName : placeholder}
         </span>
       )}
@@ -345,7 +344,8 @@ const styles = {
   container: {
     padding: '20px',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-    backgroundColor: '#f4f6f8',
+    backgroundColor: 'var(--bg)',
+    color: 'var(--text)',
     minHeight: '100vh',
     overflowX: 'hidden'
   },
@@ -356,20 +356,21 @@ const styles = {
     alignItems: 'center',
     marginBottom: '20px',
     padding: '10px',
-    background: '#fff',
-    borderBottom: '1px solid #ddd'
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: '12px',
   },
   saveBtn: {
     padding: '10px 20px',
-    backgroundColor: '#2ecc71',
+    backgroundColor: '#1d4ed8',
     color: 'white',
     border: 'none',
-    borderRadius: '4px',
+    borderRadius: '8px',
     cursor: 'pointer',
     fontWeight: 'bold'
   },
   unsaved: {
-    color: '#e74c3c',
+    color: '#fbbf24',
     fontWeight: 'bold',
     marginRight: '20px'
   },
@@ -388,7 +389,7 @@ const styles = {
     marginBottom: '10px',
     textTransform: 'uppercase',
     letterSpacing: '1px',
-    color: '#34495e'
+    color: '#bfdbfe'
   },
   roundsContainer: {
     display: 'flex',
@@ -402,7 +403,7 @@ const styles = {
   colTitle: {
     textAlign: 'center',
     marginBottom: '15px',
-    color: '#7f8c8d'
+    color: 'var(--muted-text)'
   },
   colBody: {
     display: 'flex',
@@ -411,19 +412,19 @@ const styles = {
     flexGrow: 1
   },
   card: {
-    backgroundColor: 'white',
-    borderRadius: '6px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    backgroundColor: 'var(--surface)',
+    borderRadius: '12px',
+    boxShadow: 'var(--ui-shadow)',
     marginBottom: '20px',
     padding: '10px',
     display: 'flex',
     flexDirection: 'column',
     gap: '5px',
-    color:"black"
+    color: 'var(--text)'
   },
   cardHeader: {
     fontSize: '10px',
-    color: '#95a5a6',
+    color: 'var(--muted-text)',
     display: 'flex',
     justifyContent: 'space-between',
     textTransform: 'uppercase',
@@ -431,15 +432,16 @@ const styles = {
     marginBottom: '4px'
   },
   dropLabel: {
-    color: '#e74c3c'
+    color: '#fca5a5'
   },
   teamRow: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f8f9fa',
-    padding: '4px',
-    borderRadius: '4px'
+    backgroundColor: 'var(--surface-soft)',
+    border: '1px solid var(--border)',
+    padding: '6px 8px',
+    borderRadius: '8px'
   },
   teamName: {
     flexGrow: 1,
@@ -452,14 +454,18 @@ const styles = {
     width: '100%',
     padding: '4px',
     fontSize: '12px',
-    border: '1px solid #ddd',
-    borderRadius: '3px'
+    border: '1px solid var(--border)',
+    borderRadius: '6px',
+    background: 'var(--bg)',
+    color: 'var(--text)'
   },
   scoreInput: {
     width: '40px',
     textAlign: 'center',
-    border: '1px solid #ddd',
-    borderRadius: '3px',
+    border: '1px solid var(--border)',
+    borderRadius: '6px',
+    background: 'var(--bg)',
+    color: 'var(--text)',
     padding: '4px',
     fontWeight: 'bold'
   },
@@ -467,7 +473,7 @@ const styles = {
     padding: '40px',
     textAlign: 'center',
     fontSize: '20px',
-    color: '#666'
+    color: 'var(--muted-text)'
   }
 };
 

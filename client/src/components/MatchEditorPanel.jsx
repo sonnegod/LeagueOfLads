@@ -197,6 +197,7 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
       </select>
 
       <button
+        className="ui-button-primary"
         onClick={updateMatch}
         disabled={loading}
         style={{

@@ -227,7 +227,7 @@ export default function SeriesPage() {
 
     // --- Render ---
     return (
-        <div className="series-detail-page" style={{ width: '100%', margin: '0 auto', padding: '1rem' }}>
+        <div className="series-detail-page ui-page" style={{ width: '100%', margin: '0 auto', padding: '1rem' }}>
             
             {/* 1. MATCHUP HEADER */}
             <h1 className="series-matchup-title" style={{ textAlign: 'center', fontSize: '2rem', marginBottom: '0.5rem' }}>
@@ -238,9 +238,9 @@ export default function SeriesPage() {
             <hr style={{ margin: '2rem 0', borderColor: '#ddd' }} />
 
             {/* 2. MATCH TABS (Buttons to select which game to view) */}
-            <div className="series-game-tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+            <div className="series-game-tabs ui-tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
                 {seriesData.seriesMatchesWithData.map((matchData, index) => (
-                    <button 
+                    <button className="ui-tab" aria-pressed={index === activeMatchIndex}
                         key={matchData.MatchId} 
                         onClick={() => setActiveMatchIndex(index)}
                         style={index === activeMatchIndex ? styles.activeButton : styles.button}

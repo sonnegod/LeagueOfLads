@@ -3368,6 +3368,28 @@ class DBInstance {
     }
 
 
+    getRequests(){
+        return this.db.prepare(`SELECT c.ProblemId, c.UserId,
+                COALESCE(CAST(pi.PlayerName AS TEXT), 'Unknown player') AS PlayerName,
+                c.Comment
+            FROM Comments c
+            LEFT JOIN PlayerInfo pi ON pi.PlayerId = c.UserId
+            ORDER BY c.ProblemId DESC`).all();
+    }
+
+    deleteRequest(problemId, adminPlayerId){
+        return this.db.transaction(() => {
+            const deleted = this.db.prepare('DELETE FROM Comments WHERE ProblemId = ?')
+                .run(problemId).changes;
+            if (deleted) {
+                this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+                    'Request Delete', `Admin ${adminPlayerId} deleted request ${problemId}`
+                );
+            }
+            return deleted;
+        })();
+    }
+
     insertRequest(userId, message){
         try {
             this.db.prepare(`

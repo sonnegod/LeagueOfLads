@@ -1,7 +1,7 @@
 export default function PrivacyPolicy() {
   return (
-    <div style={pageStyle}>
-      <section style={cardStyle}>
+    <div className="ui-page" style={pageStyle}>
+      <section className="ui-panel" style={cardStyle}>
         <h1>Privacy Policy</h1>
         <p style={updatedStyle}>Last updated: June 22, 2026</p>
 

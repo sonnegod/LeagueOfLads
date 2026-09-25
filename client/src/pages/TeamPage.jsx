@@ -98,13 +98,13 @@ export default function TeamPage() {
       )}
 
       {/* Tab Buttons */}
-      <div className="detail-page-tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-        <button onClick={() => setActiveTab('home')}>Home</button>
-        <button onClick={() => setActiveTab('recent')}>Recent Matches</button>
-        <button onClick={() => setActiveTab('players')}>Players</button>
+      <div className="detail-page-tabs ui-tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+        <button className="ui-tab" aria-pressed={activeTab === 'home'} onClick={() => setActiveTab('home')}>Home</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'recent'} onClick={() => setActiveTab('recent')}>Recent Matches</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'players'} onClick={() => setActiveTab('players')}>Players</button>
         {/*<button onClick={() => setActiveTab('averages')}>Averages</button>*/}
-        <button onClick={() => setActiveTab('heroes')}>Heroes</button>
-        <button onClick={() => setActiveTab('drafts')}>Drafts</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'heroes'} onClick={() => setActiveTab('heroes')}>Heroes</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'drafts'} onClick={() => setActiveTab('drafts')}>Drafts</button>
       </div>
 
       {/* Tab Content */}

@@ -2,12 +2,12 @@
 
 .leaderboard-card {
     padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
+    border-radius: 12px;
+    box-shadow: var(--ui-shadow, 0 12px 30px rgba(2, 6, 23, .22));
     margin-top: 20px;
-    background: #121315; /* dark card */
-    color: #e9e9e9;
-    border: 1px solid #222428;
+    background: #0f172a;
+    color: #f1f5f9;
+    border: 1px solid #334155;
 }
 
 .leaderboard-table {
@@ -20,7 +20,7 @@
 .leaderboard-table th, .leaderboard-table td {
     padding: 8px 0;
     text-align: left;
-    border-bottom: 1px solid #252525;
+    border-bottom: 1px solid #334155;
 }
 
 .leaderboard-table th {

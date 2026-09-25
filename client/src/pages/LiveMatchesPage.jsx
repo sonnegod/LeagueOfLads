@@ -265,7 +265,7 @@ export default function LiveMatchesPage() {
   if (loading) return <div>Loading live matches...</div>;
 
   return (
-    <div className="live-matches-page" style={pageStyle}>
+    <div className="live-matches-page ui-page" style={pageStyle}>
       <div style={cardsStyle}>
         {matches.map((match) => (
           <LiveMatchCard

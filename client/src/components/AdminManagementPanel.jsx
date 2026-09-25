@@ -272,7 +272,7 @@ export default function AdminManagementPanel() {
               <option value="1">Head Admin</option>
             </select>
           </label>
-          <button type="submit" disabled={saving || !playerId}>{saving ? 'Adding...' : 'Add Admin'}</button>
+          <button className="ui-button-primary" type="submit" disabled={saving || !playerId}>{saving ? 'Adding...' : 'Add Admin'}</button>
         </form>
         <h3 style={formHeadingStyle}>Add an account manually</h3>
         <p style={hintStyle}>Use this when the account is not in PlayerInfo.</p>
@@ -296,7 +296,7 @@ export default function AdminManagementPanel() {
               <option value="1">Head Admin</option>
             </select>
           </label>
-          <button type="submit" disabled={savingManual || !manualPlayerId.trim() || !manualPlayerName.trim()}>
+          <button className="ui-button-primary" type="submit" disabled={savingManual || !manualPlayerId.trim() || !manualPlayerName.trim()}>
             {savingManual ? 'Adding...' : 'Add Manual Admin'}
           </button>
         </form>
@@ -328,12 +328,12 @@ export default function AdminManagementPanel() {
                 </td>
                 {canManage && (
                   <td style={cellStyle}>
-                    <button type="button" onClick={() => saveRole(admin)}
+                    <button className="ui-button-primary" type="button" onClick={() => saveRole(admin)}
                       disabled={savingRole !== null || removingId !== null || (roleChoices[admin.AdminPlayerId] ?? String(admin.HeadAdmin)) === String(admin.HeadAdmin)}>
                       {savingRole === admin.AdminPlayerId ? 'Saving...' : 'Save role'}
                     </button>
                     {!admin.HeadAdmin && (
-                      <button type="button" style={removeButtonStyle} onClick={() => removeAdmin(admin)}
+                      <button className="ui-button-danger" type="button" style={removeButtonStyle} onClick={() => removeAdmin(admin)}
                         disabled={savingRole !== null || removingId !== null}>
                         {removingId === admin.AdminPlayerId ? 'Removing...' : 'Remove'}
                       </button>

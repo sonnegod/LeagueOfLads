@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import MatchResultBadge from './MatchResultBadge';
 
 export default function TeamRecentMatches({ matches }) {
   if (!matches?.length) return <div>No recent matches available</div>;
@@ -17,7 +18,7 @@ export default function TeamRecentMatches({ matches }) {
         </tr>
       </thead>
       <tbody>
-        {matches.map((match, idx) => (
+        {matches.map((match) => (
           <tr
             key={match.MatchId}
             style={{
@@ -30,12 +31,12 @@ export default function TeamRecentMatches({ matches }) {
               </td>
             <td style={{ padding: '8px', textAlign: 'left' }}>
               <Link to={`/team/${match.rad_team_id}`}>
-                {match.rad_team_name} {match.WinnerSide === 'r' && '♔'}
+                {match.rad_team_name} <MatchResultBadge winnerSide={match.WinnerSide} side="r" />
               </Link>
             </td>
             <td style={{ padding: '8px', textAlign: 'left' }}>
               <Link to={`/team/${match.dire_team_id}`}>
-                {match.dire_team_name} {match.WinnerSide === 'd' && '♔'}
+                {match.dire_team_name} <MatchResultBadge winnerSide={match.WinnerSide} side="d" />
               </Link>
             </td>
             <td style={{ padding: '8px', textAlign: 'left' }}>

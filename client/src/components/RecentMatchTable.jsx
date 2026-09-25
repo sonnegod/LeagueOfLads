@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import HeroDisplay from './HeroDisplay';
+import MatchResultBadge from './MatchResultBadge';
 import './RecentMatchTable.css';
 
 
@@ -60,11 +61,9 @@ export default function RecentMatchTable() {
       accessorKey: 'rad_team_name',
       header: 'Radiant Team',
       cell: info => {
-        const winner = info.row.original.WinnerSide;
-        const isWinner = winner === 'r';
         return (
           <Link to={`/team/${info.row.original.rad_team_id}`}>
-            {info.getValue()} {isWinner && '♔'}
+            {info.getValue()} <MatchResultBadge winnerSide={info.row.original.WinnerSide} side="r" />
           </Link>
         );
       },
@@ -73,11 +72,9 @@ export default function RecentMatchTable() {
       accessorKey: 'dire_team_name',
       header: 'Dire Team',
       cell: info => {
-        const winner = info.row.original.WinnerSide;
-        const isWinner = winner === 'd';
         return (
           <Link to={`/team/${info.row.original.dire_team_id}`}>
-            {info.getValue()} {isWinner && '♔'}
+            {info.getValue()} <MatchResultBadge winnerSide={info.row.original.WinnerSide} side="d" />
           </Link>
         );
       },
@@ -167,11 +164,11 @@ export default function RecentMatchTable() {
                 </div>
                 <div className="recent-match-teams">
                   <Link to={`/team/${match.rad_team_id}`}>
-                    {match.rad_team_name} {match.WinnerSide === 'r' && <span className="recent-match-winner">Winner</span>}
+                    {match.rad_team_name} <MatchResultBadge winnerSide={match.WinnerSide} side="r" />
                   </Link>
                   <span>vs</span>
                   <Link to={`/team/${match.dire_team_id}`}>
-                    {match.dire_team_name} {match.WinnerSide === 'd' && <span className="recent-match-winner">Winner</span>}
+                    {match.dire_team_name} <MatchResultBadge winnerSide={match.WinnerSide} side="d" />
                   </Link>
                 </div>
                 {match.players?.length > 0 && (

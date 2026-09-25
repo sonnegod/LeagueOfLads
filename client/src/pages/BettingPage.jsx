@@ -132,7 +132,7 @@ export default function BettingPage() {
     if (error) return <div className="container error">Error loading markets: {error}</div>;
 
     return (
-        <div className="betting-page-layout">
+        <div className="betting-page-layout ui-page">
             <div className="leaderboard-column">
                 <BettingLeaderboard/>
             </div>

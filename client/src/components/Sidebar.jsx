@@ -1,31 +1,34 @@
 // src/components/Sidebar.jsx
-import { Link } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Sidebar.css';
 
 export default function Sidebar({ open, onClose }) {
   const { user } = useAuth();
+  const navClassName = ({ isActive }) => `sidebar-link${isActive ? ' is-active' : ''}`;
 
   return (
     <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
       <nav className="sidebar-nav" id="primary-navigation" aria-label="Primary navigation">
-        <Link to="/" onClick={onClose}>Home</Link>
-        {user ? <Link to="/dashboard">Dashboard</Link> : <a href="/api/auth/steam" >Login</a>}
+        <span className="sidebar-section-label">Explore</span>
+        <NavLink to="/" end className={navClassName} onClick={onClose}>Home</NavLink>
+        {user ? <NavLink to="/dashboard" className={navClassName} onClick={onClose}>Dashboard</NavLink> : <a className="sidebar-link" href="/api/auth/steam">Login</a>}
 
-        <Link to="/recentMatches" onClick={onClose}>Recent Matches</Link>
-        <Link to="/team" onClick={onClose}>Teams</Link>
-        <Link to="/player" onClick={onClose}>Players</Link>
+        <NavLink to="/recentMatches" className={navClassName} onClick={onClose}>Recent Matches</NavLink>
+        <NavLink to="/team" className={navClassName} onClick={onClose}>Teams</NavLink>
+        <NavLink to="/player" className={navClassName} onClick={onClose}>Players</NavLink>
         {/*<Link to="/match">Matches</Link> removing for performance issues*/}
-        <Link to="/league" onClick={onClose}>Leagues</Link>
-        <Link to="/h2h" onClick={onClose}>Head to Head</Link>
-        <Link to="/hero" onClick={onClose}>Heroes</Link>
+        <NavLink to="/league" className={navClassName} onClick={onClose}>Leagues</NavLink>
+        <NavLink to="/h2h" className={navClassName} onClick={onClose}>Head to Head</NavLink>
+        <NavLink to="/hero" className={navClassName} onClick={onClose}>Heroes</NavLink>
 
         {/*<Link to="/betting" onClick={onClose}>Betting</Link>*/}
 
-        {user && <Link to="/request">Request</Link>}
+        {user && <span className="sidebar-section-label sidebar-account-label">Account</span>}
+        {user && <NavLink to="/request" className={navClassName} onClick={onClose}>Request</NavLink>}
         {/* Show admin button only if user is admin */}
-        {user?.canDraftGod && <Link to="/draftgod">DraftGod</Link>}
-        {user?.isAdmin && <Link to="/admin" onClick={onClose}>Admin Portal</Link>}
+        {user?.canDraftGod && <NavLink to="/draftgod" className={navClassName} onClick={onClose}>DraftGod</NavLink>}
+        {user?.isAdmin && <NavLink to="/admin" className={navClassName} onClick={onClose}>Admin Portal</NavLink>}
 
       </nav>
     </aside>

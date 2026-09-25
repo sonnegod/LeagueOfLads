@@ -142,7 +142,7 @@ export default function LeagueSetupTable({ refreshKey, onUpdated }) {
               <input id="league-setup-new-group" type="text" maxLength="60" placeholder="Group name"
                 value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)}
                 disabled={!league || saving !== null} />
-              <button type="submit" disabled={!league || saving !== null || !newGroupName.trim()}>
+              <button className="ui-button-primary" type="submit" disabled={!league || saving !== null || !newGroupName.trim()}>
                 {saving === 'group:new' ? 'Adding...' : 'Add group'}
               </button>
             </form>
@@ -156,7 +156,7 @@ export default function LeagueSetupTable({ refreshKey, onUpdated }) {
                   value={draft} onChange={(event) => setGroupNames((current) => ({
                     ...current, [group.GroupId]: event.target.value,
                   }))} />
-                <button type="button" disabled={saving !== null || draft.trim() === group.GroupName}
+                <button className="ui-button-primary" type="button" disabled={saving !== null || draft.trim() === group.GroupName}
                   onClick={() => renameGroup(group)}>Save</button>
               </div>
               <small>Group {group.GroupId}</small>
@@ -176,10 +176,10 @@ export default function LeagueSetupTable({ refreshKey, onUpdated }) {
                       ...current, [team.EntryId]: event.target.value,
                     }))} />
                   <div className="league-setup-row-actions">
-                    <button type="button" disabled={saving !== null ||
+                    <button className="ui-button-primary" type="button" disabled={saving !== null ||
                       (teamNames[team.EntryId] ?? team.TeamName).trim() === team.TeamName}
                       onClick={() => renameTeam(team)}>Save</button>
-                    <button type="button" disabled={saving !== null} onClick={() => removeTeam(team)}>Remove</button>
+                    <button className="ui-button-danger" type="button" disabled={saving !== null} onClick={() => removeTeam(team)}>Remove</button>
                   </div>
                   <small>Awaiting TeamId</small>
                   {availableTeams.length > 0 && <div className="league-setup-link-row">
@@ -193,7 +193,7 @@ export default function LeagueSetupTable({ refreshKey, onUpdated }) {
                         {candidate.TeamName || 'Unknown name'} (ID {candidate.TeamId})
                       </option>)}
                     </select>
-                    <button type="button" disabled={saving !== null || !linkChoices[team.EntryId]}
+                    <button className="ui-button-primary" type="button" disabled={saving !== null || !linkChoices[team.EntryId]}
                       onClick={() => linkTeam(team)}>Link</button>
                   </div>}
                 </div> : <div className="league-setup-linked-team">
@@ -208,7 +208,7 @@ export default function LeagueSetupTable({ refreshKey, onUpdated }) {
                     onChange={(event) => setNewTeamNames((current) => ({
                       ...current, [group.GroupId]: event.target.value,
                     }))} />
-                  <button type="submit" disabled={saving !== null || !(newTeamNames[group.GroupId] || '').trim()}>
+                  <button className="ui-button-primary" type="submit" disabled={saving !== null || !(newTeamNames[group.GroupId] || '').trim()}>
                     {saving === `team:new:${group.GroupId}` ? 'Adding...' : 'Add team'}
                   </button>
                 </form>

@@ -64,12 +64,6 @@
     text-transform: uppercase;
   }
 
-  .recent-match-winner {
-    color: #7ee2a8;
-    font-size: 0.68rem;
-    text-transform: uppercase;
-  }
-
   .recent-match-expand {
     width: 100%;
     min-height: 44px;

@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext';
 import { LeagueProvider } from './context/LeagueContext';
 
 import './index.css';
+import './styles/ui.css';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 

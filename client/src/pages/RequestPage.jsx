@@ -21,10 +21,7 @@ export default function RequestPage() {
       const res = await fetch("/api/user/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.accountId,    // <-- audit ID
-          requestText: message,
-        })
+        body: JSON.stringify({ requestText: message })
       });
 
       const data = await res.json();
@@ -42,7 +39,7 @@ export default function RequestPage() {
   };
 
   return (
-    <div style={{ padding: "20px", maxWidth: "600px", margin: "0 auto" }}>
+    <div className="ui-page" style={{ maxWidth: "640px" }}>
       <h2>Submit a Request</h2>
 
       <textarea
@@ -60,6 +57,7 @@ export default function RequestPage() {
       />
 
       <button
+        className="ui-button-primary"
         onClick={submitRequest}
         style={{
           marginTop: "15px",

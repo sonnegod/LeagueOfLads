@@ -13,12 +13,12 @@ const ReadOnlyRoundColumn = ({ title, children, styles }) => (
 
 const ReadOnlyTeamRow = ({ teamName, score, placeholder, styles, isWinner }) => {
     // Style adjustments for read-only view
-    const winnerStyle = isWinner ? { backgroundColor: '#e6ffe6', fontWeight: 'bold' } : {};
+    const winnerStyle = isWinner ? { backgroundColor: 'rgba(34, 197, 94, .16)', borderColor: 'rgba(74, 222, 128, .5)', fontWeight: 'bold' } : {};
     
     return (
         <div style={{ ...styles.teamRow, ...winnerStyle }}>
             <div style={styles.teamName}>
-                <span style={{ color: teamName ? styles.scoreInput.color : '#999', fontSize: '12px' }}>
+                <span style={{ color: teamName ? styles.scoreInput.color : 'var(--muted-text)', fontSize: '12px' }}>
                     {teamName || placeholder}
                 </span>
             </div>
@@ -43,8 +43,8 @@ const ReadOnlyMatchCard = ({ match, isGrandFinal, styles, onMatchClick }) => {
     const isDropRound = match.isDropRound;
     const cardStyle = {
         ...styles.card,
-        borderLeft: isDropRound ? '4px solid #ff6b6b' : '4px solid #4ecdc4',
-        borderColor: isGrandFinal ? 'gold' : '#ccc',
+        border: isGrandFinal ? '1px solid #d4a72c' : '1px solid var(--border)',
+        borderLeft: isDropRound ? '4px solid #f87171' : '4px solid #60a5fa',
 
         cursor: isClickable ? 'pointer' : 'default',
     };
@@ -191,7 +191,7 @@ const CurrentPlayoffBracketView = ({ leagueId }) => {
                 </div>
 
                 {/* --- DIVIDER --- */}
-                <hr style={{...styles.separator, borderColor: '#ccc'}} />
+                <hr style={styles.separator} />
 
                 {/* --- LOWER BRACKET ROW --- */}
                 <div style={styles.bracketRow}>
@@ -223,9 +223,10 @@ const CurrentPlayoffBracketView = ({ leagueId }) => {
 const styles = {
     // ... (Copied styles remain the same, ensuring consistency) ...
     container: {
-        padding: '20px',
+        padding: 'clamp(1rem, 2vw, 1.5rem)',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-        backgroundColor: '#f4f6f8',
+        backgroundColor: 'var(--bg)',
+        color: 'var(--text)',
         minHeight: '100vh',
         overflowX: 'hidden'
     },
@@ -235,8 +236,8 @@ const styles = {
         alignItems: 'center',
         marginBottom: '20px',
         padding: '10px',
-    background: 'var(--surface, #121315)',
-        borderBottom: '1px solid #ddd'
+        background: 'var(--surface)',
+        borderBottom: '1px solid var(--border)'
     },
     board: {
         display: 'flex',
@@ -253,7 +254,7 @@ const styles = {
         marginBottom: '10px',
         textTransform: 'uppercase',
         letterSpacing: '1px',
-        color: '#34495e'
+        color: '#bfdbfe'
     },
     roundsContainer: {
         display: 'flex',
@@ -267,7 +268,7 @@ const styles = {
     colTitle: {
         textAlign: 'center',
         marginBottom: '15px',
-        color: '#7f8c8d'
+        color: 'var(--muted-text)'
     },
     colBody: {
         display: 'flex',
@@ -276,8 +277,10 @@ const styles = {
         flexGrow: 1
     },
     card: {
-        borderRadius: '6px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        borderRadius: '12px',
+        background: 'var(--surface)',
+        color: 'var(--text)',
+        boxShadow: 'var(--ui-shadow)',
         marginBottom: '20px',
         padding: '10px',
         display: 'flex',
@@ -286,7 +289,7 @@ const styles = {
     },
     cardHeader: {
         fontSize: '10px',
-        color: '#95a5a6',
+        color: 'var(--muted-text)',
         display: 'flex',
         justifyContent: 'space-between',
         textTransform: 'uppercase',
@@ -294,15 +297,16 @@ const styles = {
         marginBottom: '4px'
     },
     dropLabel: {
-        color: '#e74c3c'
+        color: '#fca5a5'
     },
     teamRow: {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#f8f9fa',
-        padding: '4px',
-        borderRadius: '4px'
+        backgroundColor: 'var(--surface-soft)',
+        border: '1px solid var(--border)',
+        padding: '6px 8px',
+        borderRadius: '8px'
     },
     teamName: {
         flexGrow: 1,
@@ -314,35 +318,35 @@ const styles = {
     scoreInput: {
         width: '40px',
         textAlign: 'center',
-        border: '1px solid #ddd',
-        borderRadius: '3px',
+        border: '1px solid var(--border)',
+        borderRadius: '6px',
         padding: '4px',
         fontWeight: 'bold',
         // Read-only specific style adjustments:
         backgroundColor: 'transparent',
-        color: '#34495e',
+        color: 'var(--text)',
     },
     separator: {
         border: 'none',
-        borderTop: '1px solid',
+        borderTop: '1px solid var(--border)',
         margin: '30px 0'
     },
     loading: {
         padding: '40px',
         textAlign: 'center',
         fontSize: '20px',
-        color: '#666'
+        color: 'var(--muted-text)'
     },
     errorMessage: {
         textAlign: 'center',
         padding: '20px',
-        color: '#e74c3c',
+        color: '#fca5a5',
         fontWeight: 'bold',
     },
     message: {
         textAlign: 'center',
         padding: '20px',
-        color: '#555',
+        color: 'var(--muted-text)',
     }
 };
 

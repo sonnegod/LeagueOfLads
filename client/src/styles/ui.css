@@ -1,0 +1,265 @@
+/* Shared page language, based on the Head to Head and profile home panels.
+   Keep navigation, standings, and head-to-head matrices in their own stylesheets. */
+.content {
+  --bg: #020617;
+  --surface: #0f172a;
+  --surface-raised: #111c30;
+  --surface-soft: #17243a;
+  --text: #f1f5f9;
+  --muted-text: #94a3b8;
+  --primary: #60a5fa;
+  --border: #334155;
+  --button-bg: #17243a;
+  --ui-focus: #93c5fd;
+  --ui-radius: 12px;
+  --ui-shadow: 0 12px 30px rgba(2, 6, 23, .22);
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* The head-to-head matrices retain their existing local colors. */
+.leaderboard-h2h-desktop,
+.leaderboard-h2h-mobile,
+.admin-matrix-widget {
+  --surface: #121315;
+  --text: #e6e6e6;
+  --muted-text: #9aa0b4;
+  --primary: #646cff;
+  --border: #222428;
+  --button-bg: #1a1a1a;
+}
+
+.content > :first-child:not(footer) {
+  min-height: calc(100dvh - var(--navbar-height) - 60px);
+}
+
+.content :where(h1):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) {
+  margin: 0 0 1.25rem;
+  color: #bfdbfe;
+  font-size: clamp(1.65rem, 2.6vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: -.025em;
+  line-height: 1.18;
+}
+
+.content :where(button):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.leaderboard-h2h-table *):not(.admin-teams-matrix *):not(.h2h-page *) {
+  min-height: 38px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #17243a;
+  color: #e2e8f0;
+  font-weight: 650;
+  line-height: 1.2;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease;
+}
+
+.content :where(button:hover):not(:disabled):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.leaderboard-h2h-table *):not(.admin-teams-matrix *):not(.h2h-page *) {
+  background: #223450;
+  border-color: #60a5fa;
+  color: #fff;
+}
+
+.content :where(button:disabled):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.content :where(button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.leaderboard-h2h-table *):not(.admin-teams-matrix *):not(.h2h-page *) {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+
+.content :where(input:not([type='checkbox']):not([type='radio']):not([id^='react-select']), select, textarea):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.leaderboard-h2h-table *):not(.admin-teams-matrix *):not(.h2h-page *) {
+  border: 1px solid #475569;
+  border-radius: 8px;
+  background: #020617;
+  color: #f1f5f9;
+  min-height: 38px;
+  padding: .55rem .75rem;
+}
+
+.content :where(input::placeholder, textarea::placeholder) {
+  color: #94a3b8;
+}
+
+.content :where(label):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.leaderboard-h2h-table *):not(.admin-teams-matrix *):not(.h2h-page *) {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.ui-page,
+.data-list-page,
+.detail-page,
+.league-page {
+  max-width: 1600px;
+  margin-inline: auto;
+  padding: clamp(1rem, 2.5vw, 2rem) !important;
+  box-sizing: border-box;
+}
+
+.ui-page-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: .75rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.ui-panel {
+  min-width: 0;
+  padding: clamp(1rem, 2vw, 1.5rem);
+  border: 1px solid #334155;
+  border-radius: var(--ui-radius);
+  background: #0f172a;
+  color: #f1f5f9;
+  box-shadow: var(--ui-shadow);
+}
+
+.ui-panel > :first-child { margin-top: 0; }
+.ui-panel > :last-child { margin-bottom: 0; }
+
+.ui-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem !important;
+  margin-bottom: 1.25rem;
+  padding: .35rem;
+  border: 1px solid #334155;
+  border-radius: var(--ui-radius);
+  background: #0f172a;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.ui-tabs .ui-tab {
+  flex: 0 0 auto;
+  margin: 0 !important;
+  padding: .65rem 1rem !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: #cbd5e1 !important;
+  box-shadow: none !important;
+  white-space: nowrap;
+}
+
+.ui-tabs .ui-tab:hover {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+.ui-tabs .ui-tab[aria-pressed='true'],
+.ui-tabs .ui-tab[aria-selected='true'] {
+  border-color: #3b82f6 !important;
+  background: #1d4ed8 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(29, 78, 216, .22) !important;
+}
+
+.ui-button-primary {
+  border-color: #3b82f6 !important;
+  background: #1d4ed8 !important;
+  color: #fff !important;
+}
+
+.ui-button-primary:hover:not(:disabled) { background: #2563eb !important; }
+
+.ui-button-danger {
+  border-color: #b91c1c !important;
+  background: #7f1d1d !important;
+  color: #fff !important;
+}
+
+.ui-button-danger:hover:not(:disabled) { background: #991b1b !important; }
+
+.winner-badge,
+.loser-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .15rem .4rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 700;
+  line-height: 1.1;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.winner-badge {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.loser-badge {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.admin-requests-panel { display: grid; gap: 1rem; }
+.admin-requests-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: 1rem; }
+.admin-requests-heading h2 { margin: 0 0 .25rem; }
+.admin-requests-heading p { margin: 0; color: var(--muted-text); }
+.admin-requests-count { color: var(--muted-text); font-size: .85rem; }
+.admin-requests-error { color: #fca5a5; }
+.admin-requests-list { display: grid; gap: .75rem; }
+.admin-request-card { display: flex; align-items: start; justify-content: space-between; gap: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); }
+.admin-request-content { min-width: 0; }
+.admin-request-meta { display: flex; flex-wrap: wrap; gap: .4rem 1rem; color: var(--muted-text); font-size: .8rem; }
+.admin-request-card p { margin: .75rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .admin-request-card { flex-direction: column; } }
+
+.playoff-workspace { display: grid; gap: 1rem; min-width: 0; }
+.playoff-admin-panel h2 { margin: 0 0 1rem; color: #bfdbfe; }
+.playoff-stage-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
+.playoff-stage-actions button { margin-right: 0 !important; }
+.playoff-bracket-editor { min-width: 0; min-height: 0 !important; border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--ui-shadow); }
+
+/* Generic data tables only. The leaderboard colors, H2H matrices, and bracket stay as designed. */
+.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) {
+  border-collapse: separate !important;
+  border-spacing: 0;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  overflow: hidden;
+}
+
+.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) th {
+  border-color: #334155 !important;
+  background: #17243a !important;
+  color: #cbd5e1 !important;
+  font-size: .75rem;
+  font-weight: 750;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+
+.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) td {
+  border-color: #334155 !important;
+  color: #e2e8f0;
+}
+
+.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) tbody > tr:not(:has(table)) {
+  background: #0f172a !important;
+}
+
+.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) tbody > tr:not(:has(table)):hover {
+  background: #17243a !important;
+}
+
+.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) tbody > tr:has(table) > td {
+  background: #111c30 !important;
+}
+
+@media (max-width: 767px) {
+  .ui-page, .data-list-page, .detail-page, .league-page { padding: 12px !important; }
+  .ui-tabs { flex-wrap: nowrap; overflow-x: auto; width: 100%; }
+  .ui-tabs .ui-tab { min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content button { transition: none; }
+}

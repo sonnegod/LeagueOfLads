@@ -51,7 +51,7 @@ export default function LeagueRulesCard({ refreshKey }) {
         <label><input type="checkbox" checked={rules.HasTiebreaker} onChange={(e) => setRules((current) => ({ ...current, HasTiebreaker: e.target.checked }))} /> Has tiebreaker</label>
         {rules.HasTiebreaker && <label style={fieldStyle}>Tiebreaker position<input style={inputStyle} type="number" min="1" value={rules.TiebreakerPosition} onChange={(e) => setNumber('TiebreakerPosition', e.target.value)} /></label>}
       </div>
-      <button type="button" onClick={save} disabled={!league}>Save Rules</button>
+      <button className="ui-button-primary" type="button" onClick={save} disabled={!league}>Save Rules</button>
       {message && <p>{message}</p>}
     </section>
   );
