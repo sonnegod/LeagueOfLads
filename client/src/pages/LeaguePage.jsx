@@ -105,16 +105,16 @@ export default function LeaguePage({
   const stageButtons = (
     <>
       {stageExists && inPlayoffs && (
-        <button onClick={() => setActiveTab("playoffs")} style={activeTab === "playoffs" ? activeTabStyle : tabStyle}>Playoffs</button>
+        <button className="ui-tab" aria-pressed={activeTab === "playoffs"} onClick={() => setActiveTab("playoffs")} style={activeTab === "playoffs" ? activeTabStyle : tabStyle}>Playoffs</button>
       )}
       {stageExists && inPlayoffs && !noSeparateTiebreaker && (
-        <button onClick={() => setActiveTab("tiebreakers")} style={activeTab === "tiebreakers" ? activeTabStyle : tabStyle}>Tiebreakers</button>
+        <button className="ui-tab" aria-pressed={activeTab === "tiebreakers"} onClick={() => setActiveTab("tiebreakers")} style={activeTab === "tiebreakers" ? activeTabStyle : tabStyle}>Tiebreakers</button>
       )}
       {stageExists && inTiebreakers && (
-        <button onClick={() => setActiveTab("tiebreakers")} style={activeTab === "tiebreakers" ? activeTabStyle : tabStyle}>Tiebreakers</button>
+        <button className="ui-tab" aria-pressed={activeTab === "tiebreakers"} onClick={() => setActiveTab("tiebreakers")} style={activeTab === "tiebreakers" ? activeTabStyle : tabStyle}>Tiebreakers</button>
       )}
       {showGroups && (
-        <button onClick={() => setActiveTab("group")} style={activeTab === "group" ? activeTabStyle : tabStyle}>Groups</button>
+        <button className="ui-tab" aria-pressed={activeTab === "group"} onClick={() => setActiveTab("group")} style={activeTab === "group" ? activeTabStyle : tabStyle}>Groups</button>
       )}
     </>
   );
@@ -124,14 +124,14 @@ export default function LeaguePage({
       <h1>{league[0].LeagueName}</h1>
 
       {/* Tabs */}
-      <div className="league-page-tabs" style={{ marginBottom: "1rem" }}>
+      <div className="league-page-tabs ui-tabs" style={{ marginBottom: "1rem" }}>
         {stageTabsFirst && stageButtons}
-        <button onClick={() => setActiveTab("home")} style={activeTab === "home" ? activeTabStyle : tabStyle}>Home</button>
+        <button className="ui-tab" aria-pressed={activeTab === "home"} onClick={() => setActiveTab("home")} style={activeTab === "home" ? activeTabStyle : tabStyle}>Home</button>
         {!stageTabsFirst && stageButtons}
-        <button onClick={() => setActiveTab("teams")} style={activeTab === "teams" ? activeTabStyle : tabStyle}>Teams</button>
-        <button onClick={() => setActiveTab("matches")} style={activeTab === "matches" ? activeTabStyle : tabStyle}>Matches</button>
-        <button onClick={() => setActiveTab("players")} style={activeTab === "players" ? activeTabStyle : tabStyle}>Players</button>
-        <button onClick={() => setActiveTab("heroes")} style={activeTab === "heroes" ? activeTabStyle : tabStyle}>Heroes</button>
+        <button className="ui-tab" aria-pressed={activeTab === "teams"} onClick={() => setActiveTab("teams")} style={activeTab === "teams" ? activeTabStyle : tabStyle}>Teams</button>
+        <button className="ui-tab" aria-pressed={activeTab === "matches"} onClick={() => setActiveTab("matches")} style={activeTab === "matches" ? activeTabStyle : tabStyle}>Matches</button>
+        <button className="ui-tab" aria-pressed={activeTab === "players"} onClick={() => setActiveTab("players")} style={activeTab === "players" ? activeTabStyle : tabStyle}>Players</button>
+        <button className="ui-tab" aria-pressed={activeTab === "heroes"} onClick={() => setActiveTab("heroes")} style={activeTab === "heroes" ? activeTabStyle : tabStyle}>Heroes</button>
       </div>
 
       {/* Home Tab */}

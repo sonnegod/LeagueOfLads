@@ -63,7 +63,7 @@ export default function MatchesPage() {
   if (loading || leaguesLoading) return <div>Loading matches...</div>;
 
   return (
-    <div style={{ padding: '1rem' }}>
+    <div className="ui-page">
       <h1>Matches</h1>
       <LeagueFilter
         leagues={globalLeagues}
@@ -84,7 +84,7 @@ export default function MatchesPage() {
             <React.Fragment key={match.MatchId}>
               <tr
                 onClick={() => toggleMatchExpanded(match.MatchId)}
-                style={{ cursor: 'pointer', backgroundColor: expandedMatches[match.MatchId] ? '#f9f9f9' : 'white' }}
+                style={{ cursor: 'pointer', backgroundColor: expandedMatches[match.MatchId] ? '#17243a' : '#0f172a' }}
               >
                 <td style={tdCenter}>
                     <Link to={`/match/${match.MatchId}`}>{match.MatchId}</Link>
@@ -102,7 +102,7 @@ export default function MatchesPage() {
 
               {expandedMatches[match.MatchId] && match.players && (
                 <tr>
-                  <td colSpan="5" style={{ paddingLeft: '2rem', background: '#f5f5f5' }}>
+                  <td colSpan="5" style={{ paddingLeft: '2rem', background: '#111c30' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0.5rem' }}>
                       <thead>
                         <tr>
@@ -119,14 +119,14 @@ export default function MatchesPage() {
                           <React.Fragment key={p.PlayerId}>
                             {idx === 0 && (
                                 <tr>
-                                <td colSpan="9" style={{ textAlign: 'center', fontWeight: 'bold', background: '#e0f7fa' }}>
+                                <td colSpan="9" style={{ textAlign: 'center', fontWeight: 'bold', background: '#12324f', color: '#bfdbfe' }}>
                                     Radiant{match.WinnerSide === 'r' ? '♔' : ''}
                                 </td>
                                 </tr>
                             )}
                             {idx === 5 && (
                                 <tr>
-                                <td colSpan="9" style={{ textAlign: 'center', fontWeight: 'bold', background: '#ffebee' }}>
+                                <td colSpan="9" style={{ textAlign: 'center', fontWeight: 'bold', background: '#3b1d29', color: '#fecaca' }}>
                                     Dire{match.WinnerSide === 'd' ? '♔' : ''}
                                 </td>
                                 </tr>
@@ -135,7 +135,7 @@ export default function MatchesPage() {
                               onClick={() => togglePlayerExpanded(p.PlayerId)}
                               style={{
                                 cursor: 'pointer',
-                                backgroundColor: expandedPlayers[p.PlayerId] ? '#f0f0f0' : 'white'
+                                backgroundColor: expandedPlayers[p.PlayerId] ? '#17243a' : '#0f172a'
                               }}
                             >
                               <td style={tdStyle}><Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link></td>

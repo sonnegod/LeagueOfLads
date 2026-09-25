@@ -33,7 +33,7 @@ export default function SearchPage() {
   if (!results.length) return <div>No results found for "{query}"</div>;
 
   return (
-    <div style={{ padding: 0 }}>
+    <div className="ui-page">
       <h1>Search Results for "{query}"</h1>
       <ul>
         {results.map((item) => (

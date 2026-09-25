@@ -60,12 +60,12 @@ export default function PlayerPage() {
       )}
 
       {/* Tabs */}
-      <div className='flex gap-2 mb-4 detail-page-tabs'>
-        <button onClick={() => setActiveTab('home')} style={activeTab === 'home' ? activeTabStyle : tabStyle}>Home</button>
-        <button onClick={() => setActiveTab('season')} style={activeTab === 'season' ? activeTabStyle : tabStyle}>Season Stats</button>
-        <button onClick={() => setActiveTab('allMatches')} style={activeTab === 'allMatches' ? activeTabStyle : tabStyle}>Total Matches</button>
-        <button onClick={() => setActiveTab('heroes')} style={activeTab === 'heroes' ? activeTabStyle : tabStyle}>Heroes</button>
-        <button onClick={() => setActiveTab('teams')} style={activeTab === 'teams' ? activeTabStyle : tabStyle}>Teams</button>
+      <div className='flex gap-2 mb-4 detail-page-tabs ui-tabs'>
+        <button className="ui-tab" aria-pressed={activeTab === 'home'} onClick={() => setActiveTab('home')} style={activeTab === 'home' ? activeTabStyle : tabStyle}>Home</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'season'} onClick={() => setActiveTab('season')} style={activeTab === 'season' ? activeTabStyle : tabStyle}>Season Stats</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'allMatches'} onClick={() => setActiveTab('allMatches')} style={activeTab === 'allMatches' ? activeTabStyle : tabStyle}>Total Matches</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'heroes'} onClick={() => setActiveTab('heroes')} style={activeTab === 'heroes' ? activeTabStyle : tabStyle}>Heroes</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'teams'} onClick={() => setActiveTab('teams')} style={activeTab === 'teams' ? activeTabStyle : tabStyle}>Teams</button>
       </div>
 
       {/* Tab content */}

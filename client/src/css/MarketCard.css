@@ -5,8 +5,8 @@
     margin-bottom: 20px;
     background-color: var(--surface, #1a1a1a);
     color: var(--text, #fff);
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+    border-radius: 12px;
+    box-shadow: var(--ui-shadow, 0 12px 30px rgba(2, 6, 23, .22));
 }
 
 /* --- Styles for the Betting Pool Bar --- */
@@ -65,25 +65,24 @@
 /* consolidated .market-card rules are declared earlier in this file */
 /* ... rest of your existing MarketCard.css styles ... */
 
-/* Option buttons: force consistent appearance (white border, black background, white text)
-   regardless of site theme. Use !important to override theme variables if needed. */
 .option-button {
     display: inline-flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
     padding: 8px 10px;
-    border-radius: 6px;
-    border: 1px solid #ffffff !important;
-    background: #000000 !important;
-    color: #ffffff !important;
+    border-radius: 8px;
+    border: 1px solid #475569 !important;
+    background: #17243a !important;
+    color: #f1f5f9 !important;
     cursor: pointer;
     font-weight: 600;
     min-width: 120px;
 }
 
 .option-button:hover {
-    background: #0a0a0a !important;
+    background: #223450 !important;
+    border-color: #60a5fa !important;
 }
 
 .option-button:disabled {
@@ -91,9 +90,10 @@
     cursor: not-allowed;
 }
 
-/* Selected state: keep the same colors but add a subtle ring to indicate selection */
 .option-button.selected {
-    box-shadow: 0 0 0 2px rgba(255,255,255,0.06), 0 2px 6px rgba(0,0,0,0.6);
+    border-color: #60a5fa !important;
+    background: #1d4ed8 !important;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, .22);
 }
 
 .option-name { margin-right: 6px; }

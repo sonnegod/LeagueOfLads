@@ -90,7 +90,7 @@ export default function LeagueAdminPanel({ onLeagueAdded }) {
               style={inputStyle}
             />
 
-            <button type="submit" disabled={loading} style={submitButtonStyle}>
+            <button className="ui-button-primary" type="submit" disabled={loading} style={submitButtonStyle}>
               {loading ? "Adding League..." : "Add and Activate League"}
             </button>
           </form>

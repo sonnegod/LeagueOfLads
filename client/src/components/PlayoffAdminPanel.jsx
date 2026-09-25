@@ -147,34 +147,34 @@ export default function PlayoffAdminPanel() {
   const showEndSeasonBtn = Boolean(GroupEndMatchId && TieBreakerEndMatchId);
 
   return (
-    <div style={panelStyle}>
+    <div className="playoff-admin-panel" style={panelStyle}>
       <h2>Tiebreaker / Playoff Administration</h2>
 
       <p style={{ fontWeight: "bold" }}>
-        Current Stage: <span style={{ color: "#0077ff" }}>{stage}</span>
+        Current Stage: <span style={{ color: "var(--primary)" }}>{stage}</span>
       </p>
 
-      <div style={{ marginBottom: "10px" }}>
+      <div className="playoff-stage-actions" style={{ marginBottom: "10px" }}>
         {showTiebreakerBtn && (
-          <button style={buttonStyle} onClick={triggerTiebreakers}>
+          <button className="ui-button-primary" style={buttonStyle} onClick={triggerTiebreakers}>
             Start Tiebreakers
           </button>
         )}
 
         {showPlayoffBtn && (
-          <button style={buttonStyle} onClick={triggerPlayoffs}>
+          <button className="ui-button-primary" style={buttonStyle} onClick={triggerPlayoffs}>
             Start Playoffs
           </button>
         )}
         {showEndSeasonBtn && (
-          <button style={buttonStyle} onClick={triggerEndOfSeason}>
+          <button className="ui-button-danger" style={buttonStyle} onClick={triggerEndOfSeason}>
             End Season
           </button>
         )}
       </div>
 
       {message && (
-        <p style={{ color: "green", fontWeight: "bold", marginTop: "10px" }}>
+        <p style={{ color: "#86efac", fontWeight: "bold", marginTop: "10px" }}>
           {message}
         </p>
       )}
@@ -183,17 +183,20 @@ export default function PlayoffAdminPanel() {
 }
 
 const panelStyle = {
-  border: "1px solid #ddd",
+  border: "1px solid var(--border)",
   padding: "20px",
-  borderRadius: "8px",
+  borderRadius: "12px",
+  background: "var(--surface)",
+  color: "var(--text)",
+  boxShadow: "var(--ui-shadow)",
 };
 
 const buttonStyle = {
   padding: "10px 15px",
   marginRight: "10px",
-  background: "#0077ff",
-  border: "none",
-  borderRadius: "6px",
+  background: "#1d4ed8",
+  border: "1px solid #3b82f6",
+  borderRadius: "8px",
   color: "white",
   cursor: "pointer",
 };

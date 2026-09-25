@@ -4,16 +4,16 @@
   line-height: 1.5;
   font-weight: 400;
 
-  /* Theme variables (default to dark for betting pages) */
-  --bg: #0f1112;
-  --surface: #121315;
-  --text: #e6e6e6;
-  --muted-text: #9aa0b4;
-  --primary: #646cff;
-  --border: #222428;
-  --button-bg: #1a1a1a;
-  --navbar-height: 60px;
-  --sidebar-width: 180px;
+  /* Shared slate theme */
+  --bg: #020617;
+  --surface: #0f172a;
+  --text: #f1f5f9;
+  --muted-text: #94a3b8;
+  --primary: #60a5fa;
+  --border: #334155;
+  --button-bg: #17243a;
+  --navbar-height: 68px;
+  --sidebar-width: 220px;
 
   color-scheme: light dark;
   color: var(--text);

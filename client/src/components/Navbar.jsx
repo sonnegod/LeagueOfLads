@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import './Navbar.css';
 import steamLogin from '../assets/steamLogin.png';
 import logo from '../assets/League_of_lads_logo.png';
-import { Link } from 'react-router-dom';
 
 
 
@@ -80,7 +79,7 @@ export default function Navbar({ mobileNavOpen, onMenuToggle }) {
             <span aria-hidden="true">{mobileNavOpen ? '\u00d7' : '\u2630'}</span>
           </button>
           <img src={logo} alt="League of Lads Logo" className="navbar-logo" />
-          <div className="navbar-title"><Link to="/" style={{ color: 'white', textDecoration: 'none' }}>League Of Lads</Link></div>
+          <div className="navbar-title"><Link to="/">League Of Lads</Link></div>
         </div>
         
         <div className="navbar-search">
@@ -96,27 +95,30 @@ export default function Navbar({ mobileNavOpen, onMenuToggle }) {
         </div>
 
         <div className="navbar-right" ref={dropdownRef}>
-          <Link to="/live" className="live-match-button">
+          <NavLink to="/live" className={({ isActive }) => `live-match-button${isActive ? ' is-active' : ''}`}>
             <span className="live-match-label">Live Matches</span>
             {liveMatchCount > 0 && <span className="live-match-badge">{liveMatchCount}</span>}
-          </Link>
+          </NavLink>
 
           {!user ? (
             <a href="/api/auth/steam" className="steam-login-button">
               <img src={steamLogin} alt="Steam Login" className="steam-icon" />
             </a>
           ) : (
-            <button type="button" className="user-info" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <img src={user.avatar} alt="avatar" className="avatar" />
-              <span className="user-name">{user.personaname}</span>
-              <span className={`dropdown-arrow ${dropdownOpen ? 'up' : ''}`}>&#9662;</span>
+            <>
+              <button type="button" className="user-info" aria-expanded={dropdownOpen}
+                aria-haspopup="true" onClick={() => setDropdownOpen(!dropdownOpen)}>
+                <img src={user.avatar} alt="avatar" className="avatar" />
+                <span className="user-name">{user.personaname}</span>
+                <span className={`dropdown-arrow ${dropdownOpen ? 'up' : ''}`}>&#9662;</span>
+              </button>
               {dropdownOpen && (
                 <div className="dropdown-menu">
-                  <button onClick={() => navigate('/dashboard')}>Dashboard</button>                  
-                  <button onClick={handleLogout}>Logout</button>
+                  <button type="button" onClick={() => { setDropdownOpen(false); navigate('/dashboard'); }}>Dashboard</button>
+                  <button type="button" onClick={handleLogout}>Logout</button>
                 </div>
               )}
-            </button>
+            </>
           )}
         </div>
       </div>

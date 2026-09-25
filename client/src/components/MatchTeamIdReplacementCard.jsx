@@ -93,7 +93,7 @@ export default function MatchTeamIdReplacementCard({ refreshKey, onUpdated }) {
           </select>
 
           {selectedSource && <p style={hintStyle}>This will update all {selectedSource.MatchesPlayed} active-league matches for team {selectedSource.TeamId}.</p>}
-          <button type="submit" disabled={saving || !selectedSource || !selectedTarget}>
+          <button className="ui-button-primary" type="submit" disabled={saving || !selectedSource || !selectedTarget}>
             {saving ? 'Replacing...' : 'Replace Team ID'}
           </button>
         </form>

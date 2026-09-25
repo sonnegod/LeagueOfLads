@@ -88,7 +88,7 @@ export default function CurrentLeagueTeams({ refreshKey, onTeamUpdated }) {
               {groups.map((group) => <option key={group.GroupId} value={group.GroupId}>{group.GroupName}</option>)}
             </select></td>
             <td className="admin-teams-actions">
-              <button type="button" disabled={!changed || saving !== null} onClick={() => save(team.TeamId)}>
+              <button className="ui-button-primary" type="button" disabled={!changed || saving !== null} onClick={() => save(team.TeamId)}>
                 {saving === team.TeamId ? 'Saving...' : 'Save'}</button>
             </td>
           </tr>;

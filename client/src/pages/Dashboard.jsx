@@ -35,27 +35,30 @@ export default function Dashboard() {
   };
 
   return (
-    <div>
+    <div className="ui-page">
       <h1>Welcome, {user.personaname}</h1>
       <img src={user.avatar} alt="Avatar" />
       <NameChangeDashboard />
 
       {/* --- Tab Navigation --- */}
-      <div className="tab-navigation">
+      <div className="tab-navigation ui-tabs">
         <button 
-          className={activeTab === 'stats' ? 'active' : ''} 
+          className="ui-tab"
+          aria-pressed={activeTab === 'stats'}
           onClick={() => setActiveTab('stats')}
         >
           Stats
         </button>
         <button 
-          className={activeTab === 'bets' ? 'active' : ''} 
+          className="ui-tab"
+          aria-pressed={activeTab === 'bets'}
           onClick={() => setActiveTab('bets')}
         >
           My Bets
         </button>
         <button 
-          className={activeTab === 'wallet' ? 'active' : ''} 
+          className="ui-tab"
+          aria-pressed={activeTab === 'wallet'}
           onClick={() => setActiveTab('wallet')}
         >
           Wallet Info
@@ -65,7 +68,7 @@ export default function Dashboard() {
       <hr />
 
       {/* --- Tab Content Area --- */}
-      <div className="tab-content">
+      <div className="tab-content ui-panel">
         {renderContent()}
       </div>
     </div>

@@ -199,6 +199,31 @@ router.get('/admin', (req, res) => {
   res.json({ message: 'Welcome to the admin portal!' });
 });
 
+router.get('/admin/requests', (req, res) => {
+  try {
+    return res.json({ requests: db.getRequests() });
+  } catch (err) {
+    console.error('Failed to load requests:', err);
+    return res.status(500).json({ error: 'Failed to load requests' });
+  }
+});
+
+router.delete('/admin/requests/:problemId', (req, res) => {
+  const problemId = Number(req.params.problemId);
+  if (!Number.isSafeInteger(problemId) || problemId < 1) {
+    return res.status(400).json({ error: 'Invalid request ID' });
+  }
+  try {
+    if (!db.deleteRequest(problemId, req.admin.AdminPlayerId)) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to delete request:', err);
+    return res.status(500).json({ error: 'Failed to delete request' });
+  }
+});
+
 router.get('/admin/admins', (req, res) => {
   try {
     return res.json({ admins: db.getAdmins(), canManageAdmins: Boolean(req.admin.HeadAdmin) });
@@ -1759,9 +1784,13 @@ router.get('/logout', (req, res) => {
 });
 
 router.post('/user/request', (req, res) => {
+  if (!req.isAuthenticated?.() || !req.user) {
+    return res.status(401).json({ error: 'Not logged in' });
+  }
   try {
-      const userId = req.body.userId;
-      const message = req.body.requestText;
+      const userId = resolveAccountIdFromSteamId(req.user.id);
+      const message = String(req.body?.requestText ?? '').trim();
+      if (!message) return res.status(400).json({ error: 'Enter a request' });
 
       const result = db.insertRequest(userId,message);
       

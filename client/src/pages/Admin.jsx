@@ -12,6 +12,7 @@ import PlayoffBracketEditor from "../components/PlayoffBracketEditor";
 import LeagueAdminPanel from "../components/LeagueAdminPanel";
 import LeagueRulesCard from "../components/LeagueRulesCard";
 import AdminManagementPanel from "../components/AdminManagementPanel";
+import AdminRequestsPanel from "../components/AdminRequestsPanel";
 
 
 export default function AdminPage() {
@@ -47,11 +48,12 @@ export default function AdminPage() {
   if (!adminData) return <div>Loading admin data...</div>;
 
    return (
-    <div style={{ padding: 20 }}>
+    <div className="ui-page admin-page">
       <h1>Admin Panel</h1>
 
-      <div style={tabBarStyle}>
+      <div className="ui-tabs" style={tabBarStyle}>
         <button
+          className="ui-tab" aria-pressed={activeTab === "editor"}
           style={activeTab === "editor" ? tabActiveStyle : tabButtonStyle}
           onClick={() => setActiveTab("editor")}
         >
@@ -59,6 +61,7 @@ export default function AdminPage() {
         </button>
 
         <button
+          className="ui-tab" aria-pressed={activeTab === "playoffs"}
           style={activeTab === "playoffs" ? tabActiveStyle : tabButtonStyle}
           onClick={() => setActiveTab("playoffs")}
         >
@@ -66,6 +69,7 @@ export default function AdminPage() {
         </button>
 
         <button
+          className="ui-tab" aria-pressed={activeTab === "admin"}
           style={activeTab === "admin" ? tabActiveStyle : tabButtonStyle}
           onClick={() => setActiveTab("admin")}
         >
@@ -73,6 +77,15 @@ export default function AdminPage() {
         </button>
 
         <button
+          className="ui-tab" aria-pressed={activeTab === "requests"}
+          style={activeTab === "requests" ? tabActiveStyle : tabButtonStyle}
+          onClick={() => setActiveTab("requests")}
+        >
+          Requests
+        </button>
+
+        <button
+          className="ui-tab" aria-pressed={activeTab === "adminManagement"}
           style={activeTab === "adminManagement" ? tabActiveStyle : tabButtonStyle}
           onClick={() => setActiveTab("adminManagement")}
         >
@@ -83,13 +96,14 @@ export default function AdminPage() {
 
       {activeTab === "editor" && (
           <div style={pageContainer}>
-            <div role="tablist" aria-label="Editor sections" style={editorTabBarStyle}>
+            <div role="tablist" aria-label="Editor sections" className="ui-tabs" style={editorTabBarStyle}>
               <button
                 id="admin-team-changes-tab"
                 type="button"
                 role="tab"
                 aria-controls="admin-team-changes-panel"
                 aria-selected={activeEditorTab === "teams"}
+                className="ui-tab"
                 style={activeEditorTab === "teams" ? editorTabActiveStyle : editorTabButtonStyle}
                 onClick={() => setActiveEditorTab("teams")}
               >
@@ -101,6 +115,7 @@ export default function AdminPage() {
                 role="tab"
                 aria-controls="admin-result-changes-panel"
                 aria-selected={activeEditorTab === "results"}
+                className="ui-tab"
                 style={activeEditorTab === "results" ? editorTabActiveStyle : editorTabButtonStyle}
                 onClick={() => setActiveEditorTab("results")}
               >
@@ -112,6 +127,7 @@ export default function AdminPage() {
                 role="tab"
                 aria-controls="admin-match-changes-panel"
                 aria-selected={activeEditorTab === "matches"}
+                className="ui-tab"
                 style={activeEditorTab === "matches" ? editorTabActiveStyle : editorTabButtonStyle}
                 onClick={() => setActiveEditorTab("matches")}
               >
@@ -138,7 +154,7 @@ export default function AdminPage() {
         )}
 
         {activeTab === "playoffs" && (
-          <div>
+          <div className="playoff-workspace">
             <PlayoffAdminPanel />
             <PlayoffBracketEditor />
           </div>
@@ -146,13 +162,14 @@ export default function AdminPage() {
 
         {activeTab === "admin" && (
           <div style={pageContainer}>
-            <div role="tablist" aria-label="Admin sections" style={editorTabBarStyle}>
+            <div role="tablist" aria-label="Admin sections" className="ui-tabs" style={editorTabBarStyle}>
               <button
                 id="admin-new-league-tab"
                 type="button"
                 role="tab"
                 aria-controls="admin-new-league-panel"
                 aria-selected={activeAdminTab === "league"}
+                className="ui-tab"
                 style={activeAdminTab === "league" ? editorTabActiveStyle : editorTabButtonStyle}
                 onClick={() => setActiveAdminTab("league")}
               >
@@ -164,6 +181,7 @@ export default function AdminPage() {
                 role="tab"
                 aria-controls="admin-group-setup-panel"
                 aria-selected={activeAdminTab === "groups"}
+                className="ui-tab"
                 style={activeAdminTab === "groups" ? editorTabActiveStyle : editorTabButtonStyle}
                 onClick={() => setActiveAdminTab("groups")}
               >
@@ -182,6 +200,7 @@ export default function AdminPage() {
           </div>
         )}
         {activeTab === "adminManagement" && <AdminManagementPanel />}
+        {activeTab === "requests" && <AdminRequestsPanel />}
     </div>
   );
 }

@@ -126,6 +126,7 @@ export default function DeleteMatchCard({ onMatchDeleted }) {
 
       {/* DELETE BUTTON */}
       <button
+        className="ui-button-danger"
         onClick={deleteMatch}
         disabled={loading || !matchData}
         style={{
