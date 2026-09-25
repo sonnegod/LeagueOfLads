@@ -45,7 +45,9 @@ export default function LeaguesPage() {
                 <Link to={`/league/${league.LeagueId}`}>{league.LeagueName}</Link>
               </td>
               <td data-label="Last match" style={tdStyle}>
-                <Link to={`/match/${league.LastMatchId}`}>{league.LastMatchId}</Link>
+                {league.LastMatchId
+                  ? <Link to={`/match/${league.LastMatchId}`}>{league.LastMatchId}</Link>
+                  : '-'}
                 </td>
               <td data-label="Winner" style={tdStyle}>
                 {league.WinnerTeamId ? (

@@ -1,0 +1,56 @@
+.admin-teams-widget {
+  padding: 18px;
+  border: 1px solid var(--border, #30343a);
+  border-radius: 8px;
+  background: var(--surface, #0b0b0b);
+  color: var(--text, #e6e6e6);
+  min-width: 0;
+}
+
+.admin-teams-widget h2,
+.admin-teams-widget h3 { margin: 0 0 8px; }
+.admin-teams-widget p { margin: 0 0 14px; }
+.admin-teams-message { color: #8fdb9d; }
+.admin-teams-scroll { max-width: 100%; overflow: auto; }
+.admin-teams-table,
+.admin-teams-matrix { width: 100%; border-collapse: collapse; }
+.admin-teams-table th,
+.admin-teams-table td,
+.admin-teams-matrix th,
+.admin-teams-matrix td {
+  padding: 8px;
+  border: 1px solid var(--border, #30343a);
+  text-align: center;
+  vertical-align: top;
+}
+.admin-teams-table input { min-width: 130px; width: 100%; box-sizing: border-box; }
+.admin-teams-table input.admin-teams-id-input { min-width: 110px; }
+.admin-teams-table small { display: block; margin-top: 4px; opacity: .7; }
+.admin-teams-table select { min-width: 125px; }
+.admin-teams-widget input,
+.admin-teams-widget select {
+  padding: 6px;
+  border: 1px solid var(--border, #555);
+  border-radius: 4px;
+  background: var(--surfaceElevated, #171a1d);
+  color: var(--text, #e6e6e6);
+}
+.admin-teams-widget button {
+  padding: 6px 9px;
+  border: 1px solid var(--border, #555);
+  border-radius: 4px;
+  background: var(--surfaceElevated, #171a1d);
+  color: var(--text, #e6e6e6);
+  cursor: pointer;
+}
+.admin-teams-widget button:disabled { opacity: .5; cursor: default; }
+.admin-teams-actions { min-width: 130px; }
+.admin-teams-actions button + button { margin-left: 5px; }
+.admin-teams-matches { max-width: 220px; overflow-wrap: anywhere; margin-top: 8px; font-size: 12px; }
+.admin-teams-matrix-heading { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
+.admin-teams-matrix th { min-width: 90px; }
+.admin-teams-matrix td { min-width: 125px; }
+.admin-teams-score { display: flex; align-items: center; justify-content: center; gap: 4px; }
+.admin-teams-score input { width: 44px; text-align: center; }
+.admin-teams-score-actions { display: flex; justify-content: center; gap: 4px; margin-top: 5px; }
+.admin-teams-matrix small { display: block; margin-top: 5px; opacity: .8; }

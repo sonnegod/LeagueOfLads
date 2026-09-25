@@ -15,13 +15,17 @@ export function compareStandings(a, b) {
   const neustadtl = numeric(b.Neustadtl ?? b.Score) - numeric(a.Neustadtl ?? a.Score);
   if (neustadtl !== 0) return neustadtl;
 
-  return numeric(a.TeamId) - numeric(b.TeamId);
+  const order = numeric(a.SortOrder) - numeric(b.SortOrder);
+  if (order !== 0) return order;
+
+  return numeric(a.TeamId ?? a.EntryId) - numeric(b.TeamId ?? b.EntryId);
 }
 
 function toAppTeam(team) {
   return {
     rank: numeric(team.Rank),
-    teamId: numeric(team.TeamId),
+    teamId: team.TeamId == null ? null : numeric(team.TeamId),
+    entryId: team.EntryId == null ? null : numeric(team.EntryId),
     teamName: team.TeamName || null,
     wins: numeric(team.Wins),
     losses: numeric(team.Losses),

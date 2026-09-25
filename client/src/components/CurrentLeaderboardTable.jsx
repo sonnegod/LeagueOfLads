@@ -52,11 +52,14 @@ export default function CurrentLeagueSeries({ leagueId }) {
           <tbody>
             {group.groupTeams.map((team) => (
                 <tr
-                  key={team.TeamId}
-                  style={getRowStyle(team.Qualification)}
+                  key={teamKey(team)}
+                  style={getRowStyle(group.groupTeams.some((row) => row.Wins + row.Losses > 0)
+                    ? team.Qualification : null)}
                 >
                   <td style={tdStyle}>
-                    <Link to={`/team/${team.TeamId}`}>{team.TeamName}</Link>
+                    {team.TeamId == null
+                      ? team.TeamName
+                      : <Link to={`/team/${team.TeamId}`}>{team.TeamName}</Link>}
                   </td>
                   <td style={tdStyle}>{team.Wins}</td>
                   <td style={tdStyle}>{team.Losses}</td>
@@ -82,10 +85,15 @@ export default function CurrentLeagueSeries({ leagueId }) {
 }
 
 function getRowStyle(qualification) {
+  if (!qualification) return {};
   if (qualification === 'upper') return { backgroundColor: "#123d1a" };
   if (qualification === 'tiebreaker') return { backgroundColor: "#2a3a66" };
   if (qualification === 'lower') return { backgroundColor: "#4b3b1f" };
   return { backgroundColor: "#3d1212" };
+}
+
+function teamKey(team) {
+  return team.EntryId == null ? `team:${team.TeamId}` : `entry:${team.EntryId}`;
 }
 
 function buildH2HMatrix(group) {
@@ -112,7 +120,7 @@ function buildH2HMatrix(group) {
         <tr>
           <th style={h2hThStyle}></th>
           {teams.map(t => (
-            <th key={t.TeamId} style={h2hThStyle}>
+            <th key={teamKey(t)} style={h2hThStyle}>
               {t.TeamName}
             </th>
           ))}
@@ -121,15 +129,15 @@ function buildH2HMatrix(group) {
 
       <tbody>
         {teams.map(rowTeam => (
-          <tr key={rowTeam.TeamId}>
+          <tr key={teamKey(rowTeam)}>
             <th style={h2hThStyle}>{rowTeam.TeamName}</th>
 
             {teams.map(colTeam => {
               // Diagonal cells (same team) — render white with black text per request
-              if (rowTeam.TeamId === colTeam.TeamId) {
+              if (teamKey(rowTeam) === teamKey(colTeam)) {
                 return (
                   <td
-                    key={colTeam.TeamId}
+                    key={teamKey(colTeam)}
                     style={{
                         ...smallTd,
                         background: "#d1d5db",
@@ -142,14 +150,15 @@ function buildH2HMatrix(group) {
               }
 
               // Look up H2H match record
-              const match =
+              const match = rowTeam.TeamId != null && colTeam.TeamId != null ? (
                 h2hMap[`${rowTeam.TeamId}-${colTeam.TeamId}`] ||
-                h2hMap[`${colTeam.TeamId}-${rowTeam.TeamId}`];
+                h2hMap[`${colTeam.TeamId}-${rowTeam.TeamId}`]
+              ) : null;
 
               if (!match) {
                 return (
                   <td
-                    key={colTeam.TeamId}
+                    key={teamKey(colTeam)}
                     style={{ ...smallTd, background: "#d1d5db", color: "#000000" }}
                   >
                     0–0
@@ -188,7 +197,7 @@ function buildH2HMatrix(group) {
 
               return (
                 <td
-                  key={colTeam.TeamId}
+                  key={teamKey(colTeam)}
                   style={{
                     ...smallTd,
                     background: bgColor,

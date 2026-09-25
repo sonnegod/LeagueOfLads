@@ -4,6 +4,8 @@ To set up:
 3. set up .env file (ping sonnegod for info)
 2. Download SQLITE Studio for ui for the flat file
 3. Add the database (choose `db/LadsData.db`)
+   For a fresh empty database, run `node scripts/db/createLadsDataDb.js db/LadsData.db`
+   before opening it in SQLiteStudio. The command refuses to overwrite an existing file.
 4. Use `./scripts/db/backupDatabases.sh` to create organized SQLite-safe backups instead of manual root-level `cp` copies.
 
 DATABASE BACKUPS

@@ -2,21 +2,26 @@ import { useEffect, useState } from 'react';
 
 const emptyRules = { UpperBracketTeams: 0, LowerBracketTeams: 0, EliminatedTeams: 0, HasTiebreaker: false, TiebreakerPosition: '' };
 
-export default function LeagueRulesCard() {
+export default function LeagueRulesCard({ refreshKey }) {
   const [league, setLeague] = useState(null);
   const [rules, setRules] = useState(emptyRules);
   const [exists, setExists] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
+    let active = true;
     fetch('/api/admin/leagueRules').then((res) => res.json()).then((data) => {
+      if (!active) return;
       setLeague(data.league || null);
+      setRules(emptyRules);
+      setExists(false);
       if (data.rules) {
         setRules({ ...data.rules, HasTiebreaker: Boolean(data.rules.HasTiebreaker) });
         setExists(true);
       }
-    }).catch(() => setMessage('Unable to load league rules.'));
-  }, []);
+    }).catch(() => { if (active) setMessage('Unable to load league rules.'); });
+    return () => { active = false; };
+  }, [refreshKey]);
 
   const setNumber = (key, value) => setRules((current) => ({ ...current, [key]: value }));
   const save = async () => {

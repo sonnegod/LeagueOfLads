@@ -30,13 +30,8 @@ console.log(newTeams);
         const data = await response.json();
         const teamInfo = data?.result?.teams?.[0];
 
-        if(!teamId.TeamId === 0)
-            teamInfo.name = 'NoTeam'
-
-                console.log(teamInfo.name);
-
-
-        if (teamInfo) {
+        if (teamInfo && (teamInfo.team_id == null || Number(teamInfo.team_id) === teamId.TeamId)) {
+          console.log(teamInfo.name);
           // Insert into TeamInfo table
           const teamInformation = {
             team_id: teamId.TeamId,
@@ -45,7 +40,7 @@ console.log(newTeams);
           db.insertTeam(teamInformation);
 
         } else {
-          console.warn(`No team info returned for ID: ${teamId}`);
+          console.warn(`No matching team info returned for ID: ${teamId.TeamId}`);
         }
 
         // Optional delay to avoid rate-limiting
@@ -55,5 +50,9 @@ console.log(newTeams);
       }
     }
 
-    
+    const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+    if (leagueId) {
+      const linked = db.autoLinkLeagueRosterEntries(leagueId);
+      console.log(`Linked ${linked.length} preseason teams to IDs for league ${leagueId}.`);
+    }
 }

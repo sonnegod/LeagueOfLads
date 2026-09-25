@@ -85,6 +85,7 @@ export default function LeaguePage({
   }
 
   if (loading || !data) return <div>Loading league...</div>;
+  if (!data.league?.length) return <div>League not found.</div>;
 
   const { league, matchesWithPlayers, players, heroesWithPlayers, teams } = data;
 
@@ -99,7 +100,7 @@ export default function LeaguePage({
   const noSeparateTiebreaker =
     stageInfo?.GroupEndMatchId === stageInfo?.TieBreakerEndMatchId;
 
-  const showGroups = stageExists || alwaysShowGroups;
+  const showGroups = stageExists || alwaysShowGroups || data.hasGroups;
 
   const stageButtons = (
     <>

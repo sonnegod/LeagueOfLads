@@ -2,6 +2,8 @@ import dbBet from './databaseBet.js';
 import Database from "better-sqlite3";
 import dotenv from 'dotenv';
 import { classifyStandings, DEFAULT_LEAGUE_RULES, normalizeLeagueRules } from './config/leagueRules.js';
+import { buildGroupResults } from './config/groupResults.js';
+import { planRosterLinks } from './config/rosterMatching.js';
 dotenv.config();
 
 class DBInstance {
@@ -13,7 +15,9 @@ class DBInstance {
                 : '/root/LeagueOfLads/db/LadsData.db';
                 
             this.db = new Database(dbPath);
+            this.ensureAdminsSchema();
             this.ensureLeagueRulesSchema();
+            this.ensureAdminStandingsSchema();
             this.ensureLiveMatchSchema();
             this.preloadedData = this.preloadData();
             DBInstance.instance = this;
@@ -32,6 +36,124 @@ class DBInstance {
             TiebreakerPosition INTEGER,
             UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )`).run();
+    }
+
+    ensureAdminsSchema(){
+        this.db.exec(`CREATE TABLE IF NOT EXISTS Admins (
+            AdminPlayerId INTEGER PRIMARY KEY NOT NULL,
+            AdminPlayerName TEXT NOT NULL,
+            HeadAdmin INTEGER NOT NULL DEFAULT 0 CHECK (HeadAdmin IN (0, 1))
+        )`);
+    }
+
+    getAdminByPlayerId(playerId){
+        return this.db.prepare(`SELECT AdminPlayerId, AdminPlayerName, HeadAdmin
+            FROM Admins WHERE AdminPlayerId = ?`).get(playerId) || null;
+    }
+
+    getAdmins(){
+        return this.db.prepare(`SELECT AdminPlayerId, AdminPlayerName, HeadAdmin
+            FROM Admins ORDER BY HeadAdmin DESC, AdminPlayerName COLLATE NOCASE, AdminPlayerId`).all();
+    }
+
+    getAdminCandidates(){
+        return this.db.prepare(`SELECT p.PlayerId, CAST(p.PlayerName AS TEXT) AS PlayerName FROM PlayerInfo p
+            WHERE p.PlayerId > 0 AND NOT EXISTS (
+                SELECT 1 FROM Admins a WHERE a.AdminPlayerId = p.PlayerId
+            ) ORDER BY p.PlayerName COLLATE NOCASE, p.PlayerId`).all();
+    }
+
+    addAdmin(playerId, headAdmin, actorId){
+        const role = headAdmin ? 1 : 0;
+        return this.db.transaction(() => {
+            const player = this.db.prepare(`SELECT CAST(PlayerName AS TEXT) AS PlayerName
+                FROM PlayerInfo WHERE PlayerId = ?`).get(playerId);
+            if (!player) {
+                const error = new Error('Player not found in PlayerInfo');
+                error.code = 'PLAYER_NOT_FOUND';
+                throw error;
+            }
+            const playerName = player.PlayerName;
+            this.db.prepare(`INSERT INTO Admins (AdminPlayerId, AdminPlayerName, HeadAdmin)
+                VALUES (?, ?, ?)`).run(playerId, playerName, role);
+            this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+                'Admin Added', `Admin ${actorId} added ${playerName} (${playerId}) as ${role ? 'head admin' : 'admin'}`
+            );
+            return this.getAdminByPlayerId(playerId);
+        })();
+    }
+
+    setAdminRole(playerId, headAdmin, actorId){
+        return this.db.transaction(() => {
+            const current = this.getAdminByPlayerId(playerId);
+            if (!current) return null;
+            const role = headAdmin ? 1 : 0;
+            if (current.HeadAdmin === role) return current;
+            if (current.HeadAdmin && !role) {
+                const headCount = this.db.prepare(`SELECT COUNT(*) AS Count FROM Admins WHERE HeadAdmin = 1`).get().Count;
+                if (headCount <= 1) {
+                    const error = new Error('The final head admin cannot be demoted');
+                    error.code = 'LAST_HEAD_ADMIN';
+                    throw error;
+                }
+            }
+            this.db.prepare(`UPDATE Admins SET HeadAdmin = ? WHERE AdminPlayerId = ?`).run(role, playerId);
+            this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+                'Admin Role Changed', `Admin ${actorId} changed ${current.AdminPlayerName} (${playerId}) to ${role ? 'head admin' : 'admin'}`
+            );
+            return this.getAdminByPlayerId(playerId);
+        })();
+    }
+
+    removeAdmin(playerId, actorId){
+        return this.db.transaction(() => {
+            const current = this.getAdminByPlayerId(playerId);
+            if (!current) return null;
+            if (current.HeadAdmin) {
+                const error = new Error('Change this head admin to Admin before removing them');
+                error.code = 'HEAD_ADMIN_REMOVAL';
+                throw error;
+            }
+            this.db.prepare(`DELETE FROM Admins WHERE AdminPlayerId = ? AND HeadAdmin = 0`).run(playerId);
+            this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+                'Admin Removed', `Admin ${actorId} removed ${current.AdminPlayerName} (${playerId})`
+            );
+            return current;
+        })();
+    }
+
+    ensureAdminStandingsSchema(){
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS LeagueTeamNames (
+                LeagueId INTEGER NOT NULL,
+                TeamId INTEGER NOT NULL,
+                DisplayName TEXT NOT NULL,
+                PRIMARY KEY (LeagueId, TeamId)
+            );
+            CREATE TABLE IF NOT EXISTS GroupResultOverrides (
+                LeagueId INTEGER NOT NULL,
+                GroupId INTEGER NOT NULL,
+                TeamA INTEGER NOT NULL,
+                TeamB INTEGER NOT NULL,
+                WinsA INTEGER NOT NULL CHECK (WinsA >= 0),
+                WinsB INTEGER NOT NULL CHECK (WinsB >= 0),
+                BaseWinsA INTEGER NOT NULL DEFAULT 0,
+                BaseWinsB INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (LeagueId, GroupId, TeamA, TeamB),
+                CHECK (TeamA < TeamB)
+            );
+            CREATE TABLE IF NOT EXISTS LeagueRosterEntries (
+                EntryId INTEGER PRIMARY KEY AUTOINCREMENT,
+                LeagueId INTEGER NOT NULL,
+                GroupId INTEGER NOT NULL,
+                DisplayName TEXT NOT NULL,
+                TeamId INTEGER,
+                SortOrder INTEGER NOT NULL,
+                UNIQUE (LeagueId, TeamId)
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_LeagueRosterEntries_LeagueGroupName
+                ON LeagueRosterEntries (LeagueId, GroupId, DisplayName COLLATE NOCASE);
+        `);
     }
 
     getLeagueRules(leagueId){
@@ -1438,7 +1560,7 @@ class DBInstance {
             FROM (
             SELECT 
                 mt.TeamRad AS TeamId, 
-                ti.TeamName,
+                COALESCE(lt.DisplayName, ti.TeamName) AS TeamName,
                 CASE WHEN mt.TeamRad = mt.WinnerId THEN 1 ELSE 0 END AS Winner,
                 li.LeagueId,
                 li.LeagueName
@@ -1446,12 +1568,13 @@ class DBInstance {
             JOIN TeamInfo ti ON ti.TeamId = mt.TeamRad
             JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
             JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
+            LEFT JOIN LeagueTeamNames lt ON lt.LeagueId = li.LeagueId AND lt.TeamId = mt.TeamRad
 
             UNION ALL
 
             SELECT 
                 mt.TeamDire AS TeamId, 
-                ti.TeamName,
+                COALESCE(lt.DisplayName, ti.TeamName) AS TeamName,
                 CASE WHEN mt.TeamDire = mt.WinnerId THEN 1 ELSE 0 END AS Winner,
                 li.LeagueId,
                 li.LeagueName
@@ -1459,6 +1582,7 @@ class DBInstance {
             JOIN TeamInfo ti ON ti.TeamId = mt.TeamDire
             JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
             JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
+            LEFT JOIN LeagueTeamNames lt ON lt.LeagueId = li.LeagueId AND lt.TeamId = mt.TeamDire
             ) sub
         `;
 
@@ -1739,88 +1863,208 @@ class DBInstance {
     getCurrentLeagueLeaderboard(){
 
         return this.queryDatabase(`
-            SELECT DISTINCT lg.GroupID, g.GroupName, lg.LeagueId
-            FROM LeagueGroups lg
-            JOIN GroupNames g on g.GroupId = lg.GroupId
-            Join LeagueInfo l on l.LeagueId = lg.LeagueId
+            SELECT g.GroupId, g.GroupName, g.LeagueId
+            FROM GroupNames g
+            JOIN LeagueInfo l ON l.LeagueId = g.LeagueId
             WHERE l.Active = 1
-            ORDER BY lg.GroupID
+            ORDER BY g.GroupId
         `);
         
     }
 
     getLeagueLeaderboard(leagueId){
         return this.queryDatabase(`
-            SELECT DISTINCT lg.GroupID, g.GroupName, lg.LeagueId
-            FROM LeagueGroups lg
-            JOIN GroupNames g on g.GroupId = lg.GroupId and g.LeagueId = lg.LeagueId
-            JOIN LeagueInfo l on l.LeagueId = lg.LeagueId
-            WHERE l.LeagueId = ?
-            ORDER BY lg.GroupID
+            SELECT g.GroupId, g.GroupName, g.LeagueId
+            FROM GroupNames g
+            WHERE g.LeagueId = ?
+            ORDER BY g.GroupId
         `, [leagueId]);
     }
 
     getGroupStats(groupInfo){
         return this.queryDatabase( `
-            SELECT lg.TeamId, t.TeamName, ls.Wins, ls.Losses, n.Score
+            SELECT * FROM (
+                SELECT lg.TeamId, NULL AS EntryId,
+                       COALESCE(ltn.DisplayName, t.TeamName, 'Team ' || lg.TeamId) AS TeamName,
+                       COALESCE(ls.Wins, 0) AS Wins, COALESCE(ls.Losses, 0) AS Losses,
+                       COALESCE(n.Score, 0) AS Score, 0 AS SortOrder
                 FROM LeagueGroups lg
-                JOIN TeamInfo t ON t.TeamId = lg.TeamId
-                JOIN GroupNames g on g.GroupId = lg.GroupId and g.LeagueId = lg.LeagueId
-                Join LeagueInfo l on l.LeagueId = lg.LeagueId
-                JOIN LeagueStandings ls on ls.LeagueId = lg.LeagueId AND ls.TeamId = lg.TeamId
-                JOIN Neustadtl n on n.TeamId = lg.TeamId and n.LeagueId = lg.LeagueId
+                LEFT JOIN TeamInfo t ON t.TeamId = lg.TeamId
+                LEFT JOIN LeagueTeamNames ltn ON ltn.LeagueId = lg.LeagueId AND ltn.TeamId = lg.TeamId
+                LEFT JOIN LeagueStandings ls on ls.LeagueId = lg.LeagueId AND ls.TeamId = lg.TeamId
+                LEFT JOIN Neustadtl n on n.TeamId = lg.TeamId and n.LeagueId = lg.LeagueId
                 WHERE lg.GroupId = ? AND lg.LeagueId = ?
-                ORDER BY ls.Wins DESC,n.Score DESC 
-        `,[groupInfo.GroupId, groupInfo.LeagueId]);
+                  AND NOT EXISTS (
+                    SELECT 1 FROM LeagueRosterEntries e
+                    WHERE e.LeagueId = lg.LeagueId AND e.TeamId = lg.TeamId
+                  )
+                UNION ALL
+                SELECT e.TeamId, e.EntryId, e.DisplayName AS TeamName,
+                       COALESCE(ls.Wins, 0) AS Wins, COALESCE(ls.Losses, 0) AS Losses,
+                       COALESCE(n.Score, 0) AS Score, e.SortOrder
+                FROM LeagueRosterEntries e
+                LEFT JOIN LeagueStandings ls ON ls.LeagueId = e.LeagueId AND ls.TeamId = e.TeamId
+                LEFT JOIN Neustadtl n ON n.LeagueId = e.LeagueId AND n.TeamId = e.TeamId
+                WHERE e.GroupId = ? AND e.LeagueId = ?
+            ) ORDER BY Wins DESC, Score DESC, SortOrder, TeamName
+        `,[groupInfo.GroupId, groupInfo.LeagueId, groupInfo.GroupId, groupInfo.LeagueId]);
 
     };
 
+    getLeagueSetup(leagueId){
+        return this.getLeagueLeaderboard(leagueId).map((group) => ({
+            ...group,
+            teams: this.getGroupStats(group),
+        }));
+    }
+
+    getUnlinkedRosterCount(leagueId){
+        return this.db.prepare(`SELECT COUNT(*) AS Count FROM LeagueRosterEntries
+            WHERE LeagueId = ? AND TeamId IS NULL`).get(leagueId).Count;
+    }
+
+    getLeagueMatchTeams(leagueId){
+        return this.queryDatabase(`
+            SELECT ids.TeamId, ti.TeamName
+            FROM (
+                SELECT mt.TeamRad AS TeamId FROM MatchTeam mt
+                JOIN MatchLeague ml ON ml.MatchId = mt.MatchId WHERE ml.LeagueId = ?
+                UNION
+                SELECT mt.TeamDire AS TeamId FROM MatchTeam mt
+                JOIN MatchLeague ml ON ml.MatchId = mt.MatchId WHERE ml.LeagueId = ?
+            ) ids
+            LEFT JOIN TeamInfo ti ON ti.TeamId = ids.TeamId
+            WHERE ids.TeamId > 0
+              AND NOT EXISTS (SELECT 1 FROM LeagueRosterEntries e
+                WHERE e.LeagueId = ? AND e.TeamId = ids.TeamId)
+              AND NOT EXISTS (SELECT 1 FROM LeagueGroups lg
+                WHERE lg.LeagueId = ? AND lg.TeamId = ids.TeamId)
+            ORDER BY ti.TeamName, ids.TeamId
+        `, [leagueId, leagueId, leagueId, leagueId]);
+    }
+
+    linkLeagueRosterEntry(leagueId, entryId, teamId){
+        const link = this.db.transaction(() => {
+            const entry = this.db.prepare(`SELECT * FROM LeagueRosterEntries
+                WHERE LeagueId = ? AND EntryId = ? AND TeamId IS NULL`).get(leagueId, entryId);
+            if (!entry) throw new Error('Unlinked roster entry not found');
+            if (!Number.isSafeInteger(teamId) || teamId <= 0) {
+                throw new Error('Enter a positive team ID');
+            }
+            const displayName = entry.DisplayName;
+            const groupId = entry.GroupId;
+            if (!displayName || displayName.length > 60 || !Number.isSafeInteger(groupId) || groupId <= 0) {
+                throw new Error('Enter a valid team name and group');
+            }
+            if (!this.db.prepare(`SELECT 1 FROM GroupNames WHERE LeagueId = ? AND GroupId = ?`)
+                .get(leagueId, groupId)) throw new Error('Group is not in this league');
+            if (!this.getLeagueMatchTeams(leagueId).some((team) => team.TeamId === teamId)) {
+                throw new Error('Team ID has not played in this league or is already on the leaderboard');
+            }
+            if (this.db.prepare(`SELECT 1 FROM LeagueRosterEntries
+                WHERE LeagueId = ? AND TeamId = ?`).get(leagueId, teamId)) {
+                throw new Error('Team ID is already linked to a roster entry');
+            }
+            const assigned = this.db.prepare(`SELECT GroupId FROM LeagueGroups
+                WHERE LeagueId = ? AND TeamId = ?`).get(leagueId, teamId);
+            if (assigned && assigned.GroupId !== groupId) {
+                throw new Error('Team ID is already assigned to another group');
+            }
+            this.db.prepare(`UPDATE LeagueRosterEntries
+                SET TeamId = ?, DisplayName = ?, GroupId = ? WHERE EntryId = ?`)
+                .run(teamId, displayName, groupId, entryId);
+            this.db.prepare(`INSERT INTO LeagueGroups (LeagueId, TeamId, GroupId)
+                VALUES (?, ?, ?) ON CONFLICT(LeagueId, TeamId)
+                DO UPDATE SET GroupId = excluded.GroupId`).run(leagueId, teamId, groupId);
+            this.db.prepare(`INSERT INTO LeagueTeamNames (LeagueId, TeamId, DisplayName)
+                VALUES (?, ?, ?) ON CONFLICT(LeagueId, TeamId)
+                DO UPDATE SET DisplayName = excluded.DisplayName`).run(leagueId, teamId, displayName);
+            this.rebuildLeagueGroupStandings(leagueId);
+            return entry;
+        });
+        return link();
+    }
+
+    autoLinkLeagueRosterEntries(leagueId){
+        const entries = this.queryDatabase(`SELECT EntryId, DisplayName FROM LeagueRosterEntries
+            WHERE LeagueId = ? AND TeamId IS NULL`, [leagueId]);
+        const teams = this.getLeagueMatchTeams(leagueId);
+        const links = planRosterLinks(entries, teams);
+        const linked = [];
+        for (const { entryId, teamId } of links) {
+            try {
+                this.linkLeagueRosterEntry(leagueId, entryId, teamId);
+                linked.push({ entryId, teamId });
+            } catch (err) {
+                console.warn(`Could not auto-link roster entry ${entryId} to team ${teamId}:`, err.message);
+            }
+        }
+        return linked;
+    }
+
     getHeadToHeadStats(groupInfo){
-        return this.queryDatabase( `
-            SELECT
-                T1.TeamId AS TeamA,
-                T1.TeamName AS TeamAName,
-                T2.TeamId AS TeamB,
-                T2.TeamName AS TeamBName,
-                SUM(CASE WHEN MT.WinnerId = T1.TeamId THEN 1 ELSE 0 END) AS WinsA,
-                SUM(CASE WHEN MT.WinnerId = T2.TeamId THEN 1 ELSE 0 END) AS WinsB,
-                COUNT(MT.MatchId) AS MatchesPlayed
-            FROM LeagueGroups LG
+        return this.getLeagueGroupResults(groupInfo.LeagueId, groupInfo.GroupId).pairs;
+    }
 
-            -- Get all teams in the group
-            JOIN LeagueGroups LG2
-                ON LG.GroupId = LG2.GroupId
-            AND LG.LeagueId = LG2.LeagueId
+    getLeagueGroupResults(leagueId, groupId){
+        const teams = this.queryDatabase(`
+            SELECT lg.TeamId, COALESCE(lt.DisplayName, ti.TeamName, 'Team ' || lg.TeamId) AS TeamName
+            FROM LeagueGroups lg
+            LEFT JOIN TeamInfo ti ON ti.TeamId = lg.TeamId
+            LEFT JOIN LeagueTeamNames lt ON lt.LeagueId = lg.LeagueId AND lt.TeamId = lg.TeamId
+            WHERE lg.LeagueId = ? AND lg.GroupId = ?
+            ORDER BY TeamName, lg.TeamId
+        `, [leagueId, groupId]);
+        const matches = this.queryDatabase(`
+            SELECT mt.TeamRad, mt.TeamDire, mt.WinnerId
+            FROM MatchLeague ml
+            JOIN MatchTeam mt ON mt.MatchId = ml.MatchId
+            LEFT JOIN LeagueStageBoundaries b ON b.LeagueId = ml.LeagueId
+            WHERE ml.LeagueId = ?
+              AND mt.WinnerId IN (mt.TeamRad, mt.TeamDire)
+              AND (b.GroupEndMatchId IS NULL OR mt.MatchId <= b.GroupEndMatchId)
+        `, [leagueId]);
+        const overrides = this.queryDatabase(`
+            SELECT TeamA, TeamB, WinsA, WinsB, BaseWinsA, BaseWinsB FROM GroupResultOverrides
+            WHERE LeagueId = ? AND GroupId = ?
+        `, [leagueId, groupId]);
+        const results = buildGroupResults(teams, matches, overrides);
+        const names = new Map(teams.map((team) => [team.TeamId, team.TeamName]));
+        return {
+            teams,
+            standings: results.teams,
+            pairs: results.pairs.map((pair) => ({
+                ...pair,
+                TeamAName: names.get(pair.TeamA),
+                TeamBName: names.get(pair.TeamB),
+                MatchesPlayed: pair.ActualWinsA + pair.ActualWinsB,
+            })),
+        };
+    }
 
-            -- Pair teams together (T1 vs T2)
-            JOIN TeamInfo T1 ON T1.TeamId = LG.TeamId
-            JOIN TeamInfo T2 ON T2.TeamId = LG2.TeamId AND T1.TeamId < T2.TeamId
-
-            -- Find any series-containing matches between Team1 + Team2
-            JOIN SeriesInfo SI 
-            ON (SI.Team1 = T1.TeamId AND SI.Team2 = T2.TeamId)
-            OR (SI.Team1 = T2.TeamId AND SI.Team2 = T1.TeamId)
-            JOIN SeriesMatch SM
-            ON SM.SeriesId = SI.SeriesId
-            JOIN MatchTeam MT
-            ON MT.MatchId = SM.MatchId
-            LEFT JOIN LeagueStageBoundaries LSB
-                ON LSB.LeagueId = LG.LeagueId
-
-            WHERE LG.LeagueId = ?
-            AND LG.GroupId = ?
-
-            -- Filter only group-stage matches IF boundary exists
-            AND (
-                    LSB.GroupEndMatchId IS NULL
-                    OR MT.MatchId <= LSB.GroupEndMatchId
-                )
-            GROUP BY
-                TeamA, TeamAName,
-                TeamB, TeamBName
-
-            ORDER BY TeamAName, TeamBName;
-        `,[groupInfo.LeagueId,groupInfo.GroupId]);
+    rebuildLeagueGroupStandings(leagueId){
+        const groups = this.queryDatabase(`SELECT GroupId FROM GroupNames WHERE LeagueId = ?`, [leagueId]);
+        if (groups.length === 0) return;
+        const update = this.db.transaction(() => {
+            this.db.prepare('UPDATE LeagueStandings SET Wins = 0, Losses = 0 WHERE LeagueId = ?').run(leagueId);
+            this.db.prepare('UPDATE Neustadtl SET Score = 0 WHERE LeagueId = ?').run(leagueId);
+            const standing = this.db.prepare(`
+                INSERT INTO LeagueStandings (LeagueId, TeamId, Wins, Losses) VALUES (?, ?, ?, ?)
+                ON CONFLICT(LeagueId, TeamId) DO UPDATE SET Wins = excluded.Wins, Losses = excluded.Losses
+            `);
+            const neustadtl = this.db.prepare(`
+                INSERT INTO Neustadtl (LeagueId, TeamId, Score) VALUES (?, ?, ?)
+                ON CONFLICT(TeamId, LeagueId) DO UPDATE SET Score = excluded.Score
+            `);
+            for (const group of groups) {
+                const result = this.getLeagueGroupResults(leagueId, group.GroupId);
+                for (const row of result.standings) {
+                    standing.run(leagueId, row.TeamId, row.Wins, row.Losses);
+                    neustadtl.run(leagueId, row.TeamId, row.Score);
+                }
+            }
+        });
+        update();
     }
 
     getRecentMatches(numMatches) {
@@ -2198,14 +2442,13 @@ class DBInstance {
             ti.TeamName AS WinnerTeamName
             FROM LeagueInfo li
             LEFT JOIN MatchLeague ml ON li.LeagueId = ml.LeagueId
+                AND ml.MatchId = (
+                    SELECT MAX(ml2.MatchId) FROM MatchLeague ml2 WHERE ml2.LeagueId = li.LeagueId
+                )
             LEFT JOIN MatchTeam mt ON ml.MatchId = mt.MatchId
             LEFT JOIN TeamInfo ti ON ti.TeamId = 
                 CASE WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
                     WHEN li.Active = 0 AND mt.TeamDire = mt.WinnerId THEN mt.TeamDire END
-            WHERE ml.MatchId = (
-                SELECT MAX(ml2.MatchId)
-                FROM MatchLeague ml2
-                WHERE ml2.LeagueId = li.LeagueId)
             ORDER BY li.LeagueId DESC`
             );
     }
@@ -2222,15 +2465,14 @@ class DBInstance {
             ti.TeamName AS WinnerTeamName
             FROM LeagueInfo li
             LEFT JOIN MatchLeague ml ON li.LeagueId = ml.LeagueId
+                AND ml.MatchId = (
+                    SELECT MAX(ml2.MatchId) FROM MatchLeague ml2 WHERE ml2.LeagueId = li.LeagueId
+                )
             LEFT JOIN MatchTeam mt ON ml.MatchId = mt.MatchId
             LEFT JOIN TeamInfo ti ON ti.TeamId = 
                 CASE WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
                     WHEN li.Active = 0 AND mt.TeamDire = mt.WinnerId THEN mt.TeamDire END
-            WHERE ml.MatchId = (
-                SELECT MAX(ml2.MatchId)
-                FROM MatchLeague ml2
-                WHERE ml2.LeagueId = li.LeagueId)
-                AND li.LeagueId = ?
+            WHERE li.LeagueId = ?
         `,[leagueId]);
     }
 
@@ -2274,9 +2516,9 @@ class DBInstance {
             `SELECT
             ml.MatchId,
             mt.TeamRad AS RadiantTeamId,
-            tr.TeamName AS RadiantTeamName,
+            COALESCE(ltr.DisplayName, tr.TeamName) AS RadiantTeamName,
             mt.TeamDire AS DireTeamId,
-            td.TeamName AS DireTeamName,
+            COALESCE(ltd.DisplayName, td.TeamName) AS DireTeamName,
             tr.TeamId as rad_team_id,
             td.TeamId as dire_team_id,
             CASE 
@@ -2288,6 +2530,8 @@ class DBInstance {
             JOIN MatchTeam mt ON ml.MatchId = mt.MatchId
             JOIN TeamInfo tr ON mt.TeamRad = tr.TeamId
             JOIN TeamInfo td ON mt.TeamDire = td.TeamId
+            LEFT JOIN LeagueTeamNames ltr ON ltr.LeagueId = ml.LeagueId AND ltr.TeamId = mt.TeamRad
+            LEFT JOIN LeagueTeamNames ltd ON ltd.LeagueId = ml.LeagueId AND ltd.TeamId = mt.TeamDire
             LEFT JOIN TeamInfo tw ON tw.TeamId = mt.WinnerId
             WHERE ml.LeagueId = ?
             ORDER BY ml.MatchId DESC;
@@ -2508,54 +2752,91 @@ class DBInstance {
         }
     }
 
+    adminSaveLeagueTeam(leagueId, originalTeamId, teamId, teamName, groupId){
+        const save = this.db.transaction(() => {
+            const idChanged = originalTeamId !== teamId;
+            if (idChanged) {
+                const assigned = this.db.prepare(`SELECT 1 FROM LeagueGroups
+                    WHERE LeagueId = ? AND TeamId = ?`).get(leagueId, teamId);
+                const linked = this.db.prepare(`SELECT 1 FROM LeagueRosterEntries
+                    WHERE LeagueId = ? AND TeamId = ?`).get(leagueId, teamId);
+                if (assigned || linked) {
+                    const error = new Error('That team ID is already assigned to another leaderboard row');
+                    error.status = 409;
+                    throw error;
+                }
+            }
+
+            const oldGroup = this.db.prepare(`SELECT GroupId FROM LeagueGroups
+                WHERE LeagueId = ? AND TeamId = ?`).get(leagueId, originalTeamId)?.GroupId;
+            if (idChanged) {
+                this.db.prepare(`DELETE FROM LeagueGroups WHERE LeagueId = ? AND TeamId = ?`)
+                    .run(leagueId, originalTeamId);
+                this.db.prepare(`DELETE FROM LeagueTeamNames WHERE LeagueId = ? AND TeamId = ?`)
+                    .run(leagueId, originalTeamId);
+            }
+            this.db.prepare(`INSERT INTO LeagueTeamNames (LeagueId, TeamId, DisplayName)
+                VALUES (?, ?, ?) ON CONFLICT(LeagueId, TeamId)
+                DO UPDATE SET DisplayName = excluded.DisplayName`).run(leagueId, teamId, teamName);
+            if (groupId == null) {
+                this.db.prepare(`UPDATE LeagueRosterEntries SET TeamId = NULL, DisplayName = ?
+                    WHERE LeagueId = ? AND TeamId = ?`).run(teamName, leagueId, originalTeamId);
+                this.db.prepare(`DELETE FROM LeagueGroups WHERE LeagueId = ? AND TeamId = ?`)
+                    .run(leagueId, teamId);
+            } else {
+                this.db.prepare(`UPDATE LeagueRosterEntries
+                    SET TeamId = ?, DisplayName = ?, GroupId = ?
+                    WHERE LeagueId = ? AND TeamId = ?`)
+                    .run(teamId, teamName, groupId, leagueId, originalTeamId);
+                this.db.prepare(`INSERT INTO LeagueGroups (LeagueId, TeamId, GroupId)
+                    VALUES (?, ?, ?) ON CONFLICT(LeagueId, TeamId)
+                    DO UPDATE SET GroupId = excluded.GroupId`).run(leagueId, teamId, groupId);
+            }
+            if (oldGroup !== undefined && (idChanged || oldGroup !== groupId)) {
+                this.db.prepare(`DELETE FROM GroupResultOverrides
+                    WHERE LeagueId = ? AND GroupId = ? AND (TeamA = ? OR TeamB = ?)`)
+                    .run(leagueId, oldGroup, originalTeamId, originalTeamId);
+            }
+            if (idChanged || oldGroup !== groupId) this.rebuildLeagueGroupStandings(leagueId);
+            this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+                'League Team Edit',
+                `League ${leagueId}: team ${originalTeamId} -> ${teamId}, named ${teamName}, group ${groupId ?? 'unassigned'}`
+            );
+        });
+        save();
+    }
+
     adminCurrentTeams(){
+        const leagueId = this.getActiveLeague()?.[0]?.LeagueId;
+        if (!leagueId) return [];
         return this.queryDatabase(`
-           SELECT 
-                t.TeamId,
-                t.TeamName,
-                COALESCE(m.MatchesPlayed, 0) AS MatchesPlayed,
-                ls.Wins,
-                ls.Losses,
-                gn.GroupId,
-                gn.GroupName
-            FROM TeamInfo t
-
-            -- Aggregate matches first
-            LEFT JOIN (
-                SELECT 
-                    ti.TeamId,
-                            ti.TeamName,
-                            COUNT(mt.MatchId) AS MatchesPlayed
-                        FROM TeamInfo ti
-                        JOIN MatchTeam mt 
-                            ON ti.TeamId = mt.TeamRad 
-                            OR ti.TeamId = mt.TeamDire
-                        JOIN MatchLeague ml
-                            ON ml.MatchId = mt.MatchId
-                        JOIN LeagueInfo li
-                            ON li.LeagueId = ml.LeagueId
-                        WHERE li.Active = 1
-                        GROUP BY ti.TeamId, ti.TeamName
-                        ORDER BY MatchesPlayed DESC
-            ) m ON m.TeamId = t.TeamId
-
-            LEFT JOIN LeagueStandings ls 
-                ON ls.TeamId = t.TeamId
-            JOIN LeagueInfo li2 
-                ON ls.LeagueId = li2.LeagueId
-            LEFT JOIN LeagueGroups lg on lg.LeagueId = li2.LeagueId and lg.TeamId = t.TeamId
-            LEFT JOIN GroupNames gn on gn.GroupId = lg.GroupId and gn.LeagueId = li2.LeagueId
-            WHERE li2.Active = 1
-
-            GROUP BY 
-                t.TeamId, 
-                t.TeamName, 
-                ls.Wins, 
-                ls.Losses
-            ORDER BY 
-                MatchesPlayed DESC;
-
-            `);
+            WITH ids AS (
+                SELECT TeamId FROM LeagueGroups WHERE LeagueId = ?
+                UNION SELECT TeamId FROM LeagueStandings WHERE LeagueId = ?
+                UNION SELECT mt.TeamRad FROM MatchTeam mt JOIN MatchLeague ml ON ml.MatchId = mt.MatchId WHERE ml.LeagueId = ?
+                UNION SELECT mt.TeamDire FROM MatchTeam mt JOIN MatchLeague ml ON ml.MatchId = mt.MatchId WHERE ml.LeagueId = ?
+                UNION SELECT TeamId FROM LeagueTeamNames WHERE LeagueId = ?
+            ), games AS (
+                SELECT TeamId, COUNT(*) AS MatchesPlayed FROM (
+                    SELECT mt.TeamRad AS TeamId FROM MatchTeam mt JOIN MatchLeague ml ON ml.MatchId = mt.MatchId WHERE ml.LeagueId = ?
+                    UNION ALL
+                    SELECT mt.TeamDire AS TeamId FROM MatchTeam mt JOIN MatchLeague ml ON ml.MatchId = mt.MatchId WHERE ml.LeagueId = ?
+                ) GROUP BY TeamId
+            )
+            SELECT ids.TeamId, COALESCE(lt.DisplayName, ti.TeamName, 'Team ' || ids.TeamId) AS TeamName,
+                   COALESCE(games.MatchesPlayed, 0) AS MatchesPlayed,
+                   COALESCE(ls.Wins, 0) AS Wins, COALESCE(ls.Losses, 0) AS Losses,
+                   COALESCE(n.Score, 0) AS Score, lg.GroupId, gn.GroupName
+            FROM ids
+            LEFT JOIN TeamInfo ti ON ti.TeamId = ids.TeamId
+            LEFT JOIN LeagueTeamNames lt ON lt.LeagueId = ? AND lt.TeamId = ids.TeamId
+            LEFT JOIN games ON games.TeamId = ids.TeamId
+            LEFT JOIN LeagueStandings ls ON ls.LeagueId = ? AND ls.TeamId = ids.TeamId
+            LEFT JOIN Neustadtl n ON n.LeagueId = ? AND n.TeamId = ids.TeamId
+            LEFT JOIN LeagueGroups lg ON lg.LeagueId = ? AND lg.TeamId = ids.TeamId
+            LEFT JOIN GroupNames gn ON gn.LeagueId = ? AND gn.GroupId = lg.GroupId
+            ORDER BY CASE WHEN lg.GroupId IS NULL THEN 1 ELSE 0 END, lg.GroupId, TeamName
+        `, Array(12).fill(leagueId));
     }
 
     adminCurrentTeamMatches(teamId){

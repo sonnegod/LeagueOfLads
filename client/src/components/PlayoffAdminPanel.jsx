@@ -59,7 +59,7 @@ export default function PlayoffAdminPanel() {
         setMessage("Tiebreaker stage activated.");
         setStageInfo(data.updatedRow);
       } else {
-        setMessage("Failed to activate tiebreakers.");
+        setMessage(data.error || "Failed to activate tiebreakers.");
       }
     } catch (err) {
       console.error(err);
@@ -92,7 +92,7 @@ export default function PlayoffAdminPanel() {
         setMessage("Playoffs stage activated.");
         setStageInfo(data.updatedRow);
       } else {
-        setMessage("Failed to activate playoffs.");
+        setMessage(data.error || "Failed to activate playoffs.");
       }
     } catch (err) {
       console.error(err);

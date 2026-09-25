@@ -1,7 +1,7 @@
 import express from 'express';
 import passport from 'passport';
 
-import { checkAdmin } from '../middleware/checkAdmin.js';
+import { checkAdmin, checkHeadAdmin, getAdminForSteamId } from '../middleware/checkAdmin.js';
 
 import db from '../database.js';
 import dbBet from '../databaseBet.js';
@@ -127,6 +127,8 @@ router.get('/auth/user', (req, res) => {
       req.session.canDraftGod = canDraftGod;
     }
 
+    const admin = getAdminForSteamId(req.user.id);
+
     // You can customize what user info to send here
     res.json({
       steamid: req.user.id,
@@ -135,6 +137,8 @@ router.get('/auth/user', (req, res) => {
       avatar: req.user.photos[2]?.value || req.user.photos[0]?.value,
       profileurl: req.user._json?.profileurl || '',
       canDraftGod,
+      isAdmin: Boolean(admin),
+      isHeadAdmin: Boolean(admin?.HeadAdmin),
     });
   } else {
     res.status(401).json({ error: 'Not logged in' });
@@ -189,8 +193,95 @@ router.get('/dashboard', (req, res) => {
   `);
 });
 
-router.get('/admin', checkAdmin, (req, res) => {
+router.use('/admin', checkAdmin);
+
+router.get('/admin', (req, res) => {
   res.json({ message: 'Welcome to the admin portal!' });
+});
+
+router.get('/admin/admins', (req, res) => {
+  try {
+    return res.json({ admins: db.getAdmins() });
+  } catch (err) {
+    console.error('Failed to load admins:', err);
+    return res.status(500).json({ error: 'Failed to load admins' });
+  }
+});
+
+router.get('/admin/adminCandidates', checkHeadAdmin, (req, res) => {
+  try {
+    return res.json({ players: db.getAdminCandidates() });
+  } catch (err) {
+    console.error('Failed to load admin candidates:', err);
+    return res.status(500).json({ error: 'Failed to load players' });
+  }
+});
+
+router.post('/admin/admins', checkHeadAdmin, (req, res) => {
+  const rawId = String(req.body?.adminPlayerId ?? '').trim();
+  const playerId = Number(rawId);
+  const headAdmin = req.body?.headAdmin ?? false;
+
+  if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(playerId) || playerId <= 0) {
+    return res.status(400).json({ error: 'Enter a valid Steam account ID (not a 64-bit Steam ID)' });
+  }
+  if (typeof headAdmin !== 'boolean') {
+    return res.status(400).json({ error: 'Admin role must be a boolean' });
+  }
+
+  try {
+    const admin = db.addAdmin(playerId, headAdmin, req.admin.AdminPlayerId);
+    return res.status(201).json({ admin });
+  } catch (err) {
+    if (err.code === 'PLAYER_NOT_FOUND') {
+      return res.status(404).json({ error: 'Player not found in PlayerInfo' });
+    }
+    if (err.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'This player ID is already an admin' });
+    }
+    console.error('Failed to add admin:', err);
+    return res.status(500).json({ error: 'Failed to add admin' });
+  }
+});
+
+router.patch('/admin/admins/:playerId', checkHeadAdmin, (req, res) => {
+  const rawId = req.params.playerId;
+  const playerId = Number(rawId);
+  const headAdmin = req.body?.headAdmin;
+  if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(playerId) || playerId <= 0) {
+    return res.status(400).json({ error: 'Invalid admin player ID' });
+  }
+  if (typeof headAdmin !== 'boolean') {
+    return res.status(400).json({ error: 'Admin role must be a boolean' });
+  }
+
+  try {
+    const admin = db.setAdminRole(playerId, headAdmin, req.admin.AdminPlayerId);
+    if (!admin) return res.status(404).json({ error: 'Admin not found' });
+    return res.json({ admin });
+  } catch (err) {
+    if (err.code === 'LAST_HEAD_ADMIN') return res.status(409).json({ error: err.message });
+    console.error('Failed to change admin role:', err);
+    return res.status(500).json({ error: 'Failed to change admin role' });
+  }
+});
+
+router.delete('/admin/admins/:playerId', checkHeadAdmin, (req, res) => {
+  const rawId = req.params.playerId;
+  const playerId = Number(rawId);
+  if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(playerId) || playerId <= 0) {
+    return res.status(400).json({ error: 'Invalid admin player ID' });
+  }
+
+  try {
+    const removed = db.removeAdmin(playerId, req.admin.AdminPlayerId);
+    if (!removed) return res.status(404).json({ error: 'Admin not found' });
+    return res.json({ removed });
+  } catch (err) {
+    if (err.code === 'HEAD_ADMIN_REMOVAL') return res.status(409).json({ error: err.message });
+    console.error('Failed to remove admin:', err);
+    return res.status(500).json({ error: 'Failed to remove admin' });
+  }
 });
 
 router.get('/admin/activeLeague', checkAdmin, (req, res) => {
@@ -774,7 +865,7 @@ router.post('/admin/updateMatchTeams', (req, res) => {
   }
 });
 
-router.get('/admin/currentLeagueTeams', (req, res) => {
+router.get('/admin/currentLeagueTeams', checkAdmin, (req, res) => {
   try {
 
     const result = db.adminCurrentTeams();
@@ -784,6 +875,265 @@ router.get('/admin/currentLeagueTeams', (req, res) => {
       console.error(err);
       res.status(500).json({ error: 'Internal server error' });
     }
+});
+
+router.get('/admin/standingsGroups', checkAdmin, (req, res) => {
+  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+  if (!leagueId) return res.json({ groups: [] });
+  const groups = db.queryDatabase(
+    'SELECT GroupId, GroupName FROM GroupNames WHERE LeagueId = ? ORDER BY GroupId',
+    [leagueId]
+  );
+  return res.json({ groups });
+});
+
+router.get('/admin/leagueSetup', checkAdmin, (req, res) => {
+  const league = db.getActiveLeague()?.[0];
+  if (!league) return res.json({ league: null, groups: [], availableTeams: [] });
+  return res.json({
+    league,
+    groups: db.getLeagueSetup(league.LeagueId),
+    availableTeams: db.getLeagueMatchTeams(league.LeagueId),
+  });
+});
+
+router.post('/admin/leagueSetup/groups', checkAdmin, (req, res) => {
+  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+  const groupName = String(req.body?.groupName || '').trim();
+  if (!leagueId) return res.status(400).json({ error: 'No active league' });
+  if (!groupName || groupName.length > 60) {
+    return res.status(400).json({ error: 'Enter a group name of 1-60 characters' });
+  }
+  try {
+    const group = db.db.transaction(() => {
+      const duplicate = db.db.prepare(`SELECT 1 FROM GroupNames
+        WHERE LeagueId = ? AND GroupName = ? COLLATE NOCASE`).get(leagueId, groupName);
+      if (duplicate) return null;
+      const groupId = db.db.prepare(`SELECT COALESCE(MAX(GroupId), 0) + 1 AS NextId
+        FROM GroupNames WHERE LeagueId = ?`).get(leagueId).NextId;
+      db.db.prepare(`INSERT INTO GroupNames (LeagueId, GroupId, GroupName)
+        VALUES (?, ?, ?)`).run(leagueId, groupId, groupName);
+      db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+        'Group Add', `League ${leagueId}: added group ${groupId} (${groupName})`
+      );
+      return { GroupId: groupId, GroupName: groupName, LeagueId: leagueId };
+    })();
+    if (!group) return res.status(409).json({ error: 'That group name already exists' });
+    return res.status(201).json({ group });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to add group' });
+  }
+});
+
+router.patch('/admin/leagueSetup/groups/:groupId', checkAdmin, (req, res) => {
+  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+  const groupId = Number(req.params.groupId);
+  const groupName = String(req.body?.groupName || '').trim();
+  if (!leagueId || !Number.isSafeInteger(groupId) || groupId <= 0 ||
+      !groupName || groupName.length > 60) {
+    return res.status(400).json({ error: 'Invalid group or name' });
+  }
+  const duplicate = db.db.prepare(`SELECT 1 FROM GroupNames
+    WHERE LeagueId = ? AND GroupId <> ? AND GroupName = ? COLLATE NOCASE`
+  ).get(leagueId, groupId, groupName);
+  if (duplicate) return res.status(409).json({ error: 'That group name already exists' });
+  const result = db.db.prepare(`UPDATE GroupNames SET GroupName = ?
+    WHERE LeagueId = ? AND GroupId = ?`).run(groupName, leagueId, groupId);
+  if (!result.changes) return res.status(404).json({ error: 'Group not found' });
+  db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+    'Group Rename', `League ${leagueId}: group ${groupId} renamed ${groupName}`
+  );
+  return res.json({ success: true });
+});
+
+router.post('/admin/leagueRosterEntries', checkAdmin, (req, res) => {
+  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+  const groupId = Number(req.body?.groupId);
+  const displayName = String(req.body?.displayName || '').trim();
+  if (!leagueId) return res.status(400).json({ error: 'No active league' });
+  if (!Number.isSafeInteger(groupId) || groupId <= 0 || !displayName || displayName.length > 60) {
+    return res.status(400).json({ error: 'Enter a group and a team name of 1–60 characters' });
+  }
+  try {
+    const entry = db.db.transaction(() => {
+      const group = db.db.prepare('SELECT 1 FROM GroupNames WHERE LeagueId = ? AND GroupId = ?')
+        .get(leagueId, groupId);
+      if (!group) return null;
+      const order = db.db.prepare(`SELECT COALESCE(MAX(SortOrder), 0) + 1 AS NextOrder
+        FROM LeagueRosterEntries WHERE LeagueId = ? AND GroupId = ?`).get(leagueId, groupId).NextOrder;
+      const result = db.db.prepare(`INSERT INTO LeagueRosterEntries
+        (LeagueId, GroupId, DisplayName, SortOrder) VALUES (?, ?, ?, ?)`
+      ).run(leagueId, groupId, displayName, order);
+      db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+        'League Roster Add', `League ${leagueId}, group ${groupId}: added ${displayName}`
+      );
+      return db.db.prepare('SELECT * FROM LeagueRosterEntries WHERE EntryId = ?').get(result.lastInsertRowid);
+    })();
+    if (!entry) return res.status(404).json({ error: 'Group not found in active league' });
+    return res.status(201).json({ entry });
+  } catch (err) {
+    if (err.code?.startsWith('SQLITE_CONSTRAINT')) {
+      return res.status(409).json({ error: 'That team name is already in this group' });
+    }
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to add team' });
+  }
+});
+
+router.patch('/admin/leagueRosterEntries/:entryId', checkAdmin, (req, res) => {
+  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+  const entryId = Number(req.params.entryId);
+  const displayName = String(req.body?.displayName || '').trim();
+  if (!leagueId) return res.status(400).json({ error: 'No active league' });
+  if (!Number.isSafeInteger(entryId) || entryId <= 0 || !displayName || displayName.length > 60) {
+    return res.status(400).json({ error: 'Enter a team name of 1-60 characters' });
+  }
+  try {
+    const result = db.db.prepare(`UPDATE LeagueRosterEntries SET DisplayName = ?
+      WHERE EntryId = ? AND LeagueId = ? AND TeamId IS NULL`).run(displayName, entryId, leagueId);
+    if (!result.changes) return res.status(404).json({ error: 'Unlinked team not found' });
+    db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+      'League Roster Rename', `League ${leagueId}: renamed entry ${entryId} to ${displayName}`
+    );
+    return res.json({ success: true });
+  } catch (err) {
+    if (err.code?.startsWith('SQLITE_CONSTRAINT')) {
+      return res.status(409).json({ error: 'That team name is already in this group' });
+    }
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to rename team' });
+  }
+});
+
+router.delete('/admin/leagueRosterEntries/:entryId', checkAdmin, (req, res) => {
+  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+  const entryId = Number(req.params.entryId);
+  if (!leagueId || !Number.isSafeInteger(entryId) || entryId <= 0) {
+    return res.status(400).json({ error: 'Invalid league or team' });
+  }
+  const result = db.db.prepare(`DELETE FROM LeagueRosterEntries
+    WHERE EntryId = ? AND LeagueId = ? AND TeamId IS NULL`).run(entryId, leagueId);
+  if (!result.changes) return res.status(404).json({ error: 'Unlinked team not found' });
+  db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+    'League Roster Remove', `League ${leagueId}: removed entry ${entryId}`
+  );
+  return res.json({ success: true });
+});
+
+router.post('/admin/leagueRosterEntries/:entryId/link', checkAdmin, (req, res) => {
+  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+  const entryId = Number(req.params.entryId);
+  const teamId = Number(req.body?.teamId);
+  if (!leagueId || !Number.isSafeInteger(entryId) || entryId <= 0 ||
+      !Number.isSafeInteger(teamId) || teamId <= 0) {
+    return res.status(400).json({ error: 'Choose a valid roster entry and team ID' });
+  }
+  try {
+    const entry = db.linkLeagueRosterEntry(leagueId, entryId, teamId);
+    db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+      'League Roster Link', `League ${leagueId}: linked entry ${entryId} to team ${teamId}`
+    );
+    return res.json({ success: true, entryId: entry.EntryId, teamId });
+  } catch (err) {
+    return res.status(409).json({ error: err.message });
+  }
+});
+
+router.post('/admin/leagueTeam', checkAdmin, (req, res) => {
+  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+  const teamId = Number(req.body?.teamId);
+  const originalTeamId = req.body?.originalTeamId == null
+    ? teamId : Number(req.body.originalTeamId);
+  const groupId = req.body?.groupId === null || req.body?.groupId === ''
+    ? null : Number(req.body?.groupId);
+  const teamName = String(req.body?.teamName || '').trim();
+  if (!leagueId) return res.status(400).json({ error: 'No active league' });
+  if (!Number.isSafeInteger(teamId) || teamId <= 0 ||
+      !Number.isSafeInteger(originalTeamId) || originalTeamId <= 0 ||
+      !teamName || teamName.length > 60 ||
+      (groupId !== null && (!Number.isSafeInteger(groupId) || groupId <= 0))) {
+    return res.status(400).json({ error: 'Invalid team name or group' });
+  }
+  if (!db.adminCurrentTeams().some((team) => team.TeamId === originalTeamId)) {
+    return res.status(404).json({ error: 'Team is not in the active league' });
+  }
+  if (groupId !== null && !db.queryDatabase(
+    'SELECT 1 FROM GroupNames WHERE LeagueId = ? AND GroupId = ?', [leagueId, groupId]
+  ).length) return res.status(400).json({ error: 'Group is not in the active league' });
+
+  try {
+    db.adminSaveLeagueTeam(leagueId, originalTeamId, teamId, teamName, groupId);
+    return res.json({ success: true });
+  } catch (err) {
+    if (err.status === 409 || err.code?.startsWith('SQLITE_CONSTRAINT')) {
+      return res.status(409).json({ error: err.message });
+    }
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to save team' });
+  }
+});
+
+router.get('/admin/groupMatrix/:groupId', checkAdmin, (req, res) => {
+  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+  const groupId = Number(req.params.groupId);
+  if (!leagueId || !Number.isSafeInteger(groupId) || groupId <= 0) {
+    return res.status(400).json({ error: 'Invalid league or group' });
+  }
+  if (!db.queryDatabase('SELECT 1 FROM GroupNames WHERE LeagueId = ? AND GroupId = ?',
+    [leagueId, groupId]).length) return res.status(404).json({ error: 'Group not found' });
+  return res.json(db.getLeagueGroupResults(leagueId, groupId));
+});
+
+router.post('/admin/groupResult', checkAdmin, (req, res) => {
+  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+  const groupId = Number(req.body?.groupId);
+  const teamA = Number(req.body?.teamA);
+  const teamB = Number(req.body?.teamB);
+  const winsA = Number(req.body?.winsA);
+  const winsB = Number(req.body?.winsB);
+  const clear = req.body?.clear === true;
+  if (!leagueId || ![groupId, teamA, teamB].every((value) => Number.isSafeInteger(value) && value > 0) ||
+      teamA === teamB || (!clear && (![winsA, winsB].every((value) => Number.isSafeInteger(value) && value >= 0)))) {
+    return res.status(400).json({ error: 'Invalid teams or score' });
+  }
+  const members = db.queryDatabase(
+    'SELECT TeamId FROM LeagueGroups WHERE LeagueId = ? AND GroupId = ? AND TeamId IN (?, ?)',
+    [leagueId, groupId, teamA, teamB]
+  );
+  if (members.length !== 2) return res.status(400).json({ error: 'Both teams must be in this group' });
+  const low = Math.min(teamA, teamB);
+  const high = Math.max(teamA, teamB);
+  try {
+    const currentPair = db.getLeagueGroupResults(leagueId, groupId).pairs
+      .find((pair) => pair.TeamA === low && pair.TeamB === high);
+    db.db.transaction(() => {
+      if (clear) {
+        db.db.prepare(`DELETE FROM GroupResultOverrides
+          WHERE LeagueId = ? AND GroupId = ? AND TeamA = ? AND TeamB = ?`
+        ).run(leagueId, groupId, low, high);
+      } else {
+        db.db.prepare(`INSERT INTO GroupResultOverrides
+          (LeagueId, GroupId, TeamA, TeamB, WinsA, WinsB, BaseWinsA, BaseWinsB)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(LeagueId, GroupId, TeamA, TeamB)
+          DO UPDATE SET WinsA = excluded.WinsA, WinsB = excluded.WinsB,
+                        BaseWinsA = excluded.BaseWinsA, BaseWinsB = excluded.BaseWinsB`
+        ).run(leagueId, groupId, low, high,
+          teamA === low ? winsA : winsB, teamA === low ? winsB : winsA,
+          currentPair.ActualWinsA, currentPair.ActualWinsB);
+      }
+      db.rebuildLeagueGroupStandings(leagueId);
+      db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+        'Group Result Edit',
+        `League ${leagueId}, group ${groupId}: ${low} vs ${high} ${clear ? 'restored from games' : `${teamA}:${winsA}, ${teamB}:${winsB}`}`
+      );
+    })();
+    return res.json({ success: true, group: db.getLeagueGroupResults(leagueId, groupId) });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to save group result' });
+  }
 });
 
 router.get('/admin/currentLeagueTeamMatches/:teamId', (req, res) => {
@@ -839,12 +1189,12 @@ router.get('/admin/teamGroup/:teamId', (req, res) => {
   }
 });
 
-router.post('/admin/upsertTeamGroup', (req, res) => {
+router.post('/admin/upsertTeamGroup', checkAdmin, (req, res) => {
   try {
     const teamId = Number(req.body.teamId);
     const groupId = Number(req.body.groupId);
 
-    if (!Number.isFinite(teamId) || !Number.isFinite(groupId)) {
+    if (!Number.isSafeInteger(teamId) || teamId <= 0 || !Number.isSafeInteger(groupId) || groupId <= 0) {
       return res.status(400).json({ error: 'Invalid team/group id' });
     }
 
@@ -854,10 +1204,14 @@ router.post('/admin/upsertTeamGroup', (req, res) => {
     if (!leagueId) {
       return res.status(400).json({ error: 'No active league found' });
     }
+    if (!db.queryDatabase('SELECT 1 FROM GroupNames WHERE LeagueId = ? AND GroupId = ?',
+      [leagueId, groupId]).length) {
+      return res.status(400).json({ error: 'Group is not in the active league' });
+    }
 
     const existing = db.queryDatabase(
       `
-      SELECT TeamId
+      SELECT TeamId, GroupId
       FROM LeagueGroups
       WHERE LeagueId = ?
       AND TeamId = ?
@@ -882,6 +1236,15 @@ router.post('/admin/upsertTeamGroup', (req, res) => {
         VALUES (?, ?, ?)
         `
       ).run(leagueId, teamId, groupId);
+    }
+
+    if (existing[0]?.GroupId !== groupId) {
+      if (existing.length > 0) {
+        db.db.prepare(`DELETE FROM GroupResultOverrides
+          WHERE LeagueId = ? AND GroupId = ? AND (TeamA = ? OR TeamB = ?)`
+        ).run(leagueId, existing[0].GroupId, teamId, teamId);
+      }
+      db.rebuildLeagueGroupStandings(leagueId);
     }
 
     res.json({ success: true, inserted: existing.length === 0 });
@@ -918,17 +1281,17 @@ router.get('/admin/groupName/:groupId', (req, res) => {
   }
 });
 
-router.post('/admin/upsertGroupName', (req, res) => {
+router.post('/admin/upsertGroupName', checkAdmin, (req, res) => {
   try {
     const groupId = Number(req.body.groupId);
     const groupName = (req.body.groupName || '').trim();
 
-    if (!Number.isFinite(groupId)) {
+    if (!Number.isSafeInteger(groupId) || groupId <= 0) {
       return res.status(400).json({ error: 'Invalid group id' });
     }
 
-    if (!groupName) {
-      return res.status(400).json({ error: 'Group name cannot be empty' });
+    if (!groupName || groupName.length > 60) {
+      return res.status(400).json({ error: 'Group name must be between 1 and 60 characters' });
     }
 
     const activeLeague = db.getActiveLeague();
@@ -974,23 +1337,8 @@ router.post('/admin/upsertGroupName', (req, res) => {
   }
 });
 
-router.post('/admin/updateTeamStandings', (req, res) => {
-  try {
-      const teamId = req.body.teamId;
-      const wins = req.body.wins;
-      const losses = req.body.losses;
-
-      const result = db.adminUpdateTeamStandings(teamId,wins,losses);
-      
-      if (!result.success) {
-
-        return res.status(400).json({ error: result.message });
-      }
-      res.json({ success:true });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Internal server error' });
-    }
+router.post('/admin/updateTeamStandings', checkAdmin, (req, res) => {
+  return res.status(410).json({ error: 'Edit the group head-to-head matrix to update standings.' });
 });
 
 router.delete('/admin/deleteMatch', (req, res) => {
@@ -1012,10 +1360,16 @@ router.delete('/admin/deleteMatch', (req, res) => {
 
 router.post("/admin/activateTiebreakers", (req, res) => {
 
+  const activeLeague = db.getActiveLeague();
+  if (!activeLeague.length) return res.json({ success: false, error: "No active league" });
+  const unlinkedCount = db.getUnlinkedRosterCount(activeLeague[0].LeagueId);
+  if (unlinkedCount) return res.json({
+    success: false, error: `${unlinkedCount} team names still need TeamIds`,
+  });
+
   const last = db.getLastMatchForActiveLeague();
   if (!last) return res.json({ success: false, error: "No matches found" });
 
-  const activeLeague = db.getActiveLeague();
   const rules = db.getLeagueRules(activeLeague[0].LeagueId) || DEFAULT_LEAGUE_RULES;
   if (!Boolean(Number(rules.HasTiebreaker))) {
     return res.json({ success: false, error: "Tiebreakers are disabled for this league" });
@@ -1042,6 +1396,11 @@ router.post("/admin/activateTiebreakers", (req, res) => {
 
 router.post("/admin/activatePlayoffs", (req, res) => {
   const activeLeague = db.getActiveLeague();
+  if (!activeLeague.length) return res.json({ success: false, error: "No active league" });
+  const unlinkedCount = db.getUnlinkedRosterCount(activeLeague[0].LeagueId);
+  if (unlinkedCount) return res.json({
+    success: false, error: `${unlinkedCount} team names still need TeamIds`,
+  });
 
   const last = db.getLastMatchForActiveLeague();
   if (!last) return res.json({ success: false, error: "No matches found" });
@@ -1849,6 +2208,7 @@ router.get('/leagues/:leagueId', async (req, res) => {
     const league = await db.getLeagueData(leagueId);
     const players = await db.getLeaguePlayerData(leagueId);
     const teams = await db.getAllTeams(leagueId);
+    const hasGroups = db.getLeagueLeaderboard(leagueId).length > 0;
     const matches = await db.getLeagueMatchesData(leagueId);
     const heroes = await db.getLeagueHeroData(leagueId);
 
@@ -1871,10 +2231,11 @@ router.get('/leagues/:leagueId', async (req, res) => {
       })
     );
 
-    if (!league || !players || !matches || !teams || !heroesWithPlayers) return res.status(404).json({ error: 'League Data not found' });
+    if (!league.length) return res.status(404).json({ error: 'League Data not found' });
 
     res.json({
       league,
+      hasGroups,
       teams,
       players,
       matchesWithPlayers,

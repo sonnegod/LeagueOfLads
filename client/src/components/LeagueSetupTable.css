@@ -1,0 +1,67 @@
+.league-setup-widget {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--border, #30343a);
+  border-radius: 8px;
+  background: var(--surface, #0b0b0b);
+  color: var(--text, #e6e6e6);
+}
+
+.league-setup-widget h2 { margin: 0 0 6px; }
+.league-setup-widget p { margin: 0 0 14px; }
+.league-setup-message { color: #8fdb9d; }
+.league-setup-scroll { max-width: 100%; overflow-x: auto; }
+.league-setup-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.league-setup-table th,
+.league-setup-table td {
+  border: 1px solid var(--border, #30343a);
+  padding: 10px;
+  vertical-align: top;
+  text-align: left;
+}
+.league-setup-table th { background: var(--surfaceElevated, #171a1d); }
+.league-setup-table small { display: block; margin-top: 5px; opacity: .75; font-weight: normal; }
+.league-setup-table input {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px;
+  border: 1px solid var(--border, #555);
+  border-radius: 4px;
+  background: var(--surface, #0b0b0b);
+  color: var(--text, #e6e6e6);
+}
+.league-setup-table select {
+  min-width: 0;
+  width: 100%;
+  padding: 7px;
+  border: 1px solid var(--border, #555);
+  border-radius: 4px;
+  background: var(--surface, #0b0b0b);
+  color: var(--text, #e6e6e6);
+}
+.league-setup-table button {
+  padding: 7px 10px;
+  border: 1px solid var(--border, #555);
+  border-radius: 4px;
+  background: var(--surfaceElevated, #171a1d);
+  color: var(--text, #e6e6e6);
+  cursor: pointer;
+}
+.league-setup-table button:disabled { opacity: .5; cursor: default; }
+.league-setup-add-group,
+.league-setup-group-title,
+.league-setup-new-team { display: flex; align-items: center; gap: 7px; }
+.league-setup-add-group { max-width: 540px; }
+.league-setup-add-group label { white-space: nowrap; }
+.league-setup-add-group button,
+.league-setup-new-team button { white-space: nowrap; }
+.league-setup-team-row,
+.league-setup-linked-team { min-height: 58px; }
+.league-setup-row-actions { display: flex; gap: 5px; margin-top: 6px; }
+.league-setup-link-row { display: flex; gap: 5px; margin-top: 8px; }
+.league-setup-link-row select { flex: 1; }
+.league-setup-empty { text-align: center !important; padding: 28px !important; opacity: .8; }
+@media (max-width: 600px) {
+  .league-setup-add-group { flex-wrap: wrap; }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export default function LeagueAdminPanel() {
+export default function LeagueAdminPanel({ onLeagueAdded }) {
   const [activeLeague, setActiveLeague] = useState(null);
   const [leagueId, setLeagueId] = useState("");
   const [leagueName, setLeagueName] = useState("");
@@ -46,6 +46,7 @@ export default function LeagueAdminPanel() {
       }
 
       setActiveLeague(data.league);
+      onLeagueAdded?.();
       setLeagueId("");
       setLeagueName("");
       setMessage(`${data.league.LeagueName} was added as active.`);
