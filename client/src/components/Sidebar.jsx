@@ -20,7 +20,7 @@ export default function Sidebar({ open, onClose }) {
         <Link to="/h2h" onClick={onClose}>Head to Head</Link>
         <Link to="/hero" onClick={onClose}>Heroes</Link>
 
-        <Link to="/betting" onClick={onClose}>Betting</Link>
+        {/*<Link to="/betting" onClick={onClose}>Betting</Link>*/}
 
         {user && <Link to="/request">Request</Link>}
         {/* Show admin button only if user is admin */}

@@ -2828,6 +2828,137 @@ class DBInstance {
         save();
     }
 
+    replaceUngroupedMatchTeamId(leagueId, sourceId, targetId){
+        return this.db.transaction(() => {
+            if (this.db.prepare(`SELECT 1 FROM LeagueGroups WHERE LeagueId = ? AND TeamId = ?`)
+                .get(leagueId, sourceId)) {
+                const error = new Error('Source team is already assigned to a group');
+                error.status = 409;
+                throw error;
+            }
+            if (this.db.prepare(`SELECT 1 FROM LeagueRosterEntries WHERE LeagueId = ? AND TeamId = ?`)
+                .get(leagueId, sourceId)) {
+                const error = new Error('Source team is linked to a preseason roster row');
+                error.status = 409;
+                throw error;
+            }
+            const target = this.db.prepare(`SELECT COALESCE(lt.DisplayName, e.DisplayName, ti.TeamName,
+                    'Team ' || lg.TeamId) AS TeamName
+                FROM LeagueGroups lg
+                LEFT JOIN LeagueTeamNames lt ON lt.LeagueId = lg.LeagueId AND lt.TeamId = lg.TeamId
+                LEFT JOIN LeagueRosterEntries e ON e.LeagueId = lg.LeagueId AND e.TeamId = lg.TeamId
+                LEFT JOIN TeamInfo ti ON ti.TeamId = lg.TeamId
+                WHERE lg.LeagueId = ? AND lg.TeamId = ?`).get(leagueId, targetId);
+            if (!target) {
+                const error = new Error('Replacement team is not assigned to a group');
+                error.status = 409;
+                throw error;
+            }
+
+            const sourceMatches = this.db.prepare(`SELECT mt.MatchId, mt.TeamRad, mt.TeamDire
+                FROM MatchTeam mt JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
+                WHERE ml.LeagueId = ? AND (mt.TeamRad = ? OR mt.TeamDire = ?)`)
+                .all(leagueId, sourceId, sourceId);
+            if (sourceMatches.length === 0) {
+                const error = new Error('Source team has no matches in the active league');
+                error.status = 404;
+                throw error;
+            }
+            if (sourceMatches.some((match) => match.TeamRad === targetId || match.TeamDire === targetId)) {
+                const error = new Error('A match already has both selected teams; replacing would make both sides the same');
+                error.status = 409;
+                throw error;
+            }
+            const sameSeries = this.db.prepare(`SELECT 1 FROM SeriesInfo
+                WHERE LeagueId = ? AND ((Team1 = ? AND Team2 = ?) OR (Team1 = ? AND Team2 = ?))
+                LIMIT 1`).get(leagueId, sourceId, targetId, targetId, sourceId);
+            if (sameSeries) {
+                const error = new Error('A series already has both selected teams');
+                error.status = 409;
+                throw error;
+            }
+            const sameTemporarySeries = this.db.prepare(`SELECT 1 FROM TempSeriesInfo
+                WHERE LeagueId = ? AND ((Team1 = ? AND Team2 = ?) OR (Team1 = ? AND Team2 = ?))
+                LIMIT 1`).get(leagueId, sourceId, targetId, targetId, sourceId);
+            if (sameTemporarySeries) {
+                const error = new Error('A pending series already has both selected teams');
+                error.status = 409;
+                throw error;
+            }
+
+            this.db.prepare(`INSERT OR IGNORE INTO TeamInfo (TeamId, TeamName) VALUES (?, ?)`)
+                .run(targetId, target.TeamName);
+            const matches = this.db.prepare(`UPDATE MatchTeam SET
+                TeamRad = CASE WHEN TeamRad = ? THEN ? ELSE TeamRad END,
+                TeamDire = CASE WHEN TeamDire = ? THEN ? ELSE TeamDire END,
+                WinnerId = CASE WHEN WinnerId = ? THEN ? ELSE WinnerId END
+                WHERE MatchId IN (SELECT MatchId FROM MatchLeague WHERE LeagueId = ?)
+                  AND (TeamRad = ? OR TeamDire = ?)`)
+                .run(sourceId, targetId, sourceId, targetId, sourceId, targetId,
+                    leagueId, sourceId, sourceId).changes;
+            const players = this.db.prepare(`UPDATE MatchTeamPlayer SET TeamId = ?
+                WHERE TeamId = ? AND MatchId IN (SELECT MatchId FROM MatchLeague WHERE LeagueId = ?)`)
+                .run(targetId, sourceId, leagueId).changes;
+            const sourceSeries = this.db.prepare(`SELECT SeriesId, Team1, Team2, DateCreated
+                FROM SeriesInfo WHERE LeagueId = ? AND (Team1 = ? OR Team2 = ?)
+                ORDER BY SeriesId`).all(leagueId, sourceId, sourceId);
+            const findSeries = this.db.prepare(`SELECT SeriesId FROM SeriesInfo
+                WHERE LeagueId = ? AND DateCreated IS ? AND SeriesId != ?
+                  AND ((Team1 = ? AND Team2 = ?) OR (Team1 = ? AND Team2 = ?))
+                ORDER BY SeriesId LIMIT 1`);
+            const foreignSeriesMatch = this.db.prepare(`SELECT 1 FROM SeriesMatch sm
+                LEFT JOIN MatchLeague ml ON ml.MatchId = sm.MatchId
+                WHERE sm.SeriesId = ? AND (ml.LeagueId IS NULL OR ml.LeagueId != ?)
+                LIMIT 1`);
+            const moveSeriesMatches = this.db.prepare(`UPDATE SeriesMatch SET SeriesId = ? WHERE SeriesId = ?`);
+            const updateSeries = this.db.prepare(`UPDATE SeriesInfo SET Team1 = ?, Team2 = ? WHERE SeriesId = ?`);
+            const deleteSeries = this.db.prepare(`DELETE FROM SeriesInfo WHERE SeriesId = ?`);
+            let seriesLinksMoved = 0;
+            let seriesMerged = 0;
+            for (const row of sourceSeries) {
+                if (foreignSeriesMatch.get(row.SeriesId, leagueId)) {
+                    const error = new Error('A series contains matches outside the active league');
+                    error.status = 409;
+                    throw error;
+                }
+                const team1 = row.Team1 === sourceId ? targetId : row.Team1;
+                const team2 = row.Team2 === sourceId ? targetId : row.Team2;
+                const existing = findSeries.get(leagueId, row.DateCreated, row.SeriesId,
+                    team1, team2, team2, team1);
+                if (existing) {
+                    if (foreignSeriesMatch.get(existing.SeriesId, leagueId)) {
+                        const error = new Error('The replacement series contains matches outside the active league');
+                        error.status = 409;
+                        throw error;
+                    }
+                    seriesLinksMoved += moveSeriesMatches.run(existing.SeriesId, row.SeriesId).changes;
+                    deleteSeries.run(row.SeriesId);
+                    seriesMerged++;
+                } else {
+                    updateSeries.run(team1, team2, row.SeriesId);
+                }
+            }
+            const series = sourceSeries.length;
+            this.db.prepare(`UPDATE TempSeriesInfo SET
+                Team1 = CASE WHEN Team1 = ? THEN ? ELSE Team1 END,
+                Team2 = CASE WHEN Team2 = ? THEN ? ELSE Team2 END
+                WHERE LeagueId = ? AND (Team1 = ? OR Team2 = ?)`)
+                .run(sourceId, targetId, sourceId, targetId, leagueId, sourceId, sourceId);
+            this.db.prepare('DELETE FROM LeagueStandings WHERE LeagueId = ? AND TeamId = ?')
+                .run(leagueId, sourceId);
+            this.db.prepare('DELETE FROM Neustadtl WHERE LeagueId = ? AND TeamId = ?')
+                .run(leagueId, sourceId);
+            this.db.prepare('DELETE FROM LeagueTeamNames WHERE LeagueId = ? AND TeamId = ?')
+                .run(leagueId, sourceId);
+            this.rebuildLeagueGroupStandings(leagueId);
+            this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+                'Match Team ID Replacement',
+                `League ${leagueId}: replaced team ${sourceId} with ${targetId} in ${matches} matches, ${players} player rows, ${series} series; merged ${seriesMerged} series and moved ${seriesLinksMoved} series links`
+            );
+            return { matches, players, series, seriesMerged, seriesLinksMoved };
+        })();
+    }
+
     adminCurrentTeams(){
         const leagueId = this.getActiveLeague()?.[0]?.LeagueId;
         if (!leagueId) return [];

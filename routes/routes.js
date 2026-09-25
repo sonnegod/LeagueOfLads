@@ -895,6 +895,45 @@ router.post('/admin/updateMatchTeams', (req, res) => {
   }
 });
 
+router.get('/admin/matchTeamIdOptions', checkAdmin, (req, res) => {
+  try {
+    const league = db.getActiveLeague()?.[0] || null;
+    if (!league) return res.json({ league: null, sources: [], targets: [] });
+    const teams = db.adminCurrentTeams();
+    const linkedIds = new Set(db.queryDatabase(
+      'SELECT TeamId FROM LeagueRosterEntries WHERE LeagueId = ? AND TeamId IS NOT NULL',
+      [league.LeagueId]
+    ).map((row) => row.TeamId));
+    return res.json({
+      league,
+      sources: teams.filter((team) => team.GroupId == null && Number(team.MatchesPlayed) > 0 &&
+        !linkedIds.has(team.TeamId)),
+      targets: teams.filter((team) => team.GroupId != null),
+    });
+  } catch (err) {
+    console.error('Failed to load team ID replacement options:', err);
+    return res.status(500).json({ error: 'Failed to load team IDs' });
+  }
+});
+
+router.post('/admin/replaceMatchTeamId', checkAdmin, (req, res) => {
+  const sourceId = Number(req.body?.sourceId);
+  const targetId = Number(req.body?.targetId);
+  if (![sourceId, targetId].every((id) => Number.isSafeInteger(id) && id > 0) || sourceId === targetId) {
+    return res.status(400).json({ error: 'Select two different valid team IDs' });
+  }
+  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+  if (!leagueId) return res.status(400).json({ error: 'No active league' });
+  try {
+    const updated = db.replaceUngroupedMatchTeamId(leagueId, sourceId, targetId);
+    return res.json({ success: true, ...updated });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    console.error('Failed to replace match team ID:', err);
+    return res.status(500).json({ error: 'Failed to replace team ID' });
+  }
+});
+
 router.get('/admin/currentLeagueTeams', checkAdmin, (req, res) => {
   try {
 

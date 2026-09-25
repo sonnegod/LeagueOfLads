@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import MatchEditorPanel from "../components/MatchEditorPanel";
+import MatchTeamIdReplacementCard from "../components/MatchTeamIdReplacementCard";
 import CurrentLeagueTeams from "../components/CurrentLeagueTeams";
 import LeagueSetupTable from "../components/LeagueSetupTable";
 import GroupHeadToHeadEditor from "../components/GroupHeadToHeadEditor";
@@ -129,6 +130,7 @@ export default function AdminPage() {
               hidden={activeEditorTab !== "matches"} style={activeEditorTab === "matches" ? pageContainer : hiddenPanelStyle}>
               <div style={rightGridStyle}>
                 <MatchEditorPanel onMatchUpdated={triggerRefresh} />
+                <MatchTeamIdReplacementCard refreshKey={refreshKey} onUpdated={triggerRefresh} />
                 <DeleteMatchCard onMatchDeleted={triggerRefresh} />
               </div>
             </div>
