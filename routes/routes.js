@@ -201,7 +201,7 @@ router.get('/admin', (req, res) => {
 
 router.get('/admin/admins', (req, res) => {
   try {
-    return res.json({ admins: db.getAdmins() });
+    return res.json({ admins: db.getAdmins(), canManageAdmins: Boolean(req.admin.HeadAdmin) });
   } catch (err) {
     console.error('Failed to load admins:', err);
     return res.status(500).json({ error: 'Failed to load admins' });

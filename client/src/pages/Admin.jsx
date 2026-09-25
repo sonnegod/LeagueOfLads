@@ -14,7 +14,7 @@ import AdminManagementPanel from "../components/AdminManagementPanel";
 
 
 export default function AdminPage() {
-  const { loading, user } = useAuth();
+  const { loading } = useAuth();
   const [adminData, setAdminData] = useState(null);
   const [error, setError] = useState(null);
 
@@ -179,8 +179,7 @@ export default function AdminPage() {
             </div>}
           </div>
         )}
-        {activeTab === "adminManagement" && <AdminManagementPanel
-          isHeadAdmin={user?.isHeadAdmin} currentPlayerId={user?.accountId} />}
+        {activeTab === "adminManagement" && <AdminManagementPanel />}
     </div>
   );
 }

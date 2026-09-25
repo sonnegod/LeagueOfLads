@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
+export default function AdminManagementPanel() {
   const [admins, setAdmins] = useState([]);
   const [players, setPlayers] = useState([]);
   const [playerId, setPlayerId] = useState('');
@@ -14,7 +14,7 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
   const [roleChoices, setRoleChoices] = useState({});
   const [savingRole, setSavingRole] = useState(null);
   const [removingId, setRemovingId] = useState(null);
-  const [selfDemoted, setSelfDemoted] = useState(false);
+  const [canManage, setCanManage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingManual, setSavingManual] = useState(false);
@@ -23,7 +23,6 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
   const pickerButtonRef = useRef(null);
   const searchInputRef = useRef(null);
   const activeOptionRef = useRef(null);
-  const canManage = isHeadAdmin && !selfDemoted;
   const headCount = admins.filter((admin) => admin.HeadAdmin).length;
   const search = playerSearch.trim().toLowerCase();
   const filteredPlayers = search
@@ -69,28 +68,49 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
   const loadAdmins = useCallback(async (signal) => {
     const response = await fetch('/api/admin/admins', { signal });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Failed to load admins');
+    if (!response.ok) {
+      setCanManage(false);
+      throw new Error(data.error || 'Failed to load admins');
+    }
     setAdmins(data.admins);
     setRoleChoices(Object.fromEntries(data.admins.map((admin) => [admin.AdminPlayerId, String(admin.HeadAdmin)])));
+    const permitted = Boolean(data.canManageAdmins);
+    setCanManage(permitted);
+    if (!permitted) setPlayers([]);
+    return permitted;
   }, []);
 
   const loadPlayers = useCallback(async (signal) => {
     const response = await fetch('/api/admin/adminCandidates', { signal });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Failed to load players');
+    if (!response.ok) {
+      if (response.status === 403) setCanManage(false);
+      throw new Error(data.error || 'Failed to load players');
+    }
     setPlayers(data.players);
   }, []);
 
+  async function readWriteResponse(response, fallback) {
+    const data = await response.json();
+    if (!response.ok) {
+      if (response.status === 403) {
+        setCanManage(false);
+        setPlayers([]);
+        try { await loadAdmins(); } catch { /* Admin access may have been removed. */ }
+      }
+      throw new Error(data.error || fallback);
+    }
+    return data;
+  }
+
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      loadAdmins(controller.signal),
-      ...(isHeadAdmin ? [loadPlayers(controller.signal)] : []),
-    ])
+    loadAdmins(controller.signal)
+      .then((permitted) => permitted ? loadPlayers(controller.signal) : undefined)
       .catch((err) => { if (err.name !== 'AbortError') setError(err.message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [isHeadAdmin, loadAdmins, loadPlayers]);
+  }, [loadAdmins, loadPlayers]);
 
   async function addAdmin(event) {
     event.preventDefault();
@@ -106,8 +126,7 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
           headAdmin: newRole === '1',
         }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to add admin');
+      const data = await readWriteResponse(response, 'Failed to add admin');
       setPlayerId('');
       setPlayerSearch('');
       setPickerOpen(false);
@@ -136,8 +155,7 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
           headAdmin: manualRole === '1',
         }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to add admin');
+      const data = await readWriteResponse(response, 'Failed to add admin');
       setManualPlayerId('');
       setManualPlayerName('');
       setManualRole('0');
@@ -160,12 +178,8 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ headAdmin: roleChoices[admin.AdminPlayerId] === '1' }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to change admin role');
+      const data = await readWriteResponse(response, 'Failed to change admin role');
       await loadAdmins();
-      if (String(admin.AdminPlayerId) === String(currentPlayerId) && !data.admin.HeadAdmin) {
-        setSelfDemoted(true);
-      }
       setMessage(`${data.admin.AdminPlayerName} is now ${data.admin.HeadAdmin ? 'a head admin' : 'an admin'}.`);
     } catch (err) {
       setError(err.message);
@@ -181,8 +195,7 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
     setMessage('');
     try {
       const response = await fetch(`/api/admin/admins/${admin.AdminPlayerId}`, { method: 'DELETE' });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to remove admin');
+      const data = await readWriteResponse(response, 'Failed to remove admin');
       await Promise.all([loadAdmins(), loadPlayers()]);
       setMessage(`${data.removed.AdminPlayerName} no longer has admin access.`);
     } catch (err) {
