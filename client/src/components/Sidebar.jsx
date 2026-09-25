@@ -1,10 +1,11 @@
 // src/components/Sidebar.jsx
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Sidebar.css';
 
 export default function Sidebar({ open, onClose }) {
   const { user } = useAuth();
+  const { pathname } = useLocation();
   const navClassName = ({ isActive }) => `sidebar-link${isActive ? ' is-active' : ''}`;
 
   return (
@@ -14,7 +15,7 @@ export default function Sidebar({ open, onClose }) {
         <NavLink to="/" end className={navClassName} onClick={onClose}>Home</NavLink>
         {user ? <NavLink to="/dashboard" className={navClassName} onClick={onClose}>Dashboard</NavLink> : <a className="sidebar-link" href="/api/auth/steam">Login</a>}
 
-        <NavLink to="/recentMatches" className={navClassName} onClick={onClose}>Recent Matches</NavLink>
+        <NavLink to="/recents" className={({ isActive }) => navClassName({ isActive: isActive || pathname === '/recentMatches' })} onClick={onClose}>Recents</NavLink>
         <NavLink to="/team" className={navClassName} onClick={onClose}>Teams</NavLink>
         <NavLink to="/player" className={navClassName} onClick={onClose}>Players</NavLink>
         {/*<Link to="/match">Matches</Link> removing for performance issues*/}

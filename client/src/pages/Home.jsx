@@ -38,6 +38,7 @@ export default function Home() {
       stageTabsFirst
       defaultToCurrentStage
       alwaysShowGroups
+      showRecentSeries={false}
     />
   );
 }

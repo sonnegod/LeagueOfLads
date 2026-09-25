@@ -1,23 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import './CurrentLeaderboardTable.css';
 
 export default function CurrentLeagueSeries({ leagueId }) {
-
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [matrixPhase, setMatrixPhase] = useState('closed');
+  const [selectedCardSize, setSelectedCardSize] = useState(null);
+  const cardNodes = useRef(new Map());
+  const movingCard = useRef(null);
+  const cardAnimation = useRef(null);
+  const closeTimer = useRef(null);
+  const motionLayer = useRef(null);
+  const motionClones = useRef([]);
+  const originalCards = useRef(new Map());
 
-  // Fetch match data on mount
+  useEffect(() => () => {
+    clearTimeout(closeTimer.current);
+    cardAnimation.current?.cancel();
+    clearMotionClones(motionClones);
+  }, []);
+
   useEffect(() => {
     async function fetchMatches() {
       setLoading(true);
       try {
         const url = leagueId
           ? `/api/currentLeaderboard?leagueId=${leagueId}`
-          : "/api/currentLeaderboard";
+          : '/api/currentLeaderboard';
         const res = await fetch(url);
         const data = await res.json();
-
         setGroups(data || []);
       } catch (err) {
         console.error(err);
@@ -29,67 +42,259 @@ export default function CurrentLeagueSeries({ leagueId }) {
     fetchMatches();
   }, [leagueId]);
 
-    return (
-    <div className="leaderboard-groups" style={containerStyle}>
-    {loading && <div>Loading leaderboard...</div>}
-    {groups.map(group => (
-      <div key={group.GroupId} className="leaderboard-group-card" style={cardStyle}>
-        <div style={{ flexGrow: 1 }}>
+  const selectedGroup = groups.find(group => group.GroupId === selectedGroupId) || groups[0];
+  const showMatrix = matrixPhase === 'open' && selectedGroup?.GroupId === selectedGroupId;
 
-          <h3 style={{ textAlign: "center", color: 'var(--text, #ffffff)' }}>
-          {group.GroupName ? group.GroupName : `Group ${group.GroupId}`}
-        </h3>
+  useLayoutEffect(() => {
+    const previous = movingCard.current;
+    movingCard.current = null;
+    if (!previous || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-        <table className="leaderboard-standings" style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Team</th>
-              <th style={thStyle}>Wins</th>
-              <th style={thStyle}>Losses</th>
-              <th style={thStyle}>Neustadtl</th>
-            </tr>
-          </thead>
-          <tbody>
-            {group.groupTeams.map((team) => (
-                <tr
-                  key={teamKey(team)}
-                  style={getRowStyle(group.groupTeams.some((row) => row.Wins + row.Losses > 0)
-                    ? team.Qualification : null)}
-                >
-                  <td style={tdStyle}>
-                    {team.TeamId == null
-                      ? team.TeamName
-                      : <Link to={`/team/${team.TeamId}`}>{team.TeamName}</Link>}
-                  </td>
-                  <td style={tdStyle}>{team.Wins}</td>
-                  <td style={tdStyle}>{team.Losses}</td>
-                  <td style={tdStyle}>{team.Score}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-        </div>
-        <div className="leaderboard-h2h-desktop" style={h2hContainerStyle}>
-          {buildH2HMatrix(group)}
-        </div>
-        <details className="leaderboard-h2h-mobile">
-          <summary>Head-to-head results</summary>
-          <div className="leaderboard-h2h-scroll">{buildH2HMatrix(group)}</div>
-        </details>
+    const card = cardNodes.current.get(previous.groupId);
+    if (!card) return;
+
+    const next = card.getBoundingClientRect();
+    const deltaX = previous.left - next.left;
+    const deltaY = previous.top - next.top;
+    if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return;
+
+    cardAnimation.current?.cancel();
+    cardAnimation.current = card.animate(
+      [
+        { transform: `translate(${deltaX}px, ${deltaY}px)` },
+        { transform: 'translate(0, 0)' }
+      ],
+      { duration: 820, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'backwards' }
+    );
+  }, [matrixPhase, selectedGroupId]);
+
+  function toggleMatrix(groupId, event) {
+    const workspace = event.currentTarget.closest('.leaderboard-workspace');
+    const workspaceRect = workspace?.getBoundingClientRect();
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (selectedGroupId === groupId && matrixPhase === 'open') {
+      cardAnimation.current?.cancel();
+      clearMotionClones(motionClones);
+
+      const selectedCard = cardNodes.current.get(groupId);
+      const selectedRect = selectedCard?.getBoundingClientRect();
+      const originalRect = originalCards.current.get(groupId);
+      if (!reduceMotion && selectedCard && selectedRect && originalRect && workspaceRect) {
+        const targetLeft = workspaceRect.left + originalRect.left;
+        const targetTop = workspaceRect.top + originalRect.top;
+        cardAnimation.current = selectedCard.animate(
+          [
+            { transform: 'translate(0, 0)' },
+            { transform: `translate(${targetLeft - selectedRect.left}px, ${targetTop - selectedRect.top}px)` }
+          ],
+          { duration: 820, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' }
+        );
+
+        for (const [otherGroupId, destination] of originalCards.current) {
+          if (otherGroupId === groupId) continue;
+          const otherCard = cardNodes.current.get(otherGroupId);
+          if (!otherCard || !motionLayer.current) continue;
+
+          const clone = createMotionClone(otherCard, destination, motionLayer.current);
+          const deltaX = selectedRect.left - (workspaceRect.left + destination.left);
+          const deltaY = selectedRect.top - (workspaceRect.top + destination.top);
+          const animation = clone.animate(
+            [
+              { transform: `translate(${deltaX}px, ${deltaY}px) scale(.78)`, opacity: 0 },
+              { transform: 'translate(0, 0) scale(1)', opacity: 1 }
+            ],
+            { duration: 820, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' }
+          );
+          motionClones.current.push({ clone, animation });
+        }
+      }
+
+      movingCard.current = null;
+      setMatrixPhase('closing');
+      clearTimeout(closeTimer.current);
+      closeTimer.current = setTimeout(() => {
+        const card = cardNodes.current.get(groupId);
+        if (card) {
+          const { left, top } = card.getBoundingClientRect();
+          movingCard.current = { groupId, left, top };
+        }
+        cardAnimation.current?.cancel();
+        cardAnimation.current = null;
+        clearMotionClones(motionClones);
+        setMatrixPhase('closed');
+      }, reduceMotion ? 0 : 840);
+    } else {
+      clearTimeout(closeTimer.current);
+      clearMotionClones(motionClones);
+      cardAnimation.current?.cancel();
+      cardAnimation.current = null;
+      if (selectedGroupId === groupId && matrixPhase === 'closing') {
+        setMatrixPhase('open');
+        return;
+      }
+
+      const card = event.currentTarget.closest('.leaderboard-group-card');
+      if (card) {
+        const { left, top, width, height } = card.getBoundingClientRect();
+        movingCard.current = { groupId, left, top };
+        setSelectedCardSize({ width, height });
+      }
+      if (workspaceRect) {
+        originalCards.current = new Map(
+          [...cardNodes.current].map(([id, node]) => {
+            const rect = node.getBoundingClientRect();
+            return [id, {
+              left: rect.left - workspaceRect.left,
+              top: rect.top - workspaceRect.top,
+              width: rect.width,
+              height: rect.height
+            }];
+          })
+        );
+
+        if (!reduceMotion && motionLayer.current) {
+          for (const [otherGroupId, position] of originalCards.current) {
+            if (otherGroupId === groupId) continue;
+            const otherCard = cardNodes.current.get(otherGroupId);
+            if (!otherCard) continue;
+
+            const clone = createMotionClone(otherCard, position, motionLayer.current);
+            const animation = clone.animate(
+              [
+                { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                { transform: `translate(${-position.left}px, ${-position.top}px) scale(.78)`, opacity: 0 }
+              ],
+              { duration: 820, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' }
+            );
+            motionClones.current.push({ clone, animation });
+            animation.onfinish = () => {
+              clone.remove();
+              motionClones.current = motionClones.current.filter(item => item.clone !== clone);
+            };
+          }
+        }
+      }
+      setSelectedGroupId(groupId);
+      setMatrixPhase('open');
+    }
+  }
+
+  return (
+    <div className={`leaderboard-workspace${showMatrix ? ' is-expanded' : ''}${matrixPhase === 'closing' ? ' is-closing' : ''}`}>
+      <div className="leaderboard-groups">
+        {loading && <div className="leaderboard-loading">Loading leaderboard...</div>}
+        {groups.map(group => {
+          const showQualification = group.groupTeams.some(team => team.Wins + team.Losses > 0);
+          const isSelected = matrixPhase !== 'closed' && selectedGroupId === group.GroupId;
+
+          return (
+            <section
+              key={group.GroupId}
+              ref={node => {
+                if (node) cardNodes.current.set(group.GroupId, node);
+                else cardNodes.current.delete(group.GroupId);
+              }}
+              className={`leaderboard-group-card${isSelected ? ' is-selected' : ''}`}
+              style={isSelected && selectedCardSize
+                ? {
+                    '--leaderboard-card-start-width': `${selectedCardSize.width}px`,
+                    '--leaderboard-card-start-height': `${selectedCardSize.height}px`
+                  }
+                : undefined}
+            >
+              <div className="leaderboard-group-heading">
+                <div>
+                  <span className="leaderboard-group-eyebrow">Group standings</span>
+                  <h3>{group.GroupName || `Group ${group.GroupId}`}</h3>
+                </div>
+                <div className="leaderboard-heading-actions">
+                  <span className="leaderboard-team-count">{group.groupTeams.length} teams</span>
+                  <button
+                    type="button"
+                    className="leaderboard-matrix-toggle"
+                    aria-expanded={showMatrix && isSelected}
+                    aria-controls="leaderboard-active-matrix"
+                    onClick={event => toggleMatrix(group.GroupId, event)}
+                  >
+                    {showMatrix && isSelected ? 'Hide H2H Matrix' : 'Show H2H Matrix'}
+                  </button>
+                </div>
+              </div>
+
+              <table className="leaderboard-standings">
+                  <thead>
+                    <tr>
+                      <th scope="col">Team</th>
+                      <th scope="col">Wins</th>
+                      <th scope="col">Losses</th>
+                      <th scope="col">Neustadtl</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.groupTeams.map(team => (
+                      <tr
+                        key={teamKey(team)}
+                        className={showQualification && team.Qualification
+                          ? `leaderboard-qualification-${team.Qualification}`
+                          : undefined}
+                      >
+                        <th scope="row">
+                          {team.TeamId == null
+                            ? team.TeamName
+                            : <Link to={`/team/${team.TeamId}`}>{team.TeamName}</Link>}
+                        </th>
+                        <td>{team.Wins}</td>
+                        <td>{team.Losses}</td>
+                        <td>{team.Score}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+              </table>
+            </section>
+          );
+        })}
       </div>
-      
-    ))}
-  </div>
-);
-
+      {selectedGroup && (
+        <div className="leaderboard-matrix-stage" aria-hidden={!showMatrix}>
+          <section key={selectedGroup.GroupId} id="leaderboard-active-matrix" className="leaderboard-h2h-panel">
+            <div className="leaderboard-matrix-heading">
+              <div>
+                <span className="leaderboard-group-eyebrow">{selectedGroup.GroupName || `Group ${selectedGroup.GroupId}`}</span>
+                <h4>Head to head</h4>
+              </div>
+              <span>Columns match row numbers</span>
+            </div>
+            {buildH2HMatrix(selectedGroup)}
+          </section>
+        </div>
+      )}
+      <div ref={motionLayer} className="leaderboard-motion-layer" aria-hidden="true" />
+    </div>
+  );
 }
 
-function getRowStyle(qualification) {
-  if (!qualification) return {};
-  if (qualification === 'upper') return { backgroundColor: "#123d1a" };
-  if (qualification === 'tiebreaker') return { backgroundColor: "#2a3a66" };
-  if (qualification === 'lower') return { backgroundColor: "#4b3b1f" };
-  return { backgroundColor: "#3d1212" };
+function createMotionClone(card, position, layer) {
+  const clone = card.cloneNode(true);
+  clone.classList.add('leaderboard-motion-clone');
+  clone.setAttribute('aria-hidden', 'true');
+  clone.setAttribute('inert', '');
+  Object.assign(clone.style, {
+    left: `${position.left}px`,
+    top: `${position.top}px`,
+    width: `${position.width}px`,
+    height: `${position.height}px`
+  });
+  layer.appendChild(clone);
+  return clone;
+}
+
+function clearMotionClones(clones) {
+  clones.current.forEach(({ clone, animation }) => {
+    animation.cancel();
+    clone.remove();
+  });
+  clones.current = [];
 }
 
 function teamKey(team) {
@@ -97,113 +302,57 @@ function teamKey(team) {
 }
 
 function buildH2HMatrix(group) {
-  if (!group.groupH2H || !Array.isArray(group.groupH2H)) return null;
-
   const teams = group.groupTeams;
-
-  // Fast lookup map
   const h2hMap = {};
-  group.groupH2H.forEach(row => {
-    const key = `${row.TeamA}-${row.TeamB}`;
-    h2hMap[key] = row;
+  (Array.isArray(group.groupH2H) ? group.groupH2H : []).forEach(row => {
+    h2hMap[`${row.TeamA}-${row.TeamB}`] = row;
   });
 
-  const smallTd = {
-    ...tdStyle,
-    fontSize: "10px",
-    padding: "4px"
-  };
-
   return (
-    <table className="leaderboard-h2h-table" style={{ ...tableStyle, marginTop: "12px" }}>
+    <table
+      className={`leaderboard-h2h-table${teams.length >= 10 ? ' is-dense' : ''}`}
+      aria-label={`${group.GroupName || `Group ${group.GroupId}`} head to head results`}
+    >
       <thead>
         <tr>
-          <th style={h2hThStyle}></th>
-          {teams.map(t => (
-            <th key={teamKey(t)} style={h2hThStyle}>
-              {t.TeamName}
+          <th scope="col">Team</th>
+          {teams.map((team, index) => (
+            <th key={teamKey(team)} scope="col" title={team.TeamName} aria-label={`${index + 1}: ${team.TeamName}`}>
+              {index + 1}
             </th>
           ))}
         </tr>
       </thead>
-
       <tbody>
-        {teams.map(rowTeam => (
+        {teams.map((rowTeam, index) => (
           <tr key={teamKey(rowTeam)}>
-            <th style={h2hThStyle}>{rowTeam.TeamName}</th>
-
+            <th scope="row"><span className="leaderboard-matrix-row-number" aria-hidden="true">{index + 1}</span>{rowTeam.TeamName}</th>
             {teams.map(colTeam => {
-              // Diagonal cells (same team) — render white with black text per request
               if (teamKey(rowTeam) === teamKey(colTeam)) {
-                return (
-                  <td
-                    key={teamKey(colTeam)}
-                    style={{
-                        ...smallTd,
-                        background: "#d1d5db",
-                        color: "#000000"
-                      }}
-                  >
-                    —
-                  </td>
-                );
+                return <td key={teamKey(colTeam)} className="leaderboard-h2h-diagonal" aria-label="Same team">—</td>;
               }
 
-              // Look up H2H match record
               const match = rowTeam.TeamId != null && colTeam.TeamId != null ? (
                 h2hMap[`${rowTeam.TeamId}-${colTeam.TeamId}`] ||
                 h2hMap[`${colTeam.TeamId}-${rowTeam.TeamId}`]
               ) : null;
 
               if (!match) {
-                return (
-                  <td
-                    key={teamKey(colTeam)}
-                    style={{ ...smallTd, background: "#d1d5db", color: "#000000" }}
-                  >
-                    0–0
-                  </td>
-                );
+                return <td key={teamKey(colTeam)} className="leaderboard-h2h-unplayed">0–0</td>;
               }
 
-              // Determine rowTeam and colTeam results
-              let winsRow = 0;
-              let winsCol = 0;
-
-              if (match.TeamA === rowTeam.TeamId) {
-                winsRow = match.WinsA;
-                winsCol = match.WinsB;
-              } else {
-                winsRow = match.WinsB;
-                winsCol = match.WinsA;
-              }
-
-              // Determine background color — use a slightly lighter TieBreakerTable palette
-              // default: white (non-highlighted)
-              let bgColor = "#ffffff";
-              let textColor = "#000000";
-
-              // Lighter highlight colors for better contrast on dark backgrounds
-              if (winsRow === 2 && winsCol === 0) {
-                bgColor = "#1f7a46"; // lighter green
-                textColor = "#f1f1f1";
-              } else if (winsRow === 0 && winsCol === 2) {
-                bgColor = "#7a2b2b"; // lighter red
-                textColor = "#f1f1f1";
-              } else if (winsRow === 1 && winsCol === 1) {
-                bgColor = "#8a6638"; // lighter orange
-                textColor = "#f1f1f1";
-              }
+              const winsRow = match.TeamA === rowTeam.TeamId ? match.WinsA : match.WinsB;
+              const winsCol = match.TeamA === rowTeam.TeamId ? match.WinsB : match.WinsA;
+              const resultClass = winsRow > winsCol
+                ? 'leaderboard-h2h-win'
+                : winsRow < winsCol
+                  ? 'leaderboard-h2h-loss'
+                  : winsRow > 0
+                    ? 'leaderboard-h2h-tie'
+                    : 'leaderboard-h2h-unplayed';
 
               return (
-                <td
-                  key={teamKey(colTeam)}
-                  style={{
-                    ...smallTd,
-                    background: bgColor,
-                    color: textColor
-                  }}
-                >
+                <td key={teamKey(colTeam)} className={resultClass}>
                   {winsRow}–{winsCol}
                 </td>
               );
@@ -214,69 +363,3 @@ function buildH2HMatrix(group) {
     </table>
   );
 }
-
-
-
-
-// Styles (replace your existing ones)
-const containerStyle = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "16px",          // spacing between cards
-  justifyContent: "center",
-  color: "var(--text, #e6e6e6)",
-};
-
-const cardStyle = {
-  border: "1px solid var(--border, #222428)",
-  background: "var(--surface, #121315)",
-  borderRadius: "8px",
-  padding: "12px",
-  boxSizing: "border-box",
-  flex: "1 1 340px",    // allow grow, allow shrink, base width 340px
-  minWidth: 0,          // IMPORTANT: allow flex child to shrink
-  maxWidth: "800px",    // optional: limit how wide each card grows
-  display: "flex",
-  flexDirection: "column",
-};
-
-const tableStyle = {
-  width: "100%",
-  borderCollapse: "collapse",
-  tableLayout: "fixed", // important: columns respect available width
-  minWidth: 0,          // allow table to shrink to parent
-  color: 'var(--text, #e6e6e6)'
-};
-
-const thStyle = {
-  border: "1px solid var(--border, #222428)",
-  padding: "8px",
-  textAlign: "center",
-  whiteSpace: "nowrap",
-  color: 'var(--text, #e6e6e6)'
-};
-
-const tdStyle = {
-  border: "1px solid var(--border, #222428)",
-  padding: "8px",
-  textAlign: "center",
-  wordBreak: "break-word",
-  color: 'var(--text, #e6e6e6)'
-};
-
-const h2hThStyle = {
-  ...thStyle,
-  whiteSpace: "normal",   // allow wrapping
-  fontSize: "10px",       // smaller text
-  maxWidth: "100px",       // prevents giant columns
-  padding: "4px",         // tighter look
-  overflowWrap: "break-word",   // modern
-  wordBreak: "break-word", 
-};
-
-const h2hContainerStyle = {
-  marginTop: "16px",
-  flexGrow: 1,               // forces matrix areas to fill equally
-  display: "flex",
-  alignItems: "stretch",
-};

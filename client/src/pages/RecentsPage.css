@@ -1,0 +1,18 @@
+.recents-page {
+  min-width: 0;
+}
+
+.recents-panel {
+  min-width: 0;
+}
+
+.recents-tabs .ui-tab[aria-current='page'] {
+  border-color: #3b82f6 !important;
+  background: #1d4ed8 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(29, 78, 216, .22) !important;
+}
+
+.recents-page .recent-matches {
+  max-width: 100%;
+}
