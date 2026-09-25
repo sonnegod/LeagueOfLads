@@ -50,7 +50,9 @@ admin. It backs up the database first and can be rerun safely. The new server
 checks this table for every `/admin` request. Admin Management in the portal
 shows the current list to every admin. Head admins can select an existing
 `PlayerInfo` player by account ID or display name, choose their role, and change existing
-admins between Admin and Head Admin. Head admins can remove non-head admins.
+admins between Admin and Head Admin. They can also add an account manually by
+Steam account ID and name if it is absent from `PlayerInfo`. Head admins can
+remove non-head admins.
 There is no cap on head admins; the final head admin cannot be demoted.
 
 The active league's preseason roster is entered in the Admin tab before teams

@@ -8,12 +8,16 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [activePlayerIndex, setActivePlayerIndex] = useState(0);
   const [newRole, setNewRole] = useState('0');
+  const [manualPlayerId, setManualPlayerId] = useState('');
+  const [manualPlayerName, setManualPlayerName] = useState('');
+  const [manualRole, setManualRole] = useState('0');
   const [roleChoices, setRoleChoices] = useState({});
   const [savingRole, setSavingRole] = useState(null);
   const [removingId, setRemovingId] = useState(null);
   const [selfDemoted, setSelfDemoted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingManual, setSavingManual] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const pickerButtonRef = useRef(null);
@@ -117,6 +121,35 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
     }
   }
 
+  async function addManualAdmin(event) {
+    event.preventDefault();
+    setSavingManual(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch('/api/admin/admins/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminPlayerId: manualPlayerId.trim(),
+          adminPlayerName: manualPlayerName.trim(),
+          headAdmin: manualRole === '1',
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to add admin');
+      setManualPlayerId('');
+      setManualPlayerName('');
+      setManualRole('0');
+      setMessage(`${data.admin.AdminPlayerName} can now access the admin portal.`);
+      await loadAdmins();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingManual(false);
+    }
+  }
+
   async function saveRole(admin) {
     setSavingRole(admin.AdminPlayerId);
     setError('');
@@ -166,6 +199,8 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
       {message && <p role="status" style={successStyle}>{message}</p>}
 
       {canManage && (
+        <>
+        <h3 style={formHeadingStyle}>Add from Player Base</h3>
         <form onSubmit={addAdmin} style={formStyle}>
           <div style={fieldStyle} onBlur={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget)) setPickerOpen(false);
@@ -226,6 +261,33 @@ export default function AdminManagementPanel({ isHeadAdmin, currentPlayerId }) {
           </label>
           <button type="submit" disabled={saving || !playerId}>{saving ? 'Adding...' : 'Add Admin'}</button>
         </form>
+        <h3 style={formHeadingStyle}>Add an account manually</h3>
+        <p style={hintStyle}>Use this when the account is not in PlayerInfo.</p>
+        <form onSubmit={addManualAdmin} style={formStyle}>
+          <label style={fieldStyle} htmlFor="manual-admin-id">
+            Steam account ID
+            <input id="manual-admin-id" type="text" inputMode="numeric" pattern="[0-9]+"
+              required value={manualPlayerId} onChange={(event) => setManualPlayerId(event.target.value)}
+              style={inputStyle} />
+          </label>
+          <label style={fieldStyle} htmlFor="manual-admin-name">
+            Account name
+            <input id="manual-admin-name" type="text" maxLength={60} required value={manualPlayerName}
+              onChange={(event) => setManualPlayerName(event.target.value)} style={inputStyle} />
+          </label>
+          <label style={fieldStyle} htmlFor="manual-admin-role">
+            Role
+            <select id="manual-admin-role" value={manualRole}
+              onChange={(event) => setManualRole(event.target.value)} style={inputStyle}>
+              <option value="0">Admin</option>
+              <option value="1">Head Admin</option>
+            </select>
+          </label>
+          <button type="submit" disabled={savingManual || !manualPlayerId.trim() || !manualPlayerName.trim()}>
+            {savingManual ? 'Adding...' : 'Add Manual Admin'}
+          </button>
+        </form>
+        </>
       )}
       {canManage && !loading && players.length === 0 && <p>No eligible players found in PlayerInfo.</p>}
 
@@ -290,6 +352,9 @@ const formStyle = {
   gap: '12px',
   marginBottom: '24px',
 };
+
+const formHeadingStyle = { marginBottom: 0 };
+const hintStyle = { marginTop: '4px', color: 'var(--muted-text, #9aa0b4)' };
 
 const fieldStyle = { display: 'grid', gap: '6px', minWidth: '220px', flex: '1 1 220px' };
 const inputStyle = {

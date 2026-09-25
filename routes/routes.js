@@ -244,6 +244,36 @@ router.post('/admin/admins', checkHeadAdmin, (req, res) => {
   }
 });
 
+router.post('/admin/admins/manual', checkHeadAdmin, (req, res) => {
+  const rawId = String(req.body?.adminPlayerId ?? '').trim();
+  const playerId = Number(rawId);
+  const playerName = String(req.body?.adminPlayerName ?? '').trim();
+  const headAdmin = req.body?.headAdmin ?? false;
+
+  if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(playerId) || playerId <= 0) {
+    return res.status(400).json({ error: 'Enter a valid Steam account ID (not a 64-bit Steam ID)' });
+  }
+  if (!playerName || playerName.length > 60) {
+    return res.status(400).json({ error: 'Account name must be between 1 and 60 characters' });
+  }
+  if (typeof headAdmin !== 'boolean') {
+    return res.status(400).json({ error: 'Admin role must be a boolean' });
+  }
+
+  try {
+    const admin = db.addManualAdmin(playerId, playerName, headAdmin, req.admin.AdminPlayerId);
+    return res.status(201).json({ admin });
+  } catch (err) {
+    if (err.code === 'ADMIN_EXISTS' || err.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' ||
+        err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'This player ID is already an admin' });
+    }
+    if (err.code === 'PLAYER_IN_PLAYERINFO') return res.status(409).json({ error: err.message });
+    console.error('Failed to add manual admin:', err);
+    return res.status(500).json({ error: 'Failed to add admin' });
+  }
+});
+
 router.patch('/admin/admins/:playerId', checkHeadAdmin, (req, res) => {
   const rawId = req.params.playerId;
   const playerId = Number(rawId);

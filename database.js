@@ -83,6 +83,28 @@ class DBInstance {
         })();
     }
 
+    addManualAdmin(playerId, playerName, headAdmin, actorId){
+        const role = headAdmin ? 1 : 0;
+        return this.db.transaction(() => {
+            if (this.getAdminByPlayerId(playerId)) {
+                const error = new Error('This player ID is already an admin');
+                error.code = 'ADMIN_EXISTS';
+                throw error;
+            }
+            if (this.db.prepare(`SELECT 1 FROM PlayerInfo WHERE PlayerId = ?`).get(playerId)) {
+                const error = new Error('This player is in PlayerInfo; select them from the player dropdown');
+                error.code = 'PLAYER_IN_PLAYERINFO';
+                throw error;
+            }
+            this.db.prepare(`INSERT INTO Admins (AdminPlayerId, AdminPlayerName, HeadAdmin)
+                VALUES (?, ?, ?)`).run(playerId, playerName, role);
+            this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+                'Admin Added', `Admin ${actorId} manually added ${playerName} (${playerId}) as ${role ? 'head admin' : 'admin'}`
+            );
+            return this.getAdminByPlayerId(playerId);
+        })();
+    }
+
     setAdminRole(playerId, headAdmin, actorId){
         return this.db.transaction(() => {
             const current = this.getAdminByPlayerId(playerId);
