@@ -144,7 +144,6 @@ CREATE TABLE LiveMatchCurrentState (
     GameDuration REAL,
     StreamDelaySeconds INTEGER,
     SnapshotHash TEXT NOT NULL,
-    ResponseJson TEXT NOT NULL,
     LastUpdated DATETIME DEFAULT CURRENT_TIMESTAMP
 , RadiantTowerState INTEGER, DireTowerState INTEGER, RadiantBarracksState INTEGER, DireBarracksState INTEGER);
 
@@ -193,12 +192,13 @@ CREATE TABLE LiveMatchSnapshots (
     LobbyId INTEGER,
     RadiantTeamId INTEGER,
     DireTeamId INTEGER,
+    RadiantTeamName TEXT,
+    DireTeamName TEXT,
     RadiantScore INTEGER,
     DireScore INTEGER,
     GameDuration REAL,
     StreamDelaySeconds INTEGER,
     SnapshotHash TEXT NOT NULL,
-    ResponseJson TEXT NOT NULL,
     CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
 , RadiantTowerState INTEGER, DireTowerState INTEGER, RadiantBarracksState INTEGER, DireBarracksState INTEGER);
 

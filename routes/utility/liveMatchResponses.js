@@ -13,8 +13,6 @@ export function toNullableNumber(value) {
 }
 
 export function withLiveMatchJson(row) {
-  const response = parseJson(row.ResponseJson, {});
-  const scoreboard = response?.scoreboard || {};
   const normalizedPlayers = (row.Players || []).map((player) => ({
     account_id: player.AccountId,
     name: player.PlayerName,
@@ -43,22 +41,15 @@ export function withLiveMatchJson(row) {
 
   return {
     ...row,
-    RadiantTeamName: row.RadiantTeamName || response?.radiant_team?.team_name || null,
-    DireTeamName: row.DireTeamName || response?.dire_team?.team_name || null,
-    RadiantTowerState: row.RadiantTowerState ?? scoreboard?.radiant?.tower_state ?? null,
-    DireTowerState: row.DireTowerState ?? scoreboard?.dire?.tower_state ?? null,
-    RadiantBarracksState: row.RadiantBarracksState ?? scoreboard?.radiant?.barracks_state ?? null,
-    DireBarracksState: row.DireBarracksState ?? scoreboard?.dire?.barracks_state ?? null,
-    Players: normalizedPlayers.length ? normalizedPlayers : response?.players || [],
-    RadiantPicks: radiantPicks.length ? radiantPicks : scoreboard?.radiant?.picks || [],
-    DirePicks: direPicks.length ? direPicks : scoreboard?.dire?.picks || [],
-    RadiantBans: radiantBans.length ? radiantBans : scoreboard?.radiant?.bans || [],
-    DireBans: direBans.length ? direBans : scoreboard?.dire?.bans || [],
-    Raw: response,
+    Players: normalizedPlayers,
+    RadiantPicks: radiantPicks,
+    DirePicks: direPicks,
+    RadiantBans: radiantBans,
+    DireBans: direBans,
   };
 }
 
-export function toAppLiveMatch(row, { includeRaw = false } = {}) {
+export function toAppLiveMatch(row) {
   const match = withLiveMatchJson(row);
   const players = (match.Players || []).map((player) => ({
     accountId: toNullableNumber(player.account_id),
@@ -130,10 +121,6 @@ export function toAppLiveMatch(row, { includeRaw = false } = {}) {
       },
     },
   };
-
-  if (includeRaw) {
-    payload.raw = match.Raw || {};
-  }
 
   return payload;
 }

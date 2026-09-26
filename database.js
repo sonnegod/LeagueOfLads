@@ -1008,6 +1008,8 @@ class DBInstance {
                 LobbyId,
                 RadiantTeamId,
                 DireTeamId,
+                RadiantTeamName,
+                DireTeamName,
                 RadiantScore,
                 DireScore,
                 GameDuration,
@@ -1016,8 +1018,7 @@ class DBInstance {
                 DireTowerState,
                 RadiantBarracksState,
                 DireBarracksState,
-                SnapshotHash,
-                ResponseJson
+                SnapshotHash
             )
             VALUES (
                 @MatchId,
@@ -1025,6 +1026,8 @@ class DBInstance {
                 @LobbyId,
                 @RadiantTeamId,
                 @DireTeamId,
+                @RadiantTeamName,
+                @DireTeamName,
                 @RadiantScore,
                 @DireScore,
                 @GameDuration,
@@ -1033,8 +1036,7 @@ class DBInstance {
                 @DireTowerState,
                 @RadiantBarracksState,
                 @DireBarracksState,
-                @SnapshotHash,
-                @ResponseJson
+                @SnapshotHash
             )
         `).run({
             MatchId: matchData.MatchId,
@@ -1042,6 +1044,8 @@ class DBInstance {
             LobbyId: matchData.LobbyId,
             RadiantTeamId: matchData.RadiantTeamId,
             DireTeamId: matchData.DireTeamId,
+            RadiantTeamName: matchData.RadiantTeamName,
+            DireTeamName: matchData.DireTeamName,
             RadiantScore: matchData.RadiantScore,
             DireScore: matchData.DireScore,
             GameDuration: matchData.GameDuration,
@@ -1050,8 +1054,7 @@ class DBInstance {
             DireTowerState: matchData.DireTowerState,
             RadiantBarracksState: matchData.RadiantBarracksState,
             DireBarracksState: matchData.DireBarracksState,
-            SnapshotHash: matchData.SnapshotHash,
-            ResponseJson: matchData.ResponseJson
+            SnapshotHash: matchData.SnapshotHash
         });
 
         return result.lastInsertRowid;
@@ -1075,8 +1078,7 @@ class DBInstance {
                 DireTowerState,
                 RadiantBarracksState,
                 DireBarracksState,
-                SnapshotHash,
-                ResponseJson
+                SnapshotHash
             )
             VALUES (
                 @MatchId,
@@ -1094,8 +1096,7 @@ class DBInstance {
                 @DireTowerState,
                 @RadiantBarracksState,
                 @DireBarracksState,
-                @SnapshotHash,
-                @ResponseJson
+                @SnapshotHash
             )
             ON CONFLICT(MatchId) DO UPDATE SET
                 LeagueId = excluded.LeagueId,
@@ -1113,7 +1114,6 @@ class DBInstance {
                 RadiantBarracksState = excluded.RadiantBarracksState,
                 DireBarracksState = excluded.DireBarracksState,
                 SnapshotHash = excluded.SnapshotHash,
-                ResponseJson = excluded.ResponseJson,
                 LastUpdated = CURRENT_TIMESTAMP
         `).run(matchData);
     }

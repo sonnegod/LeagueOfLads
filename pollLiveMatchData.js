@@ -202,7 +202,6 @@ function normalizeLiveMatch(game, activeLeagueId) {
     RadiantBarracksState: nullableNumber(game.scoreboard?.radiant?.barracks_state),
     DireBarracksState: nullableNumber(game.scoreboard?.dire?.barracks_state),
     SnapshotHash: createHash('sha256').update(responseJson).digest('hex'),
-    ResponseJson: responseJson,
     Players: normalizeLivePlayers(game, matchId),
     Draft: normalizeDraftState(game, matchId),
   };

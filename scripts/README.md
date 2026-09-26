@@ -65,3 +65,15 @@ or removed.
 
 The root shell wrappers remain at the project root because server cron/PM2 jobs
 may call those paths directly.
+
+Before deploying compact live snapshots, stop the live poller and server, then run:
+
+```bash
+node scripts/db/migrateCompactLiveSnapshots.js /root/LeagueOfLads/db/LadsData.db
+```
+
+The migration backs up the database, moves snapshot team names into columns,
+removes the raw API response from `LiveMatchSnapshots` and
+`LiveMatchCurrentState`, and compacts the database file. Player and draft data
+remain in their existing tables. Check the site after restarting, then remove the migration's
+`.bak` file when the backup is no longer needed to reclaim that space.

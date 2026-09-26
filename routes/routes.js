@@ -459,10 +459,9 @@ router.get('/app/live-matches/count', (req, res) => {
 
 router.get('/app/live-matches/:matchId/snapshots', (req, res) => {
   try {
-    const includeRaw = req.query.includeRaw === 'true';
     const snapshots = db
       .getLiveMatchSnapshots(req.params.matchId)
-      .map((snapshot) => toAppLiveMatch(snapshot, { includeRaw }));
+      .map((snapshot) => toAppLiveMatch(snapshot));
 
     res.json({
       generatedAt: new Date().toISOString(),
