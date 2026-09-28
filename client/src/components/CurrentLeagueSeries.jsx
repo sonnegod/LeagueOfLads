@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import MatchResultBadge from './MatchResultBadge';
 import './CurrentLeagueSeries.css';
 
 export default function CurrentLeagueSeries({ leagueId }) {
@@ -95,12 +96,12 @@ export default function CurrentLeagueSeries({ leagueId }) {
                           </td>
                           <td style={tdStyle}>
                             <Link to={`/team/${match.rad_team_id}`}>
-                              {match.rad_team_name}{match.WinnerSide === 'r' && '♔'}
+                              {match.rad_team_name} <MatchResultBadge winnerSide={match.WinnerSide} side="r" />
                             </Link>
                           </td>
                           <td style={tdStyle}>
                             <Link to={`/team/${match.dire_team_id}`}>
-                              {match.dire_team_name}{match.WinnerSide === 'd' && '♔'}
+                              {match.dire_team_name} <MatchResultBadge winnerSide={match.WinnerSide} side="d" />
                             </Link>
                           </td>
                           <td style={tdStyle}>
@@ -145,11 +146,11 @@ export default function CurrentLeagueSeries({ leagueId }) {
                       </Link>
                       <div className="series-match-team">
                         <Link to={`/team/${match.rad_team_id}`}>{match.rad_team_name}</Link>
-                        {match.WinnerSide === 'r' && <span className="series-winner">Winner</span>}
+                        <MatchResultBadge winnerSide={match.WinnerSide} side="r" />
                       </div>
                       <div className="series-match-team">
                         <Link to={`/team/${match.dire_team_id}`}>{match.dire_team_name}</Link>
-                        {match.WinnerSide === 'd' && <span className="series-winner">Winner</span>}
+                        <MatchResultBadge winnerSide={match.WinnerSide} side="d" />
                       </div>
                       <span className="series-match-duration">
                         {Math.floor(match.Duration / 60)}:{(match.Duration % 60).toString().padStart(2, '0')}

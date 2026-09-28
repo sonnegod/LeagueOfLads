@@ -1,0 +1,21 @@
+.rules-page { max-width: 900px; }
+.rules-search { margin: 1rem 0 1.5rem; }
+.rules-search label { display: block; margin-bottom: .4rem; }
+.rules-search-controls { display: flex; flex-wrap: wrap; gap: .5rem; }
+.rules-search-controls input { flex: 1 1 260px; min-width: 0; }
+.rules-section { margin-top: 1.5rem; }
+.rules-section summary { cursor: pointer; font-size: 1.3rem; font-weight: 700; }
+.rules-section summary:hover { color: var(--primary); }
+.rules-section summary:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
+
+.rules-list {
+  padding-left: 1.5rem;
+  line-height: 1.7;
+}
+
+.rules-list li {
+  padding-left: .25rem;
+  margin-bottom: .9rem;
+}
+
+.rules-list-text { white-space: pre-wrap; }

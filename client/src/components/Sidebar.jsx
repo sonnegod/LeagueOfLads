@@ -13,7 +13,7 @@ export default function Sidebar({ open, onClose }) {
       <nav className="sidebar-nav" id="primary-navigation" aria-label="Primary navigation">
         <span className="sidebar-section-label">Explore</span>
         <NavLink to="/" end className={navClassName} onClick={onClose}>Home</NavLink>
-        {user ? <NavLink to="/dashboard" className={navClassName} onClick={onClose}>Dashboard</NavLink> : <a className="sidebar-link" href="/api/auth/steam">Login</a>}
+        {user && <NavLink to="/dashboard" className={navClassName} onClick={onClose}>Dashboard</NavLink>}
 
         <NavLink to="/recents" className={({ isActive }) => navClassName({ isActive: isActive || pathname === '/recentMatches' })} onClick={onClose}>Recents</NavLink>
         <NavLink to="/team" className={navClassName} onClick={onClose}>Teams</NavLink>
@@ -22,6 +22,7 @@ export default function Sidebar({ open, onClose }) {
         <NavLink to="/league" className={navClassName} onClick={onClose}>Leagues</NavLink>
         <NavLink to="/h2h" className={navClassName} onClick={onClose}>Head to Head</NavLink>
         <NavLink to="/hero" className={navClassName} onClick={onClose}>Heroes</NavLink>
+        <NavLink to="/rules" className={navClassName} onClick={onClose}>Rules</NavLink>
 
         {/*<Link to="/betting" onClick={onClose}>Betting</Link>*/}
 

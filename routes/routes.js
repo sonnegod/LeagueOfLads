@@ -193,7 +193,136 @@ router.get('/dashboard', (req, res) => {
   `);
 });
 
+router.get('/rules', (req, res) => {
+  try {
+    res.json({ rules: db.getSiteRules() });
+  } catch (err) {
+    console.error('Failed to load rules:', err);
+    res.status(500).json({ error: 'Failed to load rules' });
+  }
+});
+
 router.use('/admin', checkAdmin);
+
+router.get('/admin/auditLog', (req, res) => {
+  const beforeId = req.query.before === undefined ? null : Number(req.query.before);
+  if (beforeId !== null && (!Number.isSafeInteger(beforeId) || beforeId < 1)) {
+    return res.status(400).json({ error: 'Invalid audit log cursor' });
+  }
+  const rawSearch = req.query.search;
+  if (rawSearch !== undefined && (typeof rawSearch !== 'string' || rawSearch.length > 120)) {
+    return res.status(400).json({ error: 'Invalid audit log search' });
+  }
+  const search = rawSearch?.trim() || '';
+  try {
+    return res.json(db.getAdminAuditLog(beforeId, search));
+  } catch (err) {
+    console.error('Failed to load admin audit log:', err);
+    return res.status(500).json({ error: 'Failed to load audit log' });
+  }
+});
+
+router.post('/admin/rules', (req, res) => {
+  const ruleText = req.body?.text;
+  const itemType = req.body?.itemType ?? 'rule';
+  if (itemType !== 'rule' && itemType !== 'header') {
+    return res.status(400).json({ error: 'Invalid rules item type' });
+  }
+  const maxLength = itemType === 'header' ? 120 : 2000;
+  if (typeof ruleText !== 'string' || !ruleText.trim() || ruleText.trim().length > maxLength) {
+    return res.status(400).json({ error: `${itemType === 'header' ? 'Header' : 'Rule'} text must be between 1 and ${maxLength} characters` });
+  }
+  try {
+    const rule = db.db.transaction(() => {
+      const created = db.addSiteRule(ruleText.trim(), itemType);
+      db.recordAdminAudit(itemType === 'header' ? 'Rule Header Add' : 'Rule Add', `Added ${itemType} ${created.RuleId}`);
+      return created;
+    })();
+    return res.status(201).json({ rule });
+  } catch (err) {
+    console.error('Failed to add rule:', err);
+    return res.status(500).json({ error: 'Failed to add rule' });
+  }
+});
+
+router.patch('/admin/rules/:ruleId', (req, res) => {
+  const ruleId = Number(req.params.ruleId);
+  const ruleText = req.body?.text;
+  if (!Number.isSafeInteger(ruleId) || ruleId < 1) return res.status(400).json({ error: 'Invalid rule ID' });
+  try {
+    const rule = db.db.transaction(() => {
+      const existing = db.getSiteRules().find((item) => item.RuleId === ruleId);
+      if (!existing) return null;
+      const maxLength = existing.ItemType === 'header' ? 120 : 2000;
+      if (typeof ruleText !== 'string' || !ruleText.trim() || ruleText.trim().length > maxLength) {
+        const error = new Error(`${existing.ItemType === 'header' ? 'Header' : 'Rule'} text must be between 1 and ${maxLength} characters`);
+        error.code = 'INVALID_RULE_TEXT';
+        throw error;
+      }
+      const updated = db.updateSiteRule(ruleId, ruleText.trim());
+      if (updated) db.recordAdminAudit(existing.ItemType === 'header' ? 'Rule Header Edit' : 'Rule Edit', `Updated ${existing.ItemType} ${ruleId}`);
+      return updated;
+    })();
+    return rule ? res.json({ rule }) : res.status(404).json({ error: 'Rule not found' });
+  } catch (err) {
+    if (err.code === 'INVALID_RULE_TEXT') return res.status(400).json({ error: err.message });
+    console.error('Failed to update rule:', err);
+    return res.status(500).json({ error: 'Failed to update rule' });
+  }
+});
+
+router.delete('/admin/rules/:ruleId', (req, res) => {
+  const ruleId = Number(req.params.ruleId);
+  if (!Number.isSafeInteger(ruleId) || ruleId < 1) return res.status(400).json({ error: 'Invalid rule ID' });
+  try {
+    const deleted = db.db.transaction(() => {
+      const existing = db.getSiteRules().find((item) => item.RuleId === ruleId);
+      const removed = db.deleteSiteRule(ruleId);
+      if (removed) db.recordAdminAudit(existing?.ItemType === 'header' ? 'Rule Header Delete' : 'Rule Delete', `Deleted ${existing?.ItemType || 'rule'} ${ruleId}`);
+      return removed;
+    })();
+    return deleted
+      ? res.json({ success: true })
+      : res.status(404).json({ error: 'Rule not found' });
+  } catch (err) {
+    console.error('Failed to delete rule:', err);
+    return res.status(500).json({ error: 'Failed to delete rule' });
+  }
+});
+
+router.post('/admin/rules/:ruleId/move', (req, res) => {
+  const ruleId = Number(req.params.ruleId);
+  const direction = req.body?.direction;
+  if (!Number.isSafeInteger(ruleId) || ruleId < 1) return res.status(400).json({ error: 'Invalid rule ID' });
+  if (direction !== 'up' && direction !== 'down') return res.status(400).json({ error: 'Direction must be up or down' });
+  try {
+    const moved = db.db.transaction(() => {
+      const result = db.moveSiteRule(ruleId, direction);
+      if (result) db.recordAdminAudit('Rule Reorder', `Moved rule ${ruleId} ${direction}`);
+      return result;
+    })();
+    if (moved === null) return res.status(404).json({ error: 'Rule not found' });
+    return res.json({ rules: db.getSiteRules() });
+  } catch (err) {
+    console.error('Failed to reorder rules:', err);
+    return res.status(500).json({ error: 'Failed to reorder rules' });
+  }
+});
+
+router.put('/admin/rules/order', (req, res) => {
+  try {
+    const rules = db.db.transaction(() => {
+      const ordered = db.reorderSiteRules(req.body?.ruleIds);
+      db.recordAdminAudit('Rule Reorder', `Reordered rules: ${ordered.map((rule) => rule.RuleId).join(', ')}`);
+      return ordered;
+    })();
+    return res.json({ rules });
+  } catch (err) {
+    if (err.code === 'RULE_ORDER_CONFLICT') return res.status(409).json({ error: err.message });
+    console.error('Failed to reorder rules:', err);
+    return res.status(500).json({ error: 'Failed to reorder rules' });
+  }
+});
 
 router.get('/admin', (req, res) => {
   res.json({ message: 'Welcome to the admin portal!' });
@@ -1006,7 +1135,7 @@ router.post('/admin/leagueSetup/groups', checkAdmin, (req, res) => {
         FROM GroupNames WHERE LeagueId = ?`).get(leagueId).NextId;
       db.db.prepare(`INSERT INTO GroupNames (LeagueId, GroupId, GroupName)
         VALUES (?, ?, ?)`).run(leagueId, groupId, groupName);
-      db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+      db.recordAdminAudit(
         'Group Add', `League ${leagueId}: added group ${groupId} (${groupName})`
       );
       return { GroupId: groupId, GroupName: groupName, LeagueId: leagueId };
@@ -1034,7 +1163,7 @@ router.patch('/admin/leagueSetup/groups/:groupId', checkAdmin, (req, res) => {
   const result = db.db.prepare(`UPDATE GroupNames SET GroupName = ?
     WHERE LeagueId = ? AND GroupId = ?`).run(groupName, leagueId, groupId);
   if (!result.changes) return res.status(404).json({ error: 'Group not found' });
-  db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+  db.recordAdminAudit(
     'Group Rename', `League ${leagueId}: group ${groupId} renamed ${groupName}`
   );
   return res.json({ success: true });
@@ -1058,7 +1187,7 @@ router.post('/admin/leagueRosterEntries', checkAdmin, (req, res) => {
       const result = db.db.prepare(`INSERT INTO LeagueRosterEntries
         (LeagueId, GroupId, DisplayName, SortOrder) VALUES (?, ?, ?, ?)`
       ).run(leagueId, groupId, displayName, order);
-      db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+      db.recordAdminAudit(
         'League Roster Add', `League ${leagueId}, group ${groupId}: added ${displayName}`
       );
       return db.db.prepare('SELECT * FROM LeagueRosterEntries WHERE EntryId = ?').get(result.lastInsertRowid);
@@ -1086,7 +1215,7 @@ router.patch('/admin/leagueRosterEntries/:entryId', checkAdmin, (req, res) => {
     const result = db.db.prepare(`UPDATE LeagueRosterEntries SET DisplayName = ?
       WHERE EntryId = ? AND LeagueId = ? AND TeamId IS NULL`).run(displayName, entryId, leagueId);
     if (!result.changes) return res.status(404).json({ error: 'Unlinked team not found' });
-    db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+    db.recordAdminAudit(
       'League Roster Rename', `League ${leagueId}: renamed entry ${entryId} to ${displayName}`
     );
     return res.json({ success: true });
@@ -1108,7 +1237,7 @@ router.delete('/admin/leagueRosterEntries/:entryId', checkAdmin, (req, res) => {
   const result = db.db.prepare(`DELETE FROM LeagueRosterEntries
     WHERE EntryId = ? AND LeagueId = ? AND TeamId IS NULL`).run(entryId, leagueId);
   if (!result.changes) return res.status(404).json({ error: 'Unlinked team not found' });
-  db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+  db.recordAdminAudit(
     'League Roster Remove', `League ${leagueId}: removed entry ${entryId}`
   );
   return res.json({ success: true });
@@ -1124,7 +1253,7 @@ router.post('/admin/leagueRosterEntries/:entryId/link', checkAdmin, (req, res) =
   }
   try {
     const entry = db.linkLeagueRosterEntry(leagueId, entryId, teamId);
-    db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+    db.recordAdminAudit(
       'League Roster Link', `League ${leagueId}: linked entry ${entryId} to team ${teamId}`
     );
     return res.json({ success: true, entryId: entry.EntryId, teamId });
@@ -1217,7 +1346,7 @@ router.post('/admin/groupResult', checkAdmin, (req, res) => {
           currentPair.ActualWinsA, currentPair.ActualWinsB);
       }
       db.rebuildLeagueGroupStandings(leagueId);
-      db.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+      db.recordAdminAudit(
         'Group Result Edit',
         `League ${leagueId}, group ${groupId}: ${low} vs ${high} ${clear ? 'restored from games' : `${teamA}:${winsA}, ${teamB}:${winsB}`}`
       );

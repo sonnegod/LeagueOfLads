@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import HeroDisplay from '../components/HeroDisplay';
+import MatchResultBadge from '../components/MatchResultBadge';
 import './MatchSeriesPages.css';
 
 export default function MatchPage() {
@@ -58,7 +59,7 @@ export default function MatchPage() {
         {/* Radiant */}
           <div className="match-team-panel" style={{ flex: 1, border: '2px solid #0f6b58', borderRadius: '8px', background: 'var(--surface, #121315)' }}>
             <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #0f6b58', color: 'var(--text, #e6e6e6)' }}>
-              <Link to={`/team/${match.match[0].rad_team_id}`} style={{ color: 'inherit' }}>{match.match[0].rad_team_name}{match.match[0].WinnerSide === 'r' && '♔'}</Link>
+              <Link to={`/team/${match.match[0].rad_team_id}`} style={{ color: 'inherit' }}>{match.match[0].rad_team_name}</Link> <MatchResultBadge winnerSide={match.match[0].WinnerSide} side="r" />
             </div>
           <table className="match-player-table" style={tableStyle}>
             <thead>
@@ -101,7 +102,7 @@ export default function MatchPage() {
         {/* Dire */}
         <div className="match-team-panel" style={{ flex: 1, border: '2px solid #6b1a1a', borderRadius: '8px', background: 'var(--surface, #121315)' }}>
           <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #6b1a1a', color: 'var(--text, #e6e6e6)' }}>
-            <Link to={`/team/${match.match[0].dire_team_id}`} style={{ color: 'inherit' }}>{match.match[0].dire_team_name}{match.match[0].WinnerSide === 'd' && '♔'}</Link>
+            <Link to={`/team/${match.match[0].dire_team_id}`} style={{ color: 'inherit' }}>{match.match[0].dire_team_name}</Link> <MatchResultBadge winnerSide={match.match[0].WinnerSide} side="d" />
           </div>
           <table className="match-player-table" style={tableStyle}>
             <thead>

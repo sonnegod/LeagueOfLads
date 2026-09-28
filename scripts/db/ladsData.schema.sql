@@ -12,7 +12,10 @@ CREATE TABLE Admins (
 CREATE TABLE AdminAuditLog (
     AuditLogId INTEGER PRIMARY KEY AUTOINCREMENT,
     Type       STRING,
-    Message    STRING
+    Message    STRING,
+    ActorAdminId INTEGER,
+    ActorAdminName TEXT,
+    CreatedAt TEXT
 );
 
 -- table: Comments
