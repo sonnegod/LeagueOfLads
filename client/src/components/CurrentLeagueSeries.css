@@ -105,15 +105,6 @@
     white-space: nowrap;
   }
 
-  .series-winner {
-    padding: 2px 5px;
-    border-radius: 999px;
-    background: #123d1a;
-    color: #c7f9cf;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-  }
-
   .series-match-duration {
     grid-column: 2;
     grid-row: 2 / span 2;

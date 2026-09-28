@@ -13,6 +13,8 @@ import LeagueAdminPanel from "../components/LeagueAdminPanel";
 import LeagueRulesCard from "../components/LeagueRulesCard";
 import AdminManagementPanel from "../components/AdminManagementPanel";
 import AdminRequestsPanel from "../components/AdminRequestsPanel";
+import RulesAdminPanel from "../components/RulesAdminPanel";
+import AdminAuditLogPanel from "../components/AdminAuditLogPanel";
 
 
 export default function AdminPage() {
@@ -48,7 +50,7 @@ export default function AdminPage() {
   if (!adminData) return <div>Loading admin data...</div>;
 
    return (
-    <div className="ui-page admin-page">
+    <div className={`ui-page admin-page${activeTab === 'rules' ? ' admin-page-rules' : ''}`}>
       <h1>Admin Panel</h1>
 
       <div className="ui-tabs" style={tabBarStyle}>
@@ -85,11 +87,27 @@ export default function AdminPage() {
         </button>
 
         <button
+          className="ui-tab" aria-pressed={activeTab === "rules"}
+          style={activeTab === "rules" ? tabActiveStyle : tabButtonStyle}
+          onClick={() => setActiveTab("rules")}
+        >
+          Rules
+        </button>
+
+        <button
           className="ui-tab" aria-pressed={activeTab === "adminManagement"}
           style={activeTab === "adminManagement" ? tabActiveStyle : tabButtonStyle}
           onClick={() => setActiveTab("adminManagement")}
         >
           Admin Management
+        </button>
+
+        <button
+          className="ui-tab" aria-pressed={activeTab === "auditLog"}
+          style={activeTab === "auditLog" ? tabActiveStyle : tabButtonStyle}
+          onClick={() => setActiveTab("auditLog")}
+        >
+          Audit Log
         </button>
       </div>
 
@@ -201,6 +219,8 @@ export default function AdminPage() {
         )}
         {activeTab === "adminManagement" && <AdminManagementPanel />}
         {activeTab === "requests" && <AdminRequestsPanel />}
+        {activeTab === "rules" && <RulesAdminPanel />}
+        {activeTab === "auditLog" && <AdminAuditLogPanel />}
     </div>
   );
 }

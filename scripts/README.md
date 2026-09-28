@@ -24,6 +24,24 @@ node scripts/db/exportLadsDataSchema.js db/LadsData.db scripts/db/ladsData.schem
 
 The exporter reads through SQLite, including committed WAL changes.
 
+After deploying the updated code, add the base rulebook to the existing
+production database. The deploy workflow already restarts PM2. From the
+project directory on the server, preview the import, apply it, then verify
+that no items remain to be added:
+
+```bash
+cd /root/LeagueOfLads
+node scripts/db/importRulebook2024.js /root/LeagueOfLads/db/LadsData.db
+node scripts/db/importRulebook2024.js /root/LeagueOfLads/db/LadsData.db --apply
+node scripts/db/importRulebook2024.js /root/LeagueOfLads/db/LadsData.db
+```
+
+The importer creates the `SiteRules` table if needed, backs up the database
+before changing it, and adds the rulebook's headers and rules in source order.
+It preserves existing matching entries and can be rerun without duplicating
+them. The final preview should report `"add": 0`. Reload the public Rules page
+and the admin Rules tab to see the imported entries.
+
 Before starting the updated server in production, run the additive preseason
 admin migration against its existing database:
 

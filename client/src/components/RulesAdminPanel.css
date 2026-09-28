@@ -1,0 +1,57 @@
+.admin-page-rules { max-width: none; width: 100%; }
+.rules-admin { width: 100%; min-width: 0; }
+.rules-admin > p { color: var(--muted-text); }
+.rules-admin .rules-admin-error { color: #fca5a5; }
+.rules-admin-search { margin: 1rem 0; }
+.rules-admin-search label { display: block; margin-bottom: .4rem; }
+.rules-admin-search-controls { display: flex; flex-wrap: wrap; gap: .5rem; }
+.rules-admin-search-controls input { flex: 1 1 260px; min-width: 0; }
+.rules-admin .rules-admin-search-note { margin: 0 0 .75rem; font-size: .9rem; }
+.rules-admin-list { display: grid; gap: .5rem; padding: 0; list-style: none; }
+.rules-admin-add {
+  display: grid;
+  gap: .75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+.rules-admin-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: .65rem;
+  padding: .6rem .75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.rules-admin-card-content { display: grid; gap: .25rem; min-width: 0; }
+.rules-admin-card-content label { font-size: .85rem; }
+.rules-admin-card.is-dragging { z-index: 2; opacity: .85; cursor: grabbing; box-shadow: 0 12px 28px rgba(0, 0, 0, .35); }
+.rules-admin-card.drop-before::before, .rules-admin-card.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--primary);
+}
+.rules-admin-card.drop-before::before { top: -.35rem; }
+.rules-admin-card.drop-after::after { bottom: -.35rem; }
+.rules-admin input, .rules-admin textarea { width: 100%; box-sizing: border-box; user-select: text; }
+.rules-admin textarea { resize: vertical; }
+.rules-admin-card textarea { min-height: 58px; }
+.rules-admin-add h3 { margin: 0; }
+.rules-admin-actions { display: flex; flex-wrap: wrap; gap: .3rem; }
+.rules-admin-actions button { padding: .4rem .6rem; font-size: .85rem; }
+.rules-admin-add { margin-top: 1.5rem; }
+.rules-admin-add button { justify-self: start; }
+@media (max-width: 700px) {
+  .rules-admin-card { grid-template-columns: minmax(0, 1fr); }
+}

@@ -7,6 +7,7 @@ import TieBreakerView from "../components/TieBreakerView";
 import CurrentPlayoffBracketView from "../components/CurrentPlayoffBracketView";
 import HeroDisplay from "../components/HeroDisplay";
 import LeagueHomeTab from "../components/LeagueHomeTab";
+import MatchResultBadge from "../components/MatchResultBadge";
 import './LeaguePage.css';
 
 export default function LeaguePage({
@@ -211,8 +212,8 @@ export default function LeaguePage({
                   style={{ cursor: "pointer"}}
                 >
                   <td style={tdStyle}><Link to={`/match/${m.MatchId}`}>{m.MatchId}</Link></td>
-                  <td style={tdStyle}><Link to={`/team/${m.RadiantTeamId}`}>{m.RadiantTeamName}{m.WinnerSide === 'r' && ' ♔'}</Link></td>
-                  <td style={tdStyle}><Link to={`/team/${m.DireTeamId}`}>{m.DireTeamName}{m.WinnerSide === 'd' && ' ♔'}</Link></td>
+                  <td style={tdStyle}><Link to={`/team/${m.RadiantTeamId}`}>{m.RadiantTeamName} <MatchResultBadge winnerSide={m.WinnerSide} side="r" /></Link></td>
+                  <td style={tdStyle}><Link to={`/team/${m.DireTeamId}`}>{m.DireTeamName} <MatchResultBadge winnerSide={m.WinnerSide} side="d" /></Link></td>
                 </tr>
 
                 {expandedMatches[m.MatchId] && m.matchPlayers && (
@@ -237,14 +238,14 @@ export default function LeaguePage({
                               {idx === 0 && (
                                 <tr>
                                   <td colSpan="8" style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                                    Radiant {m.WinnerSide === 'r' && '♔'}
+                                    Radiant <MatchResultBadge winnerSide={m.WinnerSide} side="r" />
                                   </td>
                                 </tr>
                               )}
                               {idx === 5 && (
                                 <tr>
                                   <td colSpan="8" style={{ textAlign: 'center', fontWeight: 'bold'}}>
-                                    Dire {m.WinnerSide === 'd' && '♔'}
+                                    Dire <MatchResultBadge winnerSide={m.WinnerSide} side="d" />
                                   </td>
                                 </tr>
                               )}

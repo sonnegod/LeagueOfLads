@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import LeagueFilter from '../components/LeagueFilter';
 import { useLeagues } from '../context/LeagueContext';
 import HeroDisplay from '../components/HeroDisplay';
+import MatchResultBadge from '../components/MatchResultBadge';
 
 export default function MatchesPage() {
   const [matches, setMatches] = useState([]);
@@ -90,10 +91,10 @@ export default function MatchesPage() {
                     <Link to={`/match/${match.MatchId}`}>{match.MatchId}</Link>
                 </td>
                 <td style={tdStyle}>
-                    <Link to={`/team/${match.rad_team_id}`}>{match.rad_team_name}{match.WinnerSide === 'r' ? '♔' : ''}</Link>
+                    <Link to={`/team/${match.rad_team_id}`}>{match.rad_team_name} <MatchResultBadge winnerSide={match.WinnerSide} side="r" /></Link>
                 </td>
                 <td style={tdStyle}>
-                    <Link to={`/team/${match.dire_team_id}`}>{match.dire_team_name}{match.WinnerSide === 'd' ? '♔' : ''}</Link>
+                    <Link to={`/team/${match.dire_team_id}`}>{match.dire_team_name} <MatchResultBadge winnerSide={match.WinnerSide} side="d" /></Link>
                 </td>
                 <td style={tdStyle}>
                     <Link to={`/league/${match.LeagueId}`}>{match.LeagueName}</Link>
@@ -120,14 +121,14 @@ export default function MatchesPage() {
                             {idx === 0 && (
                                 <tr>
                                 <td colSpan="9" style={{ textAlign: 'center', fontWeight: 'bold', background: '#12324f', color: '#bfdbfe' }}>
-                                    Radiant{match.WinnerSide === 'r' ? '♔' : ''}
+                                    Radiant <MatchResultBadge winnerSide={match.WinnerSide} side="r" />
                                 </td>
                                 </tr>
                             )}
                             {idx === 5 && (
                                 <tr>
                                 <td colSpan="9" style={{ textAlign: 'center', fontWeight: 'bold', background: '#3b1d29', color: '#fecaca' }}>
-                                    Dire{match.WinnerSide === 'd' ? '♔' : ''}
+                                    Dire <MatchResultBadge winnerSide={match.WinnerSide} side="d" />
                                 </td>
                                 </tr>
                             )}

@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import { classifyStandings, DEFAULT_LEAGUE_RULES, normalizeLeagueRules } from './config/leagueRules.js';
 import { buildGroupResults } from './config/groupResults.js';
 import { planRosterLinks } from './config/rosterMatching.js';
+import SiteRulesStore from './config/siteRulesStore.js';
+import AdminAuditStore from './config/adminAuditStore.js';
 dotenv.config();
 
 class DBInstance {
@@ -16,7 +18,9 @@ class DBInstance {
                 
             this.db = new Database(dbPath);
             this.ensureAdminsSchema();
+            this.auditLog = new AdminAuditStore(this.db);
             this.ensureLeagueRulesSchema();
+            this.siteRules = new SiteRulesStore(this.db);
             this.ensureAdminStandingsSchema();
             this.ensureLiveMatchSchema();
             this.preloadedData = this.preloadData();
@@ -37,6 +41,24 @@ class DBInstance {
             UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )`).run();
     }
+
+    getSiteRules(){ return this.siteRules.list(); }
+
+    addSiteRule(text, itemType = 'rule'){ return this.siteRules.add(text, itemType); }
+
+    updateSiteRule(ruleId, text){ return this.siteRules.update(ruleId, text); }
+
+    deleteSiteRule(ruleId){ return this.siteRules.delete(ruleId); }
+
+    moveSiteRule(ruleId, direction){ return this.siteRules.move(ruleId, direction); }
+
+    reorderSiteRules(ruleIds){ return this.siteRules.reorder(ruleIds); }
+
+    recordAdminAudit(type, message, fallbackActorId = null){
+        this.auditLog.record(type, message, fallbackActorId);
+    }
+
+    getAdminAuditLog(beforeId = null, search = ''){ return this.auditLog.list(beforeId, search); }
 
     ensureAdminsSchema(){
         this.db.exec(`CREATE TABLE IF NOT EXISTS Admins (
@@ -76,8 +98,8 @@ class DBInstance {
             const playerName = player.PlayerName;
             this.db.prepare(`INSERT INTO Admins (AdminPlayerId, AdminPlayerName, HeadAdmin)
                 VALUES (?, ?, ?)`).run(playerId, playerName, role);
-            this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
-                'Admin Added', `Admin ${actorId} added ${playerName} (${playerId}) as ${role ? 'head admin' : 'admin'}`
+            this.recordAdminAudit(
+                'Admin Added', `Admin ${actorId} added ${playerName} (${playerId}) as ${role ? 'head admin' : 'admin'}`, actorId
             );
             return this.getAdminByPlayerId(playerId);
         })();
@@ -98,8 +120,8 @@ class DBInstance {
             }
             this.db.prepare(`INSERT INTO Admins (AdminPlayerId, AdminPlayerName, HeadAdmin)
                 VALUES (?, ?, ?)`).run(playerId, playerName, role);
-            this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
-                'Admin Added', `Admin ${actorId} manually added ${playerName} (${playerId}) as ${role ? 'head admin' : 'admin'}`
+            this.recordAdminAudit(
+                'Admin Added', `Admin ${actorId} manually added ${playerName} (${playerId}) as ${role ? 'head admin' : 'admin'}`, actorId
             );
             return this.getAdminByPlayerId(playerId);
         })();
@@ -120,8 +142,8 @@ class DBInstance {
                 }
             }
             this.db.prepare(`UPDATE Admins SET HeadAdmin = ? WHERE AdminPlayerId = ?`).run(role, playerId);
-            this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
-                'Admin Role Changed', `Admin ${actorId} changed ${current.AdminPlayerName} (${playerId}) to ${role ? 'head admin' : 'admin'}`
+            this.recordAdminAudit(
+                'Admin Role Changed', `Admin ${actorId} changed ${current.AdminPlayerName} (${playerId}) to ${role ? 'head admin' : 'admin'}`, actorId
             );
             return this.getAdminByPlayerId(playerId);
         })();
@@ -137,8 +159,8 @@ class DBInstance {
                 throw error;
             }
             this.db.prepare(`DELETE FROM Admins WHERE AdminPlayerId = ? AND HeadAdmin = 0`).run(playerId);
-            this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
-                'Admin Removed', `Admin ${actorId} removed ${current.AdminPlayerName} (${playerId})`
+            this.recordAdminAudit(
+                'Admin Removed', `Admin ${actorId} removed ${current.AdminPlayerName} (${playerId})`, actorId
             );
             return current;
         })();
@@ -2661,44 +2683,23 @@ class DBInstance {
             this.db.prepare('UPDATE MatchTeam SET TeamRad = ?, TeamDire = ?, WinnerId = ? WHERE MatchId = ?')
                 .run(teamRad, teamDire, winnerId, matchId);
 
-            this.db.prepare(`INSERT INTO AdminAuditLog (
-                              Type,
-                              Message
-                          )
-                          VALUES (
-                              'MatchTeam Update',
-                              'Updated Match ${matchId} with values Team1 = ${teamRad}, Team2 = ${teamDire}, Winner = ${winnerId}'
-                          );
-                    `).run();
+            this.recordAdminAudit('MatchTeam Update',
+                `Updated Match ${matchId} with values Team1 = ${teamRad}, Team2 = ${teamDire}, Winner = ${winnerId}`);
 
             if (teamRad !== originalTeamRad) {
                 this.db.prepare(`UPDATE MatchTeamPlayer SET TeamId = ? WHERE MatchId = ?`)
                 .run(teamRad, matchId);
 
-                this.db.prepare(`INSERT INTO AdminAuditLog (
-                              Type,
-                              Message
-                          )
-                          VALUES (
-                              'MatchTeamPlayer Update',
-                              'Updated Match ${matchId} with values TeamId = ${teamRad}, old value = ${originalTeamRad}'
-                          );
-                    `).run();
+                this.recordAdminAudit('MatchTeamPlayer Update',
+                    `Updated Match ${matchId} with values TeamId = ${teamRad}, old value = ${originalTeamRad}`);
             }
 
             if (teamDire !== originalTeamDire) {
                 this.db.prepare(`UPDATE MatchTeamPlayer SET TeamId = ? WHERE MatchId = ?`)
                 .run(teamDire, matchId);
 
-                this.db.prepare(`INSERT INTO AdminAuditLog (
-                              Type,
-                              Message
-                          )
-                          VALUES (
-                              'MatchTeamPlayer Update',
-                              'Updated Match ${matchId} with values TeamId = ${teamDire}, old value = ${originalTeamDire}'
-                          );
-                    `).run();
+                this.recordAdminAudit('MatchTeamPlayer Update',
+                    `Updated Match ${matchId} with values TeamId = ${teamDire}, old value = ${originalTeamDire}`);
             }
 
             const oldSeries = this.queryDatabase(`
@@ -2728,43 +2729,22 @@ class DBInstance {
                     .run(teamRad,teamDire,oldSeries[0].SeriesId);
 
 
-                this.db.prepare(`INSERT INTO AdminAuditLog (
-                                Type,
-                                Message
-                            )
-                            VALUES (
-                                'SeriesMatch Update',
-                                'Updated Series ${oldSeries[0].SeriesId} adding teams ${teamRad},${teamDire}'
-                            );
-                        `).run();
+                this.recordAdminAudit('SeriesMatch Update',
+                    `Updated Series ${oldSeries[0].SeriesId} adding teams ${teamRad},${teamDire}`);
             }
             else{
                 this.db.prepare(`UPDATE SeriesMatch SET SeriesId = ? WHERE MatchId = ?`)
                     .run(newSeries[0].SeriesId, matchId);
 
 
-                this.db.prepare(`INSERT INTO AdminAuditLog (
-                                Type,
-                                Message
-                            )
-                            VALUES (
-                                'SeriesMatch Update',
-                                'Updated Series ${newSeries[0].SeriesId} add match ${matchId}'
-                            );
-                        `).run();
+                this.recordAdminAudit('SeriesMatch Update',
+                    `Updated Series ${newSeries[0].SeriesId} add match ${matchId}`);
 
                 this.db.prepare(`DELETE FROM SeriesMatch WHERE SeriesId = ?`)
                     .run(oldSeries[0].SeriesId);        
                 
-                 this.db.prepare(`INSERT INTO AdminAuditLog (
-                                Type,
-                                Message
-                            )
-                            VALUES (
-                                'SeriesMatch Delete',
-                                'Deleted Series ${oldSeries[0].SeriesId}'
-                            );
-                        `).run();
+                this.recordAdminAudit('SeriesMatch Delete',
+                    `Deleted Series ${oldSeries[0].SeriesId}`);
             }
 
 
@@ -2820,7 +2800,7 @@ class DBInstance {
                     .run(leagueId, oldGroup, originalTeamId, originalTeamId);
             }
             if (idChanged || oldGroup !== groupId) this.rebuildLeagueGroupStandings(leagueId);
-            this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+            this.recordAdminAudit(
                 'League Team Edit',
                 `League ${leagueId}: team ${originalTeamId} -> ${teamId}, named ${teamName}, group ${groupId ?? 'unassigned'}`
             );
@@ -2951,7 +2931,7 @@ class DBInstance {
             this.db.prepare('DELETE FROM LeagueTeamNames WHERE LeagueId = ? AND TeamId = ?')
                 .run(leagueId, sourceId);
             this.rebuildLeagueGroupStandings(leagueId);
-            this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
+            this.recordAdminAudit(
                 'Match Team ID Replacement',
                 `League ${leagueId}: replaced team ${sourceId} with ${targetId} in ${matches} matches, ${players} player rows, ${series} series; merged ${seriesMerged} series and moved ${seriesLinksMoved} series links`
             );
@@ -3029,15 +3009,8 @@ class DBInstance {
                 `).run(wins,losses,teamId,currLeague[0].LeagueId);
      
 
-            this.db.prepare(`INSERT INTO AdminAuditLog (
-                                    Type,
-                                    Message
-                                )
-                                VALUES (
-                                    'Standings Update',
-                                    'UpdatedStandings with Wins: ${wins},Losses: ${losses}, for teamId: ${teamId} and leagueId: ${currLeague[0].LeagueId}'
-                                );
-                            `).run();
+            this.recordAdminAudit('Standings Update',
+                `Updated standings with Wins: ${wins}, Losses: ${losses}, for teamId: ${teamId} and leagueId: ${currLeague[0].LeagueId}`);
 
           return { success: true, message: 'Team Standing updated successfully!' };
         } catch (err) {
@@ -3382,8 +3355,8 @@ class DBInstance {
             const deleted = this.db.prepare('DELETE FROM Comments WHERE ProblemId = ?')
                 .run(problemId).changes;
             if (deleted) {
-                this.db.prepare('INSERT INTO AdminAuditLog (Type, Message) VALUES (?, ?)').run(
-                    'Request Delete', `Admin ${adminPlayerId} deleted request ${problemId}`
+                this.recordAdminAudit(
+                    'Request Delete', `Admin ${adminPlayerId} deleted request ${problemId}`, adminPlayerId
                 );
             }
             return deleted;
@@ -3474,55 +3447,23 @@ class DBInstance {
             this.db.prepare('DELETE FROM MatchPlayer WHERE MatchId = ?')
                     .run( matchId);
 
-            this.db.prepare(`INSERT INTO AdminAuditLog (
-                                Type,
-                                Message
-                            )
-                            VALUES (
-                                'MatchPlayer Delete',
-                                'Deleted Match ${matchId} From MatchPlayer'
-                            );
-                        `).run();
+            this.recordAdminAudit('MatchPlayer Delete', `Deleted Match ${matchId} from MatchPlayer`);
 
 
             this.db.prepare('DELETE FROM MatchTeam WHERE MatchId = ?')
                     .run(matchId);
 
-            this.db.prepare(`INSERT INTO AdminAuditLog (
-                                Type,
-                                Message
-                            )
-                            VALUES (
-                                'MatchTeam Delete',
-                                'Deleted Match ${matchId} From MatchTeam'
-                            );
-                        `).run();
+            this.recordAdminAudit('MatchTeam Delete', `Deleted Match ${matchId} from MatchTeam`);
             
             this.db.prepare('DELETE FROM MatchLeague WHERE MatchId = ?')
                     .run(matchId);
 
-            this.db.prepare(`INSERT INTO AdminAuditLog (
-                                Type,
-                                Message
-                            )
-                            VALUES (
-                                'MatchLeague Delete',
-                                'Deleted Match ${matchId} From MatchLeague'
-                            );
-                        `).run();
+            this.recordAdminAudit('MatchLeague Delete', `Deleted Match ${matchId} from MatchLeague`);
 
             this.db.prepare('DELETE FROM MatchTeamPlayer WHERE MatchId = ?')
                     .run(matchId);
 
-            this.db.prepare(`INSERT INTO AdminAuditLog (
-                                Type,
-                                Message
-                            )
-                            VALUES (
-                                'MatchTeamPlayer Delete',
-                                'Deleted Match ${matchId} From MatchTeamPlayer'
-                            );
-                        `).run();
+            this.recordAdminAudit('MatchTeamPlayer Delete', `Deleted Match ${matchId} from MatchTeamPlayer`);
             return { success: true, message: 'MatchDeleted updated successfully!' };
         } catch (err) {
            return { success: false, error: err };

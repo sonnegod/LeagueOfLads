@@ -1,0 +1,112 @@
+Lads Rulebook
+*Last updated December 18th, 2024
+
+League of Lads provides a competitive environment for players in the (5.6k - 10k) range. Teams contend for the ultimate bragging rights in the North American amateur scene.
+
+Head Admin: BullJaXX
+Admins: Badger, AggressivelyPMA, USSGuam, Breaker, Purffin, Lefty, Cuh and Madior
+*Admins will work as mediators for players and teams and may interpret the rules as they see fit for the betterment of the league.
+
+Players/Team/Standins –
+- The league’s main goal is to create an avenue for players and teams to improve. We will not punish players for improving throughout the season and are allowed to surpass the cap after the season has commenced.
+- Default Time is 9PM EST.
+- Team AVG cap 7,300 .
+- MMR floor is set at 5.6k. (Any player below 5.6k mmr will be adjusted to the floor in calculating the Team AVG.)
+- Individual soft player cap is set at 10,000 mmr for EXISTING lads players and 9000 mmr for NEW lads players. New lads players that are “high” mmr will be subject to extreme scrutiny. 
+- Teams & Players will not be ‘grandfathered’ into subsequent seasons and must meet CAP criteria to be eligible for league participation on signups.
+- MMR screenshots must be an imgur or similar link that stores pictures indefinitely. They cannot be submitted via discord links
+- Players must use their main account for official league games.
+- Smurfing/sandbagged accounts and account sharing is not allowed.
+- Standins must be confirmed by the opposing team’s captain either in dms or in captains chat, admins will help mitigate issues if they arise between captains.
+- Max number of two stand-in’s at a time per team during the group stage.
+- No more than a single stand-in at a time per team per game during playoffs unless approved by an admin. 
+- Same stand-in cannot be used more than twice during playoffs. This includes if said player stood in previously during group stage.
+- Stand-in’s MMR must be equal to or lower than that of the player he/she is replacing; unless approved by the opposing captain.
+- Any stand-in may b**e denied by the opposing captain but can be overruled by an admin decision.
+- If you disband at any point during the season you will receive a league ban (current season + 1 season)
+- Rosters lock starting week two of gameplay.
+- A captain replacing a player (due to kick)  after the lock period will result in that team receiving a permanent -70 second reserve time every game for the rest of the season.
+- A player who drops out from a team on their own accord after roster lock will wield the same penalties as a disband for that individual only.
+- All team ‘replacements’ throughout the season must be confirmed by the admin team. The replacement player's MMR must be equal to or lower than the member he/she is replacing.
+- A ban will  also prevent you from the participation of inhouses and other League of Lads activities/events until the sentence is served.
+- Admins reserve the right to deny any teams sign-up, even if they are within mmr limits, to ensure a fair match making for the league.
+- No discrimination of any kind will be tolerated in the discord.
+
+
+
+
+Format/Groups/Playoffs – 
+- Grand Finals will be a Best of Five, unless Admins approve a Best of Three.
+- Group Stage will be two groups of teams round robin of Bo2’s, three series scheduled per 2 weeks.
+- Tiebreakers: At the end of the group stage, the following tiebreakers will be used: 
+
+
+1. Head to head results 
+
+2. [Neustadtl](https://en.m.wikipedia.org/wiki/Sonneborn%E2%80%93Berger_score#:~:text=The%20Sonneborn%E2%80%93Berger%20score%20(or,score%20of%20each%20drawn%20opponent) score (for every team you beat 2-0, you get 2x their score and for every team you draw 1-1, you get 1x their score; ex. 2-0ing a 7 win team would add 14 to 
+your neustadtl score while 1-1ing a 9 win team would add 9 to your neustadtl score) 
+
+3. Comparative results against the top of the group team (i.e. the tied teams would check their results against the #1 team in the group, if one team had a better result versus said #1 team then the tie would go to the team that had the better result) 
+
+4. Repeat the above for the next best team and so on 
+
+5. An agreed last case scenario solution between the admins and involved teams to quickly resolve the tie (ex. a coinflip or a 1v1 mid)
+- Playoffs will be BO3’s and double elimination for Upper Bracket teams. (ie. Losing a Bo3 in the Lower Bracket will result in elimination.)
+- Each round of playoffs will have a 1 week deadline. (Extreme exceptions can be made.)
+- If two teams cannot agree upon a date to play within the allotted time period, then the teams will /flip in the #captainschat and the winner of the coin flip will not have to use stand-ins.
+- Admins will step into situations that the /flip is being abused
+- Captain are HIGHLY encouraged to do all scheduling in the #captainschat. During the end of group stages and playoffs, Admins will become heavily involved to help schedule matches faster.
+
+
+Lobby/Game Info –
+- Make sure lobby information is correct before starting:  Captains mode / Proper sides and picks for each team / cheats disabled / ticket on / scoreboard. 
+- Playing a game without a ticket / wrong team names will result in a -30second draft penalty on your entire next series. Secondary offense will increase draft penalty to -70 seconds.
+- Game remakes will NOT happen due to misclicking heroes, facets and abilities, or other errors.
+  - Captains can agree to draft and remake into an all pick lobby if a player is going to be late. This is courtesy not a requirement.
+  - Captains cannot force draft penalties on these courtesy drafts due to unknown time of arrival of the late player.
+  - Captains may still apply the forfeit rule at the stated time should the player not show. Therefore captains should still arrange for a standin in case of a no show.
+  - Captains are not required to redraft if a standin is used
+- Teams must use the same team during ticketed lobbies or face draft penalties. 
+- If you need a pause, you need to state the reason for your pause.
+- Teams will have 10 minutes per game of pause time. After that, the enemy team has the ability to unpause or wait at their discretion.
+- Ill-mannered pauses are unacceptable and will result in MAX reserve time penalty the following game. Repeated offenses may result in player suspensions and admin intervention. 
+- All chatting is allowed to a certain degree, however teams are allowed to request no all chat before or during a series. If no all chat is broken, admins will intervene and issue punishments.
+- Forfeits will be run by an admin and will be used only as a last resort.
+- Captains who Forfeit or “FF” a series can and will be subject to admin punishments. Forfeits should be used as an ABSOLUTE last resort option and are not to be used to make scheduling easier.
+- If the server crashes and players are unable to rejoin the game, the game will be remade with the same draft and facets unless both teams agree to a full redraft. Teams should also contact the admins before remaking the lobby.
+Tardiness/Penalties – 
+- If your team shows up late or is not ready on time, penalties may be enforced by the opposing team captain as they see fit.
+- The ‘tardy’ timer begins when a match is scheduled. If neither team is ready at the scheduled time, the late timer starts when one team has all of their players in the lobby.
+- Penalties are as follows:
+-    15 minutes late – the late team loses 30 seconds of reserve time.
+-    20 minutes late – the late team loses 30 seconds of reserve time as well as pick and side priority.
+-    25 minutes late – the team loses 70 seconds of reserve time as well as pick and side priority.
+-    30 minutes late – Forfeit of the series. The entire enemy team must be in the lobby and ready to receive a win from this.
+Casting –
+- If you wish to become a caster, ask an admin for the discord caster role.
+- To cast a series, you can react to the specific games in discord #scheduled-series with a green checkmark. 
+- Casting is on a first come first serve basis. There is a max of 2-3 separate casts per series. 
+- If you react, you are confirming participation. Show up early to the lobby, games will begin with or without you.
+- It is the casters duty to obtain lobby information from the participating teams.
+- Only players and casters are allowed in lobbies.
+- Links (twitch, youtube etc) must be posted in lads discord.
+- Casters should show restraint in their toxicity towards the players. This is not a coaching session or a time to insult players for bad plays. Laughing at mistakes is fine, but keep it PMA and semi-professional. Have fun!
+- Most of the players watch these VODs back, so nothing you say is private!
+- All casting should Allow Vods and Clips on their Channel and link their Stream link in #Streams/#Match-notify discord channels.
+- Casting Streams require a 120 second delay minimum to prevent stream sniping.
+- After the series you are casting is over and another Lads series is still going on, it would be appreciated if you were to host the other casters. 
+- Playoffs Promotional Program: 
+For top8 playoffs (winners semis and losers top8 forward) the admins will have the rights for promotion and management of the matches in the interest of league growth (similar to what we have done in Lads +)
+Changelog -
+
+Avg mmr increased to 7300
+
+Standing issues
+
+Default Time
+
+Server crashing remakes
+
+Spectating changes
+
+  

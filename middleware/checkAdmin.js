@@ -1,4 +1,5 @@
 import db from '../database.js';
+import { runWithAuditActor } from '../config/adminAuditContext.js';
 
 const STEAM_ID64_BASE = BigInt('76561197960265728');
 
@@ -21,7 +22,7 @@ export function checkAdmin(req, res, next) {
     }
 
     req.admin = admin;
-    return next();
+    return runWithAuditActor(admin, next);
   } catch (err) {
     console.error('Error in admin middleware:', err);
     return res.status(500).json({ error: 'Internal server error' });
