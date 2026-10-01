@@ -429,7 +429,6 @@ export default class SeasonStore {
       const update = this.db.prepare('UPDATE SeasonTeams SET GroupId = ?, UpdatedAt = ? WHERE TeamSubmissionId = ?');
       choice.groups.forEach((members, index) => members.forEach(team =>
         update.run(groups[index].GroupId, now(), team.TeamSubmissionId)));
-      this.audit('Groups Randomized', `Randomized ${teams.length} teams into ${groups.length} groups for season ${seasonId}; spread ${choice.spread.toFixed(2)}`);
       return { groups: this.groups(seasonId), spread: choice.spread };
     })();
   }
