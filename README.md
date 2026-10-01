@@ -20,6 +20,17 @@ Create timestamped backups under `backups/<database-name>/`:
 
 The script uses SQLite's `.backup` command so WAL-mode database changes are included safely.
 
+ADMIN OVERHAUL DEPLOYMENT
+---
+Back up `LadsData` before deploying. After updating the server code and client build,
+restart the Node server. Startup creates the new season, signup, adjusted-player,
+and MMR snapshot tables automatically; no manual SQL import is needed. If a league
+is already active, startup attaches it to a season record so admins can finish it
+through League Settings. MMR screenshots are kept as private SQLite blobs and are
+included in the normal database backup. The public rulebook remains managed by the
+existing rules seed and admin tools. If the most recent league had already ended
+before deployment, confirm its champion in League Overview to show it on the homepage.
+
 COMMANDS FOR THE SERVER
 ---
 sudo nano /etc/nginx/sites-available/dotawebsite

@@ -1,0 +1,31 @@
+.unmatched-match-teams {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid #d99435;
+  border-radius: 10px;
+  background: color-mix(in srgb, #d99435 10%, var(--surface, #111));
+  min-width: 0;
+}
+.unmatched-match-teams h2, .unmatched-match-teams p { margin: 0; }
+.unmatched-match-teams-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.8rem; }
+.unmatched-match-teams-heading p { margin-top: 0.3rem; color: var(--muted-text, #aaa); }
+.unmatched-match-teams-count { align-self: start; white-space: nowrap; }
+.unmatched-match-teams-list { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.unmatched-match-teams-list li {
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem 1rem;
+  padding: 0.6rem 0.8rem; border: 1px solid var(--border, #555); border-radius: 7px;
+  background: var(--surface, #111);
+}
+.unmatched-match-teams-name, .unmatched-match-teams-matches,
+.unmatched-match-teams-more, .unmatched-match-teams-actions { display: flex; flex-wrap: wrap; gap: 0.4rem 0.7rem; }
+.unmatched-match-teams-name span, .unmatched-match-teams-matches > span { color: var(--muted-text, #aaa); }
+.unmatched-match-teams a { color: #a5b4fc; }
+.unmatched-match-teams-matches details { width: 100%; }
+.unmatched-match-teams-matches summary { cursor: pointer; }
+.unmatched-match-teams-more { padding-top: 0.4rem; }
+.unmatched-match-teams-actions button, .unmatched-match-teams-error button {
+  padding: 0.45rem 0.7rem; border: 1px solid var(--border, #555); border-radius: 6px;
+  background: var(--surface, #111); color: var(--text, #eee); cursor: pointer;
+}
+.unmatched-match-teams-error { display: flex; align-items: center; flex-wrap: wrap; gap: 0.7rem; color: #f87171; }

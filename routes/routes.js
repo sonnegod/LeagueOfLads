@@ -6,6 +6,7 @@ import { checkAdmin, checkHeadAdmin, getAdminForSteamId } from '../middleware/ch
 import db from '../database.js';
 import dbBet from '../databaseBet.js';
 import dbPublic from '../databasePublic.js';
+import { publicSeasonRoutes, adminSeasonRoutes } from './seasonRoutes.js';
 import { classifyStandings, DEFAULT_LEAGUE_RULES } from '../config/leagueRules.js';
 import {
   getAppLiveMatchesPayload,
@@ -37,6 +38,12 @@ const DRAFT_ADMIN_PLAYER_ID = process.env.ADMIN_ID || '49219700';
 function toNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function positiveInteger(value) {
+  const raw = String(value ?? '').trim();
+  const number = Number(raw);
+  return /^\d+$/.test(raw) && Number.isSafeInteger(number) && number > 0 ? number : null;
 }
 
 function resolveAccountIdFromSteamId(steamId64) {
@@ -83,6 +90,13 @@ function checkDraftGodAccess(req, res, next) {
 }
 
 router.get('/auth/steam',
+  (req, res, next) => {
+    const returnTo = req.query.returnTo;
+    if (typeof returnTo === 'string' && /^\/signup\/\d+$/.test(returnTo) && req.session) {
+      req.session.signupReturnTo = returnTo;
+    }
+    next();
+  },
   passport.authenticate('steam')
 );
 
@@ -92,14 +106,16 @@ router.get('/auth/steam/return',
     db.login(req.user.displayName, req.user.id, new Date().toISOString());
     const accountId = resolveAccountIdFromSteamId(req.user.id);
     const canDraftGod = hasDraftAccess(accountId);
+    const destination = req.session?.signupReturnTo || '/dashboard';
+    if (req.session) delete req.session.signupReturnTo;
 
     const redirectToDashboard = () => {
       if (process.env.ENVIRONMENT === 'DEV') {
-        res.redirect(`http://localhost:${process.env.FRONTEND_PORT}/dashboard`);
+        res.redirect(`http://localhost:${process.env.FRONTEND_PORT}${destination}`);
       } else if (process.env.ENVIRONMENT === 'PROD') {
-        res.redirect(`https://www.leagueoflads.com/dashboard`);
+        res.redirect(`https://www.leagueoflads.com${destination}`);
       } else {
-        res.redirect('/dashboard');
+        res.redirect(destination);
       }
     };
 
@@ -202,7 +218,10 @@ router.get('/rules', (req, res) => {
   }
 });
 
+router.use(publicSeasonRoutes);
+
 router.use('/admin', checkAdmin);
+router.use('/admin/seasons', adminSeasonRoutes);
 
 router.get('/admin/auditLog', (req, res) => {
   const beforeId = req.query.before === undefined ? null : Number(req.query.before);
@@ -219,6 +238,75 @@ router.get('/admin/auditLog', (req, res) => {
   } catch (err) {
     console.error('Failed to load admin audit log:', err);
     return res.status(500).json({ error: 'Failed to load audit log' });
+  }
+});
+
+router.get('/admin/adjustedPlayers', (req, res) => {
+  const search = req.query.search ?? '';
+  if (typeof search !== 'string' || search.length > 120) {
+    return res.status(400).json({ error: 'Invalid search' });
+  }
+  try {
+    return res.json({ players: db.getAdjustedPlayers(search.trim()) });
+  } catch (err) {
+    console.error('Failed to load adjusted players:', err);
+    return res.status(500).json({ error: 'Failed to load adjusted players' });
+  }
+});
+
+router.get('/admin/adjustedPlayers/candidates', (req, res) => {
+  const search = req.query.search ?? '';
+  if (typeof search !== 'string' || search.length > 120) {
+    return res.status(400).json({ error: 'Invalid search' });
+  }
+  try {
+    return res.json({ players: db.getAdjustedPlayerCandidates(search.trim()) });
+  } catch (err) {
+    console.error('Failed to load player candidates:', err);
+    return res.status(500).json({ error: 'Failed to load players' });
+  }
+});
+
+router.post('/admin/adjustedPlayers', (req, res) => {
+  const playerId = positiveInteger(req.body?.playerId);
+  const mmr = positiveInteger(req.body?.adjustedMMR);
+  if (!playerId || !mmr || mmr <= 5500) return res.status(400).json({ error: 'Select a player and enter an MMR greater than 5,500' });
+  try {
+    return res.status(201).json({ player: db.addAdjustedPlayer(playerId, mmr) });
+  } catch (err) {
+    if (err.code === 'PLAYER_NOT_FOUND') return res.status(404).json({ error: err.message });
+    if (err.code === 'ADJUSTMENT_EXISTS' || err.code?.startsWith('SQLITE_CONSTRAINT')) {
+      return res.status(409).json({ error: 'Player already has an adjusted MMR' });
+    }
+    console.error('Failed to add adjusted player:', err);
+    return res.status(500).json({ error: 'Failed to add adjusted player' });
+  }
+});
+
+router.patch('/admin/adjustedPlayers/:playerId', (req, res) => {
+  const playerId = positiveInteger(req.params.playerId);
+  const mmr = positiveInteger(req.body?.adjustedMMR);
+  if (!playerId || !mmr || mmr <= 5500) return res.status(400).json({ error: 'Enter a valid player ID and an MMR greater than 5,500' });
+  try {
+    const player = db.updateAdjustedPlayer(playerId, mmr);
+    if (!player) return res.status(404).json({ error: 'Adjusted player not found' });
+    return res.json({ player });
+  } catch (err) {
+    console.error('Failed to update adjusted player:', err);
+    return res.status(500).json({ error: 'Failed to update adjusted player' });
+  }
+});
+
+router.delete('/admin/adjustedPlayers/:playerId', (req, res) => {
+  const playerId = positiveInteger(req.params.playerId);
+  if (!playerId) return res.status(400).json({ error: 'Invalid player ID' });
+  try {
+    const player = db.removeAdjustedPlayer(playerId);
+    if (!player) return res.status(404).json({ error: 'Adjusted player not found' });
+    return res.json({ player });
+  } catch (err) {
+    console.error('Failed to remove adjusted player:', err);
+    return res.status(500).json({ error: 'Failed to remove adjusted player' });
   }
 });
 
@@ -377,7 +465,7 @@ router.post('/admin/admins', checkHeadAdmin, (req, res) => {
   const headAdmin = req.body?.headAdmin ?? false;
 
   if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(playerId) || playerId <= 0) {
-    return res.status(400).json({ error: 'Enter a valid Steam account ID (not a 64-bit Steam ID)' });
+    return res.status(400).json({ error: 'Enter a valid Steam Steam ID (not a 64-bit Steam ID)' });
   }
   if (typeof headAdmin !== 'boolean') {
     return res.status(400).json({ error: 'Admin role must be a boolean' });
@@ -405,7 +493,7 @@ router.post('/admin/admins/manual', checkHeadAdmin, (req, res) => {
   const headAdmin = req.body?.headAdmin ?? false;
 
   if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(playerId) || playerId <= 0) {
-    return res.status(400).json({ error: 'Enter a valid Steam account ID (not a 64-bit Steam ID)' });
+    return res.status(400).json({ error: 'Enter a valid Steam Steam ID (not a 64-bit Steam ID)' });
   }
   if (!playerName || playerName.length > 60) {
     return res.status(400).json({ error: 'Account name must be between 1 and 60 characters' });
@@ -499,29 +587,7 @@ router.post('/admin/leagueRules', checkAdmin, (req, res) => {
 });
 
 router.post('/admin/leagues', checkAdmin, (req, res) => {
-  const { leagueId: rawLeagueId, leagueName: rawLeagueName } = req.body || {};
-  const leagueId = Number(rawLeagueId);
-  const leagueName = String(rawLeagueName || '').trim();
-
-  if (!Number.isSafeInteger(leagueId) || leagueId <= 0) {
-    return res.status(400).json({ error: 'League ID must be a positive integer' });
-  }
-
-  if (!leagueName || leagueName.length > 60) {
-    return res.status(400).json({ error: 'League name must be between 1 and 60 characters' });
-  }
-
-  try {
-    const league = db.InsertNewLeague(leagueId, leagueName);
-    return res.status(201).json({ success: true, league });
-  } catch (err) {
-    if (err.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-      return res.status(409).json({ error: `League ID ${leagueId} already exists` });
-    }
-
-    console.error(err);
-    return res.status(500).json({ error: 'Failed to add league' });
-  }
+  return res.status(409).json({ error: 'Create a season in League Overview, then start it with an external League ID' });
 });
 
 router.get('/liveMatches/count', (req, res) => {
@@ -1045,6 +1111,17 @@ router.post('/admin/updateMatchTeams', (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/admin/unmatchedMatchTeams', checkAdmin, (req, res) => {
+  try {
+    const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+    return res.json({ leagueId: leagueId || null,
+      teams: leagueId ? db.adminUnmatchedMatchTeams(leagueId) : [] });
+  } catch (err) {
+    console.error('Failed to load unmatched match teams:', err);
+    return res.status(500).json({ error: 'Failed to check match team IDs' });
   }
 });
 
@@ -1590,7 +1667,7 @@ router.post("/admin/activateTiebreakers", (req, res) => {
   });
 
   const last = db.getLastMatchForActiveLeague();
-  if (!last) return res.json({ success: false, error: "No matches found" });
+  if (!last?.length) return res.json({ success: false, error: "No matches found" });
 
   const rules = db.getLeagueRules(activeLeague[0].LeagueId) || DEFAULT_LEAGUE_RULES;
   if (!Boolean(Number(rules.HasTiebreaker))) {
@@ -1625,9 +1702,13 @@ router.post("/admin/activatePlayoffs", (req, res) => {
   });
 
   const last = db.getLastMatchForActiveLeague();
-  if (!last) return res.json({ success: false, error: "No matches found" });
+  if (!last?.length) return res.json({ success: false, error: "No matches found" });
 
   const existing = db.getLeagueStageBoundaries(activeLeague[0].LeagueId);
+
+  if (existing.length && existing[0].TieBreakerEndMatchId != null) {
+    return res.json({ success: false, error: "Playoffs have already started" });
+  }
 
   // Case 1: No record — create both fields set
   if (existing.length === 0) {
@@ -1646,19 +1727,12 @@ router.post("/admin/activatePlayoffs", (req, res) => {
 });
 
 router.post("/admin/endSeason", (req, res) => {
-  const activeLeague = db.getActiveLeague();
-  const activeLeagueId = activeLeague[0].LeagueId;
-
-  /*  Dont Really need right now
-  
-  const last = db.getLastMatchForActiveLeague();
-  if (!last) return res.json({ success: false, error: "No matches found" });
-  const existing = db.getLeagueStageBoundaries(activeLeague[0].LeagueId);
-  */
-
-  db.closeSeason(activeLeagueId);
-
-  return res.json({ success: true });
+  const season = db.seasons.current();
+  const championTeamId = positiveInteger(req.body?.championTeamId);
+  if (!season || season.Status !== 'active') return res.status(409).json({ error: 'No active league' });
+  if (!championTeamId) return res.status(400).json({ error: 'Select the champion before ending the league' });
+  try { return res.json({ success: true, season: db.seasons.end(season.SeasonId, championTeamId) }); }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message }); }
 });
 
 router.get('/leagueStage', (req, res) => {

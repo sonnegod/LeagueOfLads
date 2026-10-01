@@ -1,22 +1,58 @@
+.home-offseason { display: grid; gap: 1.5rem; width: min(100%, 1150px); margin: 0 auto; }
+.ui-page.home-offseason-champion { width: 100%; max-width: none; }
+.home-signup-hero, .home-champion-hero, .home-offseason-empty {
+  border: 1px solid var(--border, #344); border-radius: 16px;
+  padding: clamp(1.5rem, 4vw, 3rem); background: var(--surface, #101827);
+}
+.home-signup-hero { border-color: var(--primary, #646cff); }
+.home-offseason-champion .home-signup-hero { width: min(100%, 1150px); justify-self: center; }
+.home-eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.12em;
+  font-weight: 700; color: #a5b4fc; }
+.home-offseason h1 { margin: 0.6rem 0; font-size: clamp(2rem, 5vw, 3.6rem); }
+.home-signup-button { display: inline-block; margin-top: 1rem; padding: 1rem 2rem;
+  border-radius: 10px; background: var(--primary, #646cff); color: white;
+  font-size: 1.2rem; font-weight: 800; text-decoration: none; }
+.home-signup-button:hover { filter: brightness(1.15); }
+.home-champion-hero a { color: #c7d2fe; }
+.home-champion-hero { padding: clamp(1rem, 2vw, 2.5rem); }
+.home-champion-stats { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 1.5rem; }
+.home-champion-stat { display: grid; gap: 0.2rem; min-width: 135px; padding: 0.8rem 1rem;
+  border: 1px solid var(--border, #344); border-radius: 10px; }
+.home-champion-stat strong { font-size: 1.5rem; }
+
+.home-champion-rollcall { margin-top: clamp(2rem, 5vw, 3.5rem); }
+.home-champion-rollcall-heading h2 { margin: 0.35rem 0; font-size: clamp(1.5rem, 3vw, 2rem); }
+.home-champion-rollcall-heading > p:last-child { margin: 0; color: var(--muted-text, #a8b2c5); }
+.home-champion-players { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 0.9rem; margin-top: 1.4rem; }
+.home-champion-player { display: grid; grid-template-rows: auto 1fr auto; gap: 1.1rem;
+  min-width: 0; padding: 1rem; border: 1px solid #9a774c80; border-radius: 14px;
+  background: linear-gradient(145deg, #a8793921, transparent 60%), var(--surface, #101827); }
+.home-champion-player-heading { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.home-champion-player-heading > div { min-width: 0; }
+.home-champion-player-mark { display: grid; place-items: center; flex: none; width: 2.8rem; height: 2.8rem;
+  border: 1px solid #d6aa64; border-radius: 50%; color: #f6d89a; font-size: 1.25rem; font-weight: 800;
+  background: #9871393d; }
+.home-champion-player-heading h3 { margin: 0; font-size: 1.12rem; overflow-wrap: anywhere; }
+.home-champion-player-heading p { margin: 0.25rem 0 0; color: var(--muted-text, #a8b2c5);
+  font-size: 0.84rem; }
+.home-champion-player-moment { display: grid; align-content: center; gap: 0.25rem;
+  padding: 0.85rem; border-left: 3px solid #d6aa64; border-radius: 0 8px 8px 0;
+  background: #d6aa6412; }
+.home-champion-player-moment > span, .home-champion-player-hero > span:first-child {
+  color: #e3bd7d; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; }
+.home-champion-player-moment strong { font-size: 1.8rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.home-champion-player-moment p { margin: 0; color: var(--muted-text, #a8b2c5); font-size: 0.85rem; }
+.home-champion-player-moment a { width: fit-content; margin-top: 0.25rem; font-size: 0.82rem; }
+.home-champion-player-hero { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.7rem;
+  padding-top: 0.8rem; border-top: 1px solid var(--border, #344); }
+.home-champion-player-hero > span:first-child { flex-basis: 100%; }
+.home-champion-player-hero a { min-width: 0; overflow-wrap: anywhere; }
+.home-champion-player-hero small { color: var(--muted-text, #a8b2c5); }
+
 @media (max-width: 767px) {
-  .home-page {
-    padding: 12px !important;
-  }
-
-  .home-page h2 {
-    margin: 0 0 12px;
-    font-size: 1.35rem;
-  }
-
-  .home-tabs {
-    max-width: 100%;
-    gap: 8px !important;
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-
-  .home-tabs button {
-    min-height: 44px;
-    flex: 0 0 auto;
-  }
+  .home-page { padding: 12px !important; }
+  .home-page h2 { margin: 0 0 12px; font-size: 1.35rem; }
+  .home-tabs { max-width: 100%; gap: 8px !important; overflow-x: auto; padding-bottom: 4px; }
+  .home-tabs button { min-height: 44px; flex: 0 0 auto; }
 }

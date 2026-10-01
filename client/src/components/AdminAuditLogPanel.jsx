@@ -77,7 +77,7 @@ export default function AdminAuditLogPanel() {
         <div className="admin-audit-search-controls">
           <input id="admin-audit-search-input" type="search" value={searchInput} maxLength={120}
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Player name, account ID, or action" />
+            placeholder="Player name, Steam ID, or action" />
           <button type="submit">Search</button>
           {searchTerm && <button type="button" onClick={clearSearch}>Clear</button>}
         </div>

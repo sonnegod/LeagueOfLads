@@ -6,6 +6,10 @@ import { buildGroupResults } from './config/groupResults.js';
 import { planRosterLinks } from './config/rosterMatching.js';
 import SiteRulesStore from './config/siteRulesStore.js';
 import AdminAuditStore from './config/adminAuditStore.js';
+import AdjustedPlayersStore from './config/adjustedPlayersStore.js';
+import SeasonStore from './config/seasonStore.js';
+import { getLeaguePlayerRecords } from './config/leaguePlayerRecords.js';
+import { getUnmatchedMatchTeams } from './config/unmatchedMatchTeams.js';
 dotenv.config();
 
 class DBInstance {
@@ -19,9 +23,11 @@ class DBInstance {
             this.db = new Database(dbPath);
             this.ensureAdminsSchema();
             this.auditLog = new AdminAuditStore(this.db);
+            this.adjustedPlayers = new AdjustedPlayersStore(this.db);
             this.ensureLeagueRulesSchema();
             this.siteRules = new SiteRulesStore(this.db);
             this.ensureAdminStandingsSchema();
+            this.seasons = new SeasonStore(this.db, (type, message) => this.recordAdminAudit(type, message));
             this.ensureLiveMatchSchema();
             this.preloadedData = this.preloadData();
             DBInstance.instance = this;
@@ -59,6 +65,40 @@ class DBInstance {
     }
 
     getAdminAuditLog(beforeId = null, search = ''){ return this.auditLog.list(beforeId, search); }
+
+    getAdjustedPlayers(search = ''){ return this.adjustedPlayers.list(search); }
+    getAdjustedPlayerCandidates(search){ return this.adjustedPlayers.candidates(search); }
+    getAdjustedPlayer(playerId){ return this.adjustedPlayers.get(playerId); }
+
+    addAdjustedPlayer(playerId, mmr){
+        return this.db.transaction(() => {
+            const player = this.adjustedPlayers.add(playerId, mmr);
+            this.recordAdminAudit('Adjusted Player Added',
+                `Set ${player.PlayerName} (${playerId}) adjusted MMR to ${mmr}`);
+            return player;
+        })();
+    }
+
+    updateAdjustedPlayer(playerId, mmr){
+        return this.db.transaction(() => {
+            const previous = this.adjustedPlayers.get(playerId);
+            const player = this.adjustedPlayers.update(playerId, mmr);
+            if (player && previous.AdjustedMMR !== mmr) {
+                this.recordAdminAudit('Adjusted Player Changed',
+                    `Changed ${player.PlayerName} (${playerId}) adjusted MMR from ${previous.AdjustedMMR} to ${mmr}`);
+            }
+            return player;
+        })();
+    }
+
+    removeAdjustedPlayer(playerId){
+        return this.db.transaction(() => {
+            const player = this.adjustedPlayers.remove(playerId);
+            if (player) this.recordAdminAudit('Adjusted Player Removed',
+                `Removed ${player.PlayerName} (${playerId}) adjusted MMR of ${player.AdjustedMMR}`);
+            return player;
+        })();
+    }
 
     ensureAdminsSchema(){
         this.db.exec(`CREATE TABLE IF NOT EXISTS Admins (
@@ -192,12 +232,17 @@ class DBInstance {
                 GroupId INTEGER NOT NULL,
                 DisplayName TEXT NOT NULL,
                 TeamId INTEGER,
+                TeamSubmissionId INTEGER,
                 SortOrder INTEGER NOT NULL,
                 UNIQUE (LeagueId, TeamId)
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_LeagueRosterEntries_LeagueGroupName
                 ON LeagueRosterEntries (LeagueId, GroupId, DisplayName COLLATE NOCASE);
         `);
+        const rosterColumns = this.db.prepare('PRAGMA table_info(LeagueRosterEntries)').all();
+        if (!rosterColumns.some((column) => column.name === 'TeamSubmissionId')) {
+            this.db.exec('ALTER TABLE LeagueRosterEntries ADD COLUMN TeamSubmissionId INTEGER');
+        }
     }
 
     getLeagueRules(leagueId){
@@ -2017,6 +2062,10 @@ class DBInstance {
             this.db.prepare(`UPDATE LeagueRosterEntries
                 SET TeamId = ?, DisplayName = ?, GroupId = ? WHERE EntryId = ?`)
                 .run(teamId, displayName, groupId, entryId);
+            if (entry.TeamSubmissionId) {
+                this.db.prepare(`UPDATE SeasonTeams SET ExternalTeamId = ?
+                    WHERE TeamSubmissionId = ?`).run(teamId, entry.TeamSubmissionId);
+            }
             this.db.prepare(`INSERT INTO LeagueGroups (LeagueId, TeamId, GroupId)
                 VALUES (?, ?, ?) ON CONFLICT(LeagueId, TeamId)
                 DO UPDATE SET GroupId = excluded.GroupId`).run(leagueId, teamId, groupId);
@@ -2480,19 +2529,23 @@ class DBInstance {
             li.LeagueId,
             li.LeagueName,
             ml.MatchId AS LastMatchId,
-            CASE WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
+            CASE WHEN season.SeasonId IS NOT NULL THEN season.ChampionTeamId
+              WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
                 WHEN li.Active = 0 AND mt.TeamDire = mt.WinnerId THEN mt.TeamDire
                 ELSE NULL END AS WinnerTeamId,
-            ti.TeamName AS WinnerTeamName
+            COALESCE(ltn.DisplayName, ti.TeamName) AS WinnerTeamName
             FROM LeagueInfo li
+            LEFT JOIN LeagueSeasons season ON season.ExternalLeagueId = li.LeagueId
             LEFT JOIN MatchLeague ml ON li.LeagueId = ml.LeagueId
                 AND ml.MatchId = (
                     SELECT MAX(ml2.MatchId) FROM MatchLeague ml2 WHERE ml2.LeagueId = li.LeagueId
                 )
             LEFT JOIN MatchTeam mt ON ml.MatchId = mt.MatchId
-            LEFT JOIN TeamInfo ti ON ti.TeamId = 
-                CASE WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
-                    WHEN li.Active = 0 AND mt.TeamDire = mt.WinnerId THEN mt.TeamDire END
+            LEFT JOIN TeamInfo ti ON ti.TeamId = CASE
+                WHEN season.SeasonId IS NOT NULL THEN season.ChampionTeamId
+                WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
+                WHEN li.Active = 0 AND mt.TeamDire = mt.WinnerId THEN mt.TeamDire END
+            LEFT JOIN LeagueTeamNames ltn ON ltn.LeagueId = li.LeagueId AND ltn.TeamId = ti.TeamId
             ORDER BY li.LeagueId DESC`
             );
     }
@@ -2503,56 +2556,29 @@ class DBInstance {
             li.Active,
             li.LeagueId,
             li.LeagueName,
-            CASE WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
+            CASE WHEN season.SeasonId IS NOT NULL THEN season.ChampionTeamId
+              WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
                 WHEN li.Active = 0 AND mt.TeamDire = mt.WinnerId THEN mt.TeamDire
                 ELSE NULL END AS WinnerTeamId,
-            ti.TeamName AS WinnerTeamName
+            COALESCE(ltn.DisplayName, ti.TeamName) AS WinnerTeamName
             FROM LeagueInfo li
+            LEFT JOIN LeagueSeasons season ON season.ExternalLeagueId = li.LeagueId
             LEFT JOIN MatchLeague ml ON li.LeagueId = ml.LeagueId
                 AND ml.MatchId = (
                     SELECT MAX(ml2.MatchId) FROM MatchLeague ml2 WHERE ml2.LeagueId = li.LeagueId
                 )
             LEFT JOIN MatchTeam mt ON ml.MatchId = mt.MatchId
-            LEFT JOIN TeamInfo ti ON ti.TeamId = 
-                CASE WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
-                    WHEN li.Active = 0 AND mt.TeamDire = mt.WinnerId THEN mt.TeamDire END
+            LEFT JOIN TeamInfo ti ON ti.TeamId = CASE
+                WHEN season.SeasonId IS NOT NULL THEN season.ChampionTeamId
+                WHEN li.Active = 0 AND mt.TeamRad = mt.WinnerId THEN mt.TeamRad
+                WHEN li.Active = 0 AND mt.TeamDire = mt.WinnerId THEN mt.TeamDire END
+            LEFT JOIN LeagueTeamNames ltn ON ltn.LeagueId = li.LeagueId AND ltn.TeamId = ti.TeamId
             WHERE li.LeagueId = ?
         `,[leagueId]);
     }
 
     getLeaguePlayerData(leagueId){
-        return this.queryDatabase(
-            `SELECT
-            p.PlayerId,
-            p.PlayerName,
-            COUNT(mtp.MatchId) AS GamesPlayed,
-            ROUND(100.0 * SUM(
-                CASE 
-                    WHEN mt.TeamRad = mt.WinnerId AND mt.TeamRad = mtp.TeamId THEN 1
-                    WHEN mt.TeamDire = mt.WinnerId AND mt.TeamDire = mtp.TeamId THEN 1
-                    ELSE 0
-                END
-            ) / COUNT(mtp.MatchId), 2) AS WinPercentage,
-            AVG(mp.Kills) AS AvgKills,
-            AVG(mp.Deaths) AS AvgDeaths,
-            AVG(mp.Assists) AS AvgAssists,
-            AVG(mp.LastHits) AS AvgLastHits,
-            AVG(mp.GPM) AS AvgGPM,
-            AVG(mp.XPM) AS AvgXPM
-            FROM MatchTeamPlayer mtp
-            JOIN MatchPlayer mp
-                ON mtp.MatchId = mp.MatchId
-                AND mtp.PlayerId = mp.PlayerId
-            JOIN PlayerInfo p
-                ON p.PlayerId = mtp.PlayerId
-            JOIN MatchTeam mt
-                ON mtp.MatchId = mt.MatchId
-            JOIN MatchLeague ml
-                ON ml.MatchId = mtp.MatchId
-            WHERE ml.LeagueId = ?
-            GROUP BY p.PlayerId
-            ORDER BY GamesPlayed DESC;
-        `,[leagueId]);
+        return getLeaguePlayerRecords(this.db, leagueId);
     }
 
     getLeagueMatchesData(leagueId){
@@ -2757,6 +2783,8 @@ class DBInstance {
     adminSaveLeagueTeam(leagueId, originalTeamId, teamId, teamName, groupId){
         const save = this.db.transaction(() => {
             const idChanged = originalTeamId !== teamId;
+            const submissionId = this.db.prepare(`SELECT TeamSubmissionId FROM LeagueRosterEntries
+                WHERE LeagueId = ? AND TeamId = ?`).get(leagueId, originalTeamId)?.TeamSubmissionId;
             if (idChanged) {
                 const assigned = this.db.prepare(`SELECT 1 FROM LeagueGroups
                     WHERE LeagueId = ? AND TeamId = ?`).get(leagueId, teamId);
@@ -2793,6 +2821,10 @@ class DBInstance {
                 this.db.prepare(`INSERT INTO LeagueGroups (LeagueId, TeamId, GroupId)
                     VALUES (?, ?, ?) ON CONFLICT(LeagueId, TeamId)
                     DO UPDATE SET GroupId = excluded.GroupId`).run(leagueId, teamId, groupId);
+            }
+            if (submissionId) {
+                this.db.prepare(`UPDATE SeasonTeams SET ExternalTeamId = ?
+                    WHERE TeamSubmissionId = ?`).run(groupId == null ? null : teamId, submissionId);
             }
             if (oldGroup !== undefined && (idChanged || oldGroup !== groupId)) {
                 this.db.prepare(`DELETE FROM GroupResultOverrides
@@ -2970,6 +3002,10 @@ class DBInstance {
             LEFT JOIN GroupNames gn ON gn.LeagueId = ? AND gn.GroupId = lg.GroupId
             ORDER BY CASE WHEN lg.GroupId IS NULL THEN 1 ELSE 0 END, lg.GroupId, TeamName
         `, Array(12).fill(leagueId));
+    }
+
+    adminUnmatchedMatchTeams(leagueId){
+        return getUnmatchedMatchTeams(this.db, leagueId);
     }
 
     adminCurrentTeamMatches(teamId){

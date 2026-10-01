@@ -18,6 +18,14 @@ CREATE TABLE AdminAuditLog (
     CreatedAt TEXT
 );
 
+-- table: AdjustedPlayers
+CREATE TABLE AdjustedPlayers (
+    PlayerId INTEGER PRIMARY KEY NOT NULL REFERENCES PlayerInfo(PlayerId),
+    AdjustedMMR INTEGER NOT NULL CHECK (AdjustedMMR > 5500),
+    CreatedAt TEXT NOT NULL,
+    UpdatedAt TEXT NOT NULL
+);
+
 -- table: Comments
 CREATE TABLE Comments (ProblemId INTEGER PRIMARY KEY AUTOINCREMENT, UserId INTEGER, Comment VARCHAR (128));
 
@@ -300,6 +308,75 @@ CREATE TABLE Team (TeamId INTEGER UNIQUE NOT NULL REFERENCES TeamInfo (TeamId) P
 -- table: TeamInfo
 CREATE TABLE TeamInfo (TeamId INTEGER UNIQUE NOT NULL PRIMARY KEY, TeamName STRING (60) NOT NULL);
 
+-- table: LeagueSeasons
+CREATE TABLE LeagueSeasons (
+    SeasonId INTEGER PRIMARY KEY AUTOINCREMENT,
+    LeagueName TEXT NOT NULL,
+    Status TEXT NOT NULL CHECK (Status IN ('draft', 'signup_open', 'signup_closed', 'active', 'ended')),
+    SignupTitle TEXT,
+    SignupDescription TEXT,
+    ExternalLeagueId INTEGER UNIQUE,
+    ChampionTeamId INTEGER,
+    CreatedAt TEXT NOT NULL,
+    UpdatedAt TEXT NOT NULL,
+    EndedAt TEXT
+);
+
+-- table: SeasonGroups
+CREATE TABLE SeasonGroups (
+    GroupId INTEGER PRIMARY KEY AUTOINCREMENT,
+    SeasonId INTEGER NOT NULL REFERENCES LeagueSeasons(SeasonId),
+    GroupName TEXT NOT NULL COLLATE NOCASE,
+    SortOrder INTEGER NOT NULL,
+    UNIQUE (SeasonId, GroupName)
+);
+
+-- table: SeasonTeams
+CREATE TABLE SeasonTeams (
+    TeamSubmissionId INTEGER PRIMARY KEY AUTOINCREMENT,
+    SeasonId INTEGER NOT NULL REFERENCES LeagueSeasons(SeasonId),
+    CaptainId INTEGER,
+    TeamName TEXT NOT NULL,
+    IsManual INTEGER NOT NULL DEFAULT 0 CHECK (IsManual IN (0, 1)),
+    ManualAverageMMR INTEGER,
+    GroupId INTEGER REFERENCES SeasonGroups(GroupId),
+    ExternalTeamId INTEGER,
+    SubmittedAt TEXT NOT NULL,
+    UpdatedAt TEXT NOT NULL
+);
+
+-- table: SeasonTeamPlayers
+CREATE TABLE SeasonTeamPlayers (
+    TeamSubmissionId INTEGER NOT NULL REFERENCES SeasonTeams(TeamSubmissionId),
+    PlayerId INTEGER NOT NULL REFERENCES PlayerInfo(PlayerId),
+    Slot INTEGER NOT NULL,
+    MMR INTEGER NOT NULL,
+    DotaProfileUrl TEXT NOT NULL,
+    ScreenshotMime TEXT NOT NULL,
+    ScreenshotData BLOB NOT NULL,
+    PRIMARY KEY (TeamSubmissionId, PlayerId),
+    UNIQUE (TeamSubmissionId, Slot)
+);
+
+-- table: SignupMMRs
+CREATE TABLE SignupMMRs (
+    SeasonId INTEGER NOT NULL REFERENCES LeagueSeasons(SeasonId),
+    TeamSubmissionId INTEGER NOT NULL REFERENCES SeasonTeams(TeamSubmissionId),
+    PlayerId INTEGER NOT NULL REFERENCES PlayerInfo(PlayerId),
+    SignupMMR INTEGER NOT NULL,
+    PRIMARY KEY (TeamSubmissionId, PlayerId)
+);
+
+-- table: SeasonLeagueRules
+CREATE TABLE SeasonLeagueRules (
+    SeasonId INTEGER PRIMARY KEY REFERENCES LeagueSeasons(SeasonId),
+    UpperBracketTeams INTEGER NOT NULL,
+    LowerBracketTeams INTEGER NOT NULL,
+    EliminatedTeams INTEGER NOT NULL,
+    HasTiebreaker INTEGER NOT NULL,
+    TiebreakerPosition INTEGER
+);
+
 -- table: TempSeriesInfo
 CREATE TABLE TempSeriesInfo (
     SeriesId    INTEGER PRIMARY KEY AUTOINCREMENT
@@ -311,6 +388,10 @@ CREATE TABLE TempSeriesInfo (
     Stage       TEXT,
     LeagueId    INTEGER
 );
+
+CREATE UNIQUE INDEX idx_LeagueSeasons_Current ON LeagueSeasons ((1)) WHERE Status <> 'ended';
+CREATE INDEX idx_SeasonTeams_Season ON SeasonTeams(SeasonId);
+CREATE INDEX idx_SeasonGroups_Season ON SeasonGroups(SeasonId);
 
 -- index: idx_DraftAccess_PlayerId
 CREATE INDEX idx_DraftAccess_PlayerId ON DraftAccess(PlayerId);
