@@ -1,8 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import HeroDisplay from "./HeroDisplay";
-
-const PLAYER_LEADER_MIN_GAMES = 5;
+import { isRegularTeamPlayer } from "../utils/playerTeamEligibility";
 
 export default function LeagueHomeTab({
   league,
@@ -12,8 +11,10 @@ export default function LeagueHomeTab({
   heroes = []
 }) {
   const topTeams = getTopTeams(teams);
-  const kdaLeaders = getKdaLeaders(players);
-  const gpmLeaders = getStatLeaders(players, "AvgGPM");
+  const regularPlayers = players.filter(player =>
+    isRegularTeamPlayer(player.GamesPlayed, player.TeamGames, true));
+  const kdaLeaders = getKdaLeaders(regularPlayers);
+  const gpmLeaders = getStatLeaders(regularPlayers, "AvgGPM");
   const topHeroes = getTopHeroes(heroes);
   const bestWinRateHeroes = getBestWinRateHeroes(heroes);
   const recentMatches = matches.slice(0, 6);
@@ -32,9 +33,11 @@ export default function LeagueHomeTab({
       <div style={metricGridStyle}>
         <MetricCard label="Teams" value={teams.length} />
         <MetricCard label="Matches" value={matches.length} />
-        <MetricCard label="Players" value={players.length} />
+        <MetricCard label="Players" value={new Set(players.map(player => player.PlayerId)).size} />
         <MetricCard label="Heroes Picked" value={heroes.length} />
       </div>
+
+      <p style={subtleTextStyle}>Player spotlights require at least two games for that team, plus 75% of its first eight games or more than half afterward.</p>
 
       <div style={featureGridStyle}>
         <FeatureCard title="Table Boss">
@@ -60,16 +63,16 @@ export default function LeagueHomeTab({
             <div style={leaderListStyle}>
               {kdaLeaders.map((player, index) => (
                 <LeaderRow
-                  key={player.PlayerId}
+                  key={`${player.PlayerId}:${player.TeamId}`}
                   rank={index + 1}
                   href={`/player/${player.PlayerId}`}
                   name={player.PlayerName}
-                  detail={`${formatNumber(getKda(player), 2)} KDA, ${formatNumber(player.GamesPlayed)} games`}
+                  detail={`${player.TeamName} · ${formatNumber(getKda(player), 2)} KDA, ${formatNumber(player.GamesPlayed)} games`}
                 />
               ))}
             </div>
           ) : (
-            <EmptyState>No player has at least 5 games yet.</EmptyState>
+            <EmptyState>No player meets the team participation minimum yet.</EmptyState>
           )}
         </FeatureCard>
 
@@ -78,16 +81,16 @@ export default function LeagueHomeTab({
             <div style={leaderListStyle}>
               {gpmLeaders.map((player, index) => (
                 <LeaderRow
-                  key={player.PlayerId}
+                  key={`${player.PlayerId}:${player.TeamId}`}
                   rank={index + 1}
                   href={`/player/${player.PlayerId}`}
                   name={player.PlayerName}
-                  detail={`${formatNumber(player.AvgGPM, 0)} average GPM, ${formatNumber(player.GamesPlayed)} games`}
+                  detail={`${player.TeamName} · ${formatNumber(player.AvgGPM, 0)} average GPM, ${formatNumber(player.GamesPlayed)} games`}
                 />
               ))}
             </div>
           ) : (
-            <EmptyState>No player has at least 5 games yet.</EmptyState>
+            <EmptyState>No player meets the team participation minimum yet.</EmptyState>
           )}
         </FeatureCard>
 
@@ -204,14 +207,12 @@ function getTopTeams(teams) {
 
 function getKdaLeaders(players) {
   return [...players]
-    .filter(player => toNumber(player.GamesPlayed) >= PLAYER_LEADER_MIN_GAMES)
     .sort((a, b) => getKda(b) - getKda(a))
     .slice(0, 5);
 }
 
 function getStatLeaders(players, statKey) {
   return [...players]
-    .filter(player => toNumber(player.GamesPlayed) >= PLAYER_LEADER_MIN_GAMES)
     .sort((a, b) => toNumber(b[statKey]) - toNumber(a[statKey]))
     .slice(0, 5);
 }

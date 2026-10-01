@@ -23,6 +23,7 @@ import DraftGodPage from "./pages/DraftGod";
 import LiveMatchesPage from "./pages/LiveMatchesPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import RulesPage from "./pages/RulesPage";
+import SignupPage from "./pages/SignupPage";
 
 export default function App() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/live" element={<LiveMatchesPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/rules" element={<RulesPage />} />
+        <Route path="/signup/:seasonId" element={<SignupPage />} />
       </Route>
     </Routes>
   );

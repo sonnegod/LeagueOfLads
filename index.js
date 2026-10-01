@@ -36,7 +36,15 @@ app.use(session({
   }
 }));
 
+app.use('/api/signup', express.json({ limit: '16mb' }));
+app.use('/api/admin/seasons', express.json({ limit: '16mb' }));
 app.use(express.json());        
+app.use((error, req, res, next) => {
+  if (error.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Request is too large. Each MMR screenshot must be 2 MB or less.' });
+  }
+  return next(error);
+});
 
 // Middleware
 app.use(passport.initialize());

@@ -1,0 +1,16 @@
+.signup-page { max-width: 1050px; margin: 0 auto; }
+.signup-page h1 { margin-bottom: 0.4rem; }
+.signup-login { display: inline-block; padding: 0.9rem 1.4rem; border-radius: 8px; }
+.signup-form { display: grid; gap: 1.2rem; margin-top: 2rem; }
+.signup-form input { width: 100%; box-sizing: border-box; padding: 0.65rem;
+  color: var(--text, #eee); background: var(--surface, #111); border: 1px solid var(--border, #555); border-radius: 6px; }
+.signup-player { border: 1px solid var(--border, #555); border-radius: 9px; padding: 1rem; }
+.signup-player legend { font-weight: 700; padding: 0 0.4rem; }
+.signup-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.9rem; margin-top: 0.8rem; }
+.signup-fields label { display: grid; gap: 0.3rem; }
+.signup-candidates { display: grid; max-height: 180px; overflow: auto; border: 1px solid var(--border, #555); }
+.signup-candidates button { text-align: left; padding: 0.5rem; color: var(--text, #eee);
+  background: var(--surface, #111); border: 0; cursor: pointer; }
+.signup-candidates button:hover { background: var(--primary, #646cff); }
+.signup-error { color: #f87171; }
+.signup-success { padding: 1rem; border: 1px solid #4ade80; border-radius: 8px; }

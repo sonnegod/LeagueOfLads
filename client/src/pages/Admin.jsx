@@ -7,14 +7,15 @@ import CurrentLeagueTeams from "../components/CurrentLeagueTeams";
 import LeagueSetupTable from "../components/LeagueSetupTable";
 import GroupHeadToHeadEditor from "../components/GroupHeadToHeadEditor";
 import DeleteMatchCard from "../components/DeleteMatchCard";
-import PlayoffAdminPanel from "../components/PlayoffAdminPanel";
 import PlayoffBracketEditor from "../components/PlayoffBracketEditor";
-import LeagueAdminPanel from "../components/LeagueAdminPanel";
+import SeasonAdminPanel from "../components/SeasonAdminPanel";
+import UnmatchedMatchTeamsPanel from "../components/UnmatchedMatchTeamsPanel";
 import LeagueRulesCard from "../components/LeagueRulesCard";
 import AdminManagementPanel from "../components/AdminManagementPanel";
 import AdminRequestsPanel from "../components/AdminRequestsPanel";
 import RulesAdminPanel from "../components/RulesAdminPanel";
 import AdminAuditLogPanel from "../components/AdminAuditLogPanel";
+import AdjustedPlayersPanel from "../components/AdjustedPlayersPanel";
 
 
 export default function AdminPage() {
@@ -22,9 +23,11 @@ export default function AdminPage() {
   const [adminData, setAdminData] = useState(null);
   const [error, setError] = useState(null);
 
-  const [activeTab, setActiveTab] = useState("editor"); // editor | playoffs | admin
+  const [activeTab, setActiveTab] = useState("league");
+  const [activeLeagueTab, setActiveLeagueTab] = useState("overview");
   const [activeEditorTab, setActiveEditorTab] = useState("teams");
-  const [activeAdminTab, setActiveAdminTab] = useState("league");
+  const [activeAdminTab, setActiveAdminTab] = useState("requests");
+  const [seasonStatus, setSeasonStatus] = useState(null);
 
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -45,29 +48,32 @@ export default function AdminPage() {
     }
   }, [loading]);
 
+  useEffect(() => {
+    let active = true;
+    fetch('/api/admin/seasons/current').then(response => response.json()).then(data => {
+      if (!active) return;
+      const status = data.season?.Status || null;
+      setSeasonStatus(status);
+      if (status !== 'active') setActiveLeagueTab('overview');
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [refreshKey]);
+
   if (loading) return <div>Loading...</div>;
   if (error) return <Navigate to="/" />;
   if (!adminData) return <div>Loading admin data...</div>;
 
    return (
-    <div className={`ui-page admin-page${activeTab === 'rules' ? ' admin-page-rules' : ''}`}>
+    <div className={`ui-page admin-page${activeTab === 'admin' && activeAdminTab === 'rules' ? ' admin-page-rules' : ''}`}>
       <h1>Admin Panel</h1>
 
       <div className="ui-tabs" style={tabBarStyle}>
         <button
-          className="ui-tab" aria-pressed={activeTab === "editor"}
-          style={activeTab === "editor" ? tabActiveStyle : tabButtonStyle}
-          onClick={() => setActiveTab("editor")}
+          className="ui-tab" aria-pressed={activeTab === "league"}
+          style={activeTab === "league" ? tabActiveStyle : tabButtonStyle}
+          onClick={() => setActiveTab("league")}
         >
-          Editor Tab
-        </button>
-
-        <button
-          className="ui-tab" aria-pressed={activeTab === "playoffs"}
-          style={activeTab === "playoffs" ? tabActiveStyle : tabButtonStyle}
-          onClick={() => setActiveTab("playoffs")}
-        >
-          Playoff Tab
+          League
         </button>
 
         <button
@@ -75,44 +81,33 @@ export default function AdminPage() {
           style={activeTab === "admin" ? tabActiveStyle : tabButtonStyle}
           onClick={() => setActiveTab("admin")}
         >
-          Admin Tab
-        </button>
-
-        <button
-          className="ui-tab" aria-pressed={activeTab === "requests"}
-          style={activeTab === "requests" ? tabActiveStyle : tabButtonStyle}
-          onClick={() => setActiveTab("requests")}
-        >
-          Requests
-        </button>
-
-        <button
-          className="ui-tab" aria-pressed={activeTab === "rules"}
-          style={activeTab === "rules" ? tabActiveStyle : tabButtonStyle}
-          onClick={() => setActiveTab("rules")}
-        >
-          Rules
-        </button>
-
-        <button
-          className="ui-tab" aria-pressed={activeTab === "adminManagement"}
-          style={activeTab === "adminManagement" ? tabActiveStyle : tabButtonStyle}
-          onClick={() => setActiveTab("adminManagement")}
-        >
-          Admin Management
-        </button>
-
-        <button
-          className="ui-tab" aria-pressed={activeTab === "auditLog"}
-          style={activeTab === "auditLog" ? tabActiveStyle : tabButtonStyle}
-          onClick={() => setActiveTab("auditLog")}
-        >
-          Audit Log
+          Admin
         </button>
       </div>
 
+      {activeTab === "league" && <div className="ui-tabs" style={editorTabBarStyle}>
+        {[
+          ["overview", "Overview"],
+          ...(seasonStatus === 'active' ? [["editor", "Editor"], ["playoffs", "Playoffs"],
+            ["settings", "Settings"]] : []),
+        ].map(([key, label]) => <button key={key} type="button" className="ui-tab"
+          aria-pressed={activeLeagueTab === key}
+          style={activeLeagueTab === key ? editorTabActiveStyle : editorTabButtonStyle}
+          onClick={() => setActiveLeagueTab(key)}>{label}</button>)}
+      </div>}
 
-      {activeTab === "editor" && (
+      {activeTab === "admin" && <div className="ui-tabs" style={editorTabBarStyle}>
+        {[
+          ["requests", "Requests"], ["rules", "Rules"],
+          ["adjustedPlayers", "Adjusted Players"],
+          ["adminManagement", "Admin Management"], ["auditLog", "Audit Log"],
+        ].map(([key, label]) => <button key={key} type="button" className="ui-tab"
+          aria-pressed={activeAdminTab === key}
+          style={activeAdminTab === key ? editorTabActiveStyle : editorTabButtonStyle}
+          onClick={() => setActiveAdminTab(key)}>{label}</button>)}
+      </div>}
+
+      {activeTab === "league" && activeLeagueTab === "editor" && (
           <div style={pageContainer}>
             <div role="tablist" aria-label="Editor sections" className="ui-tabs" style={editorTabBarStyle}>
               <button
@@ -171,56 +166,29 @@ export default function AdminPage() {
           </div>
         )}
 
-        {activeTab === "playoffs" && (
+        {activeTab === "league" && activeLeagueTab === "playoffs" && (
           <div className="playoff-workspace">
-            <PlayoffAdminPanel />
             <PlayoffBracketEditor />
           </div>
         )}
 
-        {activeTab === "admin" && (
+        {activeTab === "league" && activeLeagueTab === "overview" &&
           <div style={pageContainer}>
-            <div role="tablist" aria-label="Admin sections" className="ui-tabs" style={editorTabBarStyle}>
-              <button
-                id="admin-new-league-tab"
-                type="button"
-                role="tab"
-                aria-controls="admin-new-league-panel"
-                aria-selected={activeAdminTab === "league"}
-                className="ui-tab"
-                style={activeAdminTab === "league" ? editorTabActiveStyle : editorTabButtonStyle}
-                onClick={() => setActiveAdminTab("league")}
-              >
-                New League
-              </button>
-              <button
-                id="admin-group-setup-tab"
-                type="button"
-                role="tab"
-                aria-controls="admin-group-setup-panel"
-                aria-selected={activeAdminTab === "groups"}
-                className="ui-tab"
-                style={activeAdminTab === "groups" ? editorTabActiveStyle : editorTabButtonStyle}
-                onClick={() => setActiveAdminTab("groups")}
-              >
-                Group Setup
-              </button>
-            </div>
-            {activeAdminTab === "league" && <div id="admin-new-league-panel" role="tabpanel"
-              aria-labelledby="admin-new-league-tab" style={pageContainer}>
-              <LeagueAdminPanel onLeagueAdded={triggerRefresh} />
-              <LeagueRulesCard refreshKey={refreshKey} />
-            </div>}
-            {activeAdminTab === "groups" && <div id="admin-group-setup-panel" role="tabpanel"
-              aria-labelledby="admin-group-setup-tab" style={pageContainer}>
-              <LeagueSetupTable refreshKey={refreshKey} onUpdated={triggerRefresh} />
-            </div>}
-          </div>
-        )}
-        {activeTab === "adminManagement" && <AdminManagementPanel />}
-        {activeTab === "requests" && <AdminRequestsPanel />}
-        {activeTab === "rules" && <RulesAdminPanel />}
-        {activeTab === "auditLog" && <AdminAuditLogPanel />}
+            {seasonStatus === 'active' && <UnmatchedMatchTeamsPanel refreshKey={refreshKey}
+              onOpenMatchChanges={() => { setActiveLeagueTab('editor'); setActiveEditorTab('matches'); }}
+              onOpenGroupSetup={() => setActiveLeagueTab('settings')} />}
+            <SeasonAdminPanel onChanged={triggerRefresh} />
+          </div>}
+        {activeTab === "league" && activeLeagueTab === "settings" &&
+          <div style={pageContainer}>
+            <LeagueSetupTable refreshKey={refreshKey} onUpdated={triggerRefresh} />
+            <LeagueRulesCard refreshKey={refreshKey} />
+          </div>}
+        {activeTab === "admin" && activeAdminTab === "adminManagement" && <AdminManagementPanel />}
+        {activeTab === "admin" && activeAdminTab === "requests" && <AdminRequestsPanel />}
+        {activeTab === "admin" && activeAdminTab === "rules" && <RulesAdminPanel />}
+        {activeTab === "admin" && activeAdminTab === "adjustedPlayers" && <AdjustedPlayersPanel />}
+        {activeTab === "admin" && activeAdminTab === "auditLog" && <AdminAuditLogPanel />}
     </div>
   );
 }

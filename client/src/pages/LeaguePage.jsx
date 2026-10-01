@@ -288,9 +288,12 @@ export default function LeaguePage({
           </thead>
           <tbody>
             {players.map(player => (
-              <React.Fragment key={player.PlayerId}>
+              <React.Fragment key={`${player.PlayerId}:${player.TeamId}`}>
                 <tr>
-                  <td style={tdStyle}><Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link></td>
+                  <td style={tdStyle}>
+                    <Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link><br />
+                    <small><Link to={`/team/${player.TeamId}`}>{player.TeamName}</Link></small>
+                  </td>
                   <td style={tdStyle}>{player.GamesPlayed}</td>
                   <td style={tdStyle}>{player.WinPercentage?.toFixed(2)}%</td>
                   <td style={tdStyle}>{player.AvgKills?.toFixed(1)}/{player.AvgDeaths?.toFixed(1)}/{player.AvgAssists?.toFixed(1)}</td>
