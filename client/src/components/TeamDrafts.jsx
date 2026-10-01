@@ -121,7 +121,7 @@ function formatPercent(value) {
 function formatOrderNum(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return '-';
-  return number;
+  return number + 1;
 }
 
 function formatDate(value) {

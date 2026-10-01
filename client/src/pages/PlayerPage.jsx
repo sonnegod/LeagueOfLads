@@ -11,8 +11,9 @@ export default function PlayerPage() {
   const { player_id } = useParams(); // gets :player_id from URL
   const [playerData, setPlayerData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('home'); // stats, heroes, teams
+  const [activeTab, setActiveTab] = useState('home');
   const [selectedLeague, setSelectedLeague] = useState('all');
+  const [teammatesData, setTeammatesData] = useState(null);
   const currentSeasonPlayerData = playerData?.playerStats?.filter(stat => stat.LeagueId === playerData.LeagueId);
   
   useEffect(() => {
@@ -34,6 +35,27 @@ export default function PlayerPage() {
     fetchPlayer();
   }, [player_id]);
 
+  useEffect(() => {
+    if (activeTab !== 'teammates') return undefined;
+    const controller = new AbortController();
+    const key = `${player_id}:${selectedLeague}`;
+    setTeammatesData({ key, loading: true, rows: [], error: '' });
+    const query = selectedLeague === 'all' ? '' : `?leagueId=${encodeURIComponent(selectedLeague)}`;
+    fetch(`/api/player/${player_id}/teammates${query}`, { signal: controller.signal })
+      .then(async response => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not load teammates');
+        return result.teammates;
+      })
+      .then(rows => setTeammatesData({ key, loading: false, rows, error: '' }))
+      .catch(error => {
+        if (!controller.signal.aborted) {
+          setTeammatesData({ key, loading: false, rows: [], error: error.message });
+        }
+      });
+    return () => controller.abort();
+  }, [activeTab, player_id, selectedLeague]);
+
   if (loading) return <div>Loading player info...</div>;
   if (!playerData) return <div>Player not found.</div>;
 
@@ -44,12 +66,14 @@ export default function PlayerPage() {
     : playerStats.filter(stat => String(stat.LeagueId) === String(selectedLeague));
   const selectedSeasonStats = selectedLeague === 'all' ? currentSeasonPlayerData : selectedPlayerStats;
   const selectedHeroStats = getHeroStatsFromMatches(selectedPlayerStats);
+  const teammateKey = `${player_id}:${selectedLeague}`;
+  const selectedTeammates = teammatesData?.key === teammateKey ? teammatesData : null;
 
   return (
     <div className='p-4 detail-page player-detail-page'>
       <h1 className="mb-4">{playerStats[0]?.PlayerName || player_id}</h1>
 
-      {(activeTab === 'home' || activeTab === 'season' || activeTab === 'allMatches' || activeTab === 'heroes') && (
+      {(activeTab === 'home' || activeTab === 'season' || activeTab === 'allMatches' || activeTab === 'heroes' || activeTab === 'teammates') && (
         <div className="detail-page-filter" style={{ marginBottom: '1rem' }}>
           <LeagueFilter
             leagues={playerLeagues}
@@ -65,6 +89,7 @@ export default function PlayerPage() {
         <button className="ui-tab" aria-pressed={activeTab === 'season'} onClick={() => setActiveTab('season')} style={activeTab === 'season' ? activeTabStyle : tabStyle}>Season Stats</button>
         <button className="ui-tab" aria-pressed={activeTab === 'allMatches'} onClick={() => setActiveTab('allMatches')} style={activeTab === 'allMatches' ? activeTabStyle : tabStyle}>Total Matches</button>
         <button className="ui-tab" aria-pressed={activeTab === 'heroes'} onClick={() => setActiveTab('heroes')} style={activeTab === 'heroes' ? activeTabStyle : tabStyle}>Heroes</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'teammates'} onClick={() => setActiveTab('teammates')} style={activeTab === 'teammates' ? activeTabStyle : tabStyle}>Teammates</button>
         <button className="ui-tab" aria-pressed={activeTab === 'teams'} onClick={() => setActiveTab('teams')} style={activeTab === 'teams' ? activeTabStyle : tabStyle}>Teams</button>
       </div>
 
@@ -132,8 +157,65 @@ export default function PlayerPage() {
           </tbody>
         </table></div>
       )}
+
+      {activeTab === 'teammates' && (
+        !selectedTeammates || selectedTeammates.loading ? <p>Loading teammates...</p>
+          : selectedTeammates.error ? <p role="alert">{selectedTeammates.error}</p>
+            : selectedTeammates.rows.length === 0
+              ? <p>No teammates have played at least 5 games together{selectedLeague === 'all' ? '.' : ' in this league.'}</p>
+              : <TeammatesTable rows={selectedTeammates.rows} />
+      )}
     </div>
   );
+}
+
+const teammateColumns = [
+  { key: 'PlayerName', label: 'Teammate' },
+  { key: 'GamesPlayed', label: 'Games together' },
+  { key: 'Wins', label: 'Wins' },
+  { key: 'Losses', label: 'Losses' },
+  { key: 'WinPercentage', label: 'Win %' },
+];
+
+function TeammatesTable({ rows }) {
+  const [sort, setSort] = useState({ key: 'GamesPlayed', direction: 'desc' });
+  const sortedRows = [...rows].sort((a, b) => {
+    const aValue = sort.key === 'Losses' ? a.GamesPlayed - a.Wins : a[sort.key];
+    const bValue = sort.key === 'Losses' ? b.GamesPlayed - b.Wins : b[sort.key];
+    const comparison = sort.key === 'PlayerName'
+      ? aValue.localeCompare(bValue, undefined, { sensitivity: 'base' })
+      : aValue - bValue;
+    if (comparison) return sort.direction === 'asc' ? comparison : -comparison;
+    return b.GamesPlayed - a.GamesPlayed
+      || a.PlayerName.localeCompare(b.PlayerName, undefined, { sensitivity: 'base' })
+      || a.PlayerId - b.PlayerId;
+  });
+
+  function changeSort(key) {
+    setSort(current => ({
+      key,
+      direction: current.key === key
+        ? (current.direction === 'desc' ? 'asc' : 'desc')
+        : (key === 'PlayerName' ? 'asc' : 'desc'),
+    }));
+  }
+
+  return <div className="detail-table-scroll"><table style={tableStyle}>
+    <thead><tr>{teammateColumns.map(column => <th key={column.key} style={thStyle}
+      aria-sort={sort.key === column.key ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button className="detail-sort-button" type="button" onClick={() => changeSort(column.key)}>
+        {column.label}<span aria-hidden="true">{sort.key === column.key
+          ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}</span>
+      </button>
+    </th>)}</tr></thead>
+    <tbody>{sortedRows.map(teammate => <tr key={teammate.PlayerId}>
+      <td style={tdStyle}><Link to={`/player/${teammate.PlayerId}`}>{teammate.PlayerName}</Link></td>
+      <td style={tdStyle}>{teammate.GamesPlayed}</td>
+      <td style={tdStyle}>{teammate.Wins}</td>
+      <td style={tdStyle}>{teammate.GamesPlayed - teammate.Wins}</td>
+      <td style={tdStyle}>{teammate.WinPercentage.toFixed(2)}%</td>
+    </tr>)}</tbody>
+  </table></div>;
 }
 
 // Styles

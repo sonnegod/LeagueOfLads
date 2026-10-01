@@ -2205,6 +2205,18 @@ router.get('/h2h/:p1Id/:p2Id', async (req, res) => {
     }
 });
 
+router.get('/player/:accountId/teammates', (req, res) => {
+  const playerId = positiveInteger(req.params.accountId);
+  const leagueId = req.query.leagueId === undefined || req.query.leagueId === 'all'
+    ? 'all' : positiveInteger(req.query.leagueId);
+  if (!playerId || !leagueId) return res.status(400).json({ error: 'Invalid player or league ID' });
+  try {
+    return res.json({ teammates: db.getPlayerTeammates(playerId, leagueId) });
+  } catch (error) {
+    return res.status(500).json({ error: 'Could not load teammates' });
+  }
+});
+
 router.get('/player/:accountId', async (req, res) => {
   const { accountId } = req.params;
   try {

@@ -9,6 +9,7 @@ import AdminAuditStore from './config/adminAuditStore.js';
 import AdjustedPlayersStore from './config/adjustedPlayersStore.js';
 import SeasonStore from './config/seasonStore.js';
 import { getLeaguePlayerRecords } from './config/leaguePlayerRecords.js';
+import { getPlayerTeammates } from './config/playerTeammates.js';
 import { getUnmatchedMatchTeams } from './config/unmatchedMatchTeams.js';
 dotenv.config();
 
@@ -672,6 +673,10 @@ class DBInstance {
         LIMIT 5;
         `, [playerId, leagueId]);
     }
+    }
+
+    getPlayerTeammates(playerId, leagueId = 'all') {
+        return getPlayerTeammates(this.db, playerId, leagueId);
     }
 
     getHeadToHeadMatches(p1Id, p2Id) {

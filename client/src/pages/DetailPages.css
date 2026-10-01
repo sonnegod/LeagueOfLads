@@ -1,3 +1,20 @@
+.detail-sort-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.detail-sort-button span { font-size: 0.75em; }
+
 @media (max-width: 767px) {
   .detail-page {
     max-width: 100%;

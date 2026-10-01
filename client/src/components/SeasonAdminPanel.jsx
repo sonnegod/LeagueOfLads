@@ -287,6 +287,15 @@ export default function SeasonAdminPanel({ onChanged }) {
 
   const season = data?.season;
   const sid = season?.SeasonId;
+  const unassignedTeams = data?.teams.filter(team => !team.GroupId) ?? [];
+  const groupSizes = data?.groups.map(group => group.teams.length) ?? [];
+  const startBlocker = !data?.groups.length || !data?.teams.length
+    ? 'Create groups and add teams before starting the league.'
+    : unassignedTeams.length
+      ? `Assign ${unassignedTeams.map(team => team.TeamName).join(', ')} to a group before starting the league.`
+      : Math.max(...groupSizes) - Math.min(...groupSizes) > 1
+        ? 'Balance the groups so their team counts differ by at most one before starting the league.'
+        : '';
   return <section className="season-admin-panel">
     {error && <p role="alert" className="season-error">{error}</p>}
     {message && <p role="status">{message}</p>}
@@ -353,7 +362,8 @@ export default function SeasonAdminPanel({ onChanged }) {
         }}>
           <label>League ID<input type="number" min="1" step="1" required value={leagueId}
             onChange={event => setLeagueId(event.target.value)} /></label>
-          <button className="ui-button-primary" disabled={busy}>Start league</button>
+          {startBlocker && <p role="status">{startBlocker}</p>}
+          <button className="ui-button-primary" disabled={busy || Boolean(startBlocker)}>Start league</button>
         </form>
       </>}
       {season.Status === 'active' && <>
