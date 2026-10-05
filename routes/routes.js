@@ -94,15 +94,16 @@ router.get('/auth/steam',
     const returnTo = req.query.returnTo;
     if (typeof returnTo === 'string' && /^\/signup\/\d+$/.test(returnTo) && req.session) {
       req.session.signupReturnTo = returnTo;
+      return req.session.save(error => error ? next(error) : next());
     }
-    next();
+    return next();
   },
   passport.authenticate('steam')
 );
 
 router.get('/auth/steam/return',
-  passport.authenticate('steam', { failureRedirect: '/' }),
-  (req, res) => {
+  passport.authenticate('steam', { failureRedirect: '/', keepSessionInfo: true }),
+  (req, res, next) => {
     db.login(req.user.displayName, req.user.id, new Date().toISOString());
     const accountId = resolveAccountIdFromSteamId(req.user.id);
     const canDraftGod = hasDraftAccess(accountId);
@@ -126,7 +127,8 @@ router.get('/auth/steam/return',
 
     req.session.accountId = accountId;
     req.session.canDraftGod = canDraftGod;
-    req.session.save(() => {
+    req.session.save(error => {
+      if (error) return next(error);
       redirectToDashboard();
     });
   }
