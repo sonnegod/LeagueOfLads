@@ -9,6 +9,25 @@ function fail(message, status = 400) {
 
 function now() { return new Date().toISOString(); }
 
+export function normalizeProfileUrl(value) {
+  let input = String(value || '').trim().replace(/\s+/g, '');
+  if (!input) fail('Each player needs a valid profile URL');
+  input = input.replace(/^(https?):?\/{1,2}/i, '$1://');
+  if (input.startsWith('//')) input = `https:${input}`;
+  else if (!/^[a-z][a-z\d+.-]*:\/\//i.test(input)) input = `https://${input}`;
+
+  let url;
+  try { url = new URL(input); }
+  catch { fail('Each player needs a valid profile URL'); }
+  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname.includes('.')) {
+    fail('Each player needs a valid profile URL');
+  }
+
+  const normalized = url.toString();
+  if (normalized.length > 500) fail('Each player needs a valid profile URL');
+  return normalized;
+}
+
 function assignChampionSpotlights(players) {
   const categories = [
     { key: 'healing', label: 'Keeping the team alive', unit: 'healing in one match', minimum: 300 },
@@ -264,8 +283,7 @@ export default class SeasonStore {
         const oldPlayer = existing?.players.find(item => item.PlayerId === playerId);
         const mmr = admin ? Number(player.mmr) : (adjusted?.AdjustedMMR ?? Number(player.mmr));
         if (!Number.isSafeInteger(mmr) || mmr < 5500) fail('Each player MMR must be greater than 5,500');
-        const profileUrl = String(player.dotaProfileUrl || '').trim();
-        if (!/^https?:\/\//i.test(profileUrl) || profileUrl.length > 500) fail('Each player needs a valid Dotabuff URL');
+        const profileUrl = normalizeProfileUrl(player.dotaProfileUrl);
         const screenshot = player.screenshot
           ? this.decodeScreenshot(player.screenshot)
           : oldPlayer ? this.screenshot(teamId, playerId) : null;

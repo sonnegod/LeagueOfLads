@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import LeaguePage from './LeaguePage';
 import HeroDisplay from '../components/HeroDisplay';
+import { useAuth } from '../context/AuthContext';
 import './Home.css';
 
 function Record({ label, value }) {
@@ -10,6 +11,7 @@ function Record({ label, value }) {
 }
 
 export default function Home() {
+  const { user, loading: authLoading } = useAuth();
   const [home, setHome] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -37,7 +39,15 @@ export default function Home() {
       <p className="home-eyebrow">Signups are open</p>
       <h1>{home.signup.title}</h1>
       <p>{home.signup.description}</p>
-      <Link to={`/signup/${home.signup.seasonId}`} className="home-signup-button">Sign up your team</Link>
+      {user ? <Link to={`/signup/${home.signup.seasonId}`} className="home-signup-button">
+        Sign up your team
+      </Link> : <a href={`/api/auth/steam?returnTo=${encodeURIComponent(`/signup/${home.signup.seasonId}`)}`}
+        className="home-signup-button" aria-disabled={authLoading}>
+        {authLoading ? 'Checking Steam login...' : 'Sign in with Steam to sign up'}
+      </a>}
+      {!user && !authLoading && <p className="home-signup-login-note">
+        You’ll return to this league’s signup form after signing in with Steam.
+      </p>}
     </section>}
     {home.champion && <section className="home-champion-hero">
       <p className="home-eyebrow">League champions</p>

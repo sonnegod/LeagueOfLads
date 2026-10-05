@@ -11,7 +11,7 @@ export function submissionsCsv(teams) {
   ];
   for (let slot = 1; slot <= 5; slot += 1) {
     columns.push(`Player ${slot} name`, `Player ${slot} account ID`,
-      `Player ${slot} MMR`, `Player ${slot} Dotabuff URL`);
+      `Player ${slot} MMR`, `Player ${slot} profile URL`);
   }
 
   const rows = teams.map(team => {

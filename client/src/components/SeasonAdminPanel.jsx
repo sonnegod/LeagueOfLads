@@ -83,7 +83,7 @@ function SubmissionCard({ team, seasonId, onChanged }) {
               onChange={event => changePlayer(index, { PlayerName: event.target.value })} /></label>
             <label>MMR<input type="number" min="5500" required value={player.MMR}
               onChange={event => changePlayer(index, { MMR: event.target.value })} /></label>
-            <label>Dotabuff URL<input type="url" maxLength="500" required value={player.DotaProfileUrl}
+            <label>Player profile URL<input type="url" maxLength="500" required value={player.DotaProfileUrl}
               onChange={event => changePlayer(index, { DotaProfileUrl: event.target.value })} /></label>
             <label>Replace screenshot<input type="file" accept="image/jpeg,image/png,image/webp"
               onChange={event => setFiles(current => ({ ...current, [player.Slot]: event.target.files?.[0] }))} /></label>

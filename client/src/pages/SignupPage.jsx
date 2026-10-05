@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { MAX_SCREENSHOT_BYTES, readScreenshot } from '../utils/screenshotUpload';
+import { isValidProfileUrl, scrubProfileUrl } from '../utils/profileUrl';
 import './SignupPage.css';
 
 const emptyPlayer = () => ({ search: '', playerId: '', playerName: '', mmr: '',
   dotaProfileUrl: '', screenshot: null, adjusted: false, candidates: [] });
+
+const SCREENSHOT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 export default function SignupPage() {
   const { seasonId } = useParams();
@@ -18,6 +21,7 @@ export default function SignupPage() {
   const [players, setPlayers] = useState(Array.from({ length: 5 }, emptyPlayer));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [validationErrors, setValidationErrors] = useState([]);
   const [submittedId, setSubmittedId] = useState(null);
 
   useEffect(() => {
@@ -54,7 +58,48 @@ export default function SignupPage() {
   }, [user?.accountId, user?.personaname, season]);
 
   function change(index, patch) {
+    setValidationErrors([]);
     setPlayers(current => current.map((player, slot) => slot === index ? { ...player, ...patch } : player));
+  }
+
+  function validate() {
+    const issues = [];
+    const ids = new Set();
+    const name = teamName.trim();
+    if (!name) issues.push('Enter a team name.');
+    else if (name.length > 60) issues.push('Team name must be 60 characters or fewer.');
+
+    players.forEach((player, index) => {
+      const label = `Player ${index + 1}`;
+      const playerId = Number(player.playerId);
+      if (!Number.isSafeInteger(playerId) || playerId <= 0) {
+        issues.push(`${label}: enter a valid account ID.`);
+      } else if (ids.has(playerId)) {
+        issues.push(`${label}: this account ID is already used in the roster.`);
+      } else {
+        ids.add(playerId);
+      }
+
+      const mmr = Number(player.mmr);
+      if (!Number.isSafeInteger(mmr) || mmr < 5500) {
+        issues.push(`${label}: MMR must be a whole number of at least 5,500.`);
+      }
+      if (!isValidProfileUrl(player.dotaProfileUrl)) {
+        issues.push(`${label}: enter a valid HTTP(S) player profile URL.`);
+      }
+      if (!player.screenshot) {
+        issues.push(`${label}: add an MMR screenshot.`);
+      } else if (!SCREENSHOT_TYPES.has(player.screenshot.type)) {
+        issues.push(`${label}: screenshot must be JPEG, PNG, or WebP.`);
+      } else if (player.screenshot.size > MAX_SCREENSHOT_BYTES) {
+        issues.push(`${label}: screenshot must be 2 MB or less.`);
+      }
+    });
+
+    if (user?.accountId && !ids.has(Number(user.accountId))) {
+      issues.push('Your own Steam account must be one of the five players.');
+    }
+    return issues;
   }
 
   async function search(index, value) {
@@ -77,14 +122,18 @@ export default function SignupPage() {
 
   async function submit(event) {
     event.preventDefault();
-    setBusy(true);
     setError('');
+    const issues = validate();
+    setValidationErrors(issues);
+    if (issues.length) return;
+
+    setBusy(true);
     try {
       const roster = await Promise.all(players.map(async player => ({
         playerId: player.playerId,
         playerName: player.playerName,
         mmr: player.mmr,
-        dotaProfileUrl: player.dotaProfileUrl,
+        dotaProfileUrl: scrubProfileUrl(player.dotaProfileUrl),
         screenshot: await readScreenshot(player.screenshot),
       })));
       const response = await fetch(`/api/signup/${seasonId}/teams`, {
@@ -108,15 +157,15 @@ export default function SignupPage() {
     {preview && <p role="status">Admin preview. This form cannot be submitted while it is a draft.</p>}
     <h1>{season.SignupTitle}</h1>
     <p>{season.SignupDescription}</p>
-    <p>Submit one team with five players, including yourself. Each player needs a Dotabuff link and an MMR screenshot. Submissions cannot be edited after sending.</p>
+    <p>Submit one team with five players, including yourself. Each player needs a public profile link and an MMR screenshot. Submissions cannot be edited after sending.</p>
     {!user ? <a className="ui-button-primary signup-login" href={`/api/auth/steam?returnTo=${encodeURIComponent(`/signup/${seasonId}`)}`}>
       Sign in with Steam to sign up
     </a> : submittedId ? <div role="status" className="signup-success">
       Your team was submitted. Submission #{submittedId}.
-    </div> : <form onSubmit={submit} className="signup-form">
+    </div> : <form onSubmit={submit} className="signup-form" noValidate>
       <label htmlFor="signup-team-name">Team name</label>
       <input id="signup-team-name" maxLength="60" required value={teamName}
-        onChange={event => setTeamName(event.target.value)} />
+        onChange={event => { setTeamName(event.target.value); setValidationErrors([]); }} />
       {players.map((player, index) => <fieldset key={index} className="signup-player">
         <legend>Player {index + 1}</legend>
         <label htmlFor={`signup-search-${index}`}>Search player name or Steam ID</label>
@@ -141,9 +190,13 @@ export default function SignupPage() {
             <input type="number" min="5500" step="1" required value={player.mmr}
               readOnly={player.adjusted} onChange={event => change(index, { mmr: event.target.value })} />
           </label>
-          <label>Dotabuff URL
-            <input type="url" maxLength="500" required value={player.dotaProfileUrl}
-              onChange={event => change(index, { dotaProfileUrl: event.target.value })} />
+          <label>Player profile URL
+            <input type="text" inputMode="url" autoCapitalize="none" spellCheck="false"
+              placeholder="dotabuff.com/players/12345678" maxLength="500" required
+              value={player.dotaProfileUrl}
+              onChange={event => change(index, { dotaProfileUrl: event.target.value })}
+              onBlur={event => change(index, { dotaProfileUrl: scrubProfileUrl(event.target.value) })} />
+            <small>Dotabuff, OpenDota, Stratz, Steam, or another HTTP(S) profile link.</small>
           </label>
           <label>MMR screenshot (JPEG, PNG; 2 MB max)
             <input type="file" accept="image/jpeg,image/png,image/webp" required
@@ -161,6 +214,10 @@ export default function SignupPage() {
           </label>
         </div>
       </fieldset>)}
+      {validationErrors.length > 0 && <div role="alert" className="signup-validation-summary">
+        <strong>Please fix the following before submitting:</strong>
+        <ul>{validationErrors.map(message => <li key={message}>{message}</li>)}</ul>
+      </div>}
       {error && <p role="alert" className="signup-error">{error}</p>}
       <button className="ui-button-primary" type="submit" disabled={busy || preview}>
         {preview ? 'Preview only' : busy ? 'Submitting...' : 'Submit team'}

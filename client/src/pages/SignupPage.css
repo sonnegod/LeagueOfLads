@@ -13,4 +13,8 @@
   background: var(--surface, #111); border: 0; cursor: pointer; }
 .signup-candidates button:hover { background: var(--primary, #646cff); }
 .signup-error { color: #f87171; }
+.signup-validation-summary { padding: 1rem; border: 1px solid #f87171; border-radius: 8px;
+  color: #fecaca; background: #7f1d1d33; }
+.signup-validation-summary ul { margin: 0.65rem 0 0; padding-left: 1.25rem; }
+.signup-validation-summary li + li { margin-top: 0.3rem; }
 .signup-success { padding: 1rem; border: 1px solid #4ade80; border-radius: 8px; }
