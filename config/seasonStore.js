@@ -1,5 +1,6 @@
 import { randomizeGroups, groupSpread } from './groupRandomizer.js';
 import { DEFAULT_LEAGUE_RULES, normalizeLeagueRules } from './leagueRules.js';
+import { randomUUID } from 'node:crypto';
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -106,6 +107,25 @@ export default class SeasonStore {
         PRIMARY KEY (TeamSubmissionId, PlayerId),
         UNIQUE (TeamSubmissionId, Slot)
       );
+      CREATE TABLE IF NOT EXISTS SeasonSignupDrafts (
+        DraftId TEXT PRIMARY KEY,
+        SeasonId INTEGER NOT NULL REFERENCES LeagueSeasons(SeasonId),
+        CaptainId INTEGER NOT NULL,
+        CreatedAt TEXT NOT NULL,
+        UpdatedAt TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS SeasonSignupDraftPlayers (
+        DraftId TEXT NOT NULL REFERENCES SeasonSignupDrafts(DraftId),
+        Slot INTEGER NOT NULL CHECK (Slot BETWEEN 0 AND 4),
+        PlayerId INTEGER NOT NULL,
+        PlayerName TEXT NOT NULL,
+        MMR INTEGER NOT NULL,
+        DotaProfileUrl TEXT NOT NULL,
+        ScreenshotMime TEXT NOT NULL,
+        ScreenshotData BLOB NOT NULL,
+        PRIMARY KEY (DraftId, Slot),
+        UNIQUE (DraftId, PlayerId)
+      );
       CREATE TABLE IF NOT EXISTS SignupMMRs (
         SeasonId INTEGER NOT NULL REFERENCES LeagueSeasons(SeasonId),
         TeamSubmissionId INTEGER NOT NULL REFERENCES SeasonTeams(TeamSubmissionId),
@@ -200,6 +220,11 @@ export default class SeasonStore {
       if (open && (!season.SignupTitle || !season.SignupDescription)) fail('Add signup title and description first');
       this.db.prepare('UPDATE LeagueSeasons SET Status = ?, UpdatedAt = ? WHERE SeasonId = ?')
         .run(open ? 'signup_open' : 'signup_closed', now(), seasonId);
+      if (!open) {
+        this.db.prepare(`DELETE FROM SeasonSignupDraftPlayers WHERE DraftId IN
+          (SELECT DraftId FROM SeasonSignupDrafts WHERE SeasonId = ?)`).run(seasonId);
+        this.db.prepare('DELETE FROM SeasonSignupDrafts WHERE SeasonId = ?').run(seasonId);
+      }
       this.audit(open ? 'Signups Opened' : 'Signups Closed',
         `${open ? 'Opened' : 'Closed'} signups for season ${seasonId}`);
       return this.get(seasonId);
@@ -255,7 +280,98 @@ export default class SeasonStore {
       .get(teamId, playerId) || null;
   }
 
-  saveTeam(seasonId, captainId, input, admin = false, teamId = null) {
+  startSignupDraft(seasonId, captainId) {
+    return this.db.transaction(() => {
+      if (this.get(seasonId)?.Status !== 'signup_open') fail('Signups are not open', 409);
+      if (!Number.isSafeInteger(captainId) || captainId <= 0) fail('Sign in with Steam to submit a team', 401);
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      this.db.prepare(`DELETE FROM SeasonSignupDraftPlayers WHERE DraftId IN
+        (SELECT DraftId FROM SeasonSignupDrafts WHERE UpdatedAt < ?)`).run(cutoff);
+      this.db.prepare('DELETE FROM SeasonSignupDrafts WHERE UpdatedAt < ?').run(cutoff);
+      this.db.prepare(`DELETE FROM SeasonSignupDraftPlayers WHERE DraftId IN
+        (SELECT DraftId FROM SeasonSignupDrafts WHERE SeasonId = ? AND CaptainId = ?)`)
+        .run(seasonId, captainId);
+      this.db.prepare('DELETE FROM SeasonSignupDrafts WHERE SeasonId = ? AND CaptainId = ?')
+        .run(seasonId, captainId);
+      const draftId = randomUUID();
+      const timestamp = now();
+      this.db.prepare(`INSERT INTO SeasonSignupDrafts
+        (DraftId, SeasonId, CaptainId, CreatedAt, UpdatedAt) VALUES (?, ?, ?, ?, ?)`)
+        .run(draftId, seasonId, captainId, timestamp, timestamp);
+      return draftId;
+    })();
+  }
+
+  signupDraft(seasonId, captainId, draftId) {
+    const draft = this.db.prepare(`SELECT * FROM SeasonSignupDrafts
+      WHERE DraftId = ? AND SeasonId = ? AND CaptainId = ?`).get(draftId, seasonId, captainId);
+    if (!draft) fail('Signup draft not found', 404);
+    if (Date.parse(draft.UpdatedAt) < Date.now() - 24 * 60 * 60 * 1000) {
+      fail('Signup draft expired; please submit again', 410);
+    }
+    return draft;
+  }
+
+  saveSignupDraftPlayer(seasonId, captainId, draftId, slot, player) {
+    return this.db.transaction(() => {
+      if (this.get(seasonId)?.Status !== 'signup_open') fail('Signups are not open', 409);
+      this.signupDraft(seasonId, captainId, draftId);
+      if (!Number.isInteger(slot) || slot < 0 || slot > 4) fail('Invalid player slot');
+      const playerId = Number(player.playerId);
+      if (!Number.isSafeInteger(playerId) || playerId <= 0) fail('Choose a valid player');
+      const existingPlayer = this.db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId = ?').get(playerId);
+      const playerName = existingPlayer ? String(existingPlayer.PlayerName) : String(player.playerName || '').trim();
+      if (!existingPlayer && (!playerName || playerName.length > 40)) {
+        fail('New players need a name of 1-40 characters');
+      }
+      const mmr = Number(player.mmr);
+      if (!Number.isSafeInteger(mmr) || mmr < 5500) fail('Each player MMR must be at least 5,500');
+      const profileUrl = normalizeProfileUrl(player.dotaProfileUrl);
+      const screenshot = this.decodeScreenshot(player.screenshot);
+      const duplicate = this.db.prepare(`SELECT Slot FROM SeasonSignupDraftPlayers
+        WHERE DraftId = ? AND PlayerId = ? AND Slot <> ?`).get(draftId, playerId, slot);
+      if (duplicate) fail('Choose five different valid players');
+      this.db.prepare(`INSERT INTO SeasonSignupDraftPlayers
+        (DraftId, Slot, PlayerId, PlayerName, MMR, DotaProfileUrl, ScreenshotMime, ScreenshotData)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (DraftId, Slot) DO UPDATE SET PlayerId = excluded.PlayerId,
+          PlayerName = excluded.PlayerName, MMR = excluded.MMR,
+          DotaProfileUrl = excluded.DotaProfileUrl, ScreenshotMime = excluded.ScreenshotMime,
+          ScreenshotData = excluded.ScreenshotData`).run(draftId, slot, playerId, playerName,
+            mmr, profileUrl, screenshot.ScreenshotMime, screenshot.ScreenshotData);
+      this.db.prepare('UPDATE SeasonSignupDrafts SET UpdatedAt = ? WHERE DraftId = ?')
+        .run(now(), draftId);
+    })();
+  }
+
+  submitSignupDraft(seasonId, captainId, draftId, teamName) {
+    return this.db.transaction(() => {
+      this.signupDraft(seasonId, captainId, draftId);
+      const rows = this.db.prepare(`SELECT * FROM SeasonSignupDraftPlayers
+        WHERE DraftId = ? ORDER BY Slot`).all(draftId);
+      if (rows.length !== 5 || rows.some((row, slot) => row.Slot !== slot)) {
+        fail('Upload all five players before submitting');
+      }
+      const screenshots = new Map(rows.map(row => [row.Slot,
+        { ScreenshotMime: row.ScreenshotMime, ScreenshotData: row.ScreenshotData }]));
+      const players = rows.map(row => ({ playerId: row.PlayerId, playerName: row.PlayerName,
+        mmr: row.MMR, dotaProfileUrl: row.DotaProfileUrl }));
+      const team = this.saveTeam(seasonId, captainId, { teamName, players }, false, null, screenshots);
+      this.db.prepare('DELETE FROM SeasonSignupDraftPlayers WHERE DraftId = ?').run(draftId);
+      this.db.prepare('DELETE FROM SeasonSignupDrafts WHERE DraftId = ?').run(draftId);
+      return team;
+    })();
+  }
+
+  discardSignupDraft(seasonId, captainId, draftId) {
+    return this.db.transaction(() => {
+      this.signupDraft(seasonId, captainId, draftId);
+      this.db.prepare('DELETE FROM SeasonSignupDraftPlayers WHERE DraftId = ?').run(draftId);
+      this.db.prepare('DELETE FROM SeasonSignupDrafts WHERE DraftId = ?').run(draftId);
+    })();
+  }
+
+  saveTeam(seasonId, captainId, input, admin = false, teamId = null, stagedScreenshots = null) {
     return this.db.transaction(() => {
       const season = this.get(seasonId);
       if (!season) fail('Season not found', 404);
@@ -286,7 +402,7 @@ export default class SeasonStore {
         const profileUrl = normalizeProfileUrl(player.dotaProfileUrl);
         const screenshot = player.screenshot
           ? this.decodeScreenshot(player.screenshot)
-          : oldPlayer ? this.screenshot(teamId, playerId) : null;
+          : stagedScreenshots?.get(index) || (oldPlayer ? this.screenshot(teamId, playerId) : null);
         if (!screenshot) fail('Each player needs an MMR screenshot');
         return { playerId, slot: index, mmr, profileUrl, screenshot, record };
       });

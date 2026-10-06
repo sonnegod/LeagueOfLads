@@ -8,6 +8,21 @@ import './SignupPage.css';
 const emptyPlayer = () => ({ search: '', playerId: '', playerName: '', mmr: '',
   dotaProfileUrl: '', screenshot: null, adjusted: false, candidates: [] });
 
+async function signupRequest(url, options) {
+  const response = await fetch(url, options);
+  const body = await response.text();
+  let data;
+  try { data = JSON.parse(body); } catch { /* A proxy can return HTML for rejected uploads. */ }
+  if (!response.ok) {
+    if (response.status === 413) {
+      throw new Error('An individual screenshot upload was rejected as too large. Try a smaller image.');
+    }
+    throw new Error(data?.error || `Signup request failed (HTTP ${response.status}). Please try again.`);
+  }
+  if (!data) throw new Error(`Signup server returned an unexpected response (HTTP ${response.status}).`);
+  return data;
+}
+
 export default function SignupPage() {
   const { seasonId } = useParams();
   const [searchParams] = useSearchParams();
@@ -18,6 +33,7 @@ export default function SignupPage() {
   const [teamName, setTeamName] = useState('');
   const [players, setPlayers] = useState(Array.from({ length: 5 }, emptyPlayer));
   const [busy, setBusy] = useState(false);
+  const [uploadedPlayers, setUploadedPlayers] = useState(0);
   const [error, setError] = useState('');
   const [validationErrors, setValidationErrors] = useState([]);
   const [screenshotErrors, setScreenshotErrors] = useState(Array(5).fill(null));
@@ -176,25 +192,42 @@ export default function SignupPage() {
     if (issues.length) return;
 
     setBusy(true);
+    setUploadedPlayers(0);
+    let draftId;
     try {
-      const roster = await Promise.all(players.map(async player => ({
-        playerId: player.playerId,
-        playerName: player.playerName,
-        mmr: player.mmr,
-        dotaProfileUrl: scrubProfileUrl(player.dotaProfileUrl),
-        screenshot: await readScreenshot(player.screenshot),
-      })));
-      const response = await fetch(`/api/signup/${seasonId}/teams`, {
+      const base = `/api/signup/${seasonId}/drafts`;
+      ({ draftId } = await signupRequest(base, { method: 'POST' }));
+      for (const [index, player] of players.entries()) {
+        try {
+          await signupRequest(`${base}/${draftId}/players/${index}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              playerId: player.playerId,
+              playerName: player.playerName,
+              mmr: player.mmr,
+              dotaProfileUrl: scrubProfileUrl(player.dotaProfileUrl),
+              screenshot: await readScreenshot(player.screenshot),
+            }),
+          });
+        } catch (uploadError) {
+          throw new Error(`Player ${index + 1}: ${uploadError.message}`);
+        }
+        setUploadedPlayers(index + 1);
+      }
+      const data = await signupRequest(`${base}/${draftId}/submit`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamName, players: roster }),
+        body: JSON.stringify({ teamName }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Submission failed');
       setSubmittedId(data.teamSubmissionId);
+      draftId = null;
     } catch (err) {
       setError(err.message);
+      if (draftId) {
+        fetch(`/api/signup/${seasonId}/drafts/${draftId}`, { method: 'DELETE' }).catch(() => {});
+      }
     } finally {
       setBusy(false);
+      setUploadedPlayers(0);
     }
   }
 
@@ -212,42 +245,42 @@ export default function SignupPage() {
       Your team was submitted. Submission #{submittedId}.
     </div> : <form onSubmit={submit} className="signup-form" noValidate>
       <label htmlFor="signup-team-name">Team name</label>
-      <input id="signup-team-name" maxLength="60" required value={teamName}
+      <input id="signup-team-name" maxLength="60" required value={teamName} disabled={busy}
         onChange={event => { setTeamName(event.target.value); setValidationErrors([]); }} />
       {players.map((player, index) => <fieldset key={index} className="signup-player">
         <legend>Player {index + 1}</legend>
         <label htmlFor={`signup-search-${index}`}>Search player name or Steam ID</label>
-        <input id={`signup-search-${index}`} value={player.search}
+        <input id={`signup-search-${index}`} value={player.search} disabled={busy}
           onChange={event => search(index, event.target.value)} autoComplete="off" />
         {player.candidates.length > 0 && <div className="signup-candidates">
-          {player.candidates.map(candidate => <button type="button" key={candidate.PlayerId}
+          {player.candidates.map(candidate => <button type="button" key={candidate.PlayerId} disabled={busy}
             onClick={() => choose(index, candidate)}>
             {candidate.PlayerName} ({candidate.PlayerId}){candidate.AdjustedMMR ? ` · adjusted MMR ${candidate.AdjustedMMR}` : ''}
           </button>)}
         </div>}
         <div className="signup-fields">
           <label>Steam ID
-            <input type="number" min="1" step="1" required value={player.playerId}
+            <input type="number" min="1" step="1" required value={player.playerId} disabled={busy}
               onChange={event => change(index, { playerId: event.target.value, adjusted: false, mmr: '' })} />
           </label>
           <label>Player name {player.playerName ? '' : '(required for a new player)'}
-            <input maxLength="40" value={player.playerName}
+            <input maxLength="40" value={player.playerName} disabled={busy}
               onChange={event => change(index, { playerName: event.target.value })} />
           </label>
           <label>MMR {player.adjusted && <small>Set by admins</small>}
-            <input type="number" min="5500" step="1" required value={player.mmr}
+            <input type="number" min="5500" step="1" required value={player.mmr} disabled={busy}
               readOnly={player.adjusted} onChange={event => change(index, { mmr: event.target.value })} />
           </label>
           <label>Player profile URL
             <input type="text" inputMode="url" autoCapitalize="none" spellCheck="false"
               placeholder="dotabuff.com/players/12345678" maxLength="500" required
-              value={player.dotaProfileUrl}
+              value={player.dotaProfileUrl} disabled={busy}
               onChange={event => change(index, { dotaProfileUrl: event.target.value })}
               onBlur={event => change(index, { dotaProfileUrl: scrubProfileUrl(event.target.value) })} />
             <small>Dotabuff, OpenDota, Stratz, Steam, or another HTTP(S) profile link.</small>
           </label>
           <label>MMR screenshot (JPEG, PNG, or WebP; larger images optimized automatically)
-            <input type="file" accept="image/jpeg,image/png,image/webp" required
+            <input type="file" accept="image/jpeg,image/png,image/webp" required disabled={busy}
               aria-invalid={Boolean(screenshotErrors[index])}
               onChange={event => selectScreenshot(index, event)} />
             {screenshotProgress[index] && <small role="status">Optimizing screenshot...</small>}
@@ -265,10 +298,13 @@ export default function SignupPage() {
         <ul>{validationErrors.map(message => <li key={message}>{message}</li>)}</ul>
       </div>}
       {error && <p role="alert" className="signup-error">{error}</p>}
+      {busy && <p role="status">{uploadedPlayers < 5
+        ? `Uploading player ${uploadedPlayers + 1} of 5...`
+        : 'Finalizing team submission...'}</p>}
       <button className="ui-button-primary" type="submit"
         disabled={busy || preview || screenshotProgress.some(Boolean)}>
         {preview ? 'Preview only' : screenshotProgress.some(Boolean)
-          ? 'Optimizing screenshots...' : busy ? 'Submitting...' : 'Submit team'}
+          ? 'Optimizing screenshots...' : busy ? `Submitting ${uploadedPlayers}/5...` : 'Submit team'}
       </button>
     </form>}
   </main>;

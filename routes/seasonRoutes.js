@@ -69,6 +69,51 @@ publicSeasonRoutes.post('/signup/:seasonId/teams', (req, res) => {
   } catch (error) { return respond(res, error); }
 });
 
+publicSeasonRoutes.post('/signup/:seasonId/drafts', (req, res) => {
+  const seasonId = id(req.params.seasonId);
+  const captainId = actorId(req);
+  if (!captainId) return res.status(401).json({ error: 'Sign in with Steam to submit a team' });
+  if (!seasonId) return res.status(400).json({ error: 'Invalid season' });
+  try { return res.status(201).json({ draftId: db.seasons.startSignupDraft(seasonId, captainId) }); }
+  catch (error) { return respond(res, error); }
+});
+
+publicSeasonRoutes.put('/signup/:seasonId/drafts/:draftId/players/:slot', (req, res) => {
+  const seasonId = id(req.params.seasonId);
+  const captainId = actorId(req);
+  const slot = Number(req.params.slot);
+  if (!captainId) return res.status(401).json({ error: 'Sign in with Steam to submit a team' });
+  if (!seasonId || !Number.isInteger(slot) || slot < 0 || slot > 4) {
+    return res.status(400).json({ error: 'Invalid season or player slot' });
+  }
+  try {
+    db.seasons.saveSignupDraftPlayer(seasonId, captainId, req.params.draftId, slot, req.body || {});
+    return res.json({ uploaded: slot + 1 });
+  } catch (error) { return respond(res, error); }
+});
+
+publicSeasonRoutes.post('/signup/:seasonId/drafts/:draftId/submit', (req, res) => {
+  const seasonId = id(req.params.seasonId);
+  const captainId = actorId(req);
+  if (!captainId) return res.status(401).json({ error: 'Sign in with Steam to submit a team' });
+  if (!seasonId) return res.status(400).json({ error: 'Invalid season' });
+  try {
+    const team = db.seasons.submitSignupDraft(seasonId, captainId, req.params.draftId, req.body?.teamName);
+    return res.status(201).json({ teamSubmissionId: team.TeamSubmissionId });
+  } catch (error) { return respond(res, error); }
+});
+
+publicSeasonRoutes.delete('/signup/:seasonId/drafts/:draftId', (req, res) => {
+  const seasonId = id(req.params.seasonId);
+  const captainId = actorId(req);
+  if (!captainId) return res.status(401).json({ error: 'Sign in with Steam to submit a team' });
+  if (!seasonId) return res.status(400).json({ error: 'Invalid season' });
+  try {
+    db.seasons.discardSignupDraft(seasonId, captainId, req.params.draftId);
+    return res.status(204).end();
+  } catch (error) { return respond(res, error); }
+});
+
 adminSeasonRoutes.get('/current', (req, res) => {
   try {
     const season = db.seasons.current();

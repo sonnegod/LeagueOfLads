@@ -117,6 +117,63 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
   } finally { db.close(); }
 });
 
+test('signup uploads five players separately and publishes only a complete team', () => {
+  const db = database();
+  try {
+    const store = new SeasonStore(db);
+    const season = store.create('Draft upload season');
+    store.saveSignup(season.SeasonId, 'Sign up', 'Five players');
+    store.setSignupStatus(season.SeasonId, true);
+    db.prepare('INSERT INTO PlayerInfo (PlayerId, PlayerName) VALUES (?, ?)').run(1, 'Captain');
+    for (let playerId = 2; playerId <= 4; playerId++) {
+      db.prepare('INSERT INTO PlayerInfo (PlayerId, PlayerName) VALUES (?, ?)')
+        .run(playerId, `Existing ${playerId}`);
+    }
+    const draftId = store.startSignupDraft(season.SeasonId, 1);
+    const player = playerId => ({ playerId, playerName: playerId === 5 ? 'New Player' : `Existing ${playerId}`,
+      mmr: 6000, dotaProfileUrl: 'https://www.dotabuff.com/players/1', screenshot });
+    store.saveSignupDraftPlayer(season.SeasonId, 1, draftId, 0, { ...player(1), playerName: '' });
+    assert.equal(store.teams(season.SeasonId).length, 0);
+    assert.throws(() => store.submitSignupDraft(season.SeasonId, 1, draftId, 'The Team'),
+      { status: 400 });
+    assert.throws(() => store.saveSignupDraftPlayer(season.SeasonId, 2, draftId, 1, player(2)),
+      { status: 404 });
+    assert.throws(() => store.saveSignupDraftPlayer(season.SeasonId, 1, draftId, 1, player(1)),
+      { status: 400 });
+    for (let slot = 1; slot < 5; slot++) {
+      store.saveSignupDraftPlayer(season.SeasonId, 1, draftId, slot, player(slot + 1));
+    }
+    assert.equal(db.prepare('SELECT COUNT(*) AS Count FROM PlayerInfo WHERE PlayerId = 5').get().Count, 0);
+    assert.equal(store.teams(season.SeasonId).length, 0);
+    const team = store.submitSignupDraft(season.SeasonId, 1, draftId, 'The Team');
+    assert.equal(team.players.length, 5);
+    assert.equal(db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId = 5').get().PlayerName, 'New Player');
+    assert.equal(store.screenshot(team.TeamSubmissionId, 5).ScreenshotMime, 'image/png');
+    assert.equal(db.prepare('SELECT COUNT(*) AS Count FROM SeasonSignupDrafts').get().Count, 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS Count FROM SeasonSignupDraftPlayers').get().Count, 0);
+  } finally { db.close(); }
+});
+
+test('signup draft rejects screenshots over 2 MiB without publishing any players', () => {
+  const db = database();
+  try {
+    const store = new SeasonStore(db);
+    const season = store.create('Screenshot limit season');
+    store.saveSignup(season.SeasonId, 'Sign up', 'Five players');
+    store.setSignupStatus(season.SeasonId, true);
+    const draftId = store.startSignupDraft(season.SeasonId, 1);
+    const oversized = `data:image/png;base64,${Buffer.concat([
+      Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.alloc(2 * 1024 * 1024),
+    ]).toString('base64')}`;
+    assert.throws(() => store.saveSignupDraftPlayer(season.SeasonId, 1, draftId, 0, {
+      playerId: 1, playerName: 'Captain', mmr: 6000,
+      dotaProfileUrl: 'https://www.dotabuff.com/players/1', screenshot: oversized,
+    }), { status: 400 });
+    assert.equal(db.prepare('SELECT COUNT(*) AS Count FROM SeasonSignupDraftPlayers').get().Count, 0);
+    assert.equal(store.teams(season.SeasonId).length, 0);
+  } finally { db.close(); }
+});
+
 test('an existing active league is adopted without creating a second current season', () => {
   const db = database();
   try {

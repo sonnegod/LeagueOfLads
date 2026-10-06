@@ -358,6 +358,29 @@ CREATE TABLE SeasonTeamPlayers (
     UNIQUE (TeamSubmissionId, Slot)
 );
 
+-- table: SeasonSignupDrafts (temporary, unpublished signup uploads)
+CREATE TABLE SeasonSignupDrafts (
+    DraftId TEXT PRIMARY KEY,
+    SeasonId INTEGER NOT NULL REFERENCES LeagueSeasons(SeasonId),
+    CaptainId INTEGER NOT NULL,
+    CreatedAt TEXT NOT NULL,
+    UpdatedAt TEXT NOT NULL
+);
+
+-- table: SeasonSignupDraftPlayers
+CREATE TABLE SeasonSignupDraftPlayers (
+    DraftId TEXT NOT NULL REFERENCES SeasonSignupDrafts(DraftId),
+    Slot INTEGER NOT NULL CHECK (Slot BETWEEN 0 AND 4),
+    PlayerId INTEGER NOT NULL,
+    PlayerName TEXT NOT NULL,
+    MMR INTEGER NOT NULL,
+    DotaProfileUrl TEXT NOT NULL,
+    ScreenshotMime TEXT NOT NULL,
+    ScreenshotData BLOB NOT NULL,
+    PRIMARY KEY (DraftId, Slot),
+    UNIQUE (DraftId, PlayerId)
+);
+
 -- table: SignupMMRs
 CREATE TABLE SignupMMRs (
     SeasonId INTEGER NOT NULL REFERENCES LeagueSeasons(SeasonId),
