@@ -1,14 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MAX_SCREENSHOT_BYTES, readScreenshot } from '../utils/screenshotUpload';
+import { prepareScreenshot, readScreenshot, screenshotValidationError } from '../utils/screenshotUpload';
 import { isValidProfileUrl, scrubProfileUrl } from '../utils/profileUrl';
 import './SignupPage.css';
 
 const emptyPlayer = () => ({ search: '', playerId: '', playerName: '', mmr: '',
   dotaProfileUrl: '', screenshot: null, adjusted: false, candidates: [] });
-
-const SCREENSHOT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 export default function SignupPage() {
   const { seasonId } = useParams();
@@ -22,7 +20,18 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [validationErrors, setValidationErrors] = useState([]);
+  const [screenshotErrors, setScreenshotErrors] = useState(Array(5).fill(null));
+  const [screenshotProgress, setScreenshotProgress] = useState(Array(5).fill(false));
+  const [screenshotNotes, setScreenshotNotes] = useState(Array(5).fill(null));
+  const [screenshotPreviews, setScreenshotPreviews] = useState(Array(5).fill(null));
+  const screenshotRequests = useRef(Array(5).fill(0));
+  const previewUrls = useRef(Array(5).fill(null));
   const [submittedId, setSubmittedId] = useState(null);
+
+  useEffect(() => () => {
+    screenshotRequests.current = screenshotRequests.current.map(request => request + 1);
+    previewUrls.current.forEach(url => { if (url) URL.revokeObjectURL(url); });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -62,8 +71,52 @@ export default function SignupPage() {
     setPlayers(current => current.map((player, slot) => slot === index ? { ...player, ...patch } : player));
   }
 
+  async function selectScreenshot(index, event) {
+    const input = event.currentTarget;
+    const selected = input.files?.[0] || null;
+    const request = ++screenshotRequests.current[index];
+    if (previewUrls.current[index]) URL.revokeObjectURL(previewUrls.current[index]);
+    previewUrls.current[index] = null;
+    setScreenshotPreviews(current => current.map((value, slot) => slot === index ? null : value));
+    setError('');
+    setScreenshotErrors(current => current.map((value, slot) => slot === index ? null : value));
+    setScreenshotNotes(current => current.map((value, slot) => slot === index ? null : value));
+    change(index, { screenshot: null });
+    if (!selected) {
+      setScreenshotProgress(current => current.map((value, slot) => slot === index ? false : value));
+      return;
+    }
+    setScreenshotProgress(current => current.map((value, slot) => slot === index ? true : value));
+    try {
+      const prepared = await prepareScreenshot(selected);
+      if (screenshotRequests.current[index] !== request) return;
+      change(index, { screenshot: prepared.file });
+      if (typeof URL.createObjectURL === 'function') {
+        const previewUrl = URL.createObjectURL(prepared.file);
+        previewUrls.current[index] = previewUrl;
+        setScreenshotPreviews(current => current.map((value, slot) => slot === index
+          ? previewUrl : value));
+      }
+      if (prepared.compressed) {
+        const mb = bytes => (bytes / (1024 * 1024)).toFixed(1);
+        setScreenshotNotes(current => current.map((value, slot) => slot === index
+          ? `Optimized from ${mb(prepared.originalBytes)} MB to ${mb(prepared.file.size)} MB. Check that the MMR is readable below.` : value));
+      }
+    } catch (uploadError) {
+      if (screenshotRequests.current[index] !== request) return;
+      input.value = '';
+      setScreenshotErrors(current => current.map((value, slot) => slot === index
+        ? uploadError.message : value));
+    } finally {
+      if (screenshotRequests.current[index] === request) {
+        setScreenshotProgress(current => current.map((value, slot) => slot === index ? false : value));
+      }
+    }
+  }
+
   function validate() {
     const issues = [];
+    if (screenshotProgress.some(Boolean)) issues.push('Wait for screenshots to finish optimizing.');
     const ids = new Set();
     const name = teamName.trim();
     if (!name) issues.push('Enter a team name.');
@@ -87,13 +140,8 @@ export default function SignupPage() {
       if (!isValidProfileUrl(player.dotaProfileUrl)) {
         issues.push(`${label}: enter a valid HTTP(S) player profile URL.`);
       }
-      if (!player.screenshot) {
-        issues.push(`${label}: add an MMR screenshot.`);
-      } else if (!SCREENSHOT_TYPES.has(player.screenshot.type)) {
-        issues.push(`${label}: screenshot must be JPEG, PNG, or WebP.`);
-      } else if (player.screenshot.size > MAX_SCREENSHOT_BYTES) {
-        issues.push(`${label}: screenshot must be 2 MB or less.`);
-      }
+      const screenshotIssue = screenshotErrors[index] || screenshotValidationError(player.screenshot);
+      if (screenshotIssue) issues.push(`${label}: ${screenshotIssue}`);
     });
 
     if (user?.accountId && !ids.has(Number(user.accountId))) {
@@ -157,7 +205,7 @@ export default function SignupPage() {
     {preview && <p role="status">Admin preview. This form cannot be submitted while it is a draft.</p>}
     <h1>{season.SignupTitle}</h1>
     <p>{season.SignupDescription}</p>
-    <p>Submit one team with five players, including yourself. Each player needs a public profile link and an MMR screenshot. Submissions cannot be edited after sending.</p>
+    <p>Submit one team with five players, including yourself. Each player needs a public profile link and an MMR screenshot. Large screenshots are optimized automatically. Submissions cannot be edited after sending.</p>
     {!user ? <a className="ui-button-primary signup-login" href={`/api/auth/steam?returnTo=${encodeURIComponent(`/signup/${seasonId}`)}`}>
       Sign in with Steam to sign up
     </a> : submittedId ? <div role="status" className="signup-success">
@@ -198,19 +246,17 @@ export default function SignupPage() {
               onBlur={event => change(index, { dotaProfileUrl: scrubProfileUrl(event.target.value) })} />
             <small>Dotabuff, OpenDota, Stratz, Steam, or another HTTP(S) profile link.</small>
           </label>
-          <label>MMR screenshot (JPEG, PNG; 2 MB max)
+          <label>MMR screenshot (JPEG, PNG, or WebP; larger images optimized automatically)
             <input type="file" accept="image/jpeg,image/png,image/webp" required
-              onChange={event => {
-                const file = event.target.files?.[0] || null;
-                if (file && file.size > MAX_SCREENSHOT_BYTES) {
-                  setError(`Player ${index + 1}: screenshot must be 2 MB or less.`);
-                  event.target.value = '';
-                  change(index, { screenshot: null });
-                } else {
-                  setError('');
-                  change(index, { screenshot: file });
-                }
-              }} />
+              aria-invalid={Boolean(screenshotErrors[index])}
+              onChange={event => selectScreenshot(index, event)} />
+            {screenshotProgress[index] && <small role="status">Optimizing screenshot...</small>}
+            {screenshotNotes[index] && <small role="status">{screenshotNotes[index]}</small>}
+            {screenshotPreviews[index] && <img className="signup-screenshot-preview"
+              src={screenshotPreviews[index]} alt={`Player ${index + 1} MMR screenshot preview`} />}
+            {screenshotErrors[index] && <small className="signup-error" role="alert">
+              {screenshotErrors[index]}
+            </small>}
           </label>
         </div>
       </fieldset>)}
@@ -219,8 +265,10 @@ export default function SignupPage() {
         <ul>{validationErrors.map(message => <li key={message}>{message}</li>)}</ul>
       </div>}
       {error && <p role="alert" className="signup-error">{error}</p>}
-      <button className="ui-button-primary" type="submit" disabled={busy || preview}>
-        {preview ? 'Preview only' : busy ? 'Submitting...' : 'Submit team'}
+      <button className="ui-button-primary" type="submit"
+        disabled={busy || preview || screenshotProgress.some(Boolean)}>
+        {preview ? 'Preview only' : screenshotProgress.some(Boolean)
+          ? 'Optimizing screenshots...' : busy ? 'Submitting...' : 'Submit team'}
       </button>
     </form>}
   </main>;

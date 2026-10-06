@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import LeagueRulesCard from './LeagueRulesCard';
 import LeagueEndPanel from './LeagueEndPanel';
+import { prepareScreenshot, readScreenshot } from '../utils/screenshotUpload';
 import './SeasonAdminPanel.css';
 
 async function request(url, options) {
@@ -8,15 +9,6 @@ async function request(url, options) {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Request failed');
   return data;
-}
-
-function readImage(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error('Could not read screenshot'));
-    reader.readAsDataURL(file);
-  });
 }
 
 function SubmissionCard({ team, seasonId, onChanged }) {
@@ -41,7 +33,8 @@ function SubmissionCard({ team, seasonId, onChanged }) {
         const roster = await Promise.all(players.map(async player => ({
           playerId: player.PlayerId, playerName: player.PlayerName, mmr: player.MMR,
           dotaProfileUrl: player.DotaProfileUrl,
-          ...(files[player.Slot] ? { screenshot: await readImage(files[player.Slot]) } : {}),
+          ...(files[player.Slot] ? { screenshot: await readScreenshot(
+            (await prepareScreenshot(files[player.Slot])).file) } : {}),
         })));
         await request(`/api/admin/seasons/${seasonId}/teams/${team.TeamSubmissionId}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
