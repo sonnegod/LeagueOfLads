@@ -10,7 +10,7 @@ BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
 usage() {
     cat <<'USAGE'
 Usage:
-  ./scripts/db/backupDatabases.sh [all|LadsData|Betting|public|prune]
+  ./scripts/db/backupDatabases.sh [all|LadsData|Betting|public|Analytics|prune]
 
 Creates SQLite-safe timestamped backups under:
   backups/<database-name>/
@@ -22,6 +22,7 @@ Examples:
   ./scripts/db/backupDatabases.sh
   ./scripts/db/backupDatabases.sh all
   ./scripts/db/backupDatabases.sh LadsData
+  ./scripts/db/backupDatabases.sh Analytics
 USAGE
 }
 
@@ -73,9 +74,10 @@ case "$target" in
         backup_db "LadsData"
         backup_db "Betting"
         backup_db "public"
+        backup_db "Analytics"
         prune_backups
         ;;
-    LadsData|Betting|public)
+    LadsData|Betting|public|Analytics)
         backup_db "$target"
         prune_backups
         ;;

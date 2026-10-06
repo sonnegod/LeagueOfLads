@@ -5,8 +5,11 @@ import { checkAdmin, checkHeadAdmin, getAdminForSteamId } from '../middleware/ch
 
 import db from '../database.js';
 import dbBet from '../databaseBet.js';
+import { isBettingV2, getOpenV2Markets, getV2Wallet, getV2Bets,
+  getV2Leaderboard, placeV2Parlay } from '../betting/bettingV2Service.js';
 import dbPublic from '../databasePublic.js';
 import { publicSeasonRoutes, adminSeasonRoutes } from './seasonRoutes.js';
+import { analyticsRoutes } from './analyticsRoutes.js';
 import { classifyStandings, DEFAULT_LEAGUE_RULES } from '../config/leagueRules.js';
 import {
   getAppLiveMatchesPayload,
@@ -48,6 +51,14 @@ function positiveInteger(value) {
 
 function resolveAccountIdFromSteamId(steamId64) {
   return (BigInt(steamId64) - STEAM_ID64_BASE).toString();
+}
+
+function authenticatedBettingAccountId(req) {
+  if (!req.isAuthenticated?.() || !req.user?.id) return null;
+  try {
+    const accountId = resolveAccountIdFromSteamId(req.user.id);
+    return /^[1-9]\d*$/.test(accountId) ? accountId : null;
+  } catch { return null; }
 }
 
 function hasDraftAccess(accountId) {
@@ -221,6 +232,7 @@ router.get('/rules', (req, res) => {
 });
 
 router.use(publicSeasonRoutes);
+router.use(analyticsRoutes);
 
 router.use('/admin', checkAdmin);
 router.use('/admin/seasons', adminSeasonRoutes);
@@ -2630,6 +2642,13 @@ router.get('/currentLeaderboard', async (req, res) => {
 });
 
 router.get('/markets', async (req, res) => {
+  if (isBettingV2(dbBet.db)) {
+    try { return res.status(200).json(getOpenV2Markets(dbBet.db)); }
+    catch (error) {
+      console.error('Could not load v2 markets:', error);
+      return res.status(503).json({ error: 'Markets unavailable' });
+    }
+  }
     const activeMarkets = dbBet.getActiveMarkets(); 
 
     const activeMarketsWithOptions = await Promise.all(
@@ -2647,12 +2666,13 @@ router.get('/markets', async (req, res) => {
 })
 
 router.get('/bettingLeaderboard', async (req, res) => {
-    const leaderboard = dbBet.getPlayerLeaderboard(); 
+    const leaderboard = isBettingV2(dbBet.db) ? getV2Leaderboard(dbBet.db)
+      : dbBet.getPlayerLeaderboard();
 
     const leaderboardWithNames = await Promise.all(
       leaderboard.map(async(row) => {
         const player = db.getPlayerInfo(row.user_id)
-        const name = player[0].PlayerName
+        const name = player?.[0]?.PlayerName || `Player ${row.user_id}`;
         return {
           ...row,
           name
@@ -2664,15 +2684,15 @@ router.get('/bettingLeaderboard', async (req, res) => {
 
 router.get('/wallet/:userId', async (req, res) => {
     const { userId } = req.params;
-
-    if (!userId) {
-          return res.status(400).json({ success: false, message: "User ID is required." });
-      }
+    const accountId = authenticatedBettingAccountId(req);
+    if (!accountId) return res.status(401).json({ success: false, message: 'Login required.' });
+    if (userId !== accountId) return res.status(403).json({ success: false, message: 'Forbidden.' });
       
       // Assume getWalletBalance queries the UserWallets table
-      const walletData = dbBet.getWalletBalance(userId); 
+      const walletData = isBettingV2(dbBet.db) ? getV2Wallet(dbBet.db, accountId)
+        : dbBet.getWalletBalance(accountId);
 
-      if (walletData) {
+      if (walletData.length) {
           return res.status(200).json(walletData);
       } else {
           // This should rarely happen if login is handled correctly, but good to guard against.
@@ -2682,13 +2702,13 @@ router.get('/wallet/:userId', async (req, res) => {
 
 router.get('/bets/:userId', async (req, res) => {
     const { userId } = req.params;
-
-    if (!userId) {
-          return res.status(400).json({ success: false, message: "User ID is required." });
-      }
+    const accountId = authenticatedBettingAccountId(req);
+    if (!accountId) return res.status(401).json({ success: false, message: 'Login required.' });
+    if (userId !== accountId) return res.status(403).json({ success: false, message: 'Forbidden.' });
       
       // Assume getWalletBalance queries the UserWallets table
-      const betData = dbBet.getBets(userId); 
+      const betData = isBettingV2(dbBet.db) ? getV2Bets(dbBet.db, accountId)
+        : dbBet.getBets(accountId);
 
       if (betData) {
           return res.status(200).json(betData);
@@ -2699,17 +2719,27 @@ router.get('/bets/:userId', async (req, res) => {
 })
 
 router.post('/parlay', async (req, res) => {
-    const { user, totalWager, betLegs } = req.body;
+    const { totalWager, betLegs } = req.body;
+    const accountId = authenticatedBettingAccountId(req);
+    if (!accountId) return res.status(401).json({ success: false, message: 'Login required.' });
 
     
     // 1. Basic Input Validation
-    if (!user || !totalWager || totalWager <= 0 || !betLegs || betLegs.length === 0) {
-        return res.status(400).json({ success: false, message: "Invalid bet payload: Missing user, wager, or legs." });
+    if (!Number.isSafeInteger(totalWager) || totalWager <= 0 ||
+        !Array.isArray(betLegs) || betLegs.length === 0) {
+        return res.status(400).json({ success: false, message: "Invalid bet payload: wager or legs." });
     }
     
     // 2. Execute the Core Transaction Logic
     // This function will handle all database reads, writes, and validation inside a single transaction.
-    const result = dbBet.placeParlayBet(user.accountId, totalWager, betLegs);
+    let result;
+    try {
+      result = isBettingV2(dbBet.db)
+        ? placeV2Parlay(dbBet.db, { userId: accountId, totalWager, betLegs })
+        : dbBet.placeParlayBet(accountId, totalWager, betLegs);
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
 
     if (result.success) {
         // HTTP 201 Created is appropriate for a new ticket

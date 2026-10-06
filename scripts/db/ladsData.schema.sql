@@ -282,6 +282,14 @@ CREATE TABLE ScheduledSeries (
     )
 );
 
+-- table: ScheduledSeriesTimes
+CREATE TABLE ScheduledSeriesTimes (
+    ScheduledSeriesUid INTEGER PRIMARY KEY REFERENCES ScheduledSeries (UID),
+    StartAt TEXT NOT NULL,
+    SourceMessageId TEXT,
+    UpdatedAt TEXT NOT NULL
+);
+
 -- table: SeriesInfo
 CREATE TABLE SeriesInfo (
     SeriesId    INTEGER PRIMARY KEY AUTOINCREMENT

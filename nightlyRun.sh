@@ -29,7 +29,9 @@ echo "$(date) - Starting nightly jobs" >> "$LOG_FILE"
 ACTIVE_LEAGUE_ID="$(/usr/bin/node /root/LeagueOfLads/scripts/league/getActiveLeagueId.js)"
 
 if [ -z "$ACTIVE_LEAGUE_ID" ]; then
-    echo "$(date) - No active league. Skipping nightly jobs." >> "$LOG_FILE"
+    /usr/bin/node /root/LeagueOfLads/scripts/db/refreshAnalytics.js --league >> "$LOG_FILE" 2>&1
+    /bin/bash /root/LeagueOfLads/scripts/db/backupDatabases.sh >> "$LOG_FILE" 2>&1
+    echo "$(date) - No active league. Backups complete; skipping league jobs." >> "$LOG_FILE"
     exit 0
 fi
 
@@ -38,6 +40,7 @@ echo "$(date) - Active league: $ACTIVE_LEAGUE_ID" >> "$LOG_FILE"
 /usr/bin/node /root/LeagueOfLads/scripts/league/currentLeagueData.js >> "$LOG_FILE" 2>&1
 /usr/bin/node /root/LeagueOfLads/scripts/league/matchDetails.js >> "$LOG_FILE" 2>&1
 /usr/bin/node /root/LeagueOfLads/scripts/league/populateTeamNames.js >> "$LOG_FILE" 2>&1
+/usr/bin/node /root/LeagueOfLads/scripts/db/refreshAnalytics.js --league >> "$LOG_FILE" 2>&1
 
 /usr/bin/node /root/LeagueOfLads/scripts/league/updateNeustadtl.js >> "$LOG_FILE" 2>&1
 

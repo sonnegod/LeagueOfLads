@@ -72,13 +72,7 @@ export default function BettingPage() {
             return [...filteredSlip, newLeg];
         }
 
-        // 3. Enforce General Restriction: Parlay Mix/Match Rule
-        if (currentSlip.length > 0 && currentSlip[0].marketType !== newLeg.marketType) {
-            alert('❌ Parlay Rule: You cannot mix Matchup and Player Stat bets.');
-            return currentSlip; // Return the current slip unchanged
-        }
-
-        // 4. Add the new leg if all checks pass
+        // Same-series combinations are checked for contradictions on the server.
         return [...currentSlip, newLeg];
     });
 
@@ -100,7 +94,6 @@ export default function BettingPage() {
         }
 
         const payload = {
-            user,
             totalWager: wagerAmount,
             // Backend will calculate the amount per leg based on totalWager and number of legs
             betLegs: bettingSlip.map(leg => ({

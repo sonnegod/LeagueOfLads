@@ -1,5 +1,6 @@
 import db from '../database.js';
 import dbBet from '../databaseBet.js';
+import { isBettingV2 } from './bettingV2Service.js';
 
 
 // --- CONFIGURATION ---
@@ -333,4 +334,8 @@ async function initializeOdds() {
 }
 
 // Example call to run the process:
-initializeOdds();
+if (isBettingV2(dbBet.db)) {
+    console.log('Skipping legacy player odds initialization on Betting v2');
+} else {
+    initializeOdds();
+}

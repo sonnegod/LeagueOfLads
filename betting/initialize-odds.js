@@ -1,5 +1,6 @@
 import db from '../database.js';
 import dbBet from '../databaseBet.js';
+import { isBettingV2 } from './bettingV2Service.js';
 
 
 // --- Configuration Constants ---
@@ -258,4 +259,8 @@ async function initializeOdds() {
 }
 
 
-initializeOdds();
+if (isBettingV2(dbBet.db)) {
+    console.log('Skipping legacy odds initialization on Betting v2');
+} else {
+    initializeOdds();
+}

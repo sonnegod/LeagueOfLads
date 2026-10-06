@@ -53,6 +53,18 @@
 .home-champion-player-hero a { min-width: 0; overflow-wrap: anywhere; }
 .home-champion-player-hero small { color: var(--muted-text, #a8b2c5); }
 
+.home-analytics { width: min(100% - 2rem, 1150px); margin: 2rem auto; display: grid; gap: 1.5rem; }
+.home-analytics h2, .home-analytics h3, .home-analytics h4 { margin: 0; }
+.home-analytics-intro p:last-child { color: var(--muted-text, #a8b2c5); }
+.home-analytics-section { display: grid; gap: 1rem; }
+.home-analytics-feed, .home-analytics-leaders { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 0.8rem; }
+.home-analytics-feed article, .home-analytics-leaders article { display: grid; gap: 0.45rem; min-width: 0; padding: 1rem; border: 1px solid var(--border, #344); border-radius: 12px; background: var(--surface, #101827); }
+.home-analytics-feed small, .home-analytics-feed span, .home-analytics-leaders small { color: var(--muted-text, #a8b2c5); }
+.home-analytics a { color: #c7d2fe; }
+.home-analytics-leaders ol { margin: 0; padding-left: 1.25rem; }
+.home-analytics-leaders li { margin-top: 0.6rem; }
+.home-analytics-leaders li strong, .home-analytics-leaders li small { display: block; font-size: 0.85rem; }
+
 @media (max-width: 767px) {
   .home-page { padding: 12px !important; }
   .home-page h2 { margin: 0 0 12px; font-size: 1.35rem; }

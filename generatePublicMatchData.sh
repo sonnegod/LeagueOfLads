@@ -23,4 +23,5 @@ LOG_FILE="$LOG_DIR/publicLog_$(date +%F).txt"
 echo "$(date) - Starting public match generation" >> "$LOG_FILE"
 /usr/bin/node "$SCRIPT_DIR/scripts/public/generatePlayerInfo.js" >> "$LOG_FILE" 2>&1
 /usr/bin/node "$SCRIPT_DIR/scripts/public/generateMatchInfo.js" >> "$LOG_FILE" 2>&1
+/usr/bin/node "$SCRIPT_DIR/scripts/db/refreshAnalytics.js" --public >> "$LOG_FILE" 2>&1
 echo "$(date) - Public match generation complete" >> "$LOG_FILE"

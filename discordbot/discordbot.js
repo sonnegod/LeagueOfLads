@@ -1,5 +1,9 @@
 import { Client, GatewayIntentBits } from 'discord.js';
 import db from '../database.js';
+import dbBet from '../databaseBet.js';
+import { autoDraftScheduledSeries } from '../betting/analytics/autoDraftScheduledSeries.js';
+import { parseScheduledMatch } from './parseScheduledMatch.js';
+import { syncSeriesCloseTimes } from '../betting/syncSeriesCloseTimes.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -16,70 +20,6 @@ const client = new Client({
         GatewayIntentBits.MessageContent
     ]
 });
-
-/**
- * Parses a single Discord message to extract match data.
- * * ASSUMED MESSAGE FORMAT: "Team Alpha vs Team Beta on 2025-12-15 19:00 EST"
- * @param {string} content The message content string
- * @returns {object|null} An object with { team1, team2, date } or null if parsing fails.
-*/
-function parseMatchMessage(message) {
-    // 1. Extract Team Names from Mentions (Most reliable way)
-    const mentionedRoles = message.mentions.roles;
-
-    if (mentionedRoles.size < 2) {
-        return null; // Not enough teams mentioned
-    }
-    const rolesArray = Array.from(mentionedRoles.values());
-    const team1Name = rolesArray[0].name; 
-    const team2Name = rolesArray[1].name;
-
-
-    // 2. Locate the Month/Day component in the entire message content
-    // We look for any pattern like "12/8" or "1/15" anywhere in the message.
-    // (\d{1,2}\/\d{1,2}) captures the month/day (e.g., 12/8)
-    const dateRegex = /(\d{1,2}\/\d{1,2})/i;
-    const dateMatch = message.content.match(dateRegex);
-
-    if (!dateMatch) {
-        console.warn("[PARSING WARNING] Failed to find a Month/Day pattern (e.g., 12/8).");
-        return null;
-    }
-
-    const monthDay = dateMatch[1]; // e.g., 12/8
-
-    // 3. Construct a full date string and format it to YYYY-MM-DD
-    // We must append the current year to the month/day for valid parsing.
-    const currentYear = new Date().getFullYear();
-    
-    // NOTE: This uses the current year. If the match date is 1/1 and it's currently 12/31, 
-    // it will incorrectly assign the current year. Robust systems check if the month is
-    // less than the current month and increment the year if needed.
-    const fullDateString = `${monthDay}/${currentYear}`; 
-
-    // Create a temporary Date object
-    let matchDate = new Date(fullDateString);
-
-    if (isNaN(matchDate.getTime())) {
-        console.warn(`[PARSING WARNING] Invalid date generated from: ${fullDateString}`);
-        return null;
-    }
-
-    // Format to YYYY-MM-DD (Date-only string)
-    // Using UTC date components ensures it's consistently YYYY-MM-DD regardless of server time,
-    // though this only holds true if the Date object was created without a specific time zone.
-    const finalDate = [
-        matchDate.getFullYear(),
-        String(matchDate.getMonth() + 1).padStart(2, '0'), // Month is 0-indexed
-        String(matchDate.getDate()).padStart(2, '0')
-    ].join('-');
-    
-    return {
-        team1: team1Name,
-        team2: team2Name,
-        date: finalDate // e.g., "2025-12-08"
-    };
-}
 
 /**
  * Connects to Discord, fetches messages, parses data, and logs the output.
@@ -100,7 +40,7 @@ async function fetchAndLogMatchups() {
 
         messages.forEach(message => {
 
-            const matchup = parseMatchMessage(message);
+            const matchup = parseScheduledMatch(message);
 
             if (matchup) {
                 console.log(`[PARSED] ✅ Success: ${message.content}`);
@@ -112,7 +52,23 @@ async function fetchAndLogMatchups() {
 
         console.log('\n=======================================');
         console.log('Final Parsed Matchups Array:');
-        db.insertScheduledSeries(parsedMatchups);
+        const seriesUids = db.insertScheduledSeries(parsedMatchups);
+        const draftResult = autoDraftScheduledSeries({ seriesUids });
+        if (!draftResult.skipped) {
+            const closeTimes = syncSeriesCloseTimes({ seriesUids,
+                ladsPath: db.dbPath, bettingPath: dbBet.dbPath });
+            if (closeTimes.tightened || closeTimes.locked) {
+                console.log(`[Betting schedule] Tightened ${closeTimes.tightened} close times; locked ${closeTimes.locked} expired markets`);
+            }
+        }
+        if (draftResult.skipped) {
+            console.log(`[Betting drafts] ${draftResult.skipped}`);
+        } else {
+            for (const series of draftResult.series) {
+                if (series.error) console.warn(`[Betting drafts] Series ${series.seriesUid}: ${series.error}`);
+                else console.log(`[Betting drafts] Series ${series.seriesUid}: ${series.marketsCreated} DRAFT markets created`);
+            }
+        }
         console.log('=======================================\n');
 
     } catch (error) {

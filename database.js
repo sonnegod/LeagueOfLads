@@ -22,6 +22,7 @@ class DBInstance {
                 : '/root/LeagueOfLads/db/LadsData.db';
                 
             this.db = new Database(dbPath);
+            this.dbPath = dbPath;
             this.ensureAdminsSchema();
             this.auditLog = new AdminAuditStore(this.db);
             this.adjustedPlayers = new AdjustedPlayersStore(this.db);
@@ -3320,11 +3321,21 @@ class DBInstance {
     }
 
     insertScheduledSeries(matches){
+        this.db.exec(`CREATE TABLE IF NOT EXISTS ScheduledSeriesTimes (
+            ScheduledSeriesUid INTEGER PRIMARY KEY REFERENCES ScheduledSeries(UID),
+            StartAt TEXT NOT NULL,
+            SourceMessageId TEXT,
+            UpdatedAt TEXT NOT NULL
+        )`);
+        const seriesUids = new Set();
         matches.forEach(match => {
             const team1 = this.getTeamIdByName(match.team1)
             const team2 = this.getTeamIdByName(match.team2)
 
-            console.log(match.team2,team2)
+            if (!team1.length || !team2.length || team1[0].TeamId === team2[0].TeamId) {
+                console.warn(`Skipping scheduled series with unknown or duplicate teams: ${match.team1} vs ${match.team2}`);
+                return;
+            }
 
             const stmt = this.db.prepare(`INSERT OR IGNORE INTO ScheduledSeries (Team1,Team2,Date)
                                         VALUES (@Team1,@Team2,@Date);`);
@@ -3333,7 +3344,23 @@ class DBInstance {
                 Team2: team2[0].TeamId,
                 Date: match.date
             });
+            const row = this.db.prepare(`SELECT UID FROM ScheduledSeries
+                WHERE Team1 = ? AND Team2 = ? AND Date = ?`).get(
+                team1[0].TeamId, team2[0].TeamId, match.date);
+            if (row) seriesUids.add(row.UID);
+            if (row && match.startAt) {
+                this.db.prepare(`INSERT INTO ScheduledSeriesTimes
+                    (ScheduledSeriesUid, StartAt, SourceMessageId, UpdatedAt)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(ScheduledSeriesUid) DO UPDATE SET
+                      StartAt = excluded.StartAt,
+                      SourceMessageId = excluded.SourceMessageId,
+                      UpdatedAt = excluded.UpdatedAt`).run(
+                    row.UID, match.startAt, match.sourceMessageId || null,
+                    new Date().toISOString());
+            }
         })
+        return [...seriesUids];
     }
 
     getTeamIdByName(teamName){

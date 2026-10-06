@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import LeaguePage from './LeaguePage';
 import HeroDisplay from '../components/HeroDisplay';
+import HomeAnalytics from '../components/HomeAnalytics';
 import { useAuth } from '../context/AuthContext';
 import './Home.css';
 
@@ -31,8 +32,11 @@ export default function Home() {
 
   if (!home && !error) return <div className="ui-page">Loading current league...</div>;
   if (error && !home) return <div className="ui-page" role="alert">{error}</div>;
-  if (home.activeLeagueId) return <LeaguePage leagueIdOverride={home.activeLeagueId}
-    stageTabsFirst defaultToCurrentStage alwaysShowGroups showRecentSeries={false} />;
+  if (home.activeLeagueId) return <>
+    <LeaguePage leagueIdOverride={home.activeLeagueId}
+      stageTabsFirst defaultToCurrentStage alwaysShowGroups showRecentSeries={false} />
+    <HomeAnalytics leagueId={home.activeLeagueId} />
+  </>;
 
   return <main className={`ui-page home-offseason${home.champion ? ' home-offseason-champion' : ''}`}>
     {home.signup && <section className="home-signup-hero">
@@ -95,5 +99,6 @@ export default function Home() {
       <h1>Next league coming soon</h1>
       <p>Check back for the next signup announcement.</p>
     </section>}
+    <HomeAnalytics />
   </main>;
 }

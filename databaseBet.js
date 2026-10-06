@@ -11,6 +11,7 @@ class DBInstance {
                 : '/root/LeagueOfLads/db/Betting.db';
                 
             this.db = new Database(dbPath);
+            this.dbPath = dbPath;
             DBInstance.instance = this;
         }
 

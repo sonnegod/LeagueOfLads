@@ -19,7 +19,7 @@ test('submission export includes team and player fields without screenshots', ()
   assert.match(csv, /"The ""Lads"", Inc\."/);
   assert.match(csv, /"'=SUM\(1,1\)"/);
   assert.match(csv, /"Manual","Manual team"/);
-  assert.equal((csv.match(/Dotabuff URL/g) || []).length, 5);
+  assert.equal((csv.match(/profile URL/g) || []).length, 5);
   assert.equal(csv.includes('Screenshot'), false);
   assert.equal(csv.includes('private image bytes'), false);
 });

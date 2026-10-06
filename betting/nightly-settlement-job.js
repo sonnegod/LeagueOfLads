@@ -1,5 +1,7 @@
 import dbBet from '../databaseBet.js';
 import db from '../database.js';
+import { isBettingV2 } from './bettingV2Service.js';
+import { autoSettleV2Series } from './autoSettleV2Series.js';
 
 
 function runNightlySettlement() {
@@ -114,4 +116,15 @@ function determineWinningOption(market, series) {
     }
 }
 
-runNightlySettlement();
+if (isBettingV2(dbBet.db)) {
+    try {
+        console.log(JSON.stringify(autoSettleV2Series({
+            bettingPath: dbBet.dbPath, ladsPath: db.dbPath,
+        }), null, 2));
+    } catch (error) {
+        console.error('Betting v2 automatic settlement failed:', error);
+        process.exitCode = 1;
+    }
+} else {
+    runNightlySettlement();
+}
