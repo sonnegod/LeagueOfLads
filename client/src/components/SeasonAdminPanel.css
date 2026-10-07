@@ -26,6 +26,8 @@
 .season-team-edit fieldset { border: 1px solid var(--border, #555); border-radius: 7px; }
 .season-team-player-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.7rem; }
 .season-team-edit a { color: #a5b4fc; }
+.season-screenshot-thumbnail { display: block; max-width: min(100%, 360px); max-height: 220px;
+  margin: 0.65rem 0; object-fit: contain; border: 1px solid var(--border, #555); border-radius: 6px; }
 .season-error { color: #f87171; }
 .season-groups { display: grid; gap: 0.9rem; }
 .season-group-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }

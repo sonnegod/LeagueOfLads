@@ -11,6 +11,15 @@ async function request(url, options) {
   return data;
 }
 
+function ScreenshotThumbnail({ src, playerName }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <small role="alert">Screenshot preview could not be loaded. Try the full-size link below.</small>;
+  return <a href={src} target="_blank" rel="noreferrer" aria-label={`View ${playerName}'s screenshot full size`}>
+    <img className="season-screenshot-thumbnail" src={src} loading="lazy" decoding="async"
+      alt={`${playerName}'s saved MMR screenshot`} onError={() => setFailed(true)} />
+  </a>;
+}
+
 function SubmissionCard({ team, seasonId, onChanged }) {
   const [name, setName] = useState(team.TeamName);
   const [average, setAverage] = useState(String(team.ManualAverageMMR ?? ''));
@@ -18,6 +27,7 @@ function SubmissionCard({ team, seasonId, onChanged }) {
   const [files, setFiles] = useState({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [hasExpanded, setHasExpanded] = useState(false);
 
   async function save(event) {
     event.preventDefault();
@@ -60,7 +70,8 @@ function SubmissionCard({ team, seasonId, onChanged }) {
     setPlayers(current => current.map((player, slot) => slot === index ? { ...player, ...patch } : player));
   }
 
-  return <details className="season-team-card">
+  return <details className="season-team-card"
+    onToggle={event => { if (event.currentTarget.open) setHasExpanded(true); }}>
     <summary><strong>{team.TeamName}</strong><span>{Number(team.AverageMMR).toFixed(0)} average MMR</span>
       <span>{team.IsManual ? 'Manual team' : `Captain: ${team.CaptainName || team.CaptainId}`}</span></summary>
     <form onSubmit={save} className="season-team-edit">
@@ -81,6 +92,9 @@ function SubmissionCard({ team, seasonId, onChanged }) {
             <label>Replace screenshot<input type="file" accept="image/jpeg,image/png,image/webp"
               onChange={event => setFiles(current => ({ ...current, [player.Slot]: event.target.files?.[0] }))} /></label>
           </div>
+          {hasExpanded && <ScreenshotThumbnail
+            src={`/api/admin/seasons/${seasonId}/teams/${team.TeamSubmissionId}/screenshots/${player.PlayerId}`}
+            playerName={player.PlayerName || `Player ${index + 1}`} />}
           <a href={`/api/admin/seasons/${seasonId}/teams/${team.TeamSubmissionId}/screenshots/${player.PlayerId}`}
             target="_blank" rel="noreferrer">View screenshot</a>
         </fieldset>)}
