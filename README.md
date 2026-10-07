@@ -1,24 +1,59 @@
-To set up:
-1. Clone the repository
-2. NPM install in the main directory and in the /client file
-3. set up .env file (ping sonnegod for info)
-2. Download SQLITE Studio for ui for the flat file
-3. Add the database (choose `db/LadsData.db`)
-   For a fresh empty database, run `node scripts/db/createLadsDataDb.js db/LadsData.db`
-   before opening it in SQLiteStudio. The command refuses to overwrite an existing file.
-4. Use `./scripts/db/backupDatabases.sh` to create organized SQLite-safe backups instead of manual root-level `cp` copies.
+# League of Lads
 
-DATABASE BACKUPS
----
-Create timestamped backups under `backups/<database-name>/`:
+## Run locally
 
-```bash
-./scripts/db/backupDatabases.sh
-./scripts/db/backupDatabases.sh LadsData
-./scripts/db/backupDatabases.sh Betting
-```
+Use Node.js 22.12+ and npm (the current Vite client requires Node 20.19+ or 22.12+).
+Run these commands from the repository root. SQLiteStudio is optional if you want
+to inspect the databases. The root `package.json` still lists Node 16; that
+engine field is outdated for the current client.
 
-The script uses SQLite's `.backup` command so WAL-mode database changes are included safely.
+1. Clone the repository (or use your existing checkout), change into it, and
+   install both sets of dependencies:
+
+   ```bash
+   git clone https://github.com/sonnegod/LeagueOfLads.git
+   cd LeagueOfLads
+   npm install
+   npm --prefix client install
+   ```
+
+2. Copy `.env.example` to `.env` in the repository root (unless you already have
+   a `.env`), then replace the Steam API key placeholder with a development key
+   from a maintainer. Do not commit `.env`. The key lets the Steam login strategy
+   fetch the signed-in user's Steam profile after authentication; the example
+   ports match the Vite API proxy and Steam login callback.
+
+3. Populate `db/` from the backups as described below **before** starting the
+   server. `ENVIRONMENT=DEV` selects the local database paths; without it the code
+   uses production paths. SQLite can create missing local files as empty databases,
+   so do not mistake those for restored data.
+
+4. Start the API and Vite client together:
+
+   ```bash
+   npm run dev
+   ```
+
+   Open <http://localhost:5173>. The API runs on port 3000, and Vite proxies
+   `/api` requests to it. On Windows PowerShell, use `npm.cmd` in place of `npm`
+   if execution policy blocks `npm.ps1`.
+
+## Restore backup databases for local use
+
+The timestamped files in `backups/` are SQLite-safe snapshots, not the live paths
+used by the app. Create `db/`, then **copy** the newest backup for each available
+database to the corresponding filename below. Leave the originals in `backups/`.
+
+| Backup folder | Local file required by the app |
+| --- | --- |
+| `backups/LadsData/` | `db/LadsData.db` |
+| `backups/public/` | `db/public.db` |
+| `backups/Betting/` | `db/Betting.db` |
+
+The Betting database is stale, and this checkout does not include a current
+Betting backup. Ask a maintainer for an up-to-date copy if you need betting data.
+If a local database already exists, stop the server and preserve it before
+replacing it. Local copies in `db/` are git-ignored.
 
 ADMIN OVERHAUL DEPLOYMENT
 ---
@@ -33,7 +68,7 @@ before deployment, confirm its champion in League Overview to show it on the hom
 
 COMMANDS FOR THE SERVER
 ---
-sudo nano /etc/nginx/sites-available/dotawebsite
+sudo nano /etc/nginx/sites-enabled/dotawebsite
 sudo nginx -t
 sudo systemctl reload nginx
 
