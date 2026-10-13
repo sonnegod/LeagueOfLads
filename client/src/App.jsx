@@ -37,6 +37,7 @@ export default function App() {
         <Route path="/player/:player_id" element={<PlayerPage />} />
         <Route path="/hero/:hero_id" element={<HeroPage />} />
         <Route path="/team/:teamId" element={<TeamPage />} />
+        <Route path="/team/roster/:teamSubmissionId" element={<TeamPage />} />
         <Route path="/match/:matchId" element={<MatchPage />} />
         <Route path="/team" element={<TeamsPage />} />
         <Route path="/h2h" element={<HeadToHeadPage />} />

@@ -1,3 +1,33 @@
+.team-page-heading, .player-page-heading { display: flex; align-items: center; gap: 0.7rem; }
+.player-page-heading { margin-bottom: 1rem; }
+.player-page-heading h1 { margin: 0; }
+.dotabuff-link { display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; background: transparent; cursor: pointer; flex-shrink: 0; }
+.dotabuff-icon { width: 20px; height: 20px; display: block; }
+.team-page-heading .dotabuff-icon { width: 28px; height: 28px; }
+.dotabuff-link:hover { opacity: 0.8; }
+.dotabuff-link:focus-visible { outline: 2px solid var(--primary, #8ab4ff); outline-offset: 3px; border-radius: 4px; }
+.team-active-roster { padding: 1rem; margin-bottom: 1rem; border: 1px solid var(--border, #2a2d33);
+  border-radius: 8px; background: var(--surface, #121315); }
+.team-active-roster-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 0.7rem; }
+.team-active-roster-heading h2 { margin: 0; font-size: 1rem; }
+.team-active-roster-heading > a:not(.dotabuff-link) { font-size: 0.85rem; color: var(--muted-text, #9ca3af); }
+.team-active-roster-players { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; padding: 0;
+  margin: 0.8rem 0 0; list-style: none; }
+.team-active-roster-players li { display: flex; align-items: center; gap: 0.5rem; }
+.team-standin-label { display: block; margin-top: 0.2rem; font-size: 0.75rem; color: var(--muted-text, #9ca3af); }
+.team-roster-dates { display: block; margin-top: 0.35rem; color: var(--muted-text, #9ca3af); font-size: 0.8rem; }
+.team-roster-history { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border, #2a2d33); }
+.team-detail-page > .team-roster-history { margin-bottom: 1rem; }
+.team-roster-history summary { cursor: pointer; font-weight: 600; }
+.team-roster-history-note { font-size: 0.85rem; color: var(--muted-text, #9ca3af); }
+.team-roster-history-table { width: 100%; min-width: 650px; border-collapse: collapse; }
+.team-roster-history-table th, .team-roster-history-table td {
+  padding: 0.8rem; text-align: left; border: 1px solid var(--border, #2a2d33); vertical-align: top; }
+.team-roster-history-table td:not(:first-child) { white-space: nowrap; }
+.team-roster-history-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0.65rem; }
+.team-roster-history-meta small { color: var(--muted-text, #9ca3af); }
+
 .detail-sort-button {
   display: inline-flex;
   align-items: center;

@@ -441,3 +441,24 @@ ON LiveMatchSnapshots (MatchId, CreatedAt);
 
 -- index: neustadtl_team_league
 CREATE UNIQUE INDEX neustadtl_team_league ON Neustadtl (TeamId, LeagueId);
+
+-- table: TeamRosterPlayers
+CREATE TABLE TeamRosterPlayers (
+    TeamSubmissionId INTEGER NOT NULL REFERENCES SeasonTeams(TeamSubmissionId),
+    PlayerId INTEGER NOT NULL REFERENCES PlayerInfo(PlayerId),
+    Slot INTEGER NOT NULL CHECK (Slot BETWEEN 0 AND 4),
+    FinalizedAt TEXT NOT NULL,
+    PRIMARY KEY (TeamSubmissionId, PlayerId),
+    UNIQUE (TeamSubmissionId, Slot)
+);
+
+-- index: idx_SeasonTeams_ExternalTeam
+CREATE INDEX idx_SeasonTeams_ExternalTeam ON SeasonTeams(ExternalTeamId, SeasonId);
+
+-- table: TeamRosterPeriods
+CREATE TABLE TeamRosterPeriods (
+    TeamSubmissionId INTEGER PRIMARY KEY REFERENCES SeasonTeams(TeamSubmissionId),
+    EffectiveFrom TEXT,
+    EffectiveTo TEXT,
+    FromEstimated INTEGER NOT NULL DEFAULT 0 CHECK (FromEstimated IN (0, 1))
+);

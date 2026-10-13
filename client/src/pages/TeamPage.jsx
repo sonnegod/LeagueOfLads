@@ -6,12 +6,19 @@ import LeagueFilter from '../components/LeagueFilter';
 import HeroDisplay from '../components/HeroDisplay';
 import TeamHomeTab from '../components/TeamHomeTab';
 import TeamDrafts from '../components/TeamDrafts';
+import TeamRoster from '../components/TeamRoster';
+import TeamRosterHistory from '../components/TeamRosterHistory';
+import DotabuffLink from '../components/DotabuffLink';
 import './DetailPages.css';
 
 
 export default function TeamPage() {
-  const { teamId } = useParams();
+  const { teamId: routeTeamId, teamSubmissionId } = useParams();
+  const [resolvedTeamId, setResolvedTeamId] = useState(null);
+  const teamId = routeTeamId || resolvedTeamId;
   const [teamName, setTeamName] = useState('');
+  const [roster, setRoster] = useState(null);
+  const [error, setError] = useState('');
   const [matches, setMatches] = useState([]);
   const [heroes, setHeroes] = useState([]); // New: hero stats
   const [players, setPlayers] = useState([]);
@@ -24,69 +31,93 @@ export default function TeamPage() {
   const loadedTeamIdRef = useRef(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+    const pageKey = teamSubmissionId ? `submission:${teamSubmissionId}` : `team:${routeTeamId}`;
+    async function request(url) {
+      const response = await fetch(url, { signal: controller.signal });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load team');
+      return data;
+    }
     async function fetchTeamInfo() {
-      const hasLoadedTeam = String(loadedTeamIdRef.current) === String(teamId);
+      const hasLoadedTeam = loadedTeamIdRef.current === pageKey;
       if (hasLoadedTeam) {
         setUpdating(true);
       } else {
         setLoading(true);
       }
+      setError('');
 
       try {
-        const url = new URL(`/api/teams/${teamId}`, window.location.origin);
-        if (selectedLeague !== 'all') {
-          url.searchParams.append('leagueId', selectedLeague);
+        let signupRoster = null;
+        let effectiveTeamId = routeTeamId;
+        if (teamSubmissionId) {
+          signupRoster = (await request(`/api/teamRosters/${teamSubmissionId}`)).roster;
+          effectiveTeamId = signupRoster.TeamId;
         }
-        const res = await fetch(url.toString());
-        const data = await res.json();
-
-
-        setTeamName(data.teamName[0].TeamName);
+        if (!effectiveTeamId) {
+          if (controller.signal.aborted) return;
+          setResolvedTeamId(null);
+          setRoster(signupRoster);
+          setTeamName(signupRoster.TeamName);
+          setMatches([]);
+          setTeamLeagues([]);
+          setHeroes([]);
+          setPlayers([]);
+          setDraftData({ matches: [], topPicks: [], topBans: [] });
+          loadedTeamIdRef.current = pageKey;
+          return;
+        }
+        const query = selectedLeague === 'all' ? '' : `?leagueId=${encodeURIComponent(selectedLeague)}`;
+        const [data, playersData, draftsData] = await Promise.all([
+          request(`/api/teams/${effectiveTeamId}${query}`),
+          request(`/api/teams/${effectiveTeamId}/players${query}`),
+          request(`/api/teams/${effectiveTeamId}/drafts${query}`),
+        ]);
+        if (controller.signal.aborted) return;
+        const selectedRoster = signupRoster && (selectedLeague === 'all'
+          || String(signupRoster.LeagueId) === String(selectedLeague)) ? signupRoster : data.roster;
+        setResolvedTeamId(effectiveTeamId);
+        setRoster(selectedRoster);
+        setTeamName(selectedRoster?.TeamName || data.teamName[0]?.TeamName || `Team ${effectiveTeamId}`);
         setMatches(data.teamMatches);
         setTeamLeagues(data.teamLeagues);
-
-        if (data.teamHeroes) {
-          setHeroes(data.teamHeroes); // Populate hero data if returned
-        }
-
-        const playerUrl = new URL(`/api/teams/${teamId}/players`, window.location.origin);
-        if (selectedLeague !== 'all') {
-          playerUrl.searchParams.append('leagueId', selectedLeague);
-        }
-        const playersRes = await fetch(playerUrl.toString());
-        const playersData = await playersRes.json();
+        setHeroes(data.teamHeroes || []);
         setPlayers(playersData || []);
-
-        const draftsUrl = new URL(`/api/teams/${teamId}/drafts`, window.location.origin);
-        if (selectedLeague !== 'all') {
-          draftsUrl.searchParams.append('leagueId', selectedLeague);
-        }
-        const draftsRes = await fetch(draftsUrl.toString());
-        const draftsData = await draftsRes.json();
         setDraftData({
           matches: draftsData.matches || [],
           topPicks: draftsData.topPicks || [],
           topBans: draftsData.topBans || [],
         });
-        loadedTeamIdRef.current = teamId;
+        loadedTeamIdRef.current = pageKey;
 
       } catch (err) {
-        console.error(err);
+        if (!controller.signal.aborted) setError(err.message);
       } finally {
-        setLoading(false);
-        setUpdating(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+          setUpdating(false);
+        }
       }
     }
     fetchTeamInfo();
-  }, [teamId, selectedLeague]);
+    return () => controller.abort();
+  }, [routeTeamId, teamSubmissionId, selectedLeague]);
 
   if (loading) return <div>Loading...</div>;
+  if (error) return <p role="alert">{error}</p>;
 
   return (
     <div className="detail-page team-detail-page" style={{ padding: '1rem' }}>
-      <h1>{teamName}</h1>
+      <div className="team-page-heading">
+        <h1>{teamName}</h1>
+        <DotabuffLink teamId={teamId} name={teamName} />
+      </div>
+      <TeamRoster roster={roster} leagueId={selectedLeague} />
+      {!roster && teamId && <TeamRosterHistory roster={{ TeamId: teamId }} leagueId={selectedLeague} />}
+      {!teamId && <p>No matches recorded yet.</p>}
 
-      {(activeTab === 'home' || activeTab === 'recent' || activeTab === 'players' || activeTab === 'heroes' || activeTab === 'drafts') && (
+      {teamId && (activeTab === 'home' || activeTab === 'recent' || activeTab === 'players' || activeTab === 'heroes' || activeTab === 'drafts') && (
         <div className="detail-page-filter" style={{ marginBottom: '1rem' }}>
           <LeagueFilter
             leagues={teamLeagues}
@@ -98,17 +129,17 @@ export default function TeamPage() {
       )}
 
       {/* Tab Buttons */}
-      <div className="detail-page-tabs ui-tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+      {teamId && <div className="detail-page-tabs ui-tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
         <button className="ui-tab" aria-pressed={activeTab === 'home'} onClick={() => setActiveTab('home')}>Home</button>
         <button className="ui-tab" aria-pressed={activeTab === 'recent'} onClick={() => setActiveTab('recent')}>Recent Matches</button>
         <button className="ui-tab" aria-pressed={activeTab === 'players'} onClick={() => setActiveTab('players')}>Players</button>
         {/*<button onClick={() => setActiveTab('averages')}>Averages</button>*/}
         <button className="ui-tab" aria-pressed={activeTab === 'heroes'} onClick={() => setActiveTab('heroes')}>Heroes</button>
         <button className="ui-tab" aria-pressed={activeTab === 'drafts'} onClick={() => setActiveTab('drafts')}>Drafts</button>
-      </div>
+      </div>}
 
       {/* Tab Content */}
-      {activeTab === 'home' && (
+      {teamId && activeTab === 'home' && (
         <TeamHomeTab
           teamId={teamId}
           matches={matches}
@@ -116,10 +147,10 @@ export default function TeamPage() {
           players={players}
         />
       )}
-      {activeTab === 'recent' && <div className="detail-table-scroll"><TeamRecentMatches matches={matches} leagueId={selectedLeague} /></div>}
-      {activeTab === 'players' && <div className="detail-table-scroll"><TeamPlayers teamId={teamId} leagueId={selectedLeague} /></div>}
+      {teamId && activeTab === 'recent' && <div className="detail-table-scroll"><TeamRecentMatches matches={matches} leagueId={selectedLeague} /></div>}
+      {teamId && activeTab === 'players' && <div className="detail-table-scroll"><TeamPlayers teamId={teamId} leagueId={selectedLeague} /></div>}
       {/*activeTab === 'averages' && <TeamAverages teamId={teamId} />*/}
-      {activeTab === 'heroes' && (
+      {teamId && activeTab === 'heroes' && (
         <div className="detail-table-scroll"><table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
@@ -151,7 +182,7 @@ export default function TeamPage() {
           </tbody>
         </table></div>
       )}
-      {activeTab === 'drafts' && <TeamDrafts draftData={draftData} />}
+      {teamId && activeTab === 'drafts' && <TeamDrafts draftData={draftData} />}
     </div>
   );
 }

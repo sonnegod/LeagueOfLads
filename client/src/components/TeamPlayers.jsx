@@ -65,6 +65,9 @@ export default function TeamPlayers({ teamId, leagueId }) {
               >
                 <td style={tdStyle}>
                   <Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link>
+                  {p.StandInGames > 0 && <small className="team-standin-label">
+                    {p.StandInGames} stand-in {p.StandInGames === 1 ? 'game' : 'games'}
+                  </small>}
                 </td>
                 <td style={tdStyle}>{p.GamesPlayed}</td>
                 <td style={tdStyle}>{p.AvgKills.toFixed(2)}</td>

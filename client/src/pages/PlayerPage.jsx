@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import HeroDisplay from '../components/HeroDisplay';
 import PlayerHomeTab from '../components/PlayerHomeTab';
 import LeagueFilter from '../components/LeagueFilter';
+import DotabuffLink from '../components/DotabuffLink';
 import './DetailPages.css';
 
 export default function PlayerPage() {
@@ -71,7 +72,10 @@ export default function PlayerPage() {
 
   return (
     <div className='p-4 detail-page player-detail-page'>
-      <h1 className="mb-4">{playerStats[0]?.PlayerName || player_id}</h1>
+      <div className="player-page-heading">
+        <h1>{playerStats[0]?.PlayerName || player_id}</h1>
+        <DotabuffLink playerId={player_id} name={playerStats[0]?.PlayerName || player_id} />
+      </div>
 
       {(activeTab === 'home' || activeTab === 'season' || activeTab === 'allMatches' || activeTab === 'heroes' || activeTab === 'teammates') && (
         <div className="detail-page-filter" style={{ marginBottom: '1rem' }}>

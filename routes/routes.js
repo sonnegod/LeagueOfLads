@@ -2370,6 +2370,46 @@ router.get('/matchEdit/:matchId', async (req, res) => {
   }
 });
 
+router.get('/teamRosters/:teamSubmissionId', (req, res) => {
+  const teamSubmissionId = positiveInteger(req.params.teamSubmissionId);
+  if (!teamSubmissionId) return res.status(400).json({ error: 'Invalid team' });
+  try {
+    const roster = db.seasons.rosters.forSubmission(teamSubmissionId);
+    if (!roster) return res.status(404).json({ error: 'Finalized roster not found' });
+    return res.json({ roster });
+  } catch (error) {
+    return res.status(500).json({ error: 'Could not load roster' });
+  }
+});
+
+router.get('/teamRosters/:teamSubmissionId/history', (req, res) => {
+  const teamSubmissionId = positiveInteger(req.params.teamSubmissionId);
+  const leagueId = req.query.leagueId === undefined || req.query.leagueId === 'all'
+    ? 'all' : positiveInteger(req.query.leagueId);
+  if (!teamSubmissionId || !leagueId) return res.status(400).json({ error: 'Invalid team or league' });
+  try {
+    const roster = db.seasons.rosters.forSubmission(teamSubmissionId);
+    if (!roster) return res.status(404).json({ error: 'Finalized roster not found' });
+    const history = roster.TeamId ? db.seasons.rosters.historyForTeam(roster.TeamId, leagueId)
+      : leagueId === 'all' || leagueId === roster.LeagueId ? [roster] : [];
+    return res.json({ history });
+  } catch (error) {
+    return res.status(500).json({ error: 'Could not load roster history' });
+  }
+});
+
+router.get('/teams/:teamId/rosterHistory', (req, res) => {
+  const teamId = positiveInteger(req.params.teamId);
+  const leagueId = req.query.leagueId === undefined || req.query.leagueId === 'all'
+    ? 'all' : positiveInteger(req.query.leagueId);
+  if (!teamId || !leagueId) return res.status(400).json({ error: 'Invalid team or league' });
+  try {
+    return res.json({ history: db.seasons.rosters.historyForTeam(teamId, leagueId) });
+  } catch (error) {
+    return res.status(500).json({ error: 'Could not load roster history' });
+  }
+});
+
 router.get('/teams/:teamId', async (req, res) => {
   const { teamId } = req.params;
   const { leagueId } = req.query;
@@ -2387,7 +2427,8 @@ router.get('/teams/:teamId', async (req, res) => {
       teamName,
       teamMatches,
       teamLeagues,
-      teamHeroes
+      teamHeroes,
+      roster: db.seasons.rosters.forTeam(Number(teamId), leagueId || 'all')
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -2481,6 +2522,8 @@ router.get('/teams/:teamId/players', async (req, res) => {
 
   try {
     const teamPlayerStats = await db.getTeamPlayerStats(teamId,leagueId);
+    const appearances = new Map(db.seasons.rosters.appearances(Number(teamId), leagueId || 'all')
+      .map(player => [player.PlayerId, player]));
 
     if (!teamPlayerStats) return res.status(404).json({ error: 'Players not found' });
 
@@ -2489,6 +2532,7 @@ router.get('/teams/:teamId/players', async (req, res) => {
         const heroes = await db.getPlayerHeroHighlights(player.PlayerId, leagueId);
         return {
           ...player,
+          ...(appearances.get(player.PlayerId) || { RosterGames: 0, StandInGames: 0, UnclassifiedGames: 0 }),
           heroes, 
         };
       })

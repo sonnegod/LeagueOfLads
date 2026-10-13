@@ -226,9 +226,9 @@ export default function CurrentLeagueSeries({ leagueId }) {
                   <thead>
                     <tr>
                       <th scope="col">Team</th>
-                      <th scope="col">Wins</th>
-                      <th scope="col">Losses</th>
-                      <th scope="col">Neustadtl</th>
+                      <th scope="col" title="Wins" aria-label="Wins">{showMatrix && isSelected ? 'W' : 'Wins'}</th>
+                      <th scope="col" title="Losses" aria-label="Losses">{showMatrix && isSelected ? 'L' : 'Losses'}</th>
+                      <th scope="col" title="Neustadtl" aria-label="Neustadtl">{showMatrix && isSelected ? 'N' : 'Neustadtl'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -241,7 +241,9 @@ export default function CurrentLeagueSeries({ leagueId }) {
                       >
                         <th scope="row">
                           {team.TeamId == null
-                            ? team.TeamName
+                            ? (team.TeamSubmissionId
+                              ? <Link to={`/team/roster/${team.TeamSubmissionId}`}>{team.TeamName}</Link>
+                              : team.TeamName)
                             : <Link to={`/team/${team.TeamId}`}>{team.TeamName}</Link>}
                         </th>
                         <td>{team.Wins}</td>

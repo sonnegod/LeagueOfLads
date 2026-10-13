@@ -1,0 +1,19 @@
+import { Link } from 'react-router-dom';
+import DotabuffLink from './DotabuffLink';
+import TeamRosterHistory, { RosterDates } from './TeamRosterHistory';
+
+export default function TeamRoster({ roster, leagueId }) {
+  if (roster?.Source !== 'signup' || !roster.players.length) return null;
+  return <section className="team-active-roster" aria-label="Active roster">
+    <div className="team-active-roster-heading">
+      <h2>Active roster</h2>
+      <Link to={`/league/${roster.LeagueId}`}>{roster.LeagueName || `League ${roster.LeagueId}`}</Link>
+    </div>
+    <RosterDates roster={roster} />
+    <ul className="team-active-roster-players">{roster.players.map(player => <li key={player.PlayerId}>
+      <Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link>
+      <DotabuffLink playerId={player.PlayerId} name={player.PlayerName} />
+    </li>)}</ul>
+    <TeamRosterHistory roster={roster} leagueId={leagueId} />
+  </section>;
+}

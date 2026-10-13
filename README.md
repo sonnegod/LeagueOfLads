@@ -55,6 +55,20 @@ Betting backup. Ask a maintainer for an up-to-date copy if you need betting data
 If a local database already exists, stop the server and preserve it before
 replacing it. Local copies in `db/` are git-ignored.
 
+Finalized signup rosters are stored in `TeamRosterPlayers` when a league starts.
+Server startup creates this table and fills it from submissions for leagues that
+have already started. Membership is tied to the signup team's stable ID; linking,
+correcting, or unlinking its Dota Team ID resolves the same roster through
+`SeasonTeams.ExternalTeamId`. Players absent from that roster are counted as
+stand-ins for matches in that league. Teams without signup rosters remain
+unclassified for stand-in counts. Active roster cards show finalized signups;
+historical match lineups remain available in roster history. No separate roster
+migration command is required. `TeamRosterPeriods` records each signup roster's effective start and
+end dates. New dates are captured at league start/end; older start dates are
+estimated from the first recorded league match where available. The team page's
+expandable roster history also groups observed match lineups for leagues without
+declared signup rosters; those observations do not change stand-in classification.
+
 COMMANDS FOR THE SERVER
 ---
 sudo nano /etc/nginx/sites-enabled/dotawebsite
