@@ -1,9 +1,11 @@
-.team-page-heading, .player-page-heading { display: flex; align-items: center; gap: 0.7rem; }
-.player-page-heading { margin-bottom: 1rem; }
-.player-page-heading h1 { margin: 0; }
+.team-page-heading, .player-page-heading { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1.25rem; }
+/* Override the shared page heading margins; space belongs to the whole row. */
+.content .detail-page.team-detail-page .team-page-heading > h1,
+.content .detail-page.player-detail-page .player-page-heading > h1 { margin: 0; }
 .dotabuff-link { display: inline-flex; align-items: center; justify-content: center;
+  align-self: center; vertical-align: middle; line-height: 0;
   padding: 0; border: 0; background: transparent; cursor: pointer; flex-shrink: 0; }
-.dotabuff-icon { width: 20px; height: 20px; display: block; }
+.dotabuff-icon { width: 20px; height: 20px; display: block; object-fit: contain; }
 .team-page-heading .dotabuff-icon { width: 28px; height: 28px; }
 .dotabuff-link:hover { opacity: 0.8; }
 .dotabuff-link:focus-visible { outline: 2px solid var(--primary, #8ab4ff); outline-offset: 3px; border-radius: 4px; }
