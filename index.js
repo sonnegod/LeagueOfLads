@@ -32,7 +32,7 @@ app.use(session({
   cookie: {
     secure: false, // must be false for localhost unless using HTTPS
     httpOnly: true,
-	maxAge: 3600000
+    maxAge: 7 * 24 * 60 * 60 * 1000
   }
 }));
 

@@ -68,6 +68,12 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
     assert.deepEqual(store.groupSummary(season.SeasonId, boardTeams), store.groupSummary(season.SeasonId));
     const started = store.start(season.SeasonId, 12345);
     assert.equal(started.Status, 'active');
+    const roster = store.rosters.forSubmission(team.TeamSubmissionId);
+    assert.equal(roster.TeamId, null);
+    assert.deepEqual(roster.players.map(player => player.PlayerId), [1, 2, 3, 4, 5]);
+    assert.equal(roster.EffectiveFrom, started.UpdatedAt);
+    assert.equal(roster.FromEstimated, 0);
+    assert.equal(roster.EffectiveTo, null);
     assert.equal(store.teams(season.SeasonId, true).length, 2);
     assert.throws(() => store.saveTeam(season.SeasonId, null, { teamName: 'Changed', players }, true,
       team.TeamSubmissionId), { status: 409 });
@@ -95,6 +101,7 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
         (2, 2, 111), (1, 3, 111), (3, 3, 111);`);
     const ended = store.end(season.SeasonId, 111);
     assert.equal(ended.Status, 'ended');
+    assert.equal(store.rosters.forSubmission(team.TeamSubmissionId).EffectiveTo, ended.EndedAt);
     assert.equal(store.publicHome().champion.teamName, 'The Lads');
     assert.deepEqual(store.publicHome().champion.groupGames, { wins: 1, losses: 0 });
     assert.deepEqual(store.publicHome().champion.playoffGames, { wins: 2, losses: 0 });

@@ -1,6 +1,7 @@
 import { randomizeGroups, groupSpread } from './groupRandomizer.js';
 import { DEFAULT_LEAGUE_RULES, normalizeLeagueRules } from './leagueRules.js';
 import { randomUUID } from 'node:crypto';
+import TeamRosterStore from './teamRosterStore.js';
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -144,6 +145,7 @@ export default class SeasonStore {
       CREATE INDEX IF NOT EXISTS idx_SeasonTeams_Season ON SeasonTeams(SeasonId);
       CREATE INDEX IF NOT EXISTS idx_SeasonGroups_Season ON SeasonGroups(SeasonId);
     `);
+    this.rosters = new TeamRosterStore(db);
     const active = db.prepare('SELECT LeagueId, LeagueName FROM LeagueInfo WHERE Active = 1 LIMIT 1').get();
     if (active && !db.prepare('SELECT 1 FROM LeagueSeasons WHERE ExternalLeagueId = ?').get(active.LeagueId)) {
       db.prepare(`INSERT INTO LeagueSeasons (LeagueName, Status, ExternalLeagueId, CreatedAt, UpdatedAt)
@@ -637,8 +639,10 @@ export default class SeasonStore {
         VALUES (?, ?, ?, ?, ?, ?)`).run(externalLeagueId, rules.UpperBracketTeams,
           rules.LowerBracketTeams, rules.EliminatedTeams, rules.HasTiebreaker ? 1 : 0,
           rules.TiebreakerPosition);
+      const startedAt = now();
       this.db.prepare(`UPDATE LeagueSeasons SET Status = 'active', ExternalLeagueId = ?, UpdatedAt = ?
-        WHERE SeasonId = ?`).run(externalLeagueId, now(), seasonId);
+        WHERE SeasonId = ?`).run(externalLeagueId, startedAt, seasonId);
+      this.rosters.finalize(seasonId, startedAt);
       this.audit('League Started', `Started ${season.LeagueName} (season ${seasonId}, league ${externalLeagueId})`);
       return this.get(seasonId);
     })();
@@ -657,6 +661,7 @@ export default class SeasonStore {
       this.db.prepare(`UPDATE LeagueSeasons SET Status = 'ended', ChampionTeamId = ?,
         EndedAt = ?, UpdatedAt = ? WHERE SeasonId = ?`)
         .run(championTeamId, timestamp, timestamp, seasonId);
+      this.rosters.endSeason(seasonId, timestamp);
       this.audit('League Ended', `Ended season ${seasonId}; champion team ${championTeamId}`);
       return this.get(seasonId);
     })();

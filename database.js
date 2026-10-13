@@ -1978,7 +1978,7 @@ class DBInstance {
     getGroupStats(groupInfo){
         return this.queryDatabase( `
             SELECT * FROM (
-                SELECT lg.TeamId, NULL AS EntryId,
+                SELECT lg.TeamId, NULL AS EntryId, NULL AS TeamSubmissionId,
                        COALESCE(ltn.DisplayName, t.TeamName, 'Team ' || lg.TeamId) AS TeamName,
                        COALESCE(ls.Wins, 0) AS Wins, COALESCE(ls.Losses, 0) AS Losses,
                        COALESCE(n.Score, 0) AS Score, 0 AS SortOrder
@@ -1993,7 +1993,11 @@ class DBInstance {
                     WHERE e.LeagueId = lg.LeagueId AND e.TeamId = lg.TeamId
                   )
                 UNION ALL
-                SELECT e.TeamId, e.EntryId, e.DisplayName AS TeamName,
+                SELECT e.TeamId, e.EntryId,
+                       CASE WHEN EXISTS (SELECT 1 FROM TeamRosterPlayers rp
+                         WHERE rp.TeamSubmissionId = e.TeamSubmissionId)
+                         THEN e.TeamSubmissionId END AS TeamSubmissionId,
+                       e.DisplayName AS TeamName,
                        COALESCE(ls.Wins, 0) AS Wins, COALESCE(ls.Losses, 0) AS Losses,
                        COALESCE(n.Score, 0) AS Score, e.SortOrder
                 FROM LeagueRosterEntries e
