@@ -1,4 +1,3 @@
-import dbBet from './databaseBet.js';
 import Database from "better-sqlite3";
 import dotenv from 'dotenv';
 import { classifyStandings, DEFAULT_LEAGUE_RULES, normalizeLeagueRules } from './config/leagueRules.js';
@@ -3113,7 +3112,7 @@ class DBInstance {
             return 1;
         } catch (err) {
             console.log(err);
-            console.log(`Error adding ${teamCode} to Player id: ${playerId} for Match Id: ${matchId6}`);
+            console.log(`Error adding ${teamCode} to Player id: ${playerId} for Match Id: ${matchId}`);
 
             return 2;
         }
@@ -3517,13 +3516,6 @@ class DBInstance {
 
     login(username, steamid, date){
         try {
-            let isNewUser = false;
-            const existingUser = this.queryDatabase(`
-                SELECT SteamID FROM Logins WHERE SteamId = ?`, [steamid]);
-
-            if(existingUser.length === 0)
-                isNewUser = true;
-
             const stmt = this.db.prepare(`INSERT OR REPLACE INTO Logins (Username, SteamID, LastLoginDate)
                                           VALUES (@username, @steamId, @LastLoginDate)`);
             stmt.run({
@@ -3531,11 +3523,6 @@ class DBInstance {
                 steamId: this.steamId64ToAccountId(steamid),
                 LastLoginDate: date
             });
-
-
-            if(isNewUser){
-                dbBet.createWallet(this.steamId64ToAccountId(steamid));
-            }
 
 
             return 1;

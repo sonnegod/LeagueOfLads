@@ -24,7 +24,7 @@ export default function Sidebar({ open, onClose }) {
         <NavLink to="/hero" className={navClassName} onClick={onClose}>Heroes</NavLink>
         <NavLink to="/rules" className={navClassName} onClick={onClose}>Rules</NavLink>
 
-        {/*<Link to="/betting" onClick={onClose}>Betting</Link>*/}
+        <NavLink to="/betting" className={navClassName} onClick={onClose}>Betting</NavLink>
 
         {user && <span className="sidebar-section-label sidebar-account-label">Account</span>}
         {user && <NavLink to="/request" className={navClassName} onClick={onClose}>Request</NavLink>}

@@ -1,8 +1,10 @@
 #!/bin/bash
 set -e
 
-SCRIPT_DIR="/root/LeagueOfLads"
-LOG_ROOT="/root/LeagueOfLads/Logs"
+SCRIPT_DIR="${LEAGUE_OF_LADS_ROOT:-/root/LeagueOfLads}"
+NODE_BIN="${LEAGUE_OF_LADS_NODE:-/usr/bin/node}"
+cd "$SCRIPT_DIR"
+LOG_ROOT="$SCRIPT_DIR/Logs"
 LOG_DIR="$LOG_ROOT/Public"
 mkdir -p "$LOG_DIR"
 
@@ -21,6 +23,15 @@ done
 LOG_FILE="$LOG_DIR/publicLog_$(date +%F).txt"
 
 echo "$(date) - Starting public match generation" >> "$LOG_FILE"
-/usr/bin/node "$SCRIPT_DIR/scripts/public/generatePlayerInfo.js" >> "$LOG_FILE" 2>&1
-/usr/bin/node "$SCRIPT_DIR/scripts/public/generateMatchInfo.js" >> "$LOG_FILE" 2>&1
+PUBLIC_STATUS=0
+if ! "$NODE_BIN" "$SCRIPT_DIR/scripts/public/generatePlayerInfo.js" >> "$LOG_FILE" 2>&1; then
+    echo "$(date) - Public player load failed; refreshing with verified fallback inputs." >> "$LOG_FILE"
+    PUBLIC_STATUS=1
+fi
+if ! "$NODE_BIN" "$SCRIPT_DIR/scripts/public/generateMatchInfo.js" >> "$LOG_FILE" 2>&1; then
+    echo "$(date) - Public match load failed or was partial; refreshing with verified fallback inputs." >> "$LOG_FILE"
+    PUBLIC_STATUS=1
+fi
+"$NODE_BIN" "$SCRIPT_DIR/scripts/betting/run.js" --refresh-analytics >> "$LOG_FILE" 2>&1
 echo "$(date) - Public match generation complete" >> "$LOG_FILE"
+exit "$PUBLIC_STATUS"

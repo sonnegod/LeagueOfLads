@@ -5,12 +5,14 @@ dotenv.config();
 class DBInstance {
     constructor(){
         if(!DBInstance.instance){
-            const dbPath =
+            const dbPath = process.env.BETTING_DB || (
                 process.env.ENVIRONMENT === 'DEV'
                 ? './db/Betting.db'
-                : '/root/LeagueOfLads/db/Betting.db';
+                : '/root/LeagueOfLads/db/Betting.db');
                 
             this.db = new Database(dbPath);
+            this.db.pragma('journal_mode = WAL');
+            this.db.pragma('busy_timeout = 5000');
             DBInstance.instance = this;
         }
 

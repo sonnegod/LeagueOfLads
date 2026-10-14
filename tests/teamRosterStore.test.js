@@ -172,3 +172,15 @@ test('declared history excludes match lineup variations within a signup league',
     assert.equal(store.historyForTeam(111).length, 2);
   } finally { db.close(); }
 });
+test('a cleared effective roster is not restored from submissions on restart and keeps its declared history',()=>{
+  const db=fixture();try {
+    const store=new TeamRosterStore(db);db.prepare('UPDATE SeasonTeams SET ExternalTeamId=111 WHERE TeamSubmissionId=1').run();
+    db.exec(`CREATE TABLE TeamRosterMembershipHistory (TeamSubmissionId INTEGER,PlayerId INTEGER,Slot INTEGER,EffectiveFromUtc TEXT,EffectiveToUtc TEXT,FromEstimated INTEGER);
+      INSERT INTO TeamRosterMembershipHistory SELECT TeamSubmissionId,PlayerId,Slot,'2026-09-01T00:00:00Z','2026-10-01T00:00:00Z',0 FROM TeamRosterPlayers WHERE TeamSubmissionId=1;
+      DELETE FROM TeamRosterPlayers WHERE TeamSubmissionId=1;`);
+    new TeamRosterStore(db);
+    assert.equal(store.forSubmission(1),null);
+    const history=store.historyForTeam(111,100);assert.equal(history.length,1);assert.equal(history[0].players.length,5);
+    assert.equal(history[0].EffectiveTo,'2026-10-01T00:00:00Z');
+  }finally{db.close();}
+});

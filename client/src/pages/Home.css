@@ -1,14 +1,43 @@
-.home-offseason { display: grid; gap: 1.5rem; width: min(100%, 1150px); margin: 0 auto; }
-.ui-page.home-offseason-champion { width: 100%; max-width: none; }
+.home-page { width: 100%; min-width: 0; }
+.ui-page.home-page-content { padding-bottom: 1rem !important; }
+.app-shell:has(.home-page-content) { display: flow-root; }
+.ui-page.home-page-champion { max-width: none; }
+.home-page-content .home-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .6rem 1rem; margin-bottom: 1rem; }
+.home-page-heading { margin-bottom: 1.25rem; }
+.home-page-heading h1 { margin: .35rem 0 .5rem; }
+.home-page-content .home-page-heading { margin: 0; }
+.home-page-content .home-page-heading h1 { margin: 0 0 .25rem !important; font-size: 1.6rem !important; }
+.home-page-content .home-toolbar .home-primary-tabs { margin: 0; flex: none; padding: .2rem; }
+.home-page-content .home-toolbar .home-primary-tabs .ui-tab { padding: .4rem .8rem !important; min-height: 32px; }
+.home-page-heading > p:last-child { margin: 0; color: var(--muted-text, #94a3b8); }
+.home-content-sections { display: grid; gap: .8rem; min-width: 0; }
+.home-content-sections > .league-highlights { margin: 0; }
+.home-highlight-preview { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: .5rem; padding: .5rem .8rem; border: 1px solid #a78bfa; border-radius: 10px; background: #a78bfa15; font-size: .8rem; }
+.home-highlight-preview p { display: inline; margin-left: .6rem; color: var(--muted-text, #94a3b8); }
+.home-highlight-preview button { min-height: 28px !important; padding: .3rem .65rem; font-size: .75rem; }
+.home-announcements { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: .8rem; }
+.home-announcements:empty { display: none; }
+.home-announcements .home-signup-ribbon, .home-champion-ribbon { display: flex; justify-content: space-between; align-items: center;
+  gap: 1rem; padding: .75rem 1rem; border: 1px solid #9a774c80; border-radius: 10px; background: var(--surface, #101827); }
+.home-announcements .home-signup-ribbon { border-color: var(--primary, #646cff); }
+.home-announcements .home-signup-ribbon h2, .home-champion-ribbon h2 { font-size: 1.05rem; margin: .2rem 0; }
+.home-announcements .home-eyebrow { font-size: .65rem; display: inline; margin-right: .6rem; }
+.home-announcements .home-signup-ribbon h2, .home-champion-ribbon h2 { display: inline; }
+.home-announcements p:not(.home-eyebrow) { margin: 0; font-size: .78rem; color: #94a3b8; }
+.home-announcements .home-signup-button { flex: none; margin: 0; padding: .7rem 1rem; font-size: .9rem; }
+.home-champion-ribbon a { color: #e3bd7d; }
+.home-champion-ribbon button { flex: none; font-size: .8rem; }
+.home-signup-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+.home-page #home-league-panel > .league-page { max-width: none; padding: 0 !important; }
 .home-signup-hero, .home-champion-hero, .home-offseason-empty {
   border: 1px solid var(--border, #344); border-radius: 16px;
   padding: clamp(1.5rem, 4vw, 3rem); background: var(--surface, #101827);
 }
 .home-signup-hero { border-color: var(--primary, #646cff); }
-.home-offseason-champion .home-signup-hero { width: min(100%, 1150px); justify-self: center; }
 .home-eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.12em;
   font-weight: 700; color: #a5b4fc; }
-.home-offseason h1 { margin: 0.6rem 0; font-size: clamp(2rem, 5vw, 3.6rem); }
+.home-signup-hero h2, .home-champion-title { margin: .6rem 0; font-size: clamp(2rem, 4vw, 3.2rem); }
 .home-signup-button { display: inline-block; margin-top: 1rem; padding: 1rem 2rem;
   border-radius: 10px; background: var(--primary, #646cff); color: white;
   font-size: 1.2rem; font-weight: 800; text-decoration: none; }
@@ -24,7 +53,7 @@
 .home-champion-stat strong { font-size: 1.5rem; }
 
 .home-champion-rollcall { margin-top: clamp(2rem, 5vw, 3.5rem); }
-.home-champion-rollcall-heading h2 { margin: 0.35rem 0; font-size: clamp(1.5rem, 3vw, 2rem); }
+.home-champion-rollcall-heading h3 { margin: 0.35rem 0; font-size: clamp(1.5rem, 3vw, 2rem); }
 .home-champion-rollcall-heading > p:last-child { margin: 0; color: var(--muted-text, #a8b2c5); }
 .home-champion-players { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
   gap: 0.9rem; margin-top: 1.4rem; }
@@ -54,6 +83,8 @@
 .home-champion-player-hero small { color: var(--muted-text, #a8b2c5); }
 
 @media (max-width: 767px) {
+  .home-toolbar { align-items: start; }
+  .home-announcements .home-signup-ribbon, .home-champion-ribbon { flex-wrap: wrap; }
   .home-page { padding: 12px !important; }
   .home-page h2 { margin: 0 0 12px; font-size: 1.35rem; }
   .home-tabs { max-width: 100%; gap: 8px !important; overflow-x: auto; padding-bottom: 4px; }

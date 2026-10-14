@@ -16,6 +16,8 @@ import AdminRequestsPanel from "../components/AdminRequestsPanel";
 import RulesAdminPanel from "../components/RulesAdminPanel";
 import AdminAuditLogPanel from "../components/AdminAuditLogPanel";
 import AdjustedPlayersPanel from "../components/AdjustedPlayersPanel";
+import AnalyticsStatusPanel from "../components/AnalyticsStatusPanel";
+import BettingAdminPanel from "../components/BettingAdminPanel";
 
 
 export default function AdminPage() {
@@ -88,6 +90,7 @@ export default function AdminPage() {
       {activeTab === "league" && <div className="ui-tabs" style={editorTabBarStyle}>
         {[
           ["overview", "Overview"],
+          ["betting", "Betting"],
           ...(seasonStatus === 'active' ? [["editor", "Editor"], ["playoffs", "Playoffs"],
             ["settings", "Settings"]] : []),
         ].map(([key, label]) => <button key={key} type="button" className="ui-tab"
@@ -178,12 +181,14 @@ export default function AdminPage() {
               onOpenMatchChanges={() => { setActiveLeagueTab('editor'); setActiveEditorTab('matches'); }}
               onOpenGroupSetup={() => setActiveLeagueTab('settings')} />}
             <SeasonAdminPanel onChanged={triggerRefresh} />
+            <AnalyticsStatusPanel refreshKey={refreshKey} />
           </div>}
         {activeTab === "league" && activeLeagueTab === "settings" &&
           <div style={pageContainer}>
             <LeagueSetupTable refreshKey={refreshKey} onUpdated={triggerRefresh} />
             <LeagueRulesCard refreshKey={refreshKey} />
           </div>}
+        {activeTab === "league" && activeLeagueTab === "betting" && <div style={pageContainer}><BettingAdminPanel refreshKey={refreshKey} /></div>}
         {activeTab === "admin" && activeAdminTab === "adminManagement" && <AdminManagementPanel />}
         {activeTab === "admin" && activeAdminTab === "requests" && <AdminRequestsPanel />}
         {activeTab === "admin" && activeAdminTab === "rules" && <RulesAdminPanel />}

@@ -1,17 +1,13 @@
-import dbBet from '../databaseBet.js';
+import 'dotenv/config';
+import Database from 'better-sqlite3';
+import { resolve,dirname } from 'node:path';
+import { analyticsPaths } from '../analytics/config.js';
+import { BettingStore } from './store.js';
 
-function lockExpiredMarkets(dbBet) {
-    // Current time in UTC, which matches the format stored in the database
-    const currentTimeISO = new Date().toISOString(); 
-    console.log(currentTimeISO)
-    try {
-        // Find all markets that are 'OPEN' and whose close_time is in the past
-        const result =  dbBet.closeMarkets(currentTimeISO);
-        
-        console.log(`[Lock Job] ✅ Locked ${result.changes} markets at ${currentTimeISO}.`);
-    } catch (error) {
-        console.error('❌ CRITICAL ERROR during market locking job:', error.message);
-    }
-}
-
-lockExpiredMarkets(dbBet)
+const paths=analyticsPaths();const db=new Database(resolve(process.env.BETTING_DB||resolve(dirname(paths.league),'Betting.db')));
+try {
+  new BettingStore(db);
+  const result=db.prepare("UPDATE BettingMarkets SET Status='locked' WHERE Status IN ('open','held') AND CloseAtUtc<=?").run(new Date().toISOString());
+  console.log(JSON.stringify({locked:result.changes}));
+}catch(error){console.error('Market locking failed:',error.code||'internal');process.exitCode=1;}
+finally{db.close();}

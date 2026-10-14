@@ -8,6 +8,7 @@ import CurrentPlayoffBracketView from "../components/CurrentPlayoffBracketView";
 import HeroDisplay from "../components/HeroDisplay";
 import LeagueHomeTab from "../components/LeagueHomeTab";
 import MatchResultBadge from "../components/MatchResultBadge";
+import LeagueHighlightsFeed from "../components/LeagueHighlightsFeed";
 import './LeaguePage.css';
 
 export default function LeaguePage({
@@ -15,7 +16,8 @@ export default function LeaguePage({
   stageTabsFirst = false,
   defaultToCurrentStage = false,
   alwaysShowGroups = false,
-  showRecentSeries = true
+  showRecentSeries = true,
+  showHighlights = false
 }) {
   const { leagueId: routeLeagueId } = useParams();
   const leagueId = leagueIdOverride || routeLeagueId;
@@ -124,6 +126,7 @@ export default function LeaguePage({
   return (
     <div className="league-page" style={{ padding: "1rem", overflowX: "auto" }}>
       <h1>{league[0].LeagueName}</h1>
+      {showHighlights && <LeagueHighlightsFeed key={leagueId} leagueId={leagueId} />}
 
       {/* Tabs */}
       <div className="league-page-tabs ui-tabs" style={{ marginBottom: "1rem" }}>

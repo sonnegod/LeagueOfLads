@@ -1,5 +1,6 @@
 import db from '../../database.js';
 import apiUrl from '../../apiURL.js';
+import { startSourceLoad, finishSourceLoad, recordMatchStart } from '../../analytics/sourceMetadata.js';
 
 let matchDetailCallsToday = 0;
 const MAX_CALLS_PER_DAY = 2000;
@@ -7,25 +8,39 @@ const MIN_INTERVAL_MS = 1000; // 1 call per second
 
 const knownPlayers = new Set(db.preloadedData.users.map(p => p.PlayerId));
 const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+const sourceRunId = startSourceLoad(db.db, 'match_details');
 
-if (!leagueId) {
+try {
+  if (!leagueId) {
     console.log("No active league. Skipping match detail load.");
-} else {
+    finishSourceLoad(db.db, sourceRunId);
+  } else {
     console.log("Beginning match detail load");
 
-    const unparsedMatches = db.getUnParsedMatchIds();
+    const unparsedMatches = db.db.prepare(`SELECT ml.MatchId FROM MatchLeague ml WHERE ml.LeagueId = ?
+      AND NOT EXISTS (SELECT 1 FROM MatchPlayer mp WHERE mp.MatchId = ml.MatchId) ORDER BY ml.MatchId`).all(leagueId);
     console.log(`${unparsedMatches.length} Matches that need to be parsed by Open Dota`);
 
     const currentStage = db.getStage()?.[0]?.Stage || 'g';
-    getMatchDetails(unparsedMatches, currentStage, leagueId);
+    const result = await getMatchDetails(unparsedMatches, currentStage, leagueId);
+    finishSourceLoad(db.db, sourceRunId, result);
+    if (result.failures) process.exitCode = 1;
+  }
+} catch {
+    finishSourceLoad(db.db, sourceRunId, { failed: true, failures: 1 });
+    console.error('Match detail load failed; source freshness was not advanced.');
+    process.exitCode = 1;
 }
 
 async function getMatchDetails(matches, currentStage, leagueId){
     const badMatches = [];
+    let failures = 0;
+    let records = 0;
 
     for(const match of matches){
         if (matchDetailCallsToday >= MAX_CALLS_PER_DAY) {
             console.warn("API daily limit reached. Stopping further calls.");
+            failures += 1;
             break;
         }
 
@@ -35,36 +50,45 @@ async function getMatchDetails(matches, currentStage, leagueId){
 
         try {
             const response = await fetch(apiUrl.baseMatchData + match.MatchId, { method: 'GET' });
+            if (!response.ok) throw new Error('Match detail request failed');
             const data = await response.json();
+            if (!Array.isArray(data.players) || typeof data.radiant_win !== 'boolean' || !data.start_time) {
+                throw new Error('Incomplete match detail response');
+            }
 
             matchDetailCallsToday++;
             console.log(`(${matchDetailCallsToday}) Match ${match.MatchId} details pulled.`);
+            recordMatchStart(db.db, matchId, data.start_time, 'opendota_details');
 
             //indicates that this match got remade
             if(data.radiant_score === 0 && data.dire_score === 0){
                 db.deleteRemakeMatch(match.MatchId);
             }
             else{
-                if(data.picks_bans)
-                    db.insertPickBanData(match.MatchId,data.picks_bans);      
+              let committedPlayers = [];
+              db.db.transaction(() => {
+                if(data.picks_bans && db.insertPickBanData(match.MatchId, data.picks_bans) !== 1) {
+                    throw new Error('Could not persist draft details');
+                }
 
                 // Insert new players (optimized from earlier step) here...
                 const newPlayers = [];
 
 
-                if(data.players.length < 10)
+                if(data.players.length !== 10 || new Set(data.players.map(player => player.account_id)).size !== 10
+                    || data.players.some(player => !Number.isSafeInteger(player.account_id) || player.account_id <= 0))
                 {
                     badMatches.push({
                         match_id: match.MatchId,
                         player_number: data.players.length,
                     }); 
+                    throw new Error('Match participants are incomplete');
                 }
 
                 for (const player of data.players) {
                     const accountId = player.account_id;
 
                     if (accountId && !knownPlayers.has(accountId)) {
-                        knownPlayers.add(accountId); // add to set so we don’t check again
                         newPlayers.push({
                             player_id: accountId,
                             player_name: player.personaname || '', // fallback to null if not present
@@ -80,14 +104,18 @@ async function getMatchDetails(matches, currentStage, leagueId){
                         }
 
                         if (teamCode) {
-                            db.InsertMatchTeamPlayer(matchId, accountId, teamCode);
+                            if (db.InsertMatchTeamPlayer(matchId, accountId, teamCode) !== 1) {
+                                throw new Error('Could not persist team/player assignment');
+                            }
+                        } else {
+                            throw new Error('Invalid player side');
                         }
                     }
                 }
 
                 if (newPlayers.length > 0) {
-                    db.insertNewPlayers(newPlayers); 
-                    console.log(`Inserted ${newPlayers.length} new players.`);
+                    if (db.insertNewPlayers(newPlayers) !== 1) throw new Error('Could not persist players');
+                    committedPlayers = newPlayers;
                 }
 
                 const winTeamId = data.radiant_win
@@ -98,23 +126,20 @@ async function getMatchDetails(matches, currentStage, leagueId){
                     ? data.dire_team_id
                     : data.radiant_team_id;
 
-                db.insertMatchDetailsPlayer(match.MatchId, data.players);
-
-                db.insertTeamWin(match.MatchId, winTeamId);
-                db.insertDuration(match.MatchId,data.duration);
+                if (db.insertMatchDetailsPlayer(match.MatchId, data.players) !== 1
+                    || db.insertTeamWin(match.MatchId, winTeamId) !== 1
+                    || db.insertDuration(match.MatchId, data.duration) !== 1) {
+                    throw new Error('Could not persist match details');
+                }
 
                 //creating series
-                const now = new Date();
-                const yesterday = new Date(now);
-                yesterday.setDate(now.getDate() - 1);
-
-                // 3. Format specifically for New York (EST/EDT) in YYYY-MM-DD format
-                const yesterdaysDate = new Intl.DateTimeFormat('en-CA', {
+                // Link the series to the actual match day, not the processing day.
+                const matchDate = new Intl.DateTimeFormat('en-CA', {
                     timeZone: 'America/New_York',
                     year: 'numeric',
                     month: '2-digit',
                     day: '2-digit'
-                }).format(yesterday);
+                }).format(new Date(data.start_time * 1000));
 
                 
                 try {
@@ -124,15 +149,15 @@ async function getMatchDetails(matches, currentStage, leagueId){
                         data.radiant_team_id, 
                         currentStage, 
                         leagueId,
-                        yesterdaysDate
+                        matchDate
                     );
 
                     // 2. Link the Match to the Series
-                    const resultMatch = db.insertSeriesMatch(seriesId, match.MatchId, yesterdaysDate);
+                    const resultMatch = db.insertSeriesMatch(seriesId, match.MatchId, matchDate);
                     
                     
                     if(resultMatch === 2) {
-                        console.warn(`Issue linking match ${match.MatchId} to series ${seriesId}`);
+                        throw new Error('Could not persist series link');
                     }
 
                     // 3. Handle Standings
@@ -142,11 +167,15 @@ async function getMatchDetails(matches, currentStage, leagueId){
 
                 } catch (err) {
                     console.error(`CRITICAL FAILURE processing match ${match.MatchId}:`, err);
-                    console.error(`Data dump: Dire: ${data.dire_team_id}, Radiant: ${data.radiant_team_id}, Date: ${yesterdaysDate}`);
+                    console.error(`Series link failed for match ${match.MatchId}.`);
+                    throw err;
                 }
-
+              })();
+              for (const player of committedPlayers) knownPlayers.add(player.player_id);
             }
+            records += 1;
         } catch (err) {
+            failures += 1;
             console.error(`Failed to fetch match ${match.MatchId}:`, err);
         }
     }
@@ -160,4 +189,5 @@ async function getMatchDetails(matches, currentStage, leagueId){
             console.log(`Match: ${match.match_id} has ${match.num_players}`);
         }
     }
+    return { records, failures };
 }

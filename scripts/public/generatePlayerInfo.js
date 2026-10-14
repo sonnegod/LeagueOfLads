@@ -71,12 +71,19 @@ function main() {
     assertPublicSchema(stores.publicDb);
 
     const leagueId = getCurrentLeagueId(stores.ladsDb);
-    if (!leagueId) {
-      console.log('No league found in LadsData. Skipping public PlayerInfo sync.');
-      return;
+    const players = leagueId ? getCurrentSeasonPlayers(stores.ladsDb, leagueId) : [];
+    const signupSchema = stores.ladsDb.prepare(`SELECT 1 FROM sqlite_master WHERE name = 'SeasonTeamPlayers' AND type = 'table'`).get();
+    if (signupSchema) {
+      // Preseason players have no league games yet but still need private inputs.
+      const submissions = stores.ladsDb.prepare(`SELECT DISTINCT p.PlayerId, pi.PlayerName
+        FROM SeasonTeamPlayers p JOIN SeasonTeams t ON t.TeamSubmissionId = p.TeamSubmissionId
+        JOIN LeagueSeasons s ON s.SeasonId = t.SeasonId JOIN PlayerInfo pi ON pi.PlayerId = p.PlayerId
+        WHERE s.Status IN ('draft', 'signup_open', 'signup_closed', 'active')`).all();
+      const ids = new Set(players.map(player => player.PlayerId));
+      for (const player of submissions) if (!ids.has(player.PlayerId)) {
+        players.push(player); ids.add(player.PlayerId);
+      }
     }
-
-    const players = getCurrentSeasonPlayers(stores.ladsDb, leagueId);
     syncPublicPlayerInfo(stores.publicDb, players);
 
     console.log(
