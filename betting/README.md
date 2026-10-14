@@ -113,8 +113,9 @@ preview reader; the live Analytics consumer remains signup-era only.
    champion. Mark shortened/canceled seasons explicitly rather than inferring
    cancellation from missing data.
 
-The panel also records effective roster replacements/transfers, data corrections,
-official/remake/abandoned match classifications, Discord team-role mappings,
+Effective roster replacements/transfers and roster data corrections are under
+**Admin → League → Roster Changes** during an active league. The Betting panel
+records official/remake/abandoned match classifications, Discord team-role mappings,
 unresolved scheduling posts, and verified legacy ticket outcomes. A replay must
 be linked to the same actual series before settlement. Raw Discord messages and
 private model inputs are never returned to the website.

@@ -21,3 +21,6 @@
 .historical-team-table {min-width:28rem;}
 .historical-team-table thead th {font-size:.65rem;letter-spacing:0;}
 @container betting-markets (max-width:950px){.historical-team-groups{grid-template-columns:1fr;}}
+.admin-help {font-size:.85rem;line-height:1.5;color:var(--muted-text,#94a3b8);margin:.5rem 0 .85rem;}
+details.admin-help>summary {cursor:pointer;color:var(--text,#e2e8f0);}
+details.admin-help li+li {margin-top:.45rem;}

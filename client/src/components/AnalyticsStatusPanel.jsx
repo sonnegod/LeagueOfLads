@@ -35,6 +35,7 @@ export default function AnalyticsStatusPanel({ refreshKey }) {
   return <section className="ui-card" aria-label="Analytics status">
     <div className="season-actions"><h3>Analytics</h3>
       <button type="button" onClick={() => setRefresh(value => value + 1)}>Refresh status</button></div>
+    <p className="admin-help">Analytics summarizes imported league matches for statistics and homepage highlights. Refresh status only reloads the information shown here.</p>
     <label>Dataset{' '}<select value={previewLeague} onChange={event => {
       setStatus(null); setError(''); setPreviewLeague(event.target.value);
     }}>
@@ -43,7 +44,8 @@ export default function AnalyticsStatusPanel({ refreshKey }) {
         Preview: {league.leagueName} ({league.matches} matches)
       </option>)}
     </select></label>
-    {previewLeague && <p>Historical preview. Roster membership is unclassified.</p>}
+    {previewLeague ? <p className="admin-help">Historical preview for testing, separate from live betting. Roster membership is unclassified. Live refreshes do not rebuild this preview.</p>
+      : <p className="admin-help">To rebuild these summaries after a data correction, use League → Betting → Refresh Analytics and Betting. New match data must first arrive through the scheduled import jobs.</p>}
     {error && <p role="alert">{error}</p>}
     {!status ? <p>Loading Analytics status...</p> : !status.available ? <p>
       {previewLeague ? 'This league preview has not been built yet.' : 'Analytics has not been initialized.'}
@@ -58,6 +60,7 @@ export default function AnalyticsStatusPanel({ refreshKey }) {
           {' · '}Last successful refresh: {date(source.lastSuccessAt)}
           {source.status !== 'complete' && ` · ${source.status}`}
         </li>)}</ul>
+        <p className="admin-help">Source freshness measures the last successful import. A stale source needs its import job checked; rebuilding summaries does not make that source current.</p>
         {status.issues.length > 0 && <details><summary>Data quality flags</summary>
           <ul>{status.issues.map(issue => <li key={issue.code}>{issue.code.replaceAll('_', ' ')}: {issue.count}</li>)}</ul>
         </details>}

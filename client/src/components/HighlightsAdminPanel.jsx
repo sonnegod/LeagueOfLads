@@ -69,6 +69,7 @@ export default function HighlightsAdminPanel({ previewLeague, refreshKey }) {
       </button>}
       <button type="button" disabled={busy} onClick={() => setRefresh(value => value + 1)}>Refresh highlights</button>
     </div></div>
+    <p className="admin-help">Stories come from the latest completed Analytics build. Refresh highlights reloads this list. Pause publication stops new stories; existing stories can still be corrected when match data changes.</p>
     {data?.paused && <p>New publication is paused. Source corrections still revise or withdraw existing stories.</p>}
     <label>Show<select value={filter} onChange={event => {
       setFilter(event.target.value); setBefore(null); setPrevious([]); setEditing(null);
