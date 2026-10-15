@@ -76,14 +76,40 @@ function MatchDraft({ matchId }) {
 }
 
 export default function LeagueMatchDetails({ match }) {
+  const [loadedPlayers, setLoadedPlayers] = useState(null);
+  const [playersError, setPlayersError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const players = match.matchPlayers ?? loadedPlayers;
+
+  useEffect(() => {
+    if (match.matchPlayers != null) return undefined;
+    const controller = new AbortController();
+    async function loadPlayers() {
+      setLoadedPlayers(null);
+      setPlayersError('');
+      try {
+        const response = await fetch(`/api/matches/${match.MatchId}/players`, { signal: controller.signal });
+        const data = await response.json();
+        if (!response.ok || !Array.isArray(data)) throw new Error('Unable to load player stats');
+        setLoadedPlayers(data);
+      } catch (err) {
+        if (!controller.signal.aborted) setPlayersError('Unable to load player stats.');
+      }
+    }
+    loadPlayers();
+    return () => controller.abort();
+  }, [match.MatchId, match.matchPlayers, attempt]);
+
   return <div className="league-match-info">
     <div className="league-match-stats-scroll">
-      {match.matchPlayers?.length ? <table className="league-series-player-stats">
+      {playersError ? <p role="alert">{playersError}{' '}
+        <button type="button" onClick={() => setAttempt(value => value + 1)}>Retry</button>
+      </p> : players == null ? <p>Loading player stats...</p> : players.length ? <table className="league-series-player-stats">
         <thead><tr>
           <th>Player</th><th>Hero</th><th title="Kills / deaths / assists">K / D / A</th>
           <th title="Last hits">LH</th><th title="Gold per minute">GPM</th><th title="Experience per minute">XPM</th>
         </tr></thead>
-        <tbody>{match.matchPlayers.map((player, index) => <Fragment key={player.PlayerId}>
+        <tbody>{players.map((player, index) => <Fragment key={player.PlayerId}>
           {(index === 0 || index === 5) && <tr>
             <th colSpan="6"><Link
               className={`league-match-team-name league-match-team-name--${index === 0 ? 'radiant' : 'dire'}`}
