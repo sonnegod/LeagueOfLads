@@ -1,6 +1,6 @@
 import { useLeagues } from '../context/LeagueContext';
 
-export default function LeagueFilter({ value, onChange, leagues: customLeagues }) {
+export default function LeagueFilter({ value, onChange, leagues: customLeagues, includeAll = true, id }) {
   const { leagues: globalLeagues, loading } = useLeagues();
 
   // If parent passes custom leagues, use those; otherwise use global list
@@ -17,12 +17,13 @@ export default function LeagueFilter({ value, onChange, leagues: customLeagues }
 
   return (
     <select
+      id={id}
       className="league-filter"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       style={{ background: 'black', color: 'white', border: '1px solid var(--border, #222428)', padding: '6px', borderRadius: 6 }}
     >
-      <option value="all">All Leagues</option>
+      {includeAll && <option value="all">All Leagues</option>}
       {leagues.map((league) => (
         <option key={league.LeagueId} value={league.LeagueId}>
           {league.LeagueName}

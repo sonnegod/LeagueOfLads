@@ -6,6 +6,18 @@
   min-width: 0;
 }
 
+.recents-league-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+
+.recents-league-filter .league-filter {
+  max-width: 100%;
+}
+
 .recents-tabs .ui-tab[aria-current='page'] {
   border-color: #3b82f6 !important;
   background: #1d4ed8 !important;

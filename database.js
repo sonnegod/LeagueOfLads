@@ -11,6 +11,7 @@ import SeasonStore from './config/seasonStore.js';
 import { getLeaguePlayerRecords } from './config/leaguePlayerRecords.js';
 import { getPlayerTeammates } from './config/playerTeammates.js';
 import { getUnmatchedMatchTeams } from './config/unmatchedMatchTeams.js';
+import { getLeagueSeries } from './config/leagueSeries.js';
 dotenv.config();
 
 class DBInstance {
@@ -495,7 +496,7 @@ class DBInstance {
 
     getLeagueInfo(){
         return this.queryDatabase(
-            `SELECT DISTINCT li.LeagueId, li.LeagueName from LeagueInfo li
+            `SELECT DISTINCT li.LeagueId, li.LeagueName, li.Active from LeagueInfo li
                 ORDER BY li.LeagueId DESC`
         );
     }
@@ -551,7 +552,7 @@ class DBInstance {
              JOIN MatchLeague ml ON ml.MatchId = mp.MatchId
              JOIN LeagueInfo li ON ml.LeagueId = li.LeagueId
              WHERE mp.PlayerId = ?
-             ORDER BY li.LeagueId DESC`,
+             ORDER BY mp.MatchId DESC`,
             [id]
         );
     }
@@ -1724,6 +1725,10 @@ class DBInstance {
     }
 
 
+    getLeagueSeries(leagueId){
+        return getLeagueSeries(this.db, leagueId);
+    }
+
     getLeagueSeriesGroupstage(leagueId){
             return this.queryDatabase(
             `SELECT 
@@ -2171,7 +2176,7 @@ class DBInstance {
 
     getRecentMatches(numMatches) {
         return this.queryDatabase(
-            `SELECT ml.MatchId, radTeam.TeamName as rad_team_name,mt.TeamRad as rad_team_id, direTeam.TeamName as dire_team_name,mt.TeamDire as dire_team_id,
+            `SELECT ml.MatchId, ml.DatePlayed, radTeam.TeamName as rad_team_name,mt.TeamRad as rad_team_id, direTeam.TeamName as dire_team_name,mt.TeamDire as dire_team_id,
                     CASE 
                         WHEN mt.WinnerId = mt.TeamRad THEN 'r'
                         WHEN mt.WinnerId = mt.TeamDire THEN 'd'
@@ -2413,7 +2418,8 @@ class DBInstance {
             `SELECT pi.IsPick, pi.Hero_Id AS HeroId, pi.OrderNum, hi.HeroName, pi.Team
              FROM PickInfo pi
              JOIN HeroInfo hi on pi.Hero_Id = hi.HeroId
-             WHERE MatchId = ?`,
+             WHERE MatchId = ?
+             ORDER BY pi.OrderNum ASC`,
             [matchId]
         );
     }
@@ -2594,6 +2600,7 @@ class DBInstance {
         return this.queryDatabase(
             `SELECT
             ml.MatchId,
+            (SELECT MAX(sm.SeriesId) FROM SeriesMatch sm WHERE sm.MatchId = ml.MatchId) AS SeriesId,
             mt.TeamRad AS RadiantTeamId,
             COALESCE(ltr.DisplayName, tr.TeamName) AS RadiantTeamName,
             mt.TeamDire AS DireTeamId,

@@ -70,7 +70,7 @@ export default function PlayerHomeTab({
             {recentMatches.map(match => (
               <div className="detail-recent-match" key={match.MatchId} style={recentMatchStyle}>
                 <Link to={`/match/${match.MatchId}`} style={featureLinkStyle}>
-                  <HeroDisplay heroId={match.HeroId} heroName={match.HeroName} />
+                  <HeroDisplay heroId={match.HeroId} heroName={match.HeroName} link={false} />
                 </Link>
                 <div style={subtleTextStyle}>
                   {match.Kills}/{match.Deaths}/{match.Assists} · {match.GPM} GPM · {match.Winner === 1 ? "Win" : "Loss"}

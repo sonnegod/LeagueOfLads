@@ -6,27 +6,35 @@ import './CurrentLeagueSeries.css';
 export default function CurrentLeagueSeries({ leagueId }) {
   const [seriesList, setSeriesList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [expandedSeries, setExpandedSeries] = useState({});
 
   useEffect(() => {
+    const controller = new AbortController();
     async function fetchSeries() {
       setLoading(true);
+      setError('');
+      setExpandedSeries({});
       try {
         const url = leagueId
           ? `/api/homepageSeries?leagueId=${leagueId}`
           : "/api/homepageSeries";
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: controller.signal });
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Unable to load series');
         setSeriesList(data || []);
       } catch (err) {
+        if (controller.signal.aborted) return;
         console.error("Error fetching series:", err);
+        setError('Unable to load series. Please try again.');
         setSeriesList([]);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
     fetchSeries();
+    return () => controller.abort();
   }, [leagueId]);
 
     const toggleExpanded = (SeriesId) => {
@@ -37,6 +45,7 @@ export default function CurrentLeagueSeries({ leagueId }) {
     };
 
   if (loading) return <div>Loading series...</div>;
+  if (error) return <div role="alert">{error}</div>;
   if (seriesList.length === 0) return <div>No series available.</div>;
 
   return (
@@ -70,7 +79,7 @@ export default function CurrentLeagueSeries({ leagueId }) {
             {/* Expanded match rows */}
             {expandedSeries[s.SeriesId] && (
               <tr>
-                <td colSpan="5" style={{ paddingLeft: "2rem"}}>
+                <td colSpan="3" style={{ paddingLeft: "2rem"}}>
                   <table
                     style={{
                       width: "100%",

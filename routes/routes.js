@@ -2071,6 +2071,16 @@ router.get('/matches/:matchId/players', async (req, res) => {
   }
 });
 
+router.get('/matches/:matchId/draft', (req, res) => {
+  const matchId = positiveInteger(req.params.matchId);
+  if (!matchId) return res.status(400).json({ error: 'Invalid match ID' });
+  try {
+    return res.json(db.getMatchPickBanInformation(matchId));
+  } catch (err) {
+    return res.status(500).json({ error: 'Could not load match draft' });
+  }
+});
+
 router.get('/matches', async (req, res) => {
   const { leagueId } = req.query;
 
@@ -2568,6 +2578,7 @@ router.get('/leagues/:leagueId', async (req, res) => {
     const teams = await db.getAllTeams(leagueId);
     const hasGroups = db.getLeagueLeaderboard(leagueId).length > 0;
     const matches = await db.getLeagueMatchesData(leagueId);
+    const series = await db.getLeagueSeries(leagueId);
     const heroes = await db.getLeagueHeroData(leagueId);
 
     const matchesWithPlayers = await Promise.all(
@@ -2597,6 +2608,7 @@ router.get('/leagues/:leagueId', async (req, res) => {
       teams,
       players,
       matchesWithPlayers,
+      series,
       heroesWithPlayers
     });
 
@@ -2609,12 +2621,8 @@ router.get('/homepageSeries', async (req, res) => {
 
   try {
     const leagueId = req.query.leagueId || resolveActiveLeague();
-
-    if (!leagueId) {
-      return res.json([]);
-    }
-
-    const series = await db.getLeagueSeriesGroupstage(leagueId);
+    if (!leagueId) return res.json([]);
+    const series = await db.getLeagueSeries(leagueId);
 
     const seriesWithMatches = await Promise.all(
       series.map(async (series) => {
@@ -2626,8 +2634,6 @@ router.get('/homepageSeries', async (req, res) => {
       })
     );
 
-
-    if (!series) return res.status(404).json({ error: 'Series not found' });
 
     res.json(seriesWithMatches);
 

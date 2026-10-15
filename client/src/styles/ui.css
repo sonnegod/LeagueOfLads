@@ -252,6 +252,36 @@
   background: #111c30 !important;
 }
 
+/* Expanded result tables use internal dividers without an outer frame. */
+.content :is(.teams-list-page, .players-list-page, .team-detail-page, .player-detail-page, .current-series) table table,
+.content .league-heroes-table table {
+  border: 0 !important;
+  border-radius: 0 !important;
+  border-spacing: 0;
+}
+
+.content :is(.teams-list-page, .players-list-page, .team-detail-page, .player-detail-page, .current-series) table table > :is(thead, tbody, tfoot) > tr > :is(th, td),
+.content .league-heroes-table table > :is(thead, tbody, tfoot) > tr > :is(th, td) {
+  border: 0 !important;
+}
+
+.content :is(.teams-list-page, .players-list-page, .team-detail-page, .player-detail-page, .current-series) table table > :is(thead, tbody, tfoot) > tr > * + *,
+.content .league-heroes-table table > :is(thead, tbody, tfoot) > tr > * + * {
+  border-left: 1px solid var(--border, #334155) !important;
+}
+
+.content :is(.teams-list-page, .players-list-page, .team-detail-page, .player-detail-page, .current-series) table table > :is(thead, tbody, tfoot) > tr + tr > *,
+.content :is(.teams-list-page, .players-list-page, .team-detail-page, .player-detail-page, .current-series) table table > :is(thead, tbody, tfoot) + :is(thead, tbody, tfoot) > tr:first-child > *,
+.content .league-heroes-table table > :is(thead, tbody, tfoot) > tr + tr > *,
+.content .league-heroes-table table > :is(thead, tbody, tfoot) + :is(thead, tbody, tfoot) > tr:first-child > * {
+  border-top: 1px solid var(--border, #334155) !important;
+}
+
+.content :is(.teams-list-page, .players-list-page, .team-detail-page, .player-detail-page, .current-series) td:has(> table),
+.content .league-heroes-table td:has(> table) {
+  border: 0 !important;
+}
+
 @media (max-width: 767px) {
   .ui-page, .data-list-page, .detail-page, .league-page { padding: 12px !important; }
   .ui-tabs { flex-wrap: nowrap; overflow-x: auto; width: 100%; }
