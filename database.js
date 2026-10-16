@@ -12,6 +12,7 @@ import { getLeaguePlayerRecords } from './config/leaguePlayerRecords.js';
 import { getPlayerTeammates } from './config/playerTeammates.js';
 import { getUnmatchedMatchTeams } from './config/unmatchedMatchTeams.js';
 import { getLeagueSeries } from './config/leagueSeries.js';
+import PlayerAwardsStore from './config/playerAwards.js';
 dotenv.config();
 
 class DBInstance {
@@ -30,6 +31,7 @@ class DBInstance {
             this.siteRules = new SiteRulesStore(this.db);
             this.ensureAdminStandingsSchema();
             this.seasons = new SeasonStore(this.db, (type, message) => this.recordAdminAudit(type, message));
+            this.playerAwards = new PlayerAwardsStore(this.db);
             this.ensureLiveMatchSchema();
             this.preloadedData = this.preloadData();
             DBInstance.instance = this;
@@ -679,6 +681,8 @@ class DBInstance {
     getPlayerTeammates(playerId, leagueId = 'all') {
         return getPlayerTeammates(this.db, playerId, leagueId);
     }
+
+    getPlayerAwards(playerId) { return this.playerAwards.forPlayer(playerId); }
 
     getHeadToHeadMatches(p1Id, p2Id) {
         return this.queryDatabase(`

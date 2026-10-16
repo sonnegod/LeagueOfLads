@@ -4,12 +4,20 @@ import LeagueFilter from '../components/LeagueFilter';
 import { useLeagues } from '../context/LeagueContext';
 import HeroDisplay from '../components/HeroDisplay';
 import './DataListPages.css';
+import './DetailPages.css';
+
+const playerColumns = [
+  { key: 'PlayerName', label: 'Player', mobileLabel: 'Name' },
+  { key: 'GamesPlayed', label: 'Games Played', mobileLabel: 'Games' },
+  { key: 'WinPercentage', label: 'Win %', mobileLabel: 'Win %' },
+];
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedLeague, setSelectedLeague] = useState('all');
   const [expandedPlayers, setExpandedPlayers] = useState({});
+  const [sort, setSort] = useState({ key: 'GamesPlayed', direction: 'desc' });
   const [customLeagues] = useState([]);
   const { leagues: globalLeagues, loading: leaguesLoading } = useLeagues();
 
@@ -62,6 +70,30 @@ export default function PlayersPage() {
     }
   };
 
+  function changeSort(key) {
+    setSort(current => ({ key, direction: current.key === key
+      ? current.direction === 'desc' ? 'asc' : 'desc'
+      : key === 'PlayerName' ? 'asc' : 'desc' }));
+  }
+
+  const sortArrow = key => sort.key === key ? sort.direction === 'asc' ? '▲' : '▼' : '↕';
+  const compareNames = (a, b) => String(a ?? '').localeCompare(String(b ?? ''), undefined,
+    { sensitivity: 'base', numeric: true });
+  const sortedPlayers = [...players].sort((a, b) => {
+    let comparison;
+    if (sort.key === 'PlayerName') comparison = compareNames(a.PlayerName, b.PlayerName);
+    else {
+      const aValue = a[sort.key], bValue = b[sort.key];
+      const aMissing = aValue == null || !Number.isFinite(Number(aValue));
+      const bMissing = bValue == null || !Number.isFinite(Number(bValue));
+      if (aMissing !== bMissing) return aMissing ? 1 : -1;
+      comparison = aMissing ? 0 : Number(aValue) - Number(bValue);
+    }
+    return (sort.direction === 'asc' ? comparison : -comparison)
+      || Number(b.GamesPlayed) - Number(a.GamesPlayed)
+      || compareNames(a.PlayerName, b.PlayerName) || Number(a.PlayerId) - Number(b.PlayerId);
+  });
+
   if (loading || leaguesLoading) return <div>Loading players...</div>;
 
   return (
@@ -73,16 +105,27 @@ export default function PlayersPage() {
         onChange={setSelectedLeague}
       />
 
+      <div className="mobile-sort-controls" aria-label="Sort players">
+        <span>Sort by</span>
+        {playerColumns.map(column => <button key={column.key} type="button"
+          aria-pressed={sort.key === column.key} onClick={() => changeSort(column.key)}>
+          {column.mobileLabel} <span aria-hidden="true">{sortArrow(column.key)}</span>
+        </button>)}
+      </div>
+
       <table className="responsive-data-table players-data-table" style={{ width: "100%", minWidth: "1200px", borderCollapse: "collapse" }}>
         <thead>
           <tr>
-            <th style={thStyle}>Player</th>
-            <th style={thStyle}>Games Played</th>
-            <th style={thStyle}>Win %</th>
+            {playerColumns.map(column => <th key={column.key} style={thStyle}
+              aria-sort={sort.key === column.key ? sort.direction === 'asc' ? 'ascending' : 'descending' : 'none'}>
+              <button type="button" className="detail-sort-button" onClick={() => changeSort(column.key)}>
+                {column.label}<span aria-hidden="true">{sortArrow(column.key)}</span>
+              </button>
+            </th>)}
           </tr>
         </thead>
         <tbody>
-          {players.map(player => (
+          {sortedPlayers.map(player => (
             <React.Fragment key={player.PlayerId}>
               <tr
                 onClick={() => toggleExpanded(player.PlayerId)}

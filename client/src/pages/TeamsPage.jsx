@@ -4,6 +4,13 @@ import LeagueFilter from '../components/LeagueFilter';
 import { useLeagues } from '../context/LeagueContext';
 import HeroDisplay from '../components/HeroDisplay';
 import './DataListPages.css';
+import './DetailPages.css';
+
+const teamColumns = [
+  { key: 'TeamName', label: 'Team', mobileLabel: 'Name' },
+  { key: 'GamesPlayed', label: 'Games Played', mobileLabel: 'Games' },
+  { key: 'WinPercentage', label: 'Win %', mobileLabel: 'Win %' },
+];
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState([]);
@@ -84,19 +91,29 @@ export default function TeamsPage() {
     }));
   };
 
-    const sortedTeams = [...teams].sort((a, b) => {
+  function changeSort(key) {
+    setSortConfig(current => ({ key, direction: current.key === key
+      ? current.direction === 'desc' ? 'asc' : 'desc'
+      : key === 'TeamName' ? 'asc' : 'desc' }));
+  }
+
+  const sortArrow = key => sortConfig.key === key ? sortConfig.direction === 'asc' ? '▲' : '▼' : '↕';
+  const compareNames = (a, b) => String(a ?? '').localeCompare(String(b ?? ''), undefined,
+    { sensitivity: 'base', numeric: true });
+  const sortedTeams = [...teams].sort((a, b) => {
     const { key, direction } = sortConfig;
-    if (key === 'TeamName') {
-      // sort alphabetically
-      return direction === 'asc'
-        ? a.TeamName.localeCompare(b.TeamName)
-        : b.TeamName.localeCompare(a.TeamName);
-    } else {
-      // sort numerically
-      return direction === 'asc'
-        ? (a[key] || 0) - (b[key] || 0)
-        : (b[key] || 0) - (a[key] || 0);
+    let comparison;
+    if (key === 'TeamName') comparison = compareNames(a.TeamName, b.TeamName);
+    else {
+      const aValue = a[key], bValue = b[key];
+      const aMissing = aValue == null || !Number.isFinite(Number(aValue));
+      const bMissing = bValue == null || !Number.isFinite(Number(bValue));
+      if (aMissing !== bMissing) return aMissing ? 1 : -1;
+      comparison = aMissing ? 0 : Number(aValue) - Number(bValue);
     }
+    return (direction === 'asc' ? comparison : -comparison)
+      || Number(b.GamesPlayed) - Number(a.GamesPlayed)
+      || compareNames(a.TeamName, b.TeamName) || Number(a.TeamId) - Number(b.TeamId);
   });
 
 
@@ -112,28 +129,20 @@ export default function TeamsPage() {
       />
       <div className="mobile-sort-controls" aria-label="Sort teams">
         <span>Sort by</span>
-        <button type="button" onClick={() => setSortConfig({ key: 'TeamName', direction: sortConfig.key === 'TeamName' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })}>
-          Name
-        </button>
-        <button type="button" onClick={() => setSortConfig({ key: 'GamesPlayed', direction: sortConfig.key === 'GamesPlayed' && sortConfig.direction === 'desc' ? 'asc' : 'desc' })}>
-          Games
-        </button>
-        <button type="button" onClick={() => setSortConfig({ key: 'WinPercentage', direction: sortConfig.key === 'WinPercentage' && sortConfig.direction === 'desc' ? 'asc' : 'desc' })}>
-          Win %
-        </button>
+        {teamColumns.map(column => <button key={column.key} type="button"
+          aria-pressed={sortConfig.key === column.key} onClick={() => changeSort(column.key)}>
+          {column.mobileLabel} <span aria-hidden="true">{sortArrow(column.key)}</span>
+        </button>)}
       </div>
       <table className="responsive-data-table teams-data-table" style={{ width: '100%', minWidth: '1200px', borderCollapse: 'collapse', cursor: 'pointer' }}>
         <thead>
           <tr>
-            <th style={thStyle} onClick={() => setSortConfig({ key: 'TeamName', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })}>
-              Team
-            </th>
-            <th style={thStyle} onClick={() => setSortConfig({ key: 'GamesPlayed', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })}>
-              Games Played
-            </th>
-            <th style={thStyle} onClick={() => setSortConfig({ key: 'WinPercentage', direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })}>
-              Win %
-            </th>
+            {teamColumns.map(column => <th key={column.key} style={thStyle}
+              aria-sort={sortConfig.key === column.key ? sortConfig.direction === 'asc' ? 'ascending' : 'descending' : 'none'}>
+              <button type="button" className="detail-sort-button" onClick={() => changeSort(column.key)}>
+                {column.label}<span aria-hidden="true">{sortArrow(column.key)}</span>
+              </button>
+            </th>)}
           </tr>
         </thead>
         <tbody>
