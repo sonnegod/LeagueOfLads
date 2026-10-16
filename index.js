@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 
 import './config/passport.js';              
 import routes from './routes/routes.js';
+import { siteApiHealth } from './config/siteAnalytics.js';
 
 import cors from 'cors';
 
@@ -17,12 +18,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+// Nginx runs on the same host; trust its forwarded client address, not arbitrary public proxies.
+app.set('trust proxy', 'loopback');
 const SERVER_PORT = process.env.SERVER_PORT || 3000;
 
 app.use(cors({
   origin: 'http://localhost:5173',
   credentials: true
 }));
+app.use(siteApiHealth);
 
 // Session setup
 app.use(session({
@@ -36,11 +40,15 @@ app.use(session({
   }
 }));
 
+app.use('/api/site-analytics', express.json({ limit: '8kb' }));
 app.use('/api/signup', express.json({ limit: '16mb' }));
 app.use('/api/admin/seasons', express.json({ limit: '16mb' }));
 app.use(express.json());        
 app.use((error, req, res, next) => {
   if (error.type === 'entity.too.large') {
+    if (req.path.startsWith('/api/site-analytics/')) {
+      return res.status(413).json({ error: 'Analytics request is too large' });
+    }
     return res.status(413).json({ error: 'Request is too large. Each MMR screenshot must be 2 MB or less.' });
   }
   return next(error);

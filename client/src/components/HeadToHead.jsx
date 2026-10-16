@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Select from 'react-select'; // Ensure this is installed: npm install react-select
+import { trackSiteEvent } from '../utils/siteAnalytics';
 import { Trophy, Swords, Crosshair, Coins, User } from 'lucide-react';
 
 const HeadToHead = () => {
@@ -55,9 +56,9 @@ const HeadToHead = () => {
     <div className="w-full">
       {/* SELECTION BAR */}
       <div className="flex flex-col md:flex-row justify-between items-center bg-slate-900 p-6 rounded-xl shadow-lg mb-8 border border-slate-800 gap-4">
-        <PlayerSelect value={p1Id} onChange={setP1Id} players={players} label="Player 1 (Blue)" />
+        <PlayerSelect value={p1Id} onChange={value => { setP1Id(value); trackSiteEvent('h2h_comparison'); }} players={players} label="Player 1 (Blue)" />
         <div className="text-4xl font-black text-slate-700 italic px-4">VS</div>
-        <PlayerSelect value={p2Id} onChange={setP2Id} players={players} label="Player 2 (Red)" align="right" />
+        <PlayerSelect value={p2Id} onChange={value => { setP2Id(value); trackSiteEvent('h2h_comparison'); }} players={players} label="Player 2 (Red)" align="right" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

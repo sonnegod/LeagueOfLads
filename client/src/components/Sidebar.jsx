@@ -31,6 +31,7 @@ export default function Sidebar({ open, onClose }) {
         {/* Show admin button only if user is admin */}
         {user?.canDraftGod && <NavLink to="/draftgod" className={navClassName} onClick={onClose}>DraftGod</NavLink>}
         {user?.isAdmin && <NavLink to="/admin" className={navClassName} onClick={onClose}>Admin Portal</NavLink>}
+        {user?.isSiteManager && <NavLink to="/site-management" className={navClassName} onClick={onClose}>Site Management</NavLink>}
 
       </nav>
     </aside>

@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import HeroDisplay from './HeroDisplay';
 import MatchResultBadge from './MatchResultBadge';
+import { trackSiteEvent } from '../utils/siteAnalytics';
 
 function HeroIcon({ heroId, heroName, action, iconSize = 24 }) {
   const label = `${action ? `${action}: ` : ''}${heroName || `Hero ${heroId}`}`;
@@ -33,7 +34,10 @@ function MatchDraft({ matchId }) {
         const response = await fetch(`/api/matches/${matchId}/draft`, { signal: controller.signal });
         const data = await response.json();
         if (!response.ok || !Array.isArray(data)) throw new Error('Unable to load draft');
-        setDraft(data);
+        if (!controller.signal.aborted) {
+          setDraft(data);
+          if (data.length) trackSiteEvent('draft_viewed');
+        }
       } catch (err) {
         if (!controller.signal.aborted) setError('Unable to load draft.');
       }

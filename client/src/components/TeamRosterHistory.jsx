@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DotabuffLink from './DotabuffLink';
+import { trackSiteEvent } from '../utils/siteAnalytics';
 
 function formatDate(value) {
   if (!value) return 'Unknown';
@@ -47,7 +48,10 @@ export default function TeamRosterHistory({ roster, leagueId = 'all' }) {
   }, [open, url]);
 
   const current = result?.url === url ? result : null;
-  return <details className="team-roster-history" onToggle={event => setOpen(event.currentTarget.open)}>
+  return <details className="team-roster-history" onToggle={event => {
+    if (event.currentTarget.open) trackSiteEvent('roster_history_opened');
+    setOpen(event.currentTarget.open);
+  }}>
     <summary>Roster history</summary>
     {open && (!current ? <p>Loading roster history...</p>
       : current.error ? <p role="alert">{current.error}</p>

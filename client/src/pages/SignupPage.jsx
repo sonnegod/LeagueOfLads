@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { prepareScreenshot, readScreenshot, screenshotValidationError } from '../utils/screenshotUpload';
 import { isValidProfileUrl, scrubProfileUrl } from '../utils/profileUrl';
 import './SignupPage.css';
+import { trackSiteEvent } from '../utils/siteAnalytics';
 
 const emptyPlayer = () => ({ search: '', playerId: '', playerName: '', mmr: '',
   dotaProfileUrl: '', screenshot: null, adjusted: false, candidates: [] });
@@ -43,6 +44,22 @@ export default function SignupPage() {
   const screenshotRequests = useRef(Array(5).fill(0));
   const previewUrls = useRef(Array(5).fill(null));
   const [submittedId, setSubmittedId] = useState(null);
+  const formStarted = useRef(false);
+  const signedInTracked = useRef(false);
+
+  useEffect(() => {
+    if (season && user && !preview && !signedInTracked.current) {
+      signedInTracked.current = true;
+      trackSiteEvent('signup_signed_in');
+    }
+  }, [season, user, preview]);
+
+  function trackFormStart() {
+    if (!preview && !formStarted.current) {
+      formStarted.current = true;
+      trackSiteEvent('signup_started');
+    }
+  }
 
   useEffect(() => () => {
     screenshotRequests.current = screenshotRequests.current.map(request => request + 1);
@@ -120,6 +137,7 @@ export default function SignupPage() {
       }
     } catch (uploadError) {
       if (screenshotRequests.current[index] !== request) return;
+      trackSiteEvent('upload_failure');
       input.value = '';
       setScreenshotErrors(current => current.map((value, slot) => slot === index
         ? uploadError.message : value));
@@ -210,6 +228,7 @@ export default function SignupPage() {
             }),
           });
         } catch (uploadError) {
+          trackSiteEvent('upload_failure');
           throw new Error(`Player ${index + 1}: ${uploadError.message}`);
         }
         setUploadedPlayers(index + 1);
@@ -243,7 +262,7 @@ export default function SignupPage() {
       Sign in with Steam to sign up
     </a> : submittedId ? <div role="status" className="signup-success">
       Your team was submitted. Submission #{submittedId}.
-    </div> : <form onSubmit={submit} className="signup-form" noValidate>
+    </div> : <form onSubmit={submit} onChange={trackFormStart} className="signup-form" noValidate>
       <label htmlFor="signup-team-name">Team name</label>
       <input id="signup-team-name" maxLength="60" required value={teamName} disabled={busy}
         onChange={event => { setTeamName(event.target.value); setValidationErrors([]); }} />

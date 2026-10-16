@@ -139,3 +139,34 @@ WHERE (bm.GroupEndMatchId IS NULL OR ml.MatchId <= bm.GroupEndMatchId)
 ON CONFLICT(LeagueId, TeamId)
 DO UPDATE SET Losses = Losses + 1;
 -----
+
+# Site management analytics
+
+Site Management is separate from league administration and currently allows only Steam account
+`49219700`. It reports real first-party public usage and aggregate API health. No Google Analytics
+or external analytics service is needed.
+
+- Collection defaults to **on in `ENVIRONMENT=PROD`**, and **off in development**. Override with
+  `SITE_ANALYTICS_ENABLED=true` or `false` in the server `.env`, then restart the server.
+- The server automatically creates `db/SiteAnalytics.db` and its schema. No migration, upload,
+  historical import, or nightly analytics job is needed. Keep this file between deployments.
+- For local testing, set `SITE_ANALYTICS_ENABLED=true`, restart, and browse public pages in a separate
+  signed-out browser. Open Site Management as account `49219700` and click **Refresh**. Signed-in
+  league admins and site managers are excluded from public usage counts, including on localhost.
+- Visits mean anonymous browsers, not verified people. Navigation is counted once per route change;
+  API polling is counted only in API health. Known bots, browser DNT/GPC signals, admin previews,
+  and the Privacy Policy browser opt-out are excluded from public usage collection.
+- Page IDs, account IDs, full URLs, query text, raw referral URLs, IP addresses, and form contents
+  are not saved in this database. A hashed first-party browser identifier supports distinct counts.
+  Daily records expire after 90 days. Normal session and league databases remain separate.
+- Referral attribution uses the first source per browser in the selected period. Add
+  `?utm_source=discord` to announcement links because Discord often sends no referral header.
+- Signup stages count distinct browsers across seasons within the selected period. Submission is
+  recorded only after a successful public signup API response; later stages imply earlier stages.
+  Returning visitors have activity on an earlier calendar day. API error rate includes both 4xx and
+  5xx. Approximate p95 uses latency bucket upper bounds, not client rendering or network time.
+- API metrics are buffered for 15 seconds and flushed when the report is read. A forced process
+  termination can lose the last buffer. No requests or browsing histories are stored individually.
+- The existing `scripts/db/backupDatabases.sh all` also backs up SiteAnalytics when present; use
+  `./scripts/db/backupDatabases.sh SiteAnalytics` for just this database. The standard backup
+  retention is seven days, so expired usage may remain in a backup until it expires too.

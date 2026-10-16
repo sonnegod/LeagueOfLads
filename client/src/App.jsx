@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
+import SiteManagement from './pages/SiteManagement';
 import PlayerPage from './pages/PlayerPage';
 import HeroPage from './pages/HeroPage';
 import HeroesPage from "./pages/HeroesPage";
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/recents" element={<RecentsPage />} />
         <Route path="/recentMatches" element={<RecentsPage />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/site-management" element={<SiteManagement />} />
         <Route path="/player/:player_id" element={<PlayerPage />} />
         <Route path="/hero/:hero_id" element={<HeroPage />} />
         <Route path="/team/:teamId" element={<TeamPage />} />
