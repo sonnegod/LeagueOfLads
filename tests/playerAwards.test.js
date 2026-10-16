@@ -4,6 +4,7 @@ import Database from 'better-sqlite3';
 import express from 'express';
 import PlayerAwardsStore from '../config/playerAwards.js';
 import { createPlayerAwardsRouter } from '../routes/playerAwardsRoutes.js';
+import { ensureChampionshipRosterSchema } from '../config/championshipRoster.js';
 
 function fixture() {
   const db = new Database(':memory:');
@@ -20,6 +21,7 @@ function fixture() {
     CREATE TABLE SeasonTeams (TeamSubmissionId INTEGER, SeasonId INTEGER, ExternalTeamId INTEGER);
     CREATE TABLE TeamRosterPlayers (TeamSubmissionId INTEGER, PlayerId INTEGER);
     INSERT INTO HeroInfo VALUES (1, 'Pudge'), (2, 'Invoker');`);
+  ensureChampionshipRosterSchema(db);
   let matchId = 0;
   const league = (id, status = 'ended', champion = null) => {
     db.prepare('INSERT INTO LeagueInfo VALUES (?, ?, ?)').run(id, `Season ${id}`, Number(status === 'active'));
@@ -41,13 +43,13 @@ function fixture() {
   return { db, league, game, appearance, games };
 }
 
-test('hero awards are all-time only, require 15 games, share exact ties, and ignore duplicate/conflicting results', () => {
+test('hero win rate awards require 10 games, share exact ties, and ignore duplicate/conflicting results', () => {
   const f = fixture();
   try {
     f.league(10);
-    f.games(10, 1, 15, 12);
+    f.games(10, 1, 10, 8);
     f.games(10, 2, 30, 24);
-    f.games(10, 3, 14, 14); // Unbeaten, but below the minimum.
+    f.games(10, 3, 9, 9); // Unbeaten, but below the minimum.
     f.appearance(1, 1); // Repeated player and team rows must count only once.
     f.appearance(f.game(10, null), 1); // Incomplete result.
     f.appearance(f.game(10), 1, 1, 999); // Team is not a participant.
@@ -60,13 +62,13 @@ test('hero awards are all-time only, require 15 games, share exact ties, and ign
     const store = new PlayerAwardsStore(f.db);
     const one = store.forPlayer(1).awards;
     const specialist = one.find(a => a.type === 'hero_specialist');
-    assert.equal(specialist.games, 15);
-    assert.equal(specialist.wins, 12);
+    assert.equal(specialist.games, 10);
+    assert.equal(specialist.wins, 8);
     assert.equal(specialist.winRate, 80);
     assert.equal(specialist.shared, true);
     assert.equal(specialist.tiedPlayers, 2);
     assert.equal(specialist.provisional, false);
-    assert.equal(specialist.minimumGames, 15);
+    assert.equal(specialist.minimumGames, 10);
     assert.equal(specialist.scope, 'all-time');
     assert.equal(one.some(a => a.scope === 'season'), false);
     assert.equal(store.forPlayer(2).awards.find(a => a.type === 'hero_loyalist').games, 30);
@@ -79,7 +81,7 @@ test('hero awards are all-time only, require 15 games, share exact ties, and ign
   } finally { f.db.close(); }
 });
 
-test('all-time records combine seasons, apply 15-game thresholds, and issue no seasonal stat awards', () => {
+test('all-time records combine seasons and issue no seasonal stat awards', () => {
   const f = fixture();
   try {
     f.league(10);
@@ -93,7 +95,7 @@ test('all-time records combine seasons, apply 15-game thresholds, and issue no s
     const one = store.forPlayer(1).awards;
     const veteran = one.find(a => a.type === 'veteran' && a.scope === 'all-time');
     assert.equal(veteran.games, 20);
-    assert.equal(veteran.minimumGames, 15);
+    assert.equal(veteran.minimumGames, 0);
     assert.equal(veteran.leagueId, null);
     assert.equal(one.find(a => a.leagueId === 20 && a.type === 'hero_loyalist'), undefined);
     const two = store.forPlayer(2).awards;
@@ -117,6 +119,27 @@ test('all-time records combine seasons, apply 15-game thresholds, and issue no s
     for (const playerId of [1, 2, 3]) {
       assert.equal(store.forPlayer(playerId).awards.some(a => a.scope === 'season'), false);
     }
+  } finally { f.db.close(); }
+});
+
+test('overall win rate requires 10 games while all-time most-played awards have no minimum', () => {
+  const f = fixture();
+  try {
+    f.league(10);
+    f.games(10, 1, 9, 9);
+    f.games(10, 2, 1, 0, 2);
+    const store = new PlayerAwardsStore(f.db);
+    assert.equal(store.forPlayer(1).awards.some(a => a.type === 'winningest'), false);
+    assert.equal(store.forPlayer(1).awards.find(a => a.type === 'veteran').games, 9);
+    const loyalist = store.forPlayer(2).awards.find(a => a.type === 'hero_loyalist');
+    assert.equal(loyalist.games, 1);
+    assert.equal(loyalist.minimumGames, 0);
+    assert.equal(store.forPlayer(2).awards.some(a => a.type === 'hero_specialist'), false);
+    f.games(10, 1, 1, 0);
+    const winningest = store.forPlayer(1).awards.find(a => a.type === 'winningest');
+    assert.equal(winningest.games, 10);
+    assert.equal(winningest.minimumGames, 10);
+    assert.equal(winningest.winRate, 90);
   } finally { f.db.close(); }
 });
 
@@ -160,6 +183,35 @@ test('champions require a recorded ended season, correct team, majority particip
     assert.equal(store.forPlayer(5).awards.find(a => a.type === 'champion').rosterSource, 'majority-lineup');
     f.db.prepare('UPDATE LeagueSeasons SET ChampionTeamId = 200 WHERE SeasonId = 10').run();
     assert.equal(store.forPlayer(1).awards.some(a => a.type === 'champion'), false);
+  } finally { f.db.close(); }
+});
+
+test('player listings receive one trophy per championship, including lifetime wins under a league filter', () => {
+  const f = fixture();
+  try {
+    f.league(10, 'ended', 100);
+    f.league(20, 'ended', 300);
+    for (let i = 0; i < 3; i++) {
+      const first = f.game(10);
+      f.appearance(first, 1);
+      f.appearance(first, 2);
+      f.appearance(f.game(20, 300, [300, 400]), 1, 1, 300);
+    }
+    const store = new PlayerAwardsStore(f.db);
+    const players = [{ PlayerId: 1, PlayerName: 'Two titles', GamesPlayed: 6 },
+      { PlayerId: 2, PlayerName: 'One title', GamesPlayed: 3 },
+      { PlayerId: 3, PlayerName: 'No titles', GamesPlayed: 0 }];
+    const result = store.withChampionships(players);
+    assert.deepEqual(result.map(player => player.championships.length), [2, 1, 0]);
+    assert.deepEqual(result[0].championships.map(award => award.leagueId), [20, 10]);
+    assert.equal(result[0].championships[0].leagueName, 'Season 20');
+    assert.equal(result[0].championships[0].type, 'champion');
+    assert.deepEqual(Object.keys(result[0].championships[0]).sort(), ['id', 'leagueId', 'leagueName', 'type']);
+    assert.equal(result[0].GamesPlayed, 6);
+    assert.equal('championships' in players[0], false);
+    assert.equal(store.withChampionships([players[0]])[0].championships.length, 2);
+    f.db.prepare('UPDATE LeagueSeasons SET ChampionTeamId = 200 WHERE SeasonId = 10').run();
+    assert.deepEqual(store.withChampionships(players).map(player => player.championships.length), [1, 0, 0]);
   } finally { f.db.close(); }
 });
 

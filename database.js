@@ -630,7 +630,7 @@ class DBInstance {
             ORDER BY GamesPlayed DESC
         `;
 
-        return this.queryDatabase(baseQuery, params);
+        return this.playerAwards.withChampionships(this.queryDatabase(baseQuery, params));
     }
 
     getPlayerDetails(playerId, leagueId) {

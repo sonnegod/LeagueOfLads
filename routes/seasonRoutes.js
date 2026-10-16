@@ -325,9 +325,16 @@ adminSeasonRoutes.put('/:seasonId/rules', (req, res) => {
   catch (error) { return respond(res, error); }
 });
 
+adminSeasonRoutes.get('/completed', (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  try { return res.json({ seasons: db.seasons.completedChampions() }); }
+  catch (error) { return respond(res, error); }
+});
+
 adminSeasonRoutes.get('/:seasonId/championCandidates', (req, res) => {
   const seasonId = id(req.params.seasonId);
   if (!seasonId) return res.status(400).json({ error: 'Invalid season' });
+  res.set('Cache-Control', 'private, no-store');
   try { return res.json({ teams: db.seasons.championTeams(seasonId) }); }
   catch (error) { return respond(res, error); }
 });
@@ -340,10 +347,19 @@ adminSeasonRoutes.post('/:seasonId/end', (req, res) => {
   catch (error) { return respond(res, error); }
 });
 
+adminSeasonRoutes.get('/:seasonId/championshipRoster', (req, res) => {
+  const seasonId = id(req.params.seasonId);
+  const teamId = id(req.query.teamId);
+  if (!seasonId || !teamId) return res.status(400).json({ error: 'Select a season and team' });
+  res.set('Cache-Control', 'private, no-store');
+  try { return res.json(db.seasons.championshipRoster(seasonId, teamId)); }
+  catch (error) { return respond(res, error); }
+});
+
 adminSeasonRoutes.patch('/:seasonId/champion', (req, res) => {
   const seasonId = id(req.params.seasonId);
   const championId = id(req.body?.championTeamId);
   if (!seasonId || !championId) return res.status(400).json({ error: 'Select the champion' });
-  try { return res.json({ season: db.seasons.correctChampion(seasonId, championId) }); }
+  try { return res.json({ season: db.seasons.correctChampion(seasonId, championId, req.body?.playerIds) }); }
   catch (error) { return respond(res, error); }
 });

@@ -24,6 +24,31 @@ node scripts/db/exportLadsDataSchema.js db/LadsData.db scripts/db/ladsData.schem
 
 The exporter reads through SQLite, including committed WAL changes.
 
+Historical league winners are imported into `LeagueSeasons` automatically when the
+updated server starts. The import uses the same final-match winner the older league
+pages already displayed, creates ended season records, and preserves existing saved
+champions and the active league. Rerunning it adds no duplicates. Known historical
+end dates are preserved; missing dates remain unknown.
+
+To preview or apply the same backfill manually against an existing initialized database:
+
+```bash
+node scripts/db/backfillLeagueChampions.js db/LadsData.db
+node scripts/db/backfillLeagueChampions.js db/LadsData.db --apply
+```
+
+The manual apply creates a SQLite backup beside the database before writing. No full
+database upload is needed; the normal deployment restart runs this backfill in production.
+
+The server also creates `ChampionshipRosterPlayers` and the league/match/player
+lookup indexes it needs automatically on startup.
+Under **Admin → Champions**, select a completed legacy season and its champion,
+then move five players into **Active players** and save. Candidates come only
+from that team's matches in that season. The saved five receive championship
+trophies instead of using the inferred majority-appearance lineup. Selections
+are stored per season and team, and changes are audited. Seasons with finalized
+signup rosters continue to use those rosters. No manual migration is required.
+
 After deploying the updated code, add the base rulebook to the existing
 production database. The deploy workflow already restarts PM2. From the
 project directory on the server, preview the import, apply it, then verify

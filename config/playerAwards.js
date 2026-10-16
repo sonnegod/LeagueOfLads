@@ -1,10 +1,10 @@
 export const PLAYER_AWARD_CRITERIA = Object.freeze({
-  allTimeHeroGames: 15,
-  playerGames: 15,
+  allTimeHeroGames: 10,
+  playerGames: 10,
 });
 
 const emptyRecord = playerId => ({ playerId, games: 0, wins: 0 });
-const winRate = record => Math.round(record.wins / record.games * 10000) / 100;
+const winRate = record => record.games ? Math.round(record.wins / record.games * 10000) / 100 : 0;
 
 // Count one completed league appearance per player, even if an importer wrote duplicates.
 // Conflicting hero/team records are omitted rather than choosing an arbitrary value.
@@ -47,13 +47,28 @@ export default class PlayerAwardsStore {
     this.revision = db.prepare('SELECT total_changes() changes');
   }
 
-  forPlayer(playerId) {
+  getCache() {
     const revision = `${this.db.pragma('data_version', { simple: true })}:${this.revision.get().changes}`;
     if (!this.cache || revision !== this.cache.revision || this.now() - this.cache.time >= this.maxAgeMs) {
       this.cache = { ...this.build(), revision, time: this.now() };
     }
-    return { awards: this.cache.players.get(Number(playerId)) || [],
-      criteria: PLAYER_AWARD_CRITERIA, generatedAt: new Date(this.cache.time).toISOString() };
+    return this.cache;
+  }
+
+  forPlayer(playerId) {
+    const cache = this.getCache();
+    return { awards: cache.players.get(Number(playerId)) || [],
+      criteria: PLAYER_AWARD_CRITERIA, generatedAt: new Date(cache.time).toISOString() };
+  }
+
+  withChampionships(players) {
+    if (!players.length) return players;
+    const cache = this.getCache();
+    return players.map(player => ({ ...player,
+      championships: (cache.players.get(Number(player.PlayerId)) || [])
+        .filter(award => award.type === 'champion')
+        .map(({ id, type, leagueId, leagueName }) => ({ id, type, leagueId, leagueName })),
+    }));
   }
 
   build() {
@@ -90,13 +105,13 @@ export default class PlayerAwardsStore {
     });
     awardLeaders(career.players, PLAYER_AWARD_CRITERIA.playerGames, byRate,
       create('winningest', 'Winningest Player')).forEach(add);
-    awardLeaders(career.players, PLAYER_AWARD_CRITERIA.playerGames, byGames,
+    awardLeaders(career.players, 0, byGames,
       create('veteran', 'League Veteran')).forEach(add);
     const minimum = PLAYER_AWARD_CRITERIA.allTimeHeroGames;
     for (const [heroId, heroPlayers] of career.heroes) {
       const hero = { heroId, heroName: heroes.get(heroId) || `Hero ${heroId}` };
       awardLeaders(heroPlayers, minimum, byRate, create('hero_specialist', 'Hero Specialist', hero)).forEach(add);
-      awardLeaders(heroPlayers, minimum, byGames, create('hero_loyalist', 'Hero Loyalist', hero)).forEach(add);
+      awardLeaders(heroPlayers, 0, byGames, create('hero_loyalist', 'Hero Loyalist', hero)).forEach(add);
     }
     this.champions().forEach(add);
     const priority = award => award.type === 'champion' ? 0 : 1;
@@ -123,21 +138,34 @@ export default class PlayerAwardsStore {
         SELECT c.LeagueId, p.PlayerId FROM champion_teams c
         JOIN SeasonTeams t ON t.SeasonId = c.SeasonId AND t.ExternalTeamId = c.TeamId
         JOIN TeamRosterPlayers p ON p.TeamSubmissionId = t.TeamSubmissionId
+      ), admin_rosters AS (
+        SELECT c.LeagueId, p.PlayerId FROM champion_teams c
+        JOIN ChampionshipRosterPlayers p ON p.SeasonId = c.SeasonId AND p.TeamId = c.TeamId
+        WHERE NOT EXISTS (SELECT 1 FROM SeasonTeams t JOIN TeamRosterPlayers r
+          ON r.TeamSubmissionId = t.TeamSubmissionId WHERE t.SeasonId = c.SeasonId)
       )
       SELECT c.LeagueId, c.LeagueName, c.TeamId, c.TeamName, a.PlayerId,
         COUNT(*) Games, SUM(a.Won) Wins, tg.Games TeamGames,
-        EXISTS (SELECT 1 FROM declared_rosters r WHERE r.LeagueId = c.LeagueId) HasRoster
+        EXISTS (SELECT 1 FROM declared_rosters r WHERE r.LeagueId = c.LeagueId) HasRoster, 0 AdminRoster
       FROM champion_teams c JOIN team_games tg ON tg.LeagueId = c.LeagueId
       JOIN appearances a ON a.LeagueId = c.LeagueId AND a.TeamId = c.TeamId
-      WHERE NOT EXISTS (SELECT 1 FROM declared_rosters r WHERE r.LeagueId = c.LeagueId)
-        OR EXISTS (SELECT 1 FROM declared_rosters r WHERE r.LeagueId = c.LeagueId AND r.PlayerId = a.PlayerId)
-      GROUP BY c.LeagueId, a.PlayerId HAVING COUNT(*) * 2 > tg.Games`).all().map(row => ({
+      WHERE NOT EXISTS (SELECT 1 FROM admin_rosters r WHERE r.LeagueId = c.LeagueId)
+        AND (NOT EXISTS (SELECT 1 FROM declared_rosters r WHERE r.LeagueId = c.LeagueId)
+          OR EXISTS (SELECT 1 FROM declared_rosters r WHERE r.LeagueId = c.LeagueId AND r.PlayerId = a.PlayerId))
+      GROUP BY c.LeagueId, a.PlayerId HAVING COUNT(*) * 2 > tg.Games
+      UNION ALL
+      SELECT c.LeagueId, c.LeagueName, c.TeamId, c.TeamName, r.PlayerId,
+        COUNT(a.MatchId) Games, COALESCE(SUM(a.Won), 0) Wins, COALESCE(tg.Games, 0) TeamGames, 0 HasRoster, 1 AdminRoster
+      FROM champion_teams c JOIN admin_rosters r ON r.LeagueId = c.LeagueId
+      LEFT JOIN team_games tg ON tg.LeagueId = c.LeagueId
+      LEFT JOIN appearances a ON a.LeagueId = c.LeagueId AND a.TeamId = c.TeamId AND a.PlayerId = r.PlayerId
+      GROUP BY c.LeagueId, r.PlayerId`).all().map(row => ({
       id: `${row.LeagueId}:champion`, type: 'champion', title: 'League Champion', scope: 'season',
       playerId: row.PlayerId, leagueId: row.LeagueId, leagueName: row.LeagueName,
       teamId: row.TeamId, teamName: row.TeamName, teamGames: row.TeamGames,
       games: row.Games, wins: row.Wins, winRate: winRate({ games: row.Games, wins: row.Wins }),
       provisional: false, shared: false,
-      rosterSource: row.HasRoster ? 'signup' : 'majority-lineup',
+      rosterSource: row.AdminRoster ? 'admin' : row.HasRoster ? 'signup' : 'majority-lineup',
     }));
   }
 }

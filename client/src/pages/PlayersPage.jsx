@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import LeagueFilter from '../components/LeagueFilter';
 import { useLeagues } from '../context/LeagueContext';
 import HeroDisplay from '../components/HeroDisplay';
+import { PlayerChampionshipTrophies } from '../components/PlayerAwards';
 import './DataListPages.css';
 import './DetailPages.css';
 
@@ -131,7 +132,11 @@ export default function PlayersPage() {
                 onClick={() => toggleExpanded(player.PlayerId)}
                 style={{ cursor: "pointer", backgroundColor: expandedPlayers[player.PlayerId] ? "var(--surface, #0b0b0b)" : "transparent" }}
               >
-                <td data-label="Player" style={tdStyle}><Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link></td>
+                <td data-label="Player" style={tdStyle}>
+                  <span className="players-list-name"><Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link>
+                    <PlayerChampionshipTrophies awards={player.championships || []} size={17} />
+                  </span>
+                </td>
                 <td data-label="Games" style={tdStyle}>{player.GamesPlayed}</td>
                 <td data-label="Win rate" style={tdStyle}>{player.WinPercentage?.toFixed(2)}%</td>
               </tr>

@@ -16,6 +16,7 @@ import AdminRequestsPanel from "../components/AdminRequestsPanel";
 import RulesAdminPanel from "../components/RulesAdminPanel";
 import AdminAuditLogPanel from "../components/AdminAuditLogPanel";
 import AdjustedPlayersPanel from "../components/AdjustedPlayersPanel";
+import PastChampionsPanel from "../components/PastChampionsPanel";
 
 
 export default function AdminPage() {
@@ -100,6 +101,7 @@ export default function AdminPage() {
         {[
           ["requests", "Requests"], ["rules", "Rules"],
           ["adjustedPlayers", "Adjusted Players"],
+          ["champions", "Champions"],
           ["adminManagement", "Admin Management"], ["auditLog", "Audit Log"],
         ].map(([key, label]) => <button key={key} type="button" className="ui-tab"
           aria-pressed={activeAdminTab === key}
@@ -188,6 +190,7 @@ export default function AdminPage() {
         {activeTab === "admin" && activeAdminTab === "requests" && <AdminRequestsPanel />}
         {activeTab === "admin" && activeAdminTab === "rules" && <RulesAdminPanel />}
         {activeTab === "admin" && activeAdminTab === "adjustedPlayers" && <AdjustedPlayersPanel />}
+        {activeTab === "admin" && activeAdminTab === "champions" && <PastChampionsPanel onChanged={triggerRefresh} />}
         {activeTab === "admin" && activeAdminTab === "auditLog" && <AdminAuditLogPanel />}
     </div>
   );

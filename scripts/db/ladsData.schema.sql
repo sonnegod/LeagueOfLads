@@ -29,6 +29,26 @@ CREATE TABLE AdjustedPlayers (
 -- table: Comments
 CREATE TABLE Comments (ProblemId INTEGER PRIMARY KEY AUTOINCREMENT, UserId INTEGER, Comment VARCHAR (128));
 
+-- table: ChampionshipRosterPlayers
+CREATE TABLE ChampionshipRosterPlayers (
+    SeasonId INTEGER NOT NULL REFERENCES LeagueSeasons(SeasonId),
+    TeamId INTEGER NOT NULL,
+    PlayerId INTEGER NOT NULL,
+    Slot INTEGER NOT NULL CHECK (Slot BETWEEN 0 AND 4),
+    UpdatedAt TEXT NOT NULL,
+    PRIMARY KEY (SeasonId, TeamId, PlayerId),
+    UNIQUE (SeasonId, TeamId, Slot)
+);
+
+-- index: idx_MatchLeague_LeagueId_MatchId
+CREATE INDEX idx_MatchLeague_LeagueId_MatchId ON MatchLeague(LeagueId, MatchId);
+
+-- index: idx_MatchTeamPlayer_MatchId_PlayerId_TeamId
+CREATE INDEX idx_MatchTeamPlayer_MatchId_PlayerId_TeamId ON MatchTeamPlayer(MatchId, PlayerId, TeamId);
+
+-- index: idx_MatchPlayer_MatchId_PlayerId
+CREATE INDEX idx_MatchPlayer_MatchId_PlayerId ON MatchPlayer(MatchId, PlayerId);
+
 -- table: DraftAccess
 CREATE TABLE DraftAccess (
   PlayerId INTEGER PRIMARY KEY,

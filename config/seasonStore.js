@@ -2,6 +2,8 @@ import { randomizeGroups, groupSpread } from './groupRandomizer.js';
 import { DEFAULT_LEAGUE_RULES, normalizeLeagueRules } from './leagueRules.js';
 import { randomUUID } from 'node:crypto';
 import TeamRosterStore from './teamRosterStore.js';
+import { backfillLegacyChampions } from './legacyLeagueChampions.js';
+import { ensureChampionshipRosterSchema, hasSignupRoster, CHAMPIONSHIP_ROSTER_PLAYERS_SQL } from './championshipRoster.js';
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -146,6 +148,7 @@ export default class SeasonStore {
       CREATE INDEX IF NOT EXISTS idx_SeasonGroups_Season ON SeasonGroups(SeasonId);
     `);
     this.rosters = new TeamRosterStore(db);
+    ensureChampionshipRosterSchema(db);
     const active = db.prepare('SELECT LeagueId, LeagueName FROM LeagueInfo WHERE Active = 1 LIMIT 1').get();
     if (active && !db.prepare('SELECT 1 FROM LeagueSeasons WHERE ExternalLeagueId = ?').get(active.LeagueId)) {
       db.prepare(`INSERT INTO LeagueSeasons (LeagueName, Status, ExternalLeagueId, CreatedAt, UpdatedAt)
@@ -162,6 +165,7 @@ export default class SeasonStore {
         VALUES (?, 'ended', ?, ?, ?, ?)`).run(latestCompleted.LeagueName,
           latestCompleted.LeagueId, timestamp, timestamp, timestamp);
     }
+    backfillLegacyChampions(db);
   }
 
   current() {
@@ -667,26 +671,91 @@ export default class SeasonStore {
     })();
   }
 
-  correctChampion(seasonId, championTeamId) {
+  correctChampion(seasonId, championTeamId, playerIds) {
     return this.db.transaction(() => {
       const season = this.get(seasonId);
       if (!season) fail('Season not found', 404);
       if (season.Status !== 'ended') fail('Only ended seasons have a champion', 409);
-      if (!this.db.prepare(`SELECT 1 FROM MatchTeam mt JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
-        WHERE ml.LeagueId = ? AND (mt.TeamRad = ? OR mt.TeamDire = ?) LIMIT 1`)
-        .get(season.ExternalLeagueId, championTeamId, championTeamId)) fail('Team did not play in this league', 409);
+      const teams = this.championTeams(seasonId);
+      const champion = teams.find(team => team.TeamId === championTeamId);
+      if (!champion) fail('Team did not play in this league', 409);
+      if (playerIds !== undefined) this.saveChampionshipRoster(seasonId, championTeamId, playerIds);
+      if (season.ChampionTeamId === championTeamId) return this.get(seasonId);
+      const previous = teams.find(team => team.TeamId === season.ChampionTeamId);
       this.db.prepare('UPDATE LeagueSeasons SET ChampionTeamId = ?, UpdatedAt = ? WHERE SeasonId = ?')
         .run(championTeamId, now(), seasonId);
-      this.audit('Champion Corrected', `Changed season ${seasonId} champion from ${season.ChampionTeamId} to ${championTeamId}`);
+      this.audit('Champion Corrected', `Changed ${season.LeagueName} (league ${season.ExternalLeagueId}) champion from `
+        + `${previous?.TeamName || 'Team'} (${season.ChampionTeamId ?? 'unset'}) to ${champion.TeamName} (${championTeamId})`);
       return this.get(seasonId);
     })();
+  }
+
+  championshipRoster(seasonId, teamId) {
+    const season = this.get(seasonId);
+    if (!season) fail('Season not found', 404);
+    if (season.Status !== 'ended') fail('Only completed seasons have championship rosters', 409);
+    if (!this.championTeams(seasonId).some(team => team.TeamId === teamId)) {
+      fail('Team did not play in this league', 409);
+    }
+    if (hasSignupRoster(this.db, seasonId)) return { editable: false, source: 'signup' };
+    const players = this.db.prepare(CHAMPIONSHIP_ROSTER_PLAYERS_SQL)
+      .all(teamId, season.ExternalLeagueId, teamId, teamId);
+    const saved = this.db.prepare(`SELECT PlayerId FROM ChampionshipRosterPlayers
+      WHERE SeasonId = ? AND TeamId = ? ORDER BY Slot`).all(seasonId, teamId);
+    for (const player of saved) {
+      if (players.some(candidate => candidate.PlayerId === player.PlayerId)) continue;
+      const name = this.db.prepare('SELECT CAST(PlayerName AS TEXT) PlayerName FROM PlayerInfo WHERE PlayerId = ?').get(player.PlayerId);
+      players.push({ ...player, PlayerName: name?.PlayerName || `Player ${player.PlayerId}`, Games: 0, Wins: 0 });
+    }
+    const teamGames = this.db.prepare(`SELECT COUNT(*) Games FROM MatchTeam m
+      JOIN MatchLeague ml ON ml.MatchId = m.MatchId WHERE ml.LeagueId = ?
+        AND ? IN (m.TeamRad, m.TeamDire) AND m.WinnerId IN (m.TeamRad, m.TeamDire)
+        AND m.TeamRad <> m.TeamDire`).get(season.ExternalLeagueId, teamId).Games;
+    return { editable: true, players, source: saved.length ? 'admin' : 'inferred',
+      selectedPlayerIds: saved.length ? saved.map(player => player.PlayerId)
+        : players.filter(player => player.Games * 2 > teamGames).slice(0, 5).map(player => player.PlayerId) };
+  }
+
+  saveChampionshipRoster(seasonId, teamId, playerIds) {
+    const roster = this.championshipRoster(seasonId, teamId);
+    if (!roster.editable) fail('This season uses finalized signup rosters', 409);
+    if (!Array.isArray(playerIds) || playerIds.length !== 5 || new Set(playerIds).size !== 5
+      || playerIds.some(id => !Number.isSafeInteger(id) || id <= 0)) fail('Select exactly five different players');
+    const candidates = new Map(roster.players.map(player => [player.PlayerId, player]));
+    // Previously saved selections remain editable even if historical match data is corrected later.
+    const saved = this.db.prepare(`SELECT PlayerId FROM ChampionshipRosterPlayers
+      WHERE SeasonId = ? AND TeamId = ?`).all(seasonId, teamId).map(player => player.PlayerId);
+    if (playerIds.some(id => !candidates.has(id) && !saved.includes(id))) {
+      fail('Each player must have played for this team in this season');
+    }
+    if (saved.length === 5 && playerIds.every(id => saved.includes(id))) return;
+    this.db.prepare('DELETE FROM ChampionshipRosterPlayers WHERE SeasonId = ? AND TeamId = ?').run(seasonId, teamId);
+    const insert = this.db.prepare(`INSERT INTO ChampionshipRosterPlayers
+      (SeasonId, TeamId, PlayerId, Slot, UpdatedAt) VALUES (?, ?, ?, ?, ?)`);
+    const timestamp = now();
+    playerIds.forEach((id, slot) => insert.run(seasonId, teamId, id, slot, timestamp));
+    this.db.prepare('UPDATE LeagueSeasons SET UpdatedAt = ? WHERE SeasonId = ?').run(timestamp, seasonId);
+    const season = this.get(seasonId);
+    this.audit('Championship Roster Changed', `Set ${season.LeagueName} (league ${season.ExternalLeagueId}) `
+      + `championship roster for team ${teamId}: ${playerIds.map(id => `${candidates.get(id)?.PlayerName || 'Player'} (${id})`).join(', ')}`);
+  }
+
+  completedChampions() {
+    return this.db.prepare(`SELECT SeasonId, LeagueName, ExternalLeagueId, ChampionTeamId, EndedAt, UpdatedAt
+      FROM LeagueSeasons WHERE Status = 'ended' AND ExternalLeagueId IS NOT NULL
+      ORDER BY ExternalLeagueId DESC, SeasonId DESC`).all();
   }
 
   championTeams(seasonId) {
     const season = this.get(seasonId);
     if (!season?.ExternalLeagueId) return [];
     return this.db.prepare(`SELECT ids.TeamId,
-      COALESCE(ln.DisplayName, ti.TeamName, 'Team ' || ids.TeamId) AS TeamName
+      COALESCE(ln.DisplayName,
+        (SELECT st.TeamName FROM SeasonTeams st WHERE st.SeasonId = ? AND st.ExternalTeamId = ids.TeamId
+          ORDER BY st.TeamSubmissionId DESC LIMIT 1),
+        (SELECT r.DisplayName FROM LeagueRosterEntries r WHERE r.LeagueId = ? AND r.TeamId = ids.TeamId
+          ORDER BY r.SortOrder, r.EntryId LIMIT 1),
+        ti.TeamName, 'Team ' || ids.TeamId) AS TeamName
       FROM (
         SELECT mt.TeamRad AS TeamId FROM MatchTeam mt
           JOIN MatchLeague ml ON ml.MatchId = mt.MatchId WHERE ml.LeagueId = ?
@@ -696,8 +765,8 @@ export default class SeasonStore {
       ) ids
       LEFT JOIN TeamInfo ti ON ti.TeamId = ids.TeamId
       LEFT JOIN LeagueTeamNames ln ON ln.LeagueId = ? AND ln.TeamId = ids.TeamId
-      WHERE ids.TeamId > 0 ORDER BY TeamName`).all(season.ExternalLeagueId,
-        season.ExternalLeagueId, season.ExternalLeagueId);
+      WHERE ids.TeamId > 0 ORDER BY TeamName COLLATE NOCASE, ids.TeamId`).all(seasonId,
+        season.ExternalLeagueId, season.ExternalLeagueId, season.ExternalLeagueId, season.ExternalLeagueId);
   }
 
   championFeature(season) {

@@ -260,8 +260,6 @@ export default function SeasonAdminPanel({ onChanged }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [leagueId, setLeagueId] = useState('');
-  const [latestChampionId, setLatestChampionId] = useState('');
-  const [latestTeams, setLatestTeams] = useState([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -275,14 +273,6 @@ export default function SeasonAdminPanel({ onChanged }) {
     setTitle(result.season?.SignupTitle || '');
     setDescription(result.season?.SignupDescription || '');
     setLeagueId(result.season?.ExternalLeagueId ? String(result.season.ExternalLeagueId) : '');
-    if (result.latest && !result.season) {
-      setLatestChampionId(String(result.latest.ChampionTeamId ?? ''));
-      request(`/api/admin/seasons/${result.latest.SeasonId}/championCandidates`)
-        .then(value => setLatestTeams(value.teams)).catch(() => setLatestTeams([]));
-    } else {
-      setLatestChampionId('');
-      setLatestTeams([]);
-    }
     return result;
   }, []);
 
@@ -396,21 +386,5 @@ export default function SeasonAdminPanel({ onChanged }) {
         }} />
       </>}
     </>}
-    {!season && data?.latest && <div className="season-inline-form">
-      <h3>Correct completed league champion: {data.latest.LeagueName}</h3>
-      <label>Champion
-        <select value={latestChampionId} onChange={event => setLatestChampionId(event.target.value)}>
-          <option value="">Select champion</option>
-          {latestTeams.map(team => <option key={team.TeamId} value={team.TeamId}>{team.TeamName} ({team.TeamId})</option>)}
-        </select>
-      </label>
-      <button type="button" disabled={busy || !latestChampionId || Number(latestChampionId) === data.latest.ChampionTeamId}
-        onClick={() => { if (window.confirm('Change the published champion for this league?')) {
-          run(() => request(`/api/admin/seasons/${data.latest.SeasonId}/champion`, {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ championTeamId: latestChampionId }),
-          }), 'Champion corrected.').catch(() => {});
-        } }}>{data.latest.ChampionTeamId ? 'Correct champion' : 'Confirm champion'}</button>
-    </div>}
   </section>;
 }

@@ -1,0 +1,23 @@
+.past-champions-panel { display: grid; gap: 12px; max-width: 900px; }
+.past-champions-panel header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 12px; }
+.past-champions-panel h2 { margin: 0; }
+.past-champions-panel p { margin: 0; line-height: 1.6; }
+.past-champions-panel header p, .past-champions-note { color: var(--muted-text, #94a3b8); font-size: .85rem; }
+.past-champions-panel form { display: grid; gap: 12px; }
+.past-champions-panel select { width: 100%; min-width: 0; }
+.past-champions-panel form > button { justify-self: start; }
+.past-champions-panel [role=alert] { color: #fca5a5; }
+.championship-roster-picker { min-width: 0; margin: 0; padding: 14px; border: 1px solid var(--border, #334155); border-radius: 8px; display: grid; gap: 12px; }
+.championship-roster-picker legend { padding: 0 6px; font-weight: 600; }
+.championship-roster-lists { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.championship-roster-lists section { min-width: 0; padding: 10px; border: 1px solid var(--border, #334155); border-radius: 6px; }
+.championship-roster-lists h3 { margin: 0 0 10px; font-size: .95rem; }
+.championship-roster-lists ul { list-style: none; margin: 0; padding: 0; display: grid; align-content: start; gap: 6px; max-height: 300px; overflow-y: auto; }
+.championship-roster-lists li { min-width: 0; }
+.championship-roster-lists button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 10px; }
+.championship-roster-player { display: grid; gap: 2px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.championship-roster-player small { color: var(--muted-text, #94a3b8); }
+@media (max-width: 600px) {
+  .championship-roster-lists { grid-template-columns: minmax(0, 1fr); }
+  .championship-roster-lists ul { max-height: 230px; }
+}

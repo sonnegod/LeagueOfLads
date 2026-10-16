@@ -18,14 +18,14 @@ function AwardIcon({ award, compact = false }) {
     : <Award size={compact ? 18 : 28} aria-hidden="true" />;
 }
 
-export function PlayerChampionshipTrophies({ awards }) {
+export function PlayerChampionshipTrophies({ awards, size = 23 }) {
   const championships = awards.filter(award => award.type === 'champion');
   if (!championships.length) return null;
   return <span className="player-championship-trophies" role="group" aria-label="League championships">
     {championships.map(award => <Link key={award.id} className="player-championship-trophy"
       to={`/league/${award.leagueId}`} title={`${award.leagueName} champion`}
-      aria-label={`${award.leagueName} champion`}>
-      <Trophy size={23} aria-hidden="true" />
+      aria-label={`${award.leagueName} champion`} onClick={event => event.stopPropagation()}>
+      <Trophy size={size} aria-hidden="true" />
     </Link>)}
   </span>;
 }
@@ -80,8 +80,10 @@ function AwardCard({ award }) {
       {award.scope === 'all-time' && <span>Current record</span>}
     </div>
     <small className="player-award-qualification">{award.type === 'champion'
-      ? `${award.games} of ${award.teamGames} team games. ${award.rosterSource === 'signup' ? 'Confirmed roster member.' : 'Qualified by majority of team appearances.'}`
-      : `Minimum ${award.minimumGames} ${award.heroId ? 'games on this hero' : 'games'}.`}</small>
+      ? `${award.games} of ${award.teamGames} team games. ${award.rosterSource === 'admin' ? 'Championship roster confirmed by admins.' : award.rosterSource === 'signup' ? 'Confirmed roster member.' : 'Qualified by majority of team appearances.'}`
+      : award.minimumGames > 0
+        ? `Minimum ${award.minimumGames} ${award.heroId ? 'games on this hero' : 'games'}.`
+        : 'No minimum games required.'}</small>
   </article>;
 }
 
@@ -108,13 +110,13 @@ export default function PlayerAwards({ awards, criteria, loading, error, onRetry
       <summary>How awards are earned</summary>
       <ul>
         <li><strong>Hero Specialist:</strong> highest all-time win rate on a hero, compared with every qualifying player. Minimum {criteria.allTimeHeroGames} games on that hero across all seasons. Hero awards are all-time only.</li>
-        <li><strong>Hero Loyalist:</strong> most all-time games on a hero, minimum {criteria.allTimeHeroGames} games.</li>
+        <li><strong>Hero Loyalist:</strong> most all-time games on a hero, with no minimum games required.</li>
         <li><strong>Winningest Player:</strong> highest all-time overall win rate, minimum {criteria.playerGames} games across all seasons.</li>
-        <li><strong>League Veteran:</strong> most league games played across all seasons, minimum {criteria.playerGames} games. This award is all-time only.</li>
-        <li><strong>League Champion:</strong> a saved champion of a completed season; the player must appear in more than half of the champion team's completed games. Signup roster membership is also required where recorded. Older seasons use majority appearances when no signup roster exists.</li>
+        <li><strong>League Veteran:</strong> most league games played across all seasons, with no minimum games required. This award is all-time only.</li>
+        <li><strong>League Champion:</strong> a saved champion of a completed season. For older seasons, admins can confirm five championship players; otherwise, more than half of the champion team's completed games is required. Signup seasons require finalized roster membership and more than half of the team's completed games.</li>
       </ul>
       <p>Ties share the award. All-time records can change as games are played. Championship badges recognize completed seasons and reflect any data corrections.</p>
-      <p>Stats include all completed league appearances, including stand-ins, across group stages, tiebreakers, and playoffs. Conflicting team or hero records and games without a valid winner are excluded. Championship participation counts only games for the winning team; a one-off stand-in does not qualify. Historical champion badges require a recorded champion.</p>
+      <p>Stats include all completed league appearances, including stand-ins, across group stages, tiebreakers, and playoffs. Conflicting team or hero records and games without a valid winner are excluded. Automatic championship qualification counts only games for the winning team and excludes occasional stand-ins. Historical champion badges require a recorded champion.</p>
     </details>}
   </section>;
 }
