@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { trackSiteEvent } from '../utils/siteAnalytics';
 import { useParams } from 'react-router-dom';
 import PlayerStatsTable from "../components/PlayerStatsTable";
 import { Link } from 'react-router-dom';
@@ -93,7 +94,10 @@ export default function PlayerPage() {
         <button className="ui-tab" aria-pressed={activeTab === 'season'} onClick={() => setActiveTab('season')} style={activeTab === 'season' ? activeTabStyle : tabStyle}>Season Stats</button>
         <button className="ui-tab" aria-pressed={activeTab === 'allMatches'} onClick={() => setActiveTab('allMatches')} style={activeTab === 'allMatches' ? activeTabStyle : tabStyle}>Total Matches</button>
         <button className="ui-tab" aria-pressed={activeTab === 'heroes'} onClick={() => setActiveTab('heroes')} style={activeTab === 'heroes' ? activeTabStyle : tabStyle}>Heroes</button>
-        <button className="ui-tab" aria-pressed={activeTab === 'teammates'} onClick={() => setActiveTab('teammates')} style={activeTab === 'teammates' ? activeTabStyle : tabStyle}>Teammates</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'teammates'} onClick={() => {
+          if (activeTab !== 'teammates') trackSiteEvent('teammates_opened');
+          setActiveTab('teammates');
+        }} style={activeTab === 'teammates' ? activeTabStyle : tabStyle}>Teammates</button>
         <button className="ui-tab" aria-pressed={activeTab === 'teams'} onClick={() => setActiveTab('teams')} style={activeTab === 'teams' ? activeTabStyle : tabStyle}>Teams</button>
       </div>
 

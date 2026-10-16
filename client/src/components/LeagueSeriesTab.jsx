@@ -4,6 +4,7 @@ import MatchResultBadge from './MatchResultBadge';
 import MatchResultsTable from './MatchResultsTable';
 import { groupLeagueSeries } from '../utils/leagueSeries';
 import './LeagueSeriesTab.css';
+import { trackSiteEvent } from '../utils/siteAnalytics';
 
 export default function LeagueSeriesTab({ series = [], matches = [] }) {
   const grouped = useMemo(() => groupLeagueSeries(series, matches), [series, matches]);
@@ -17,7 +18,10 @@ export default function LeagueSeriesTab({ series = [], matches = [] }) {
       const winnerSide = item.hasPendingResults || tied ? null : item.team1Wins > item.team2Wins ? 'r' : 'd';
       return <section className="league-series-item" key={item.SeriesId}>
         <button type="button" className="league-series-summary" aria-expanded={expanded}
-          onClick={() => setExpandedSeries(previous => ({ ...previous, [item.SeriesId]: !expanded }))}>
+          onClick={() => {
+            if (!expanded) trackSiteEvent('series_expanded');
+            setExpandedSeries(previous => ({ ...previous, [item.SeriesId]: !expanded }));
+          }}>
           <span className="league-series-date">{item.DateCreated}</span>
           <span className="league-series-team">{item.team_one}{' '}
             <MatchResultBadge winnerSide={winnerSide} side="r" /></span>

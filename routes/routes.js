@@ -2,6 +2,10 @@ import express from 'express';
 import passport from 'passport';
 
 import { checkAdmin, checkHeadAdmin, getAdminForSteamId } from '../middleware/checkAdmin.js';
+import { isSiteManagerSteamId } from '../middleware/checkSiteManager.js';
+import siteManagementRoutes from './siteManagementRoutes.js';
+import { createSiteAnalyticsRouter } from './siteAnalyticsRoutes.js';
+import { excludedVisitor, createSiteSignupProgress } from '../config/siteAnalytics.js';
 
 import db from '../database.js';
 import dbBet from '../databaseBet.js';
@@ -20,6 +24,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
+router.use('/site-analytics', createSiteAnalyticsRouter({
+  excluded: req => excludedVisitor(req) || Boolean(getAdminForSteamId(req.user?.id)),
+}));
+router.use('/signup', createSiteSignupProgress({
+  excluded: req => excludedVisitor(req) || Boolean(getAdminForSteamId(req.user?.id)),
+}));
 const STEAM_ID64_BASE = BigInt('76561197960265728');
 
 function resolveActiveLeague() {
@@ -157,6 +167,7 @@ router.get('/auth/user', (req, res) => {
       canDraftGod,
       isAdmin: Boolean(admin),
       isHeadAdmin: Boolean(admin?.HeadAdmin),
+      isSiteManager: isSiteManagerSteamId(req.user.id),
     });
   } else {
     res.status(401).json({ error: 'Not logged in' });
@@ -221,6 +232,7 @@ router.get('/rules', (req, res) => {
 });
 
 router.use(publicSeasonRoutes);
+router.use('/site-management', siteManagementRoutes);
 
 router.use('/admin', checkAdmin);
 router.use('/admin/seasons', adminSeasonRoutes);

@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Layout.css';
+import SiteAnalyticsTracker from './SiteAnalyticsTracker';
 
 export default function Layout() {
   const { loading } = useAuth();
@@ -29,6 +30,7 @@ export default function Layout() {
 
   return (
     <div className="app-shell">
+      <SiteAnalyticsTracker />
       <Navbar
         mobileNavOpen={mobileNavOpen}
         onMenuToggle={() => setMobileNavOpen((open) => !open)}
