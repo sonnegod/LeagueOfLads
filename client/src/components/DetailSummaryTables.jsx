@@ -7,17 +7,28 @@ const cellStyle = { border: '1px solid #ccc', padding: '8px', textAlign: 'center
 const compareNames = (a, b) => String(a ?? '').localeCompare(String(b ?? ''), undefined,
   { sensitivity: 'base', numeric: true });
 
+function numericSortValue(row, key) {
+  if (key === 'KdaRatio') {
+    const values = [row.AvgKills, row.AvgDeaths, row.AvgAssists];
+    if (values.some(value => value == null || !Number.isFinite(Number(value)) || Number(value) < 0)) return null;
+    const [kills, deaths, assists] = values.map(Number);
+    if (deaths === 0) return kills + assists > 0 ? Infinity : 0;
+    return (kills + assists) / deaths;
+  }
+  const value = row[key];
+  return value == null || !Number.isFinite(Number(value)) ? null : Number(value);
+}
+
 function useSortedRows(rows, nameKey, idKey) {
   const [sort, setSort] = useState({ key: 'GamesPlayed', direction: 'desc' });
   const sorted = [...rows].sort((a, b) => {
     let comparison;
     if (sort.key === nameKey) comparison = compareNames(a[sort.key], b[sort.key]);
     else {
-      const aValue = a[sort.key], bValue = b[sort.key];
-      const aMissing = aValue == null || !Number.isFinite(Number(aValue));
-      const bMissing = bValue == null || !Number.isFinite(Number(bValue));
+      const aValue = numericSortValue(a, sort.key), bValue = numericSortValue(b, sort.key);
+      const aMissing = aValue == null, bMissing = bValue == null;
       if (aMissing !== bMissing) return aMissing ? 1 : -1;
-      comparison = aMissing ? 0 : Number(aValue) - Number(bValue);
+      comparison = aMissing || aValue === bValue ? 0 : aValue > bValue ? 1 : -1;
     }
     return (sort.direction === 'asc' ? comparison : -comparison)
       || Number(b.GamesPlayed) - Number(a.GamesPlayed)
@@ -50,10 +61,13 @@ const heroColumns = [
 const kdaColumns = [['AvgKills', 'K', 'kills'], ['AvgDeaths', 'D', 'deaths'], ['AvgAssists', 'A', 'assists']];
 
 function KdaHeader({ sort, changeSort, style = cellStyle }) {
-  return <th style={style} aria-label="Average kills, deaths, and assists"
-    aria-sort={kdaColumns.some(([column]) => sort.key === column)
+  return <th style={style} aria-label="Average KDA ratio, kills, deaths, and assists"
+    aria-sort={sort.key === 'KdaRatio' || kdaColumns.some(([column]) => sort.key === column)
       ? sort.direction === 'asc' ? 'ascending' : 'descending' : 'none'}>
-    <div className="detail-kda-sort"><span>Avg</span>{kdaColumns.map(([column, label, name], index) =>
+    <div className="detail-kda-sort">
+      <SortButton column="KdaRatio" label="Avg" sort={sort} changeSort={changeSort}
+        title="Sort by KDA ratio: (kills + assists) / deaths" />
+      {kdaColumns.map(([column, label, name], index) =>
       <span className="detail-kda-sort-part" key={column}>
         {index > 0 && <span aria-hidden="true">/</span>}
         <SortButton column={column} label={label} sort={sort} changeSort={changeSort}
