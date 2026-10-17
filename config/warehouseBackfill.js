@@ -18,11 +18,11 @@ export function validateBackfillConfig(config) {
   return config;
 }
 
-export function planWarehouseBackfill(db, config, { requestsUsed=0, remainingDay=null, now=Date.now() }={}) {
+export function planWarehouseBackfill(db, config, { requestsUsed=0, remainingDay=null, now=Date.now(), repairIncomplete=false }={}) {
   validateBackfillConfig(config);
   let available=Math.max(0,config.dailyRequestBudget-requestsUsed);
   if (remainingDay!==null) available=Math.min(available,Math.max(0,remainingDay-config.dailyReserve));
-  const seasons=config.leagueIds.map(leagueId=>planWarehouseCollection(db,{leagueId,limit:500,now}));
+  const seasons=config.leagueIds.map(leagueId=>planWarehouseCollection(db,{leagueId,limit:500,now,repairIncomplete}));
   let deferred=false;
   const queue=seasons.map(season=>{
     const reserve=season.eligibleMatches ? config.seasonRetryAllowance : 0;
@@ -53,14 +53,14 @@ export function openDotaLimits(headers, now=Date.now()) {
 // Fetching and waits happen outside transactions. A successful response is reused
 // across database retries, and only existing curated IDs can reach this function.
 export async function runWarehouseBackfill(db, config, {
-  state, saveState=()=>{}, saveReport=()=>{}, log=()=>{}, fetcher=fetch,
-  now=Date.now, sleep=ms=>new Promise(r=>setTimeout(r,ms)), signal
+  state, saveState=()=>{}, saveReport=()=>{}, saveRepair=()=>{}, log=()=>{}, fetcher=fetch,
+  now=Date.now, sleep=ms=>new Promise(r=>setTimeout(r,ms)), signal, repairIncomplete=false
 }) {
   validateBackfillConfig(config);
   const day=()=>new Date(now()).toISOString().slice(0,10);
   if (!state || state.day!==day() || !Number.isSafeInteger(state.requests) || state.requests<0) throw new Error('Invalid current-day backfill ledger');
   const totals={requests:0,ready:0,partial:0,failed:0,rateLimits:0,skipped:0};
-  const reports=[];
+  const reports=[],repairs=[];
   let stopReason=null,lastRequestAt=null;
   const allowance=()=>{
     if(signal?.aborted)return 'interrupted';
@@ -75,9 +75,9 @@ export async function runWarehouseBackfill(db, config, {
     const until=now()+ms;
     while(now()<until&&!signal?.aborted)await sleep(Math.min(1000,until-now()));
   };
-  const plan=planWarehouseBackfill(db,config,{requestsUsed:state.requests,remainingDay:state.remainingDay??null,now:now()});
+  const plan=planWarehouseBackfill(db,config,{requestsUsed:state.requests,remainingDay:state.remainingDay??null,now:now(),repairIncomplete});
   if(plan.seasons.some(s=>s.eligibleMatches&&!s.selected))return {
-    plan,totals,requestsToday:state.requests,remainingDay:state.remainingDay??null,
+    plan,totals,repairs,requestsToday:state.requests,remainingDay:state.remainingDay??null,
     stopReason:'entire batch does not fit remaining allowance; no requests sent',reports
   };
   // An earlier rate-limit cooldown survives interruption/restart.
@@ -89,13 +89,14 @@ export async function runWarehouseBackfill(db, config, {
       state.remainingDay==null?Infinity:state.remainingDay-config.dailyReserve);
     if(expected>remaining){stopReason='next complete season no longer fits daily budget';break;}
     log({event:'season-start',league:season.league,matches:season.selectedMatchIds.length});
-    const baseline=captureWarehouseBaseline(db),before={...totals};
+    const baseline=captureWarehouseBaseline(db),before={...totals},seasonRepairs=[];
     let retryRequests=0;
     for(const matchId of season.selectedMatchIds) {
       if(stopReason)break;
       const exists=db.prepare('SELECT 1 FROM MatchTeam m JOIN MatchLeague l ON l.MatchId=m.MatchId WHERE m.MatchId=? AND l.LeagueId=?').get(matchId,season.league.LeagueId);
       const imported=db.prepare('SELECT Status,ImporterVersion FROM MatchIngestionState WHERE MatchId=?').get(matchId);
-      if(!exists || (imported?.Status==='ready'&&imported.ImporterVersion>=IMPORTER_VERSION)){totals.skipped++;continue;}
+      if(!exists || (imported?.Status==='ready'&&imported.ImporterVersion>=IMPORTER_VERSION
+        && !season.repairMatchIds?.includes(matchId))){totals.skipped++;continue;}
       let minuteRetries=0;
       while(!stopReason) {
         stopReason=allowance();if(stopReason)break;
@@ -136,8 +137,14 @@ export async function runWarehouseBackfill(db, config, {
           if([401,403].includes(response.status)){stopReason=`OpenDota authentication/access error ${response.status}`;break;}
           if(!response.ok)throw new Error(`OpenDota returned ${response.status}`);
           const data=await response.json();
-          const result=await withSqliteBusyRetry(()=>ingestWarehouseMatch(db,data,{expectedMatchId:matchId}));
-          totals[result.status]++;log({event:'match',...result});
+          const result=await withSqliteBusyRetry(()=>ingestWarehouseMatch(db,data,{expectedMatchId:matchId,repairIncomplete}));
+          const {repair,...details}=result;
+          if(repair){
+            repairs.push(repair);seasonRepairs.push(repair);
+            try{saveRepair(repair);}catch(error){stopReason='repair journal could not be saved; review before resuming';throw error;}
+          }
+          totals[result.status]++;log({event:'match',...details,...(repair?{repair:{beforePlayers:repair.beforePlayers,
+            afterPlayers:repair.afterPlayers,beforeCells:repair.beforeCells,afterCells:repair.afterCells}}:{})});
           break;
         }catch(error){
           if(signal?.aborted){stopReason='interrupted';break;}
@@ -149,7 +156,7 @@ export async function runWarehouseBackfill(db, config, {
         }
       }
     }
-    const reconciliation=compareWarehouseBaseline(db,baseline);
+    const reconciliation=compareWarehouseBaseline(db,baseline,{repairs:seasonRepairs});
     const validation=validateWarehouse(db,{leagueId:season.league.LeagueId,deep:true});
     const report={league:season.league,finishedAt:new Date(now()).toISOString(),
       totals:Object.fromEntries(Object.keys(totals).map(k=>[k,totals[k]-before[k]])),stopReason,reconciliation,validation};
@@ -160,6 +167,6 @@ export async function runWarehouseBackfill(db, config, {
     // collection-wide limits should prevent the next season from running.
     if(stopReason)break;
   }
-  return {plan,totals,requestsToday:state.requests,remainingDay:state.remainingDay??null,stopReason:stopReason||
+  return {plan,totals,repairs,requestsToday:state.requests,remainingDay:state.remainingDay??null,stopReason:stopReason||
     (plan.seasons.some(s=>s.eligibleMatches&&!s.selected)?'daily batch finished; remaining seasons deferred':'all selected seasons processed'),reports};
 }

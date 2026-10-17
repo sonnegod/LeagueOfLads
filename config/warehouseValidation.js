@@ -3,27 +3,46 @@ import { gunzipSync } from 'node:zlib';
 import { MATCH_TEAM_ADDITIONS, MATCH_PLAYER_ADDITIONS, WAREHOUSE_CHILDREN } from './warehouseSchema.js';
 import { PLAYER_FIELDS } from './warehouseIngestion.js';
 import { warehouseResultNotes } from './warehouseCollection.js';
+import { repairOverlay } from './warehouseRepairJournal.js';
 
 const identifier = value => `"${value.replaceAll('"', '""')}"`;
 const expansionTables = new Set([...WAREHOUSE_CHILDREN, 'WarehouseMigrations', 'Patches']);
 const additions = { MatchTeam: new Set(Object.keys(MATCH_TEAM_ADDITIONS)), MatchPlayer: new Set(Object.keys(MATCH_PLAYER_ADDITIONS)) };
 
-function fingerprint(db, table, columns) {
+function fingerprint(db, table, columns, repairs = []) {
   const digest = createHash('sha256');
   let count = 0;
+  const changes = repairOverlay(table, columns, repairs);
+  const original = [...changes.entries()].filter(([, change]) => change.before !== null).sort((a, b) => a[0] - b[0]);
+  const seen = new Set(), errors = [];
+  let index = 0;
   // Stream records, including screenshot blobs, rather than loading an entire warehouse into RAM.
   const definition = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table).sql;
   const order = /WITHOUT\s+ROWID/i.test(definition) ? columns.map(identifier).join(',') : 'rowid';
-  const sql = `SELECT ${columns.map(identifier).join(',')} FROM ${identifier(table)} ORDER BY ${order}`;
-  for (const row of db.prepare(sql).raw().iterate()) {
+  if (changes.size && /WITHOUT\s+ROWID/i.test(definition)) throw new Error('Repair journal requires rowid tables');
+  const sql = `SELECT ${changes.size ? 'rowid,' : ''}${columns.map(identifier).join(',')} FROM ${identifier(table)} ORDER BY ${order}`;
+  const add = row => {
     for (const value of row) {
       const bytes = Buffer.isBuffer(value) ? value : Buffer.from(JSON.stringify(value));
       digest.update(`${Buffer.isBuffer(value) ? 'blob' : typeof value}:${bytes.length}:`);
       digest.update(bytes);
     }
     digest.update('\n'); count++;
+  };
+  for (const raw of db.prepare(sql).raw().iterate()) {
+    if (!changes.size) { add(raw); continue; }
+    const [id, ...row] = raw;
+    while (index < original.length && original[index][0] <= id) add(original[index++][1].before);
+    const change = changes.get(id);
+    if (!change) add(row);
+    else {
+      seen.add(id);
+      if (JSON.stringify(change.after) !== JSON.stringify(row)) errors.push(id);
+    }
   }
-  return { columns, count, sha256: digest.digest('hex') };
+  while (index < original.length) add(original[index++][1].before);
+  for (const [id, change] of changes) if (change.after !== null && !seen.has(id)) errors.push(id);
+  return { columns, count, sha256: digest.digest('hex'), ...(errors.length ? { unexpectedRepairRows: errors } : {}) };
 }
 
 export function captureWarehouseBaseline(db) {
@@ -38,17 +57,18 @@ export function captureWarehouseBaseline(db) {
   })();
 }
 
-export function compareWarehouseBaseline(db, baseline) {
+export function compareWarehouseBaseline(db, baseline, { repairs = [] } = {}) {
   if (baseline?.format !== 1 || !baseline.tables) throw new Error('Unsupported warehouse baseline');
   return db.transaction(() => {
     const differences = [];
     for (const [name, before] of Object.entries(baseline.tables)) {
       const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
       if (!exists) { differences.push({ table: name, error: 'Table removed' }); continue; }
-      const after = fingerprint(db, name, before.columns);
-      if (before.count !== after.count || before.sha256 !== after.sha256) differences.push({ table: name, before, after });
+      const after = fingerprint(db, name, before.columns, repairs);
+      if (after.unexpectedRepairRows || before.count !== after.count || before.sha256 !== after.sha256) differences.push({ table: name, before, after });
     }
-    return { unchanged: differences.length === 0, checkedTables: Object.keys(baseline.tables).length, differences };
+    return { unchanged: differences.length === 0, checkedTables: Object.keys(baseline.tables).length, differences,
+      ...(repairs.length ? { authorizedRepairs: repairs.length } : {}) };
   })();
 }
 

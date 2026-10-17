@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { gzipSync, gunzipSync } from 'node:zlib';
-import { ensureWarehouseSchema, MATCH_PLAYER_ADDITIONS } from './warehouseSchema.js';
+import { ensureWarehouseSchema, MATCH_PLAYER_ADDITIONS, WAREHOUSE_CHILDREN } from './warehouseSchema.js';
 import { seedWarehousePatches } from './warehousePatches.js';
 import { isSqliteBusy } from './warehouseConnection.js';
+import { planMatchRepair, repairMatchCore } from './warehouseRepair.js';
 
 export const IMPORTER_VERSION = 1;
 const finite = n => typeof n === 'number' && Number.isFinite(n);
@@ -136,7 +137,7 @@ function mergeGameplay(previous, incoming, issues) {
   return merged;
 }
 
-function validateIdentity(db, data, expectedMatchId) {
+function validateIdentity(db, data, expectedMatchId, { repairIncomplete = false } = {}) {
   if (!positive(expectedMatchId) || data?.match_id !== expectedMatchId) throw new Error('Mismatched or invalid match ID');
   const match = db.prepare('SELECT * FROM MatchTeam WHERE MatchId=?').get(expectedMatchId);
   if (!match || !db.prepare('SELECT 1 FROM MatchLeague WHERE MatchId=?').get(expectedMatchId)) {
@@ -146,6 +147,9 @@ function validateIdentity(db, data, expectedMatchId) {
     throw new Error('Expected a completed match with ten identifiable players');
   }
   const accounts = new Set(), slots = new Set(), problems = [];
+  if (repairIncomplete && new Set(data.players.map(p => p?.hero_id)).size !== 10) {
+    throw new Error('Expected ten distinct source heroes before repairing a match');
+  }
   for (const p of data.players) {
     if (!positive(p?.account_id) || !positive(p.hero_id) || sideOf(p.player_slot) === null
       || accounts.has(p.account_id) || slots.has(p.player_slot)) throw new Error('Missing or duplicate account, hero or player slot');
@@ -156,6 +160,7 @@ function validateIdentity(db, data, expectedMatchId) {
     // those IDs after an admin correction. Match/player identity is sufficient
     // for additive enrichment; never rewrite curated teams or memberships here.
   }
+  if (repairIncomplete && planMatchRepair(db, data, match)) return match;
   const stored = db.prepare('SELECT DISTINCT PlayerId FROM MatchPlayer WHERE MatchId=?').all(expectedMatchId);
   if (stored.length !== 10 || stored.some(p => !accounts.has(p.PlayerId))) problems.push('Existing roster of match participants differs');
   if (problems.length) throw Object.assign(new Error('Source conflicts with curated match participants'), { issues: problems, conflict: true });
@@ -252,13 +257,17 @@ export function recordWarehouseFailure(db, matchId, error, now = new Date().toIS
     .run(matchId, error.conflict ? 'conflict' : 'error', IMPORTER_VERSION, now, JSON.stringify(error.issues || []), error.message);
 }
 
-export function ingestWarehouseMatch(db, data, { expectedMatchId = data?.match_id, now = new Date().toISOString() } = {}) {
+export function ingestWarehouseMatch(db, data, { expectedMatchId = data?.match_id, now = new Date().toISOString(), repairIncomplete = false } = {}) {
   initializeWarehouse(db);
   try {
-    const match = validateIdentity(db, data, expectedMatchId);
+    const match = validateIdentity(db, data, expectedMatchId, { repairIncomplete });
+    const repairPlan = repairIncomplete ? planMatchRepair(db, data, match) : null;
     const incoming = gameplaySnapshot(data), issues = [];
-    reportCuratedDifferences(db, data, match, issues);
-    const merged = mergeGameplay(readGameplaySnapshot(db, expectedMatchId), incoming, issues);
+    if (!repairPlan) reportCuratedDifferences(db, data, match, issues);
+    const previous = readGameplaySnapshot(db, expectedMatchId);
+    const samePlayers = previous?.players.length === data.players.length && previous.players.every(p =>
+      data.players.some(next => next.account_id === p.account_id && next.hero_id === p.hero_id));
+    const merged = mergeGameplay(repairPlan && !samePlayers ? null : previous, incoming, issues);
     const sections = sectionsFor(merged);
     const ready = finite(merged.version) && positive(merged.start_time) && Object.values(sections.playerTimeline).every(n => n === 10)
       && sections.teamTimeline.gold > 0 && sections.teamTimeline.xp > 0 && sections.purchases.players === 10
@@ -266,7 +275,16 @@ export function ingestWarehouseMatch(db, data, { expectedMatchId = data?.match_i
     const payload = JSON.stringify(merged), sourceHash = hash(payload), compressed = gzipSync(payload);
     return db.transaction(() => {
       // Recheck inside the write transaction: an admin may have changed/deleted it during normalization.
-      validateIdentity(db, data, expectedMatchId);
+      const current = validateIdentity(db, data, expectedMatchId, { repairIncomplete });
+      const currentPlan = repairIncomplete ? planMatchRepair(db, data, current) : null;
+      // Don't use an earlier team mapping or completeness decision after an admin edit.
+      if (JSON.stringify(current) !== JSON.stringify(match) || Boolean(currentPlan) !== Boolean(repairPlan)) {
+        throw new Error('Match changed during normalization; retry with current records');
+      }
+      const repair = currentPlan ? repairMatchCore(db, data, current, currentPlan) : null;
+      if (repair) for (const table of WAREHOUSE_CHILDREN.filter(name => !['MatchIngestionState', 'MatchSourceResponses'].includes(name))) {
+        db.prepare(`DELETE FROM ${table} WHERE MatchId=?`).run(expectedMatchId);
+      }
       const start = positive(merged.start_time) ? merged.start_time : null;
       const patch = start === null ? null : db.prepare('SELECT PatchId FROM Patches WHERE StartsAt<=? ORDER BY StartsAt DESC,PatchId DESC LIMIT 1')
         .get(new Date(start * 1000).toISOString())?.PatchId ?? null;
@@ -283,7 +301,7 @@ export function ingestWarehouseMatch(db, data, { expectedMatchId = data?.match_i
         SectionsJson=excluded.SectionsJson,IssuesJson=excluded.IssuesJson,AttemptedAt=excluded.AttemptedAt,LastSuccessAt=excluded.LastSuccessAt,Error=NULL`)
         .run(expectedMatchId, ready ? 'ready' : 'partial', IMPORTER_VERSION, scalar(merged.version), sourceHash,
           JSON.stringify(sections), JSON.stringify(issues), now, now);
-      return { matchId: expectedMatchId, status: ready ? 'ready' : 'partial', sections, issues };
+      return { matchId: expectedMatchId, status: ready ? 'ready' : 'partial', sections, issues, ...(repair ? { repair } : {}) };
     }).immediate();
   } catch (error) {
     try { if (!isSqliteBusy(error)) recordWarehouseFailure(db, expectedMatchId, error, now); }

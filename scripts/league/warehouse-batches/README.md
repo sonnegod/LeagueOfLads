@@ -54,3 +54,46 @@ may consume provider quota and cause an early stop even if this file fits on pap
 
 The [full script guide](../../README.md#numbered-whole-season-batches) describes
 reports, retry limits, exit codes and recovery.
+
+## Repair incomplete historical records
+
+To refresh existing core match records when the incoming response is more
+complete, add `--repair-incomplete`. Preview first (no API calls or writes):
+
+```bash
+node scripts/league/backfillWarehouse.js db/LadsData.db scripts/league/warehouse-batches/batch-01.json --repair-incomplete
+node scripts/league/backfillWarehouse.js db/LadsData.db scripts/league/warehouse-batches/batch-01.json --repair-incomplete --apply
+```
+
+This mode requires a completed response with ten distinct, identifiable players,
+valid sides/heroes, duration, and core stats for every player. A repair requires
+fewer than ten distinct stored players, or more populated incoming core stat
+cells than the stored record. Zero is a real value, not a missing stat. A changed
+winner or hero by itself does not establish greater completeness.
+
+A qualifying repair refreshes player identities, heroes, available stats,
+player winners, memberships, match winner/duration, available draft data and EDW
+detail in one transaction. Source sides map onto **existing warehouse team IDs**,
+including substitute IDs already corrected by admins. League, group, stage,
+series, rehost status and existing date assignments remain intact. Group standings
+and Neustadtl are rebuilt using existing group-result overrides if the winner
+changes. Missing optional stats, draft data or parsed sections do not erase
+richer existing data for the same players/heroes.
+
+Recorded participant conflicts and core-deficient records can be selected
+immediately in this explicit mode, including otherwise-ready imports. The normal
+runner's cooldown/skip policy is unchanged. Completed, fully populated core
+records are still skipped. Preview recalculates whether the whole file fits the
+remaining shared daily allowance; pacing, reserve, lock and backup behavior are
+the same as ordinary batches.
+
+The report lists each repair. Exact before/after original rows are appended to
+`repairs.jsonl` after each successful repair, and included in `repairs.json` and
+`summary.json` at completion. Validation accounts for these exact changes; it
+still rejects unrelated edits and unexpected changes to repaired rows. Existing
+`Logins`/audit activity can still fail the baseline check as before.
+
+Deleted matches are not rediscovered or restored. They require an explicit
+recovery of season/team/series metadata from backups before this runner can
+select them. No requests or production repairs are run by deployment itself;
+an existing PM2 batch entry still needs the new argument to enable repair mode.
