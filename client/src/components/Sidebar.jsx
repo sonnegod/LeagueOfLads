@@ -30,7 +30,7 @@ export default function Sidebar({ open, onClose }) {
         {user && <span className="sidebar-section-label sidebar-account-label">Account</span>}
         {user && <NavLink to="/request" className={navClassName} onClick={onClose}>Request</NavLink>}
         {/* Show admin button only if user is admin */}
-        {user?.canDraftGod && <NavLink to="/draftgod" className={navClassName} onClick={onClose}>DraftGod</NavLink>}
+        {user?.canDraftGod && String(user.accountId) === '49219700' && <NavLink to="/draftgod" className={navClassName} onClick={onClose}>DraftGod</NavLink>}
         {user?.isAdmin && <NavLink to="/admin" className={navClassName} onClick={onClose}>Admin Portal</NavLink>}
         {user?.isSiteManager && <NavLink to="/site-management" className={navClassName} onClick={onClose}>Site Management</NavLink>}
 

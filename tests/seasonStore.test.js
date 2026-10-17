@@ -316,7 +316,7 @@ test('admins confirm exactly five legacy championship players scoped to the seas
       .all(10, 119, 10, 10).map(step => step.detail).join('\n');
     assert.match(plan, /SEARCH ml USING COVERING INDEX .*\(LeagueId=\?\)/);
     assert.match(plan, /SEARCH p USING COVERING INDEX .*\(MatchId=\?/);
-    assert.match(plan, /SEARCH mp USING COVERING INDEX .*\(MatchId=\? AND PlayerId=\?\)/);
+    assert.match(plan, /SEARCH mp(?: EXISTS)? USING COVERING INDEX .*\(MatchId=\? AND PlayerId=\?\)/);
     assert.doesNotMatch(plan, /SCAN (?:ml|mp|p)\b/);
     for (const invalid of [[], [1, 2, 3, 4], [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 4],
       [1, 2, 3, 4, 7], [1, 2, 3, 4, 8], [1, 2, 3, 4, '6'], null]) {

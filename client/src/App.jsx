@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
@@ -21,7 +22,7 @@ import RequestPage from "./pages/RequestPage";
 import SeriesPage from "./pages/SeriesPage";
 import BettingPage from "./pages/BettingPage";
 import HeadToHeadPage from "./pages/HeadToHeadPage";
-import DraftGodPage from "./pages/DraftGod";
+const DraftGodPage = lazy(() => import('./pages/DraftGod'));
 import LiveMatchesPage from "./pages/LiveMatchesPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import RulesPage from "./pages/RulesPage";
@@ -54,7 +55,7 @@ export default function App() {
         <Route path="/request" element={<RequestPage />} />
         <Route path="/series/:seriesId" element={<SeriesPage />} />
         <Route path="/betting" element={<BettingPage />} />
-        <Route path="/draftgod" element={<DraftGodPage />} />
+        <Route path="/draftgod" element={<Suspense fallback={<p>Loading Draft God…</p>}><DraftGodPage /></Suspense>} />
         <Route path="/live" element={<LiveMatchesPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/rules" element={<RulesPage />} />

@@ -13,6 +13,9 @@ import { getPlayerTeammates } from './config/playerTeammates.js';
 import { getUnmatchedMatchTeams } from './config/unmatchedMatchTeams.js';
 import { getLeagueSeries } from './config/leagueSeries.js';
 import PlayerAwardsStore from './config/playerAwards.js';
+import { deleteMatchRecords } from './config/matchMaintenance.js';
+import { initializeWarehouse } from './config/warehouseIngestion.js';
+import { configureWarehouseConnection } from './config/warehouseConnection.js';
 dotenv.config();
 
 class DBInstance {
@@ -24,6 +27,8 @@ class DBInstance {
                 : '/root/LeagueOfLads/db/LadsData.db';
                 
             this.db = new Database(dbPath);
+            configureWarehouseConnection(this.db);
+            initializeWarehouse(this.db);
             this.ensureAdminsSchema();
             this.auditLog = new AdminAuditStore(this.db);
             this.adjustedPlayers = new AdjustedPlayersStore(this.db);
@@ -3115,7 +3120,8 @@ class DBInstance {
             const teamId = teamRow[0].TeamId;
 
             const stmt = this.db.prepare(`INSERT INTO MatchTeamPlayer (MatchId, PlayerId, TeamId)
-                                          VALUES (@match_id, @player_id, @team_id)`);
+                                          SELECT @match_id, @player_id, @team_id WHERE NOT EXISTS (
+                                            SELECT 1 FROM MatchTeamPlayer WHERE MatchId=@match_id AND PlayerId=@player_id AND TeamId=@team_id)`);
             stmt.run({
                 match_id: matchId,
                 player_id: playerId,
@@ -3125,7 +3131,7 @@ class DBInstance {
             return 1;
         } catch (err) {
             console.log(err);
-            console.log(`Error adding ${teamCode} to Player id: ${playerId} for Match Id: ${matchId6}`);
+            console.log(`Error adding ${teamCode} to Player id: ${playerId} for Match Id: ${matchId}`);
 
             return 2;
         }
@@ -3135,9 +3141,9 @@ class DBInstance {
         try {
             const stmt = this.db.prepare(`INSERT INTO MatchPlayer 
                 (MatchId, PlayerId, HeroId, Kills, Deaths, Assists, Networth, Lasthits, HeroDamage, GPM, XPM, Winner, Healing, TowerDamage)
-                VALUES 
-                (@match_id, @account_id, @hero_id, @kills, @deaths, @assists, @networth, @lasthits, @hero_damage, @gold_per_min, @xp_per_min, @win, @heal, @tower_damage)`);
-            playerData.forEach(player => {
+                SELECT @match_id, @account_id, @hero_id, @kills, @deaths, @assists, @networth, @lasthits, @hero_damage, @gold_per_min, @xp_per_min, @win, @heal, @tower_damage
+                WHERE NOT EXISTS (SELECT 1 FROM MatchPlayer WHERE MatchId=@match_id AND PlayerId=@account_id)`);
+            this.db.transaction(() => playerData.forEach(player => {
                 stmt.run({
                     match_id: matchId,
                     account_id: player.account_id,
@@ -3154,7 +3160,7 @@ class DBInstance {
                     heal: player.hero_healing,
                     tower_damage: player.tower_damage
                 });
-            });
+            }))();
             return 1;
         } catch (err) {
             console.log(err);
@@ -3182,8 +3188,10 @@ class DBInstance {
     insertPickBanData(matchId, pick_bans) {
         try {
             const stmt = this.db.prepare(`INSERT INTO PickInfo (MatchId, IsPick, Hero_Id, OrderNum, Team)
-                                          VALUES (@match_id, @is_pick, @hero_id, @order_num, @team)`);
-            pick_bans.forEach(pick_ban => {
+                                          SELECT @match_id, @is_pick, @hero_id, @order_num, @team WHERE NOT EXISTS (
+                                            SELECT 1 FROM PickInfo WHERE MatchId=@match_id AND IsPick=@is_pick AND Hero_Id=@hero_id
+                                              AND OrderNum=@order_num AND Team=@team)`);
+            this.db.transaction(() => pick_bans.forEach(pick_ban => {
                 const isPickVal = pick_ban.is_pick ? 1 : 0;
                 stmt.run({
                     match_id: matchId,
@@ -3192,7 +3200,7 @@ class DBInstance {
                     order_num: pick_ban.order,
                     team: pick_ban.team
                 });
-            });
+            }))();
             return 1;
         } catch (err) {
             console.log(err);
@@ -3485,45 +3493,24 @@ class DBInstance {
     }
 
     deleteRemakeMatch(matchId){
-        try{
-            this.db.prepare(`DELETE FROM MatchTeam WHERE MatchId = ?`).run(matchId);
-            console.log(`Deleted MatchTeam info for `+matchId)
-
-            this.db.prepare(`DELETE FROM MatchLeague WHERE MatchId = ?`).run(matchId);
-            console.log(`Deleted MatchLeague info for `+matchId)
-
-        } catch(err) {
-            console.log(err);
+        try {
+            const deleted = deleteMatchRecords(this.db, matchId);
+            console.log(`Deleted remade match ${matchId} and related records: ${JSON.stringify(deleted)}`);
+            return 1;
+        } catch (err) {
+            console.error(err);
             return -1;
         }
     }
 
     adminDeleteMatch(matchId){
-        try{
-
-            this.db.prepare('DELETE FROM MatchPlayer WHERE MatchId = ?')
-                    .run( matchId);
-
-            this.recordAdminAudit('MatchPlayer Delete', `Deleted Match ${matchId} from MatchPlayer`);
-
-
-            this.db.prepare('DELETE FROM MatchTeam WHERE MatchId = ?')
-                    .run(matchId);
-
-            this.recordAdminAudit('MatchTeam Delete', `Deleted Match ${matchId} from MatchTeam`);
-            
-            this.db.prepare('DELETE FROM MatchLeague WHERE MatchId = ?')
-                    .run(matchId);
-
-            this.recordAdminAudit('MatchLeague Delete', `Deleted Match ${matchId} from MatchLeague`);
-
-            this.db.prepare('DELETE FROM MatchTeamPlayer WHERE MatchId = ?')
-                    .run(matchId);
-
-            this.recordAdminAudit('MatchTeamPlayer Delete', `Deleted Match ${matchId} from MatchTeamPlayer`);
-            return { success: true, message: 'MatchDeleted updated successfully!' };
+        try {
+            const deleted = deleteMatchRecords(this.db, matchId, (id, counts) => {
+                this.recordAdminAudit('Match Delete', `Deleted Match ${id} and related records: ${JSON.stringify(counts)}`);
+            });
+            return { success: true, message: 'Match deleted successfully.', deleted };
         } catch (err) {
-           return { success: false, error: err };
+            return { success: false, message: err.message };
         }
     }
 

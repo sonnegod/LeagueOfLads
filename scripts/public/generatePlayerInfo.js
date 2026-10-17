@@ -3,48 +3,7 @@ import {
   closePublicDataStores,
   assertPublicSchema,
 } from '../../publicDatabase.js';
-
-function toNumber(value, fallback = null) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function getCurrentLeagueId(ladsDb) {
-  const row = ladsDb
-    .prepare(
-      `
-      SELECT ml.LeagueId
-      FROM MatchLeague ml
-      ORDER BY ml.LeagueId DESC
-      LIMIT 1
-      `
-    )
-    .get();
-
-  return toNumber(row?.LeagueId, null);
-}
-
-function getCurrentSeasonPlayers(ladsDb, leagueId) {
-  return ladsDb
-    .prepare(
-      `
-      SELECT DISTINCT
-        pi.PlayerId,
-        pi.PlayerName
-      FROM MatchPlayer mp
-      JOIN MatchLeague ml ON ml.MatchId = mp.MatchId
-      JOIN PlayerInfo pi ON pi.PlayerId = mp.PlayerId
-      WHERE ml.LeagueId = ?
-      ORDER BY pi.PlayerName ASC
-      `
-    )
-    .all(leagueId)
-    .map((row) => ({
-      PlayerId: toNumber(row.PlayerId, null),
-      PlayerName: row.PlayerName || '',
-    }))
-    .filter((row) => row.PlayerId);
-}
+import { publicScoutingPlayers } from '../../config/publicScouting.js';
 
 function syncPublicPlayerInfo(publicDb, players) {
   const upsertStmt = publicDb.prepare(
@@ -70,17 +29,11 @@ function main() {
   try {
     assertPublicSchema(stores.publicDb);
 
-    const leagueId = getCurrentLeagueId(stores.ladsDb);
-    if (!leagueId) {
-      console.log('No league found in LadsData. Skipping public PlayerInfo sync.');
-      return;
-    }
-
-    const players = getCurrentSeasonPlayers(stores.ladsDb, leagueId);
+    const players = publicScoutingPlayers(stores.ladsDb);
     syncPublicPlayerInfo(stores.publicDb, players);
 
     console.log(
-      `Public PlayerInfo sync complete. League=${leagueId}, players=${players.length}.`
+      `Public PlayerInfo sync complete. Signup and league players=${players.length}.`
     );
   } finally {
     closePublicDataStores(stores);

@@ -1,3 +1,6 @@
+import { ingestWarehouseMatch } from '../../config/warehouseIngestion.js';
+import { ingestDraftTelemetry } from '../../config/draftTelemetry.js';
+import { withSqliteBusyRetry } from '../../config/warehouseConnection.js';
 import db from '../../database.js';
 import apiUrl from '../../apiURL.js';
 
@@ -35,7 +38,9 @@ async function getMatchDetails(matches, currentStage, leagueId){
 
         try {
             const response = await fetch(apiUrl.baseMatchData + match.MatchId, { method: 'GET' });
+            if (!response.ok) throw new Error(`OpenDota returned ${response.status}`);
             const data = await response.json();
+            if (data.match_id !== matchId) throw new Error('Mismatched match ID');
 
             matchDetailCallsToday++;
             console.log(`(${matchDetailCallsToday}) Match ${match.MatchId} details pulled.`);
@@ -102,6 +107,9 @@ async function getMatchDetails(matches, currentStage, leagueId){
 
                 db.insertTeamWin(match.MatchId, winTeamId);
                 db.insertDuration(match.MatchId,data.duration);
+                try { await withSqliteBusyRetry(() => ingestWarehouseMatch(db.db, data, { expectedMatchId: matchId })); }
+                catch(e) { console.warn(`Warehouse enrichment ${matchId}:`, e.message); }
+                try { ingestDraftTelemetry(db.db, data); } catch(e) { console.warn('Draft telemetry:', e.message); }
 
                 //creating series
                 const now = new Date();

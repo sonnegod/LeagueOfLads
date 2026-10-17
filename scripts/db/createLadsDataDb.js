@@ -2,6 +2,8 @@ import Database from 'better-sqlite3';
 import { closeSync, existsSync, openSync, readFileSync, unlinkSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { initializeWarehouse } from '../../config/warehouseIngestion.js';
+import { configureWarehouseConnection } from '../../config/warehouseConnection.js';
 
 const targetArg = process.argv[2];
 if (!targetArg || process.argv.length !== 3) {
@@ -25,7 +27,9 @@ try {
 let db;
 try {
   db = new Database(target, { fileMustExist: true });
+  configureWarehouseConnection(db, { role: 'migration' });
   db.transaction(() => db.exec(schema))();
+  initializeWarehouse(db);
   const integrity = db.pragma('integrity_check', { simple: true });
   if (integrity !== 'ok') throw new Error(`Integrity check failed: ${integrity}`);
   const objects = db.prepare(`

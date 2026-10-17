@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import dotenv from 'dotenv';
+import { ensurePublicScoutingSchema } from './config/publicScouting.js';
 
 dotenv.config();
 
@@ -12,6 +13,7 @@ class PublicDBInstance {
           : '/root/LeagueOfLads/db/public.db';
 
       this.db = new Database(dbPath);
+      if (this.db.prepare("SELECT 1 FROM sqlite_master WHERE name='PublicMatchPlayer'").get()) ensurePublicScoutingSchema(this.db);
       PublicDBInstance.instance = this;
     }
 
