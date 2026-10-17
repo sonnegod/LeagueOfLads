@@ -135,6 +135,27 @@ test('substitute team IDs and historic memberships do not block enrichment or ch
   } finally { db.close(); }
 });
 
+test('a stale winner reference is enriched unchanged and reported separately from import errors', () => {
+  const db=fixture();
+  try {
+    db.exec("INSERT INTO TeamInfo(TeamId,TeamName) VALUES(300,'Former team ID'); UPDATE MatchTeam SET WinnerId=300");
+    const before=captureWarehouseBaseline(db);
+    const plan=planWarehouseCollection(db,{leagueId:20});
+    assert.deepEqual(plan.selectedMatchIds,[1]);
+    assert.deepEqual(plan.excludedMatches,[]);
+    assert.equal(plan.dataQualityNotes[0].winnerId,300);
+    const data=payload();for(const p of data.players)p.kills=3;
+    const result=ingestWarehouseMatch(db,data);
+    assert.equal(result.status,'ready');assert.deepEqual(result.issues,[]);
+    assert.equal(db.prepare('SELECT WinnerId FROM MatchTeam').get().WinnerId,300);
+    assert.equal(compareWarehouseBaseline(db,before).unchanged,true);
+    const validation=validateWarehouse(db,{leagueId:20,deep:true});
+    assert.equal(validation.valid,true);assert.deepEqual(validation.problems,[]);
+    assert.equal(validation.dataQualityNotes.length,1);
+    assert.equal(validation.sourceReconciliation.mismatchCount,0);
+  } finally {db.close();}
+});
+
 test('partial and malformed sections cannot erase richer data; absent scalars remain null', () => {
   const db = fixture();
   try {

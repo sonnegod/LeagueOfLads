@@ -146,17 +146,19 @@ cutoff and updates patch assignments for landed kickoff times.
 ### Season 20 validation run: explicit, bounded and manual
 
 The planner reads **existing warehouse match IDs only**, including undated
-games. It lists excluded remakes and invalid team/result records without correcting
-them. Preview makes no API calls and does not alter the database:
+games. It excludes remakes and identical-team records. Stale winner references are
+listed separately as data-quality notes and do not block enrichment. Preview makes
+no API calls and does not alter the database:
 
 ```bash
 node scripts/league/enrichWarehouse.js db/LadsData.db --league=19264 --limit=400
 ```
 
-Season 20 currently has 365 stored matches: 364 eligible and one excluded because
-its winner is not one of its recorded teams (match 8687581783). A limit of 400
-therefore covers the whole eligible season in one run, using at most 364 GETs on
-the initial import. It does not discover additional matches from OpenDota.
+Season 20 has 365 stored matches. A limit of 400 covers the whole eligible season,
+using at most 365 GETs on the initial import; completed imports are skipped.
+Match 8687581783 is eligible despite its stale winner reference. The stored winner
+is preserved and reported for separate review. The run does not discover additional
+matches from OpenDota.
 
 When ready to fetch the reviewed season on the server:
 
@@ -254,8 +256,10 @@ The printed report directory is under `Logs/warehouse-backfill/`. It contains:
 - `baseline.json`: hashes/counts of protected original data, not a database backup.
 - `events.jsonl`: progress, waits, match IDs and rate-limit responses.
 
-Known invalid warehouse team/result records remain excluded and listed in the plan;
-substitute source team IDs are accepted. A season can have partial EDW coverage if
+Remakes and identical-team records remain excluded and listed in the plan.
+Stale winner references appear under `dataQualityNotes` and in the readable report;
+they do not block imports, fail validation or stop the next season. Original winner
+IDs remain unchanged. Substitute source team IDs are accepted. A season can have partial EDW coverage if
 OpenDota no longer has its parsed sections. Exit code `0` means the selected imports
 finished, `1` requires review of errors/validation, and `2` means the file stopped or
 could not fit the remaining allowance. Review exclusions and coverage even on exit 0.
