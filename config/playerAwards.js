@@ -1,6 +1,6 @@
 export const PLAYER_AWARD_CRITERIA = Object.freeze({
   allTimeHeroGames: 10,
-  playerGames: 10,
+  playerGames: 20,
 });
 
 const emptyRecord = playerId => ({ playerId, games: 0, wins: 0 });
@@ -39,6 +39,22 @@ function awardLeaders(records, minimum, compare, create) {
 const byRate = (a, b) => a.wins * b.games - b.wins * a.games;
 const byGames = (a, b) => a.games - b.games;
 
+function topPlaces(records, minimum, compare) {
+  const sorted = [...records.values()].filter(record => record.games >= minimum)
+    .sort((a, b) => compare(b, a) || a.playerId - b.playerId);
+  const places = [];
+  for (const record of sorted) {
+    let place = places.at(-1);
+    if (!place || compare(record, place.records[0]) !== 0) {
+      if (places.length === 3) break;
+      place = { place: places.length + 1, records: [] };
+      places.push(place);
+    }
+    place.records.push(record);
+  }
+  return places;
+}
+
 export default class PlayerAwardsStore {
   constructor(db, { now = () => Date.now(), maxAgeMs = 60000 } = {}) {
     this.db = db;
@@ -59,6 +75,34 @@ export default class PlayerAwardsStore {
     const cache = this.getCache();
     return { awards: cache.players.get(Number(playerId)) || [],
       criteria: PLAYER_AWARD_CRITERIA, generatedAt: new Date(cache.time).toISOString() };
+  }
+
+  catalog() {
+    const cache = this.getCache();
+    if (!cache.catalog) {
+      const names = new Map(this.db.prepare('SELECT PlayerId, CAST(PlayerName AS TEXT) Name FROM PlayerInfo').all()
+        .map(player => [player.PlayerId, player.Name]));
+      const groups = new Map();
+      for (const [playerId, awards] of cache.players) for (const award of awards) {
+        const { games, wins, winRate, rosterSource, teamGames, ...details } = award;
+        if (!groups.has(award.id)) groups.set(award.id, { ...details, holders: [] });
+        groups.get(award.id).holders.push({ playerId, name: names.get(playerId) || `Player ${playerId}`,
+          games, wins, winRate, ...(rosterSource ? { rosterSource, teamGames } : {}) });
+      }
+      const priority = { winningest: 0, veteran: 1, hero_specialist: 2, hero_loyalist: 3, champion: 4 };
+      cache.catalog = [...groups.values()].sort((a, b) => priority[a.type] - priority[b.type]
+        || (b.leagueId || 0) - (a.leagueId || 0) || (a.heroName || '').localeCompare(b.heroName || ''));
+      const byName = (a, b) => a.name.localeCompare(b.name) || a.playerId - b.playerId;
+      for (const award of cache.catalog) {
+        award.holders.sort(byName);
+        if (cache.leagueStandings[award.type]) award.placements = cache.leagueStandings[award.type].map(({ place, records }) => ({
+          place, holders: records.map(record => ({ playerId: record.playerId,
+            name: names.get(record.playerId) || `Player ${record.playerId}`, games: record.games,
+            wins: record.wins, winRate: winRate(record) })).sort(byName),
+        }));
+      }
+    }
+    return { awards: cache.catalog, criteria: PLAYER_AWARD_CRITERIA, generatedAt: new Date(cache.time).toISOString() };
   }
 
   withChampionships(players) {
@@ -119,7 +163,10 @@ export default class PlayerAwardsStore {
     for (const awards of players.values()) awards.sort((a, b) => priority(a) - priority(b)
       || (b.leagueId || 0) - (a.leagueId || 0)
       || typePriority[a.type] - typePriority[b.type] || (a.heroName || '').localeCompare(b.heroName || ''));
-    return { players };
+    return { players, leagueStandings: {
+      winningest: topPlaces(career.players, PLAYER_AWARD_CRITERIA.playerGames, byRate),
+      veteran: topPlaces(career.players, 0, byGames),
+    } };
   }
 
   champions() {

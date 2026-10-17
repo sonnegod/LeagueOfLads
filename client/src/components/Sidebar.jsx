@@ -22,6 +22,7 @@ export default function Sidebar({ open, onClose }) {
         <NavLink to="/league" className={navClassName} onClick={onClose}>Leagues</NavLink>
         <NavLink to="/h2h" className={navClassName} onClick={onClose}>Head to Head</NavLink>
         <NavLink to="/hero" className={navClassName} onClick={onClose}>Heroes</NavLink>
+        <NavLink to="/awards" className={navClassName} onClick={onClose}>Awards</NavLink>
         <NavLink to="/rules" className={navClassName} onClick={onClose}>Rules</NavLink>
 
         {/*<Link to="/betting" onClick={onClose}>Betting</Link>*/}

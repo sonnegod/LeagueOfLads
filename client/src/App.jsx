@@ -7,6 +7,7 @@ import SiteManagement from './pages/SiteManagement';
 import PlayerPage from './pages/PlayerPage';
 import HeroPage from './pages/HeroPage';
 import HeroesPage from "./pages/HeroesPage";
+import AwardsPage from './pages/AwardsPage';
 import TeamPage from './pages/TeamPage';
 import TeamsPage from './pages/TeamsPage';
 import PlayersPage from './pages/PlayersPage';
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="/match" element={<MatchesPage />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/hero" element={<HeroesPage />} />
+        <Route path="/awards" element={<AwardsPage />} />
         <Route path="/request" element={<RequestPage />} />
         <Route path="/series/:seriesId" element={<SeriesPage />} />
         <Route path="/betting" element={<BettingPage />} />

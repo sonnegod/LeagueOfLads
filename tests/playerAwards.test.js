@@ -106,7 +106,8 @@ test('all-time records combine seasons and issue no seasonal stat awards', () =>
     }
     const three = store.forPlayer(3).awards;
     assert.equal(three.find(a => a.type === 'hero_specialist' && a.scope === 'all-time').games, 15);
-    assert.equal(three.find(a => a.type === 'winningest' && a.scope === 'all-time').winRate, 100);
+    assert.equal(three.some(a => a.type === 'winningest'), false);
+    assert.equal(one.find(a => a.type === 'winningest' && a.scope === 'all-time').winRate, 80);
     assert.equal(three.some(a => a.heroId && a.scope === 'season'), false);
     assert.equal(three.some(a => a.type === 'winningest' && a.leagueId === 20), false);
     const cache = store.cache;
@@ -122,24 +123,24 @@ test('all-time records combine seasons and issue no seasonal stat awards', () =>
   } finally { f.db.close(); }
 });
 
-test('overall win rate requires 10 games while all-time most-played awards have no minimum', () => {
+test('overall win rate requires 20 games while all-time most-played awards have no minimum', () => {
   const f = fixture();
   try {
     f.league(10);
-    f.games(10, 1, 9, 9);
+    f.games(10, 1, 19, 19);
     f.games(10, 2, 1, 0, 2);
     const store = new PlayerAwardsStore(f.db);
     assert.equal(store.forPlayer(1).awards.some(a => a.type === 'winningest'), false);
-    assert.equal(store.forPlayer(1).awards.find(a => a.type === 'veteran').games, 9);
+    assert.equal(store.forPlayer(1).awards.find(a => a.type === 'veteran').games, 19);
     const loyalist = store.forPlayer(2).awards.find(a => a.type === 'hero_loyalist');
     assert.equal(loyalist.games, 1);
     assert.equal(loyalist.minimumGames, 0);
     assert.equal(store.forPlayer(2).awards.some(a => a.type === 'hero_specialist'), false);
     f.games(10, 1, 1, 0);
     const winningest = store.forPlayer(1).awards.find(a => a.type === 'winningest');
-    assert.equal(winningest.games, 10);
-    assert.equal(winningest.minimumGames, 10);
-    assert.equal(winningest.winRate, 90);
+    assert.equal(winningest.games, 20);
+    assert.equal(winningest.minimumGames, 20);
+    assert.equal(winningest.winRate, 95);
   } finally { f.db.close(); }
 });
 
@@ -218,7 +219,8 @@ test('player listings receive one trophy per championship, including lifetime wi
 test('profile award API validates player IDs and serves empty collections without requiring login', async () => {
   const calls = [];
   const app = express();
-  app.use('/api', createPlayerAwardsRouter(id => { calls.push(id); return { awards: [] }; }));
+  app.use('/api', createPlayerAwardsRouter(id => { calls.push(id); return { awards: [] }; },
+    () => ({ awards: [], criteria: { allTimeHeroGames: 10, playerGames: 20 } })));
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}/api/player`;
@@ -230,5 +232,63 @@ test('profile award API validates player IDs and serves empty collections withou
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { awards: [] });
     assert.deepEqual(calls, [49219700]);
+    const catalog = await fetch(`http://127.0.0.1:${server.address().port}/api/awards`);
+    assert.equal(catalog.status, 200);
+    assert.deepEqual(await catalog.json(), { awards: [], criteria: { allTimeHeroGames: 10, playerGames: 20 } });
   } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+});
+
+test('awards catalog groups all holders, agrees with profiles, and refreshes after corrections', () => {
+  const f = fixture();
+  try {
+    f.db.exec(`CREATE TABLE PlayerInfo (PlayerId INTEGER PRIMARY KEY, PlayerName TEXT);
+      INSERT INTO PlayerInfo VALUES (1,'Zulu'),(2,'Alpha'),(3,'Rookie');
+      INSERT INTO TeamInfo VALUES (100,'Winners');`);
+    f.league(10); f.games(10,1,10,8); f.games(10,2,10,8); f.games(10,3,1,1,2);
+    f.league(20,'ended',100); const final=f.game(20); f.appearance(final,1); f.appearance(final,2);
+    const store=new PlayerAwardsStore(f.db), catalog=store.catalog();
+    const specialist=catalog.awards.find(a=>a.type==='hero_specialist'&&a.heroId===1);
+    assert.equal(specialist.shared,true);
+    assert.deepEqual(specialist.holders.map(p=>p.name),['Alpha','Zulu']);
+    assert.deepEqual(specialist.holders.map(p=>p.games),[11,11]);
+    assert.equal(catalog.awards.some(a=>a.type==='hero_specialist'&&a.heroId===2),false);
+    assert.equal(catalog.awards.find(a=>a.type==='hero_loyalist'&&a.heroId===2).holders[0].playerId,3);
+    const champion=catalog.awards.find(a=>a.type==='champion');
+    assert.equal(champion.leagueId,20);assert.equal(champion.teamName,'Winners');
+    assert.deepEqual(champion.holders.map(p=>p.playerId),[2,1]);
+    assert.equal(champion.shared,false); // Teammates are not tied record holders.
+    for(const a of store.forPlayer(1).awards){
+      const group=catalog.awards.find(g=>g.id===a.id), holder=group.holders.find(p=>p.playerId===1);
+      assert.equal(holder.games,a.games);assert.equal(holder.winRate,a.winRate);
+    }
+    assert.equal(store.catalog().awards,catalog.awards);
+    f.db.exec(`UPDATE MatchTeam SET WinnerId=100 WHERE MatchId=(SELECT MIN(p.MatchId) FROM MatchPlayer p
+      JOIN MatchTeam m ON m.MatchId=p.MatchId WHERE p.PlayerId=1 AND m.WinnerId=200)`);
+    const revised=store.catalog().awards.find(a=>a.type==='hero_specialist'&&a.heroId===1);
+    assert.equal(revised.shared,false);assert.deepEqual(revised.holders.map(p=>p.playerId),[1]);
+    f.db.exec("UPDATE PlayerInfo SET PlayerName='Updated name' WHERE PlayerId=1");
+    assert.equal(store.catalog().awards.find(a=>a.type==='hero_specialist'&&a.heroId===1).holders[0].name,'Updated name');
+  } finally { f.db.close(); }
+});
+
+test('league record placements include three distinct results, preserve exact ties and apply eligibility', () => {
+  const f = fixture();
+  try {
+    f.db.exec('CREATE TABLE PlayerInfo (PlayerId INTEGER PRIMARY KEY, PlayerName TEXT)');
+    for (let id = 1; id <= 7; id++) f.db.prepare('INSERT INTO PlayerInfo VALUES (?, ?)').run(id, `Player ${id}`);
+    f.league(10);
+    for (const [id, games, wins] of [[1,20,18],[2,40,36],[3,20,16],[4,30,24],[5,20,14],[6,25,15],[7,19,19]]) f.games(10,id,games,wins);
+    const store = new PlayerAwardsStore(f.db), awards = store.catalog().awards;
+    const winningest = awards.find(a => a.type === 'winningest');
+    assert.deepEqual(winningest.placements.map(p => ({ place:p.place, ids:p.holders.map(h => h.playerId) })), [
+      {place:1,ids:[1,2]}, {place:2,ids:[3,4]}, {place:3,ids:[5]},
+    ]);
+    assert.deepEqual(winningest.holders.map(p => p.playerId), [1,2]);
+    assert.equal(winningest.placements[1].holders[0].winRate, 80);
+    assert.equal(store.forPlayer(3).awards.some(a => a.type === 'winningest'), false);
+    assert.equal(store.forPlayer(7).awards.some(a => a.type === 'winningest'), false);
+    const veteran = awards.find(a => a.type === 'veteran');
+    assert.deepEqual(veteran.placements.map(p => p.holders.map(h => h.playerId)), [[2],[4],[6]]);
+    assert.equal(awards.filter(a => a.heroId).some(a => a.placements), false);
+  } finally { f.db.close(); }
 });
