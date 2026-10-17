@@ -26,6 +26,8 @@ echo "$(date) - Starting nightly jobs" >> "$LOG_FILE"
 /usr/bin/node /root/LeagueOfLads/scripts/db/cleanupLiveMatchSnapshots.js 7 >> "$LOG_FILE" 2>&1
 /bin/bash /root/LeagueOfLads/scripts/db/backupDatabases.sh prune >> "$LOG_FILE" 2>&1
 
+/usr/bin/node /root/LeagueOfLads/scripts/league/syncDraftPatches.js /root/LeagueOfLads/db/LadsData.db 8 >> "$LOG_FILE" 2>&1 || echo "Patch sync unavailable" >> "$LOG_FILE"
+
 ACTIVE_LEAGUE_ID="$(/usr/bin/node /root/LeagueOfLads/scripts/league/getActiveLeagueId.js)"
 
 if [ -z "$ACTIVE_LEAGUE_ID" ]; then
@@ -37,6 +39,8 @@ echo "$(date) - Active league: $ACTIVE_LEAGUE_ID" >> "$LOG_FILE"
 
 /usr/bin/node /root/LeagueOfLads/scripts/league/currentLeagueData.js >> "$LOG_FILE" 2>&1
 /usr/bin/node /root/LeagueOfLads/scripts/league/matchDetails.js >> "$LOG_FILE" 2>&1
+# Private draft intelligence: bounded enrichment; source outages must not stop league settlement.
+/usr/bin/node /root/LeagueOfLads/scripts/league/enrichDraftGod.js /root/LeagueOfLads/db/LadsData.db --league="$ACTIVE_LEAGUE_ID" --limit=20 >> "$LOG_FILE" 2>&1 || echo "Draft enrichment unavailable" >> "$LOG_FILE"
 /usr/bin/node /root/LeagueOfLads/scripts/league/populateTeamNames.js >> "$LOG_FILE" 2>&1
 
 /usr/bin/node /root/LeagueOfLads/scripts/league/updateNeustadtl.js >> "$LOG_FILE" 2>&1

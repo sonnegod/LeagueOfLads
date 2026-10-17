@@ -40,15 +40,6 @@ CREATE TABLE ChampionshipRosterPlayers (
     UNIQUE (SeasonId, TeamId, Slot)
 );
 
--- index: idx_MatchLeague_LeagueId_MatchId
-CREATE INDEX idx_MatchLeague_LeagueId_MatchId ON MatchLeague(LeagueId, MatchId);
-
--- index: idx_MatchTeamPlayer_MatchId_PlayerId_TeamId
-CREATE INDEX idx_MatchTeamPlayer_MatchId_PlayerId_TeamId ON MatchTeamPlayer(MatchId, PlayerId, TeamId);
-
--- index: idx_MatchPlayer_MatchId_PlayerId
-CREATE INDEX idx_MatchPlayer_MatchId_PlayerId ON MatchPlayer(MatchId, PlayerId);
-
 -- table: DraftAccess
 CREATE TABLE DraftAccess (
   PlayerId INTEGER PRIMARY KEY,
@@ -482,3 +473,51 @@ CREATE TABLE TeamRosterPeriods (
     EffectiveTo TEXT,
     FromEstimated INTEGER NOT NULL DEFAULT 0 CHECK (FromEstimated IN (0, 1))
 );
+
+-- table: DraftGodDrafts
+CREATE TABLE DraftGodDrafts (
+    DraftId INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name TEXT NOT NULL,
+    StateJson TEXT NOT NULL,
+    Revision INTEGER NOT NULL DEFAULT 1,
+    CreatedAt TEXT NOT NULL,
+    UpdatedAt TEXT NOT NULL
+);
+
+-- table: DraftGodHeroProfiles
+CREATE TABLE DraftGodHeroProfiles (
+    HeroId INTEGER PRIMARY KEY REFERENCES HeroInfo(HeroId),
+    RolesJson TEXT NOT NULL,
+    TagsJson TEXT NOT NULL,
+    UpdatedAt TEXT NOT NULL
+);
+
+-- index: idx_MatchLeague_LeagueId_MatchId
+CREATE INDEX idx_MatchLeague_LeagueId_MatchId ON MatchLeague(LeagueId, MatchId);
+
+-- index: idx_MatchTeamPlayer_MatchId_PlayerId_TeamId
+CREATE INDEX idx_MatchTeamPlayer_MatchId_PlayerId_TeamId ON MatchTeamPlayer(MatchId, PlayerId, TeamId);
+
+-- index: idx_MatchPlayer_MatchId_PlayerId
+CREATE INDEX idx_MatchPlayer_MatchId_PlayerId ON MatchPlayer(MatchId, PlayerId);
+
+-- index: idx_PickInfo_MatchId
+CREATE INDEX idx_PickInfo_MatchId ON PickInfo(MatchId);
+
+-- Private draft meta and compact timeline intelligence
+CREATE TABLE IF NOT EXISTS DraftGodPatches (
+    PatchKey TEXT PRIMARY KEY, StartsAt TEXT NOT NULL, Major INTEGER NOT NULL,
+    NotesKnown INTEGER NOT NULL DEFAULT 0, ChangesJson TEXT NOT NULL DEFAULT '{}',
+    Source TEXT NOT NULL, SyncedAt TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS idx_DraftGodPatches_Start ON DraftGodPatches(StartsAt);
+    CREATE TABLE IF NOT EXISTS DraftGodMetaOverrides (
+      PatchKey TEXT NOT NULL REFERENCES DraftGodPatches(PatchKey), HeroId INTEGER NOT NULL DEFAULT 0,
+      Transfer REAL NOT NULL CHECK (Transfer BETWEEN 0 AND 1), Note TEXT NOT NULL, UpdatedAt TEXT NOT NULL,
+      PRIMARY KEY(PatchKey,HeroId));
+    CREATE TABLE IF NOT EXISTS DraftGodHeroProfileVersions (
+      HeroId INTEGER NOT NULL, PatchKey TEXT NOT NULL REFERENCES DraftGodPatches(PatchKey),
+      RolesJson TEXT NOT NULL, TagsJson TEXT NOT NULL, UpdatedAt TEXT NOT NULL, PRIMARY KEY(HeroId,PatchKey));
+    CREATE TABLE IF NOT EXISTS DraftGodMatchTelemetry (
+      MatchId INTEGER PRIMARY KEY, StartAt TEXT, PatchId INTEGER, ParseVersion INTEGER,
+      SummaryJson TEXT, Status TEXT NOT NULL, CheckedAt TEXT NOT NULL, LastSuccessAt TEXT);
+    CREATE INDEX IF NOT EXISTS idx_DraftGodTelemetry_Status ON DraftGodMatchTelemetry(Status,CheckedAt);

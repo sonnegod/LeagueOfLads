@@ -3,6 +3,7 @@ import {
   closePublicDataStores,
   assertPublicSchema,
 } from '../../publicDatabase.js';
+import { recordPublicSync } from '../../config/publicScouting.js';
 
 const REQUEST_DELAY_MS = 350;
 const MAX_RETRIES = 3;
@@ -169,6 +170,7 @@ async function main() {
         const matches = await fetchPlayerMatches(playerId);
         const normalizedRows = normalizeMatchRows(playerId, matches);
         const inserted = insertPublicMatchRows(stores.publicDb, normalizedRows);
+        recordPublicSync(stores.publicDb, playerId, true);
 
         totalRowsSeen += normalizedRows.length;
         totalRowsInserted += inserted;
@@ -177,6 +179,7 @@ async function main() {
           `[${index + 1}/${totalPlayers}] ${player.PlayerName || playerId}: seen=${normalizedRows.length}, inserted=${inserted}`
         );
       } catch (err) {
+        recordPublicSync(stores.publicDb, playerId, false, 'FETCH_FAILED');
         console.error(
           `[${index + 1}/${totalPlayers}] Failed ${player.PlayerName || playerId}: ${err.message}`
         );

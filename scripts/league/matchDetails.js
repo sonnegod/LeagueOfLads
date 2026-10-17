@@ -1,3 +1,4 @@
+import { ingestDraftTelemetry } from '../../config/draftTelemetry.js';
 import db from '../../database.js';
 import apiUrl from '../../apiURL.js';
 
@@ -102,6 +103,7 @@ async function getMatchDetails(matches, currentStage, leagueId){
 
                 db.insertTeamWin(match.MatchId, winTeamId);
                 db.insertDuration(match.MatchId,data.duration);
+                try { ingestDraftTelemetry(db.db, data); } catch(e) { console.warn('Draft telemetry:', e.message); }
 
                 //creating series
                 const now = new Date();
