@@ -26,6 +26,8 @@ echo "$(date) - Starting nightly jobs" >> "$LOG_FILE"
 /usr/bin/node /root/LeagueOfLads/scripts/db/cleanupLiveMatchSnapshots.js 7 >> "$LOG_FILE" 2>&1
 /bin/bash /root/LeagueOfLads/scripts/db/backupDatabases.sh prune >> "$LOG_FILE" 2>&1
 
+/usr/bin/node /root/LeagueOfLads/scripts/league/syncWarehousePatches.js /root/LeagueOfLads/db/LadsData.db >> "$LOG_FILE" 2>&1 || echo "Warehouse patch sync unavailable" >> "$LOG_FILE"
+
 /usr/bin/node /root/LeagueOfLads/scripts/league/syncDraftPatches.js /root/LeagueOfLads/db/LadsData.db 8 >> "$LOG_FILE" 2>&1 || echo "Patch sync unavailable" >> "$LOG_FILE"
 
 ACTIVE_LEAGUE_ID="$(/usr/bin/node /root/LeagueOfLads/scripts/league/getActiveLeagueId.js)"

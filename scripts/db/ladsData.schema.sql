@@ -238,10 +238,10 @@ CREATE TABLE Logins (
 CREATE TABLE MatchLeague (MatchId INTEGER PRIMARY KEY NOT NULL, LeagueId INTEGER REFERENCES LeagueInfo (LeagueId) NOT NULL, DatePlayed DATETIME);
 
 -- table: MatchPlayer
-CREATE TABLE MatchPlayer (MatchId INTEGER REFERENCES MatchTeam (MatchId) NOT NULL, PlayerId INTEGER NOT NULL, HeroId INTEGER REFERENCES HeroInfo (HeroId) NOT NULL, Kills INTEGER (4) NOT NULL, Deaths INTEGER (4) NOT NULL, Assists INTEGER (4) NOT NULL, Networth INTEGER, Lasthits INTEGER NOT NULL, HeroDamage INTEGER, GPM INTEGER (5) NOT NULL, XPM INTEGER (5) NOT NULL, Winner BOOLEAN, Healing INTEGER (8), TowerDamage INTEGER);
+CREATE TABLE MatchPlayer (MatchId INTEGER REFERENCES MatchTeam (MatchId) NOT NULL, PlayerId INTEGER NOT NULL, HeroId INTEGER REFERENCES HeroInfo (HeroId) NOT NULL, Kills INTEGER (4) NOT NULL, Deaths INTEGER (4) NOT NULL, Assists INTEGER (4) NOT NULL, Networth INTEGER, Lasthits INTEGER NOT NULL, HeroDamage INTEGER, GPM INTEGER (5) NOT NULL, XPM INTEGER (5) NOT NULL, Winner BOOLEAN, Healing INTEGER (8), TowerDamage INTEGER, PlayerSlot INTEGER, Denies INTEGER, FinalLevel INTEGER, LaneRole INTEGER, IsRoaming INTEGER, ObserversPlaced INTEGER, SentriesPlaced INTEGER, ObserversKilled INTEGER, SentriesKilled INTEGER, CampsStacked INTEGER, StunSeconds REAL, NeutralKills INTEGER, AncientKills INTEGER, TowerKills INTEGER, RoshanKills INTEGER, CourierKills INTEGER);
 
 -- table: MatchTeam
-CREATE TABLE MatchTeam (MatchId INTEGER PRIMARY KEY NOT NULL UNIQUE, TeamRad INTEGER NOT NULL, TeamDire INTEGER NOT NULL, WinnerId INTEGER NOT NULL, SeriesId INTEGER NOT NULL, Rehost INTEGER NOT NULL DEFAULT (0), Duration INTEGER);
+CREATE TABLE MatchTeam (MatchId INTEGER PRIMARY KEY NOT NULL UNIQUE, TeamRad INTEGER NOT NULL, TeamDire INTEGER NOT NULL, WinnerId INTEGER NOT NULL, SeriesId INTEGER NOT NULL, Rehost INTEGER NOT NULL DEFAULT (0), Duration INTEGER, StartTimeUtc INTEGER, PatchId INTEGER REFERENCES Patches(PatchId), RadiantScore INTEGER, DireScore INTEGER, FirstBloodTime INTEGER);
 
 -- table: MatchTeamPlayer
 CREATE TABLE MatchTeamPlayer (UID INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MatchId INTEGER NOT NULL, PlayerId INTEGER NOT NULL, TeamId INTEGER NOT NULL);
@@ -521,3 +521,42 @@ CREATE TABLE IF NOT EXISTS DraftGodPatches (
       MatchId INTEGER PRIMARY KEY, StartAt TEXT, PatchId INTEGER, ParseVersion INTEGER,
       SummaryJson TEXT, Status TEXT NOT NULL, CheckedAt TEXT NOT NULL, LastSuccessAt TEXT);
     CREATE INDEX IF NOT EXISTS idx_DraftGodTelemetry_Status ON DraftGodMatchTelemetry(Status,CheckedAt);
+
+-- Shared match warehouse expansion (consumer-independent)
+CREATE TABLE IF NOT EXISTS Patches (
+  PatchId INTEGER PRIMARY KEY, PatchKey TEXT NOT NULL UNIQUE, StartsAt TEXT NOT NULL,
+  Major INTEGER NOT NULL, Source TEXT NOT NULL, SyncedAt TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_Patches_Start ON Patches(StartsAt);
+
+  CREATE TABLE IF NOT EXISTS MatchTeamTimeline (
+    MatchId INTEGER NOT NULL REFERENCES MatchTeam(MatchId), TimeSeconds INTEGER NOT NULL,
+    RadiantGoldAdvantage INTEGER, RadiantXpAdvantage INTEGER, PRIMARY KEY(MatchId,TimeSeconds));
+  CREATE TABLE IF NOT EXISTS MatchPlayerTimeline (
+    MatchId INTEGER NOT NULL REFERENCES MatchTeam(MatchId), PlayerId INTEGER NOT NULL, TimeSeconds INTEGER NOT NULL,
+    Gold INTEGER, Experience INTEGER, LastHits INTEGER, PRIMARY KEY(MatchId,PlayerId,TimeSeconds));
+  CREATE TABLE IF NOT EXISTS MatchPlayerPurchases (
+    MatchId INTEGER NOT NULL REFERENCES MatchTeam(MatchId), PlayerId INTEGER NOT NULL, EventIndex INTEGER NOT NULL,
+    TimeSeconds INTEGER NOT NULL, ItemKey TEXT NOT NULL, PRIMARY KEY(MatchId,PlayerId,EventIndex));
+  CREATE TABLE IF NOT EXISTS MatchObjectives (
+    MatchId INTEGER NOT NULL REFERENCES MatchTeam(MatchId), EventIndex INTEGER NOT NULL,
+    TimeSeconds INTEGER NOT NULL, Type TEXT NOT NULL, PlayerId INTEGER, PlayerSlot INTEGER,
+    TeamSide INTEGER, Target TEXT, SourceJson TEXT NOT NULL, PRIMARY KEY(MatchId,EventIndex));
+  CREATE TABLE IF NOT EXISTS MatchTeamfights (
+    MatchId INTEGER NOT NULL REFERENCES MatchTeam(MatchId), FightIndex INTEGER NOT NULL,
+    StartSeconds INTEGER, EndSeconds INTEGER, SourceJson TEXT NOT NULL, PRIMARY KEY(MatchId,FightIndex));
+  CREATE TABLE IF NOT EXISTS MatchTeamfightPlayers (
+    MatchId INTEGER NOT NULL, FightIndex INTEGER NOT NULL, PlayerId INTEGER NOT NULL, PlayerSlot INTEGER NOT NULL,
+    Deaths INTEGER, Damage INTEGER, GoldDelta INTEGER, XpDelta INTEGER, SourceJson TEXT NOT NULL,
+    PRIMARY KEY(MatchId,FightIndex,PlayerId),
+    FOREIGN KEY(MatchId,FightIndex) REFERENCES MatchTeamfights(MatchId,FightIndex));
+  CREATE TABLE IF NOT EXISTS MatchIngestionState (
+    MatchId INTEGER PRIMARY KEY REFERENCES MatchTeam(MatchId), Status TEXT NOT NULL,
+    ImporterVersion INTEGER NOT NULL, ParseVersion INTEGER, SourceHash TEXT,
+    SectionsJson TEXT NOT NULL DEFAULT '{}', IssuesJson TEXT NOT NULL DEFAULT '[]',
+    AttemptedAt TEXT NOT NULL, LastSuccessAt TEXT, Error TEXT);
+  CREATE INDEX IF NOT EXISTS idx_MatchIngestionState_Status ON MatchIngestionState(Status,ImporterVersion);
+  CREATE TABLE IF NOT EXISTS MatchSourceResponses (
+    MatchId INTEGER PRIMARY KEY REFERENCES MatchTeam(MatchId), Encoding TEXT NOT NULL CHECK(Encoding='gzip'),
+    SourceHash TEXT NOT NULL, GameplayData BLOB NOT NULL, CollectedAt TEXT NOT NULL);
+
+CREATE TABLE IF NOT EXISTS WarehouseMigrations (Version INTEGER PRIMARY KEY,AppliedAt TEXT NOT NULL);
