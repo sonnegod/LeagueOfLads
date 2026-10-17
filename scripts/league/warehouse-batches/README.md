@@ -36,8 +36,10 @@ node scripts/league/backfillWarehouse.js db/LadsData.db scripts/league/warehouse
 
 The runner stops after the chosen file. It never starts the next file itself.
 If interrupted or limited by OpenDota, rerun the same file; successful imports are
-skipped. A season interrupted at runtime stays in that file. Existing invalid
-results remain excluded, and unavailable parsed data can produce partial imports.
+skipped. A season interrupted at runtime stays in that file. Remakes and records
+with identical teams remain excluded. Stale winner references are enriched with
+the original result unchanged and listed separately for review. Unavailable parsed
+data can produce partial imports.
 
 The shared [settings](../warehouseBackfill.json) cap batch-worker requests at
 2,500 per UTC day, retain a 300-request reserve against OpenDota's observed daily

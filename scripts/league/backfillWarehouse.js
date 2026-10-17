@@ -43,8 +43,8 @@ try{
   console.log(JSON.stringify({mode:apply?'apply':'preview',batch:basename(batchPath),description:batch.description,
     requestLedger:statePath,day,requestsUsed:state.requests,dailyRequestBudget:config.dailyRequestBudget,
     dailyReserve:config.dailyReserve,plannedMatchRequests:plan.plannedMatchRequests,reservedRequests:plan.reservedRequests,
-    seasons:plan.seasons.map(({league,curatedMatches,eligibleMatches,excludedMatches,selected,reason,retryAllowance})=>
-      ({...league,curatedMatches,eligibleMatches,excludedMatches,selected,retryAllowance,reason}))},null,2));
+    seasons:plan.seasons.map(({league,curatedMatches,eligibleMatches,excludedMatches,dataQualityNotes,selected,reason,retryAllowance})=>
+      ({...league,curatedMatches,eligibleMatches,excludedMatches,dataQualityNotes,selected,retryAllowance,reason}))},null,2));
   const deferred=plan.seasons.some(s=>s.eligibleMatches&&!s.selected);
   if(deferred){console.log('Entire batch does not fit the remaining allowance. No imports started. Rerun on another day or adjust the batch files.');process.exitCode=2;}
   else if(apply&&plan.plannedMatchRequests){
@@ -81,6 +81,9 @@ try{
       `Original data unchanged: ${reconciliation.unchanged} (${reconciliation.checkedTables} tables checked).`,
       `Deep source mismatches: ${validation.sourceReconciliation?.mismatchCount??0}.`,
       `SQLite integrity: ${integrity.map(r=>r.integrity_check).join(', ')}. Foreign-key violations: ${foreignKeys.length}.`,'',
+      '## Existing result notes','',
+      ...(plan.seasons.flatMap(s=>s.dataQualityNotes).map(note=>`- Match ${note.matchId}: winner ${note.winnerId}, recorded teams ${note.teamRad} / ${note.teamDire}. Enrichment allowed; original result preserved.`)),
+      'These existing result references do not block enrichment or fail validation.','',
       '| Season | Requests | Ready | Partial | Failed | Validation |','| --- | ---: | ---: | ---: | ---: | --- |',
       ...result.reports.map(r=>`| ${r.league.LeagueName} | ${r.totals.requests} | ${r.totals.ready} | ${r.totals.partial} | ${r.totals.failed} | ${r.reconciliation.unchanged&&r.validation.valid?'Passed':'FAILED'} |`),'',
       'Review exclusions in plan.json and coverage/problems in each league report. Partial means some historical source sections were unavailable; inspect before deciding whether to retry.',

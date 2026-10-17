@@ -67,12 +67,14 @@ test('batch planning reserves retries and never splits a season or silently star
 test('a batch imports only curated IDs, validates each complete season, and skips successes on rerun',async()=>{
   const db=fixture();
   try{
+    db.exec("INSERT INTO TeamInfo(TeamId,TeamName) VALUES(300,'Former team ID'); UPDATE MatchTeam SET WinnerId=300 WHERE MatchId=1");
     const baseline=captureWarehouseBaseline(db),h=harness(db);
     const result=await h.run();
     assert.deepEqual(h.calls.map(url=>Number(url.split('/').at(-1))),[1,2,3]);
     assert.equal(result.totals.ready,3);assert.equal(result.reports.length,2);
     assert.equal(result.stopReason,'all selected seasons processed');
     for(const report of result.reports){assert.equal(report.reconciliation.unchanged,true);assert.equal(report.validation.valid,true);}
+    assert.equal(result.reports[0].validation.dataQualityNotes.length,1);
     assert.equal(compareWarehouseBaseline(db,baseline).unchanged,true);
     const again=await h.run();assert.equal(again.totals.requests,0);assert.equal(h.calls.length,3);
   }finally{db.close();}

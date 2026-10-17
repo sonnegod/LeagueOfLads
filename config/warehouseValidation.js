@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { MATCH_TEAM_ADDITIONS, MATCH_PLAYER_ADDITIONS, WAREHOUSE_CHILDREN } from './warehouseSchema.js';
 import { PLAYER_FIELDS } from './warehouseIngestion.js';
+import { warehouseResultNotes } from './warehouseCollection.js';
 
 const identifier = value => `"${value.replaceAll('"', '""')}"`;
 const expansionTables = new Set([...WAREHOUSE_CHILDREN, 'WarehouseMigrations', 'Patches']);
@@ -141,5 +142,5 @@ export function validateWarehouse(db, { leagueId = null, deep = false } = {}) {
     WHERE (? IS NULL OR l.LeagueId=?) AND (s.Error IS NOT NULL OR s.IssuesJson<>'[]') ORDER BY s.MatchId`).all(leagueId, leagueId) : [];
   const sourceReconciliation = deep && tables.has('MatchSourceResponses') ? reconcileWarehouseSources(db, { leagueId }) : null;
   return { valid: Object.values(checks).every(n => n === 0) && !sourceReconciliation?.mismatchCount,
-    checks, coverage, problems, sourceReconciliation };
+    checks, coverage, problems, dataQualityNotes:warehouseResultNotes(db,{leagueId}), sourceReconciliation };
 }
