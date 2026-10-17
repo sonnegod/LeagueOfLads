@@ -241,7 +241,10 @@ Settings are in `league/warehouseBackfill.json`:
   proactively. Retries are bounded by three per match and five per season.
 - Daily limits, authentication errors, persistent database contention or an unknown
   rate-limit response stop collection. Minute limits do not mark a match as bad data.
-  Source errors and validation discrepancies stop progression to the next season.
+  Individual source errors, identity conflicts, partial responses and source
+  warnings are recorded for end-of-batch review; the remaining matches and seasons
+  continue. Protected-data changes, structural errors and deep source
+  reconciliation failures still stop progression to the next season.
 - Ctrl+C stops collection. If a quota or interruption prevents completion, rerun
   the **same file** later; completed imports are skipped. No season moves into a
   different batch file. Partial/error attempts retain the seven-day retry cooldown;
@@ -250,7 +253,8 @@ Settings are in `league/warehouseBackfill.json`:
 The printed report directory is under `Logs/warehouse-backfill/`. It contains:
 
 - `validation.md`: readable batch summary.
-- `summary.json`: totals, coverage, integrity checks and deep source reconciliation.
+- `summary.json`: totals, coverage, integrity checks, deep source reconciliation and
+  `reviewRequired` for match errors, warnings or partial coverage.
 - `league-<id>.json`: each attempted season's results and discrepancies.
 - `plan.json`: selected IDs, exclusions and request allowances.
 - `baseline.json`: hashes/counts of protected original data, not a database backup.

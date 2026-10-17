@@ -71,7 +71,8 @@ try{
     const reconciliation=compareWarehouseBaseline(db,baseline),validation=validateWarehouse(db,{deep:true});
     const integrity=db.pragma('integrity_check'),foreignKeys=db.pragma('foreign_key_check');
     const checksPassed=reconciliation.unchanged&&validation.valid&&integrity.every(r=>r.integrity_check==='ok')&&!foreignKeys.length;
-    const summary={batch:batchPath,finishedAt:new Date().toISOString(),checksPassed,...result,
+    const reviewRequired=result.totals.failed>0||validation.problems.length>0||result.reports.some(r=>r.validation.coverage.some(c=>c.status==='partial'));
+    const summary={batch:batchPath,finishedAt:new Date().toISOString(),checksPassed,reviewRequired,...result,
       reconciliation,validation,integrity,foreignKeys,checkpoint:checkpointWarehouse(db)};
     json('summary.json',summary);
     const lines=['# '+basename(batchPath,'.json')+' validation','',`Stop: ${result.stopReason}`,'',
@@ -81,6 +82,9 @@ try{
       `Original data unchanged: ${reconciliation.unchanged} (${reconciliation.checkedTables} tables checked).`,
       `Deep source mismatches: ${validation.sourceReconciliation?.mismatchCount??0}.`,
       `SQLite integrity: ${integrity.map(r=>r.integrity_check).join(', ')}. Foreign-key violations: ${foreignKeys.length}.`,'',
+      '## Match issues for review','',
+      ...(validation.problems.length?validation.problems.map(p=>`- Match ${p.MatchId} (${p.Status}): ${p.Error||p.IssuesJson}`):['No match errors or source discrepancies recorded.']),
+      'Individual match errors and unavailable source sections are recorded for review; they do not stop progression to the next season.','',
       '## Existing result notes','',
       ...(plan.seasons.flatMap(s=>s.dataQualityNotes).map(note=>`- Match ${note.matchId}: winner ${note.winnerId}, recorded teams ${note.teamRad} / ${note.teamDire}. Enrichment allowed; original result preserved.`)),
       'These existing result references do not block enrichment or fail validation.','',
@@ -89,7 +93,7 @@ try{
       'Review exclusions in plan.json and coverage/problems in each league report. Partial means some historical source sections were unavailable; inspect before deciding whether to retry.',
       'This command stops after the chosen batch. Run the next batch file manually on another day.'];
     writeFileSync(join(folder,'validation.md'),lines.join('\n')+'\n');
-    log({event:'finished',checksPassed,totals:result.totals,stopReason:result.stopReason,report:join(folder,'validation.md')});
+    log({event:'finished',checksPassed,reviewRequired,totals:result.totals,stopReason:result.stopReason,report:join(folder,'validation.md')});
     if(!checksPassed||result.totals.failed||validation.problems.length)process.exitCode=1;
     else if(result.stopReason!=='all selected seasons processed')process.exitCode=2;
   }

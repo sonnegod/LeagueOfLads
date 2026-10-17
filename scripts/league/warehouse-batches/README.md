@@ -40,6 +40,11 @@ skipped. A season interrupted at runtime stays in that file. Remakes and records
 with identical teams remain excluded. Stale winner references are enriched with
 the original result unchanged and listed separately for review. Unavailable parsed
 data can produce partial imports.
+Individual match failures are recorded for review while the rest of the batch
+continues. Protected-data changes or failed integrity/source reconciliation still
+stop the run. The readable report lists match errors; `summary.json` includes
+`reviewRequired`. A completed batch with match errors returns exit code 1 for review
+after processing its seasons.
 
 The shared [settings](../warehouseBackfill.json) cap batch-worker requests at
 2,500 per UTC day, retain a 300-request reserve against OpenDota's observed daily

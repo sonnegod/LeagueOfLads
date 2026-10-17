@@ -155,7 +155,9 @@ export async function runWarehouseBackfill(db, config, {
       totals:Object.fromEntries(Object.keys(totals).map(k=>[k,totals[k]-before[k]])),stopReason,reconciliation,validation};
     reports.push(report);saveReport(report);log({event:'season-finished',...report});
     if(!reconciliation.unchanged||!validation.valid)stopReason='validation failed; review report before continuing';
-    else if(totals.failed>before.failed||validation.problems.length)stopReason='match conflicts/errors or source discrepancies need review';
+    // Individual source errors are already quarantined in MatchIngestionState.
+    // Complete the batch and report them together; only integrity failures or
+    // collection-wide limits should prevent the next season from running.
     if(stopReason)break;
   }
   return {plan,totals,requestsToday:state.requests,remainingDay:state.remainingDay??null,stopReason:stopReason||
