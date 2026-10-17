@@ -692,13 +692,15 @@ router.post('/admin/updateMatchTeams', (req, res) => {
 
   const originalTeamRad = req.body.team1Old;
   const originalTeamDire = req.body.team2Old;
+  const leagueId = req.body.leagueId === undefined ? null : positiveInteger(req.body.leagueId);
+  if (req.body.leagueId !== undefined && !leagueId) return res.status(400).json({error:'Invalid season'});
 
   try {
     // Call your DB function that handles validation & update
-    const result = db.adminUpdateMatch(matchId, teamRad, teamDire, winnerId, originalTeamRad, originalTeamDire);
+    const result = db.adminUpdateMatch(matchId, teamRad, teamDire, winnerId, originalTeamRad, originalTeamDire, leagueId);
     if (!result.success) {
 
-      return res.status(400).json({ error: result.message });
+      return res.status(result.status || 400).json({ error: result.message });
     }
 
     res.json({ success: true});
@@ -719,11 +721,21 @@ router.get('/admin/unmatchedMatchTeams', checkAdmin, (req, res) => {
   }
 });
 
+router.get('/admin/recordTeams', checkAdmin, (req,res) => {
+  const leagueId=positiveInteger(req.query.leagueId);
+  if(!leagueId)return res.status(400).json({error:'Select a season'});
+  if(!db.queryDatabase('SELECT 1 FROM LeagueInfo WHERE LeagueId=?',[leagueId]).length)return res.status(404).json({error:'Season not found'});
+  return res.json({teams:db.adminCurrentTeams(leagueId)});
+});
+
 router.get('/admin/matchTeamIdOptions', checkAdmin, (req, res) => {
   try {
-    const league = db.getActiveLeague()?.[0] || null;
+    const leagueId=req.query.leagueId===undefined?null:positiveInteger(req.query.leagueId);
+    if(req.query.leagueId!==undefined&&!leagueId)return res.status(400).json({error:'Invalid season'});
+    const league = leagueId ? db.queryDatabase('SELECT LeagueId,LeagueName FROM LeagueInfo WHERE LeagueId=?',[leagueId])[0] : db.getActiveLeague()?.[0] || null;
+    if(leagueId&&!league)return res.status(404).json({error:'Season not found'});
     if (!league) return res.json({ league: null, sources: [], targets: [] });
-    const teams = db.adminCurrentTeams();
+    const teams = db.adminCurrentTeams(league.LeagueId);
     const linkedIds = new Set(db.queryDatabase(
       'SELECT TeamId FROM LeagueRosterEntries WHERE LeagueId = ? AND TeamId IS NOT NULL',
       [league.LeagueId]
@@ -746,8 +758,9 @@ router.post('/admin/replaceMatchTeamId', checkAdmin, (req, res) => {
   if (![sourceId, targetId].every((id) => Number.isSafeInteger(id) && id > 0) || sourceId === targetId) {
     return res.status(400).json({ error: 'Select two different valid team IDs' });
   }
-  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
-  if (!leagueId) return res.status(400).json({ error: 'No active league' });
+  const leagueId = req.body.leagueId===undefined ? db.getActiveLeague()?.[0]?.LeagueId : positiveInteger(req.body.leagueId);
+  if (!leagueId) return res.status(400).json({ error: 'Select a valid season' });
+  if (!db.queryDatabase('SELECT 1 FROM LeagueInfo WHERE LeagueId=?',[leagueId]).length) return res.status(404).json({error:'Season not found'});
   try {
     const updated = db.replaceUngroupedMatchTeamId(leagueId, sourceId, targetId);
     return res.json({ success: true, ...updated });
@@ -1236,7 +1249,15 @@ router.post('/admin/updateTeamStandings', checkAdmin, (req, res) => {
 
 router.delete('/admin/deleteMatch', (req, res) => {
   try {
-      const matchId = req.body.matchId;
+      const matchId = positiveInteger(req.body.matchId);
+      if(!matchId)return res.status(400).json({error:'Enter a valid match ID'});
+      if(req.body.leagueId!==undefined){
+        const leagueId=positiveInteger(req.body.leagueId);
+        if(!leagueId)return res.status(400).json({error:'Invalid season'});
+        if(!db.queryDatabase('SELECT 1 FROM MatchLeague WHERE MatchId=? AND LeagueId=?',[matchId,leagueId]).length){
+          return res.status(404).json({error:'Match is not in the selected season'});
+        }
+      }
 
       const result = db.adminDeleteMatch(matchId);
       
@@ -1957,12 +1978,15 @@ router.get('/activeTeams', async (req, res) => {
 
 router.get('/matchEdit/:matchId', async (req, res) => {
   const { matchId } = req.params;
+  const leagueId=req.query.leagueId===undefined?null:positiveInteger(req.query.leagueId);
+  if(!positiveInteger(matchId)||(req.query.leagueId!==undefined&&!leagueId))return res.status(400).json({error:'Invalid match or season'});
   try {
-    const matchTeams = await db.getTeamsMatchEdit(matchId);
+    const matchTeams = await db.getTeamsMatchEdit(matchId,leagueId);
 
-    if (!matchTeams) return res.status(404).json({ error: 'Teams not found' });
+    if (!matchTeams?.length) return res.status(404).json({ error: leagueId?'Match is not in the selected season':'Match not found' });
     
     res.json({
+      matchId:Number(matchId),league:{LeagueId:matchTeams[0].LeagueId,LeagueName:matchTeams[0].LeagueName},
       team1: { TeamId: matchTeams[0].TeamRad, TeamName:  matchTeams[0].RadTeamName },
       team2: { TeamId:  matchTeams[0].TeamDire, TeamName:  matchTeams[0].DireTeamName },
       winner: { TeamId:  matchTeams[0].WinnerId, TeamName:  matchTeams[0].WinnerTeamName }

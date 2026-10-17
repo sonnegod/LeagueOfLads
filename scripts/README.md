@@ -263,7 +263,9 @@ The printed report directory is under `Logs/warehouse-backfill/`. It contains:
 Remakes and identical-team records remain excluded and listed in the plan.
 Stale winner references appear under `dataQualityNotes` and in the readable report;
 they do not block imports, fail validation or stop the next season. Original winner
-IDs remain unchanged. Substitute source team IDs are accepted. A season can have partial EDW coverage if
+IDs remain unchanged. `winner_not_recorded_team` notes alone also do not set
+`reviewRequired` or produce a nonzero exit code. Substitute source team IDs are
+accepted. A season can have partial EDW coverage if
 OpenDota no longer has its parsed sections. Exit code `0` means the selected imports
 finished, `1` requires review of errors/validation, and `2` means the file stopped or
 could not fit the remaining allowance. Review exclusions and coverage even on exit 0.

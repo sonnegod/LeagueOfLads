@@ -193,6 +193,7 @@ test('the runnable batch CLI previews without writes, saves reports and persists
   const dbPath=join(dbFolder,'LadsData.db'),batchPath=join(root,'batch.json'),mockPath=join(root,'mock.mjs');
   const fixtureDb=fixture([[1]]);
   try{
+    fixtureDb.exec("INSERT INTO TeamInfo(TeamId,TeamName) VALUES(300,'Former team ID'); UPDATE MatchTeam SET WinnerId=300 WHERE MatchId=1");
     await fixtureDb.backup(dbPath);fixtureDb.close();
     writeFileSync(batchPath,JSON.stringify({description:'Offline test',leagueIds:[20]}));
     const requestLog=join(root,'requests.log');
@@ -212,6 +213,9 @@ test('the runnable batch CLI previews without writes, saves reports and persists
     assert.equal(existsSync(join(resultFolder,'validation.md')),true);
     const summary=JSON.parse(readFileSync(join(resultFolder,'summary.json'),'utf8'));
     assert.equal(summary.checksPassed,true);assert.equal(summary.totals.ready,1);
+    assert.equal(summary.stopReason,'all selected seasons processed');
+    assert.equal(summary.reviewRequired,false);
+    assert.equal(summary.validation.dataQualityNotes[0].code,'winner_not_recorded_team');
     const rerun=run(['--apply','--no-backup']);assert.equal(rerun.status,0,rerun.stdout+rerun.stderr);
     assert.equal(JSON.parse(readFileSync(dbPath+'.warehouse-backfill.json','utf8')).requests,1);
     assert.equal(readFileSync(requestLog,'utf8'),'fetch\n');
