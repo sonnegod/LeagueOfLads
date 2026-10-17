@@ -144,6 +144,48 @@ test('interruption preserves completed IDs and original-data changes stop the ba
   }finally{changed.close();}
 });
 
+test('isolated HTTP failures, invalid players, partial sources and source warnings do not stop the next season',async()=>{
+  for(const kind of ['http','identity','partial','warning']){
+    const db=fixture();
+    try{
+      const baseline=captureWarehouseBaseline(db);
+      const h=harness(db,config(),url=>{
+        const id=Number(url.split('/').at(-1)),data=payload(id);
+        if(id===1){
+          if(kind==='http')return new Response('temporary provider error',{status:500});
+          if(kind==='identity')data.players[0].account_id=0;
+          if(kind==='partial')delete data.version;
+          if(kind==='warning')data.players[0].kills=99;
+        }
+        return Response.json(data);
+      });
+      const result=await h.run();
+      assert.equal(h.calls.length,3,kind);assert.equal(result.reports.length,2,kind);
+      assert.equal(result.stopReason,'all selected seasons processed',kind);
+      assert.equal(db.prepare('SELECT Status FROM MatchIngestionState WHERE MatchId=3').get().Status,'ready',kind);
+      assert.equal(compareWarehouseBaseline(db,baseline).unchanged,true,kind);
+      if(kind==='http'||kind==='identity'){
+        assert.equal(result.totals.failed,1);assert.equal(result.totals.ready,2);
+        assert.equal(db.prepare('SELECT COUNT(*) n FROM MatchSourceResponses WHERE MatchId=1').get().n,0);
+        assert.equal(result.reports[0].validation.problems.length,1);
+      }else if(kind==='partial')assert.equal(result.totals.partial,1);
+      else assert.equal(result.reports[0].validation.problems.length,1);
+    }finally{db.close();}
+  }
+});
+
+test('a deep source reconciliation failure still stops the next season',async()=>{
+  const db=fixture([[1],[2]]);
+  try{
+    const h=harness(db);
+    h.options.log=e=>{if(e.event==='match')db.exec('UPDATE MatchPlayerTimeline SET Gold=99 WHERE MatchId=1');};
+    const result=await h.run();
+    assert.equal(h.calls.length,1);assert.match(result.stopReason,/validation failed/);
+    assert.equal(result.reports[0].reconciliation.unchanged,true);
+    assert.ok(result.reports[0].validation.sourceReconciliation.mismatchCount>0);
+  }finally{db.close();}
+});
+
 test('the runnable batch CLI previews without writes, saves reports and persists its request ledger across restarts',async()=>{
   const folder=mkdtempSync(join(tmpdir(),'lads-backfill-cli-'));
   const root=join(folder,'workspace with spaces'),dbFolder=join(root,'db');
