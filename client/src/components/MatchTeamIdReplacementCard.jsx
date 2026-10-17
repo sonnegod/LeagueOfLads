@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-export default function MatchTeamIdReplacementCard({ refreshKey, onUpdated }) {
+export default function MatchTeamIdReplacementCard({ refreshKey, onUpdated, leagueId }) {
   const [league, setLeague] = useState(null);
   const [sources, setSources] = useState([]);
   const [targets, setTargets] = useState([]);
@@ -12,7 +12,7 @@ export default function MatchTeamIdReplacementCard({ refreshKey, onUpdated }) {
   const [message, setMessage] = useState('');
 
   const load = useCallback(async (signal) => {
-    const response = await fetch('/api/admin/matchTeamIdOptions', { signal });
+    const response = await fetch(`/api/admin/matchTeamIdOptions${leagueId?`?leagueId=${leagueId}`:''}`, { signal });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to load team IDs');
     setLeague(data.league);
@@ -20,7 +20,7 @@ export default function MatchTeamIdReplacementCard({ refreshKey, onUpdated }) {
     setTargets(data.targets || []);
     setSourceId((current) => data.sources?.some((team) => String(team.TeamId) === current) ? current : '');
     setTargetId((current) => data.targets?.some((team) => String(team.TeamId) === current) ? current : '');
-  }, []);
+  }, [leagueId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -37,7 +37,7 @@ export default function MatchTeamIdReplacementCard({ refreshKey, onUpdated }) {
   async function replaceTeamId(event) {
     event.preventDefault();
     if (!selectedSource || !selectedTarget) return;
-    if (!window.confirm(`Replace team ID ${sourceId} with ${targetId} in all ${selectedSource.MatchesPlayed} active-league matches?`)) return;
+    if (!window.confirm(`Replace team ID ${sourceId} with ${targetId} in all ${selectedSource.MatchesPlayed} matches in ${league.LeagueName}?`)) return;
     setSaving(true);
     setError('');
     setMessage('');
@@ -45,7 +45,7 @@ export default function MatchTeamIdReplacementCard({ refreshKey, onUpdated }) {
       const response = await fetch('/api/admin/replaceMatchTeamId', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceId: Number(sourceId), targetId: Number(targetId) }),
+        body: JSON.stringify({ sourceId: Number(sourceId), targetId: Number(targetId), ...(leagueId?{leagueId}:{} ) }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to replace team ID');
@@ -64,7 +64,7 @@ export default function MatchTeamIdReplacementCard({ refreshKey, onUpdated }) {
   return (
     <section style={cardStyle} aria-labelledby="replace-match-team-id-heading">
       <h3 id="replace-match-team-id-heading" style={{ marginTop: 0 }}>Replace Match Team ID</h3>
-      <p style={hintStyle}>Move an ungrouped team's active-league matches to a team already in a group.</p>
+      <p style={hintStyle}>Move an ungrouped team's matches to a team already in a group{leagueId?' in the selected season':' in the active league'}.</p>
       {error && <p role="alert" style={errorStyle}>{error}</p>}
       {message && <p role="status" style={successStyle}>{message}</p>}
       {loading ? <p>Loading team IDs...</p> : !league ? <p>No active league found.</p> : (
@@ -92,7 +92,7 @@ export default function MatchTeamIdReplacementCard({ refreshKey, onUpdated }) {
             ))}
           </select>
 
-          {selectedSource && <p style={hintStyle}>This will update all {selectedSource.MatchesPlayed} active-league matches for team {selectedSource.TeamId}.</p>}
+          {selectedSource && <p style={hintStyle}>This will update all {selectedSource.MatchesPlayed} matches for team {selectedSource.TeamId} in {league.LeagueName}.</p>}
           <button className="ui-button-primary" type="submit" disabled={saving || !selectedSource || !selectedTarget}>
             {saving ? 'Replacing...' : 'Replace Team ID'}
           </button>

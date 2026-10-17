@@ -14,6 +14,7 @@ import { getUnmatchedMatchTeams } from './config/unmatchedMatchTeams.js';
 import { getLeagueSeries } from './config/leagueSeries.js';
 import PlayerAwardsStore from './config/playerAwards.js';
 import { deleteMatchRecords } from './config/matchMaintenance.js';
+import { updateMatchRecord } from './config/matchRecordAdmin.js';
 import { initializeWarehouse } from './config/warehouseIngestion.js';
 import { configureWarehouseConnection } from './config/warehouseConnection.js';
 dotenv.config();
@@ -1637,21 +1638,27 @@ class DBInstance {
             `,[teamA,teamB,teamB,teamA])
     }
 
-    getTeamsMatchEdit(MatchId){
+    getTeamsMatchEdit(MatchId, leagueId = null){
         return this.queryDatabase(`
             SELECT 
                 TeamRad, 
-                ti1.TeamName as RadTeamName, 
+                COALESCE(ln1.DisplayName,ti1.TeamName,'Team ' || mt.TeamRad) as RadTeamName,
                 TeamDire, 
-                ti2.TeamName as DireTeamName, 
+                COALESCE(ln2.DisplayName,ti2.TeamName,'Team ' || mt.TeamDire) as DireTeamName,
                 WinnerId, 
-                ti3.TeamName as WinnerTeamName
+                COALESCE(ln3.DisplayName,ti3.TeamName,'Team ' || mt.WinnerId) as WinnerTeamName,
+                ml.LeagueId,li.LeagueName
             FROM MatchTeam mt
-            JOIN TeamInfo ti1 on mt.TeamRad = ti1.TeamId
-            JOIN TeamInfo ti2 on mt.TeamDire = ti2.TeamId
+            LEFT JOIN MatchLeague ml ON ml.MatchId=mt.MatchId
+            LEFT JOIN LeagueInfo li ON li.LeagueId=ml.LeagueId
+            LEFT JOIN TeamInfo ti1 on mt.TeamRad = ti1.TeamId
+            LEFT JOIN TeamInfo ti2 on mt.TeamDire = ti2.TeamId
             LEFT JOIN TeamInfo ti3 on mt.WinnerId = ti3.TeamId
-            WHERE mt.MatchId = ?
-        `, [MatchId]);
+            LEFT JOIN LeagueTeamNames ln1 ON ln1.LeagueId=ml.LeagueId AND ln1.TeamId=mt.TeamRad
+            LEFT JOIN LeagueTeamNames ln2 ON ln2.LeagueId=ml.LeagueId AND ln2.TeamId=mt.TeamDire
+            LEFT JOIN LeagueTeamNames ln3 ON ln3.LeagueId=ml.LeagueId AND ln3.TeamId=mt.WinnerId
+            WHERE mt.MatchId = ? AND (? IS NULL OR ml.LeagueId=?)
+        `, [MatchId,leagueId,leagueId]);
     };
 
 
@@ -2729,80 +2736,12 @@ class DBInstance {
         }
     }
 
-    adminUpdateMatch(matchId, teamRad, teamDire, winnerId, originalTeamRad, originalTeamDire){
+    adminUpdateMatch(matchId, teamRad, teamDire, winnerId, originalTeamRad, originalTeamDire, leagueId = null){
         try {
-
-            this.db.prepare('UPDATE MatchTeam SET TeamRad = ?, TeamDire = ?, WinnerId = ? WHERE MatchId = ?')
-                .run(teamRad, teamDire, winnerId, matchId);
-
-            this.recordAdminAudit('MatchTeam Update',
-                `Updated Match ${matchId} with values Team1 = ${teamRad}, Team2 = ${teamDire}, Winner = ${winnerId}`);
-
-            if (teamRad !== originalTeamRad) {
-                this.db.prepare(`UPDATE MatchTeamPlayer SET TeamId = ? WHERE MatchId = ?`)
-                .run(teamRad, matchId);
-
-                this.recordAdminAudit('MatchTeamPlayer Update',
-                    `Updated Match ${matchId} with values TeamId = ${teamRad}, old value = ${originalTeamRad}`);
-            }
-
-            if (teamDire !== originalTeamDire) {
-                this.db.prepare(`UPDATE MatchTeamPlayer SET TeamId = ? WHERE MatchId = ?`)
-                .run(teamDire, matchId);
-
-                this.recordAdminAudit('MatchTeamPlayer Update',
-                    `Updated Match ${matchId} with values TeamId = ${teamDire}, old value = ${originalTeamDire}`);
-            }
-
-            const oldSeries = this.queryDatabase(`
-                    SELECT
-                        si.SeriesId,
-                        si.DateCreated
-                    FROM
-                    SeriesInfo si
-                    JOIN SeriesMatch sm on si.SeriesId = sm.SeriesId
-                    WHERE sm.MatchId = ?
-                `, [matchId]);
-            
-            const newSeries = this.queryDatabase(`
-                    SELECT
-                        SeriesId,
-                        DateCreated
-                    FROM
-                    SeriesInfo
-                    WHERE (Team1 = ? AND Team2 = ?)
-                        OR (Team1 = ? AND Team2 = ?)
-                        AND DateCreated = ?
-                `, [teamRad,teamDire,teamDire,teamRad,oldSeries[0].DateCreated]);
-
-
-            if(newSeries.length === 0){
-                this.db.prepare(`UPDATE SeriesInfo SET Team1 = ?, Team2 = ? WHERE SeriesId = ?`)
-                    .run(teamRad,teamDire,oldSeries[0].SeriesId);
-
-
-                this.recordAdminAudit('SeriesMatch Update',
-                    `Updated Series ${oldSeries[0].SeriesId} adding teams ${teamRad},${teamDire}`);
-            }
-            else{
-                this.db.prepare(`UPDATE SeriesMatch SET SeriesId = ? WHERE MatchId = ?`)
-                    .run(newSeries[0].SeriesId, matchId);
-
-
-                this.recordAdminAudit('SeriesMatch Update',
-                    `Updated Series ${newSeries[0].SeriesId} add match ${matchId}`);
-
-                this.db.prepare(`DELETE FROM SeriesMatch WHERE SeriesId = ?`)
-                    .run(oldSeries[0].SeriesId);        
-                
-                this.recordAdminAudit('SeriesMatch Delete',
-                    `Deleted Series ${oldSeries[0].SeriesId}`);
-            }
-
-
-            return { success: true, message: 'Match updated successfully!' };
+            return updateMatchRecord(this.db, {matchId,teamRad,teamDire,winnerId,originalTeamRad,originalTeamDire,leagueId},
+                (type,message) => this.recordAdminAudit(type,message));
         } catch (err) {
-           return { success: false, error: err };
+            return { success: false, message: err.message, status: err.status || 400 };
         }
     }
 
@@ -2898,7 +2837,7 @@ class DBInstance {
                 WHERE ml.LeagueId = ? AND (mt.TeamRad = ? OR mt.TeamDire = ?)`)
                 .all(leagueId, sourceId, sourceId);
             if (sourceMatches.length === 0) {
-                const error = new Error('Source team has no matches in the active league');
+                const error = new Error('Source team has no matches in the selected season');
                 error.status = 404;
                 throw error;
             }
@@ -2997,8 +2936,7 @@ class DBInstance {
         })();
     }
 
-    adminCurrentTeams(){
-        const leagueId = this.getActiveLeague()?.[0]?.LeagueId;
+    adminCurrentTeams(leagueId = this.getActiveLeague()?.[0]?.LeagueId){
         if (!leagueId) return [];
         return this.queryDatabase(`
             WITH ids AS (
