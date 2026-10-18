@@ -8,6 +8,7 @@ import CurrentPlayoffBracketView from "../components/CurrentPlayoffBracketView";
 import HeroDisplay from "../components/HeroDisplay";
 import LeagueHomeTab from "../components/LeagueHomeTab";
 import LeagueSeriesTab from "../components/LeagueSeriesTab";
+import LeagueScheduleTab from "../components/LeagueScheduleTab";
 import './LeaguePage.css';
 const LeaguePerformance = React.lazy(() => import('../components/LeaguePerformance'));
 
@@ -36,6 +37,9 @@ export default function LeaguePage({
         const data = await res.json();
 
         setLeague(data);
+        if (Number(data.league?.[0]?.Active) !== 1) {
+          setActiveTab(current => current === 'schedule' ? 'home' : current);
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -100,6 +104,7 @@ export default function LeaguePage({
     stageInfo?.GroupEndMatchId === stageInfo?.TieBreakerEndMatchId;
 
   const showGroups = stageExists || alwaysShowGroups || data.hasGroups;
+  const showSchedule = Number(league[0].Active) === 1;
 
   const stageButtons = (
     <>
@@ -130,6 +135,7 @@ export default function LeaguePage({
         {!stageTabsFirst && stageButtons}
         <button className="ui-tab" aria-pressed={activeTab === "teams"} onClick={() => setActiveTab("teams")} style={activeTab === "teams" ? activeTabStyle : tabStyle}>Teams</button>
         <button className="ui-tab" aria-pressed={activeTab === "series"} onClick={() => setActiveTab("series")} style={activeTab === "series" ? activeTabStyle : tabStyle}>Series</button>
+        {showSchedule && <button className="ui-tab" aria-pressed={activeTab === 'schedule'} onClick={() => setActiveTab('schedule')}>Schedule</button>}
         <button className="ui-tab" aria-pressed={activeTab === "players"} onClick={() => setActiveTab("players")} style={activeTab === "players" ? activeTabStyle : tabStyle}>Players</button>
         <button className="ui-tab" aria-pressed={activeTab === "heroes"} onClick={() => setActiveTab("heroes")} style={activeTab === "heroes" ? activeTabStyle : tabStyle}>Heroes</button>
       </div>
@@ -147,6 +153,8 @@ export default function LeaguePage({
           heroes={heroesWithPlayers}
         />
       )}
+
+      {showSchedule && activeTab === 'schedule' && <LeagueScheduleTab key={leagueId} leagueId={leagueId} />}
 
       {/* Groups Tab */}
       {activeTab === "group" && showGroups && (

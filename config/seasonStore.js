@@ -2,6 +2,7 @@ import { randomizeGroups, groupSpread } from './groupRandomizer.js';
 import { DEFAULT_LEAGUE_RULES, normalizeLeagueRules } from './leagueRules.js';
 import { randomUUID } from 'node:crypto';
 import TeamRosterStore from './teamRosterStore.js';
+import SeasonScheduleStore from './seasonScheduleStore.js';
 import { backfillLegacyChampions } from './legacyLeagueChampions.js';
 import { ensureChampionshipRosterSchema, hasSignupRoster, CHAMPIONSHIP_ROSTER_PLAYERS_SQL } from './championshipRoster.js';
 
@@ -148,6 +149,7 @@ export default class SeasonStore {
       CREATE INDEX IF NOT EXISTS idx_SeasonGroups_Season ON SeasonGroups(SeasonId);
     `);
     this.rosters = new TeamRosterStore(db);
+    this.schedule = new SeasonScheduleStore(db, audit);
     ensureChampionshipRosterSchema(db);
     const active = db.prepare('SELECT LeagueId, LeagueName FROM LeagueInfo WHERE Active = 1 LIMIT 1').get();
     if (active && !db.prepare('SELECT 1 FROM LeagueSeasons WHERE ExternalLeagueId = ?').get(active.LeagueId)) {

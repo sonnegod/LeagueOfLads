@@ -1,9 +1,13 @@
 import express from 'express';
 import db from '../database.js';
 import { submissionsCsv } from '../config/submissionsCsv.js';
+import { createAdminScheduleRouter, createPublicScheduleRouter } from './seasonScheduleRoutes.js';
 
 export const publicSeasonRoutes = express.Router();
 export const adminSeasonRoutes = express.Router();
+
+publicSeasonRoutes.use(createPublicScheduleRouter(db.seasons.schedule));
+adminSeasonRoutes.use(createAdminScheduleRouter(db.seasons.schedule));
 
 const steamBase = 76561197960265728n;
 

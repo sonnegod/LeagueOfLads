@@ -74,7 +74,7 @@ export function ReportTable({ columns, columnGroups, rows, rowKey = 'key', initi
   </table></div>;
 }
 
-export function TimelineChart({ points, series, markers = [], activeMarkerId = null, onMarkerHover, onMarkerFocus, endTime = 0, label = 'Progression', signed = false, formatTime = clock, axisLabel = 'Game time', showLegend = true }) {
+export function TimelineChart({ points, series, markers = [], activeMarkerId = null, onMarkerHover, onMarkerFocus, endTime = 0, label = 'Progression', signed = false, formatTime = clock, axisLabel = 'Game time', showLegend = true, showScrubber = true }) {
   const [hidden, setHidden] = useState([]), [cursor, setCursor] = useState(null);
   const [chartWidth, setChartWidth] = useState(760), chartRef = useRef(null);
   const visible = series.filter(s => !hidden.includes(s.key));
@@ -176,8 +176,8 @@ export function TimelineChart({ points, series, markers = [], activeMarkerId = n
       <line x1={x(selected.time)} x2={x(selected.time)} y1={top} y2={height - bottom} className="performance-chart-cursor" />
       {visible.filter(s => selected[s.key] != null).map(s => <circle key={s.key} cx={x(selected.time)} cy={y(selected[s.key])} r="4" fill={s.color} />)}
     </svg>
-    <label className="performance-chart-scrubber">{axisLabel} <input aria-label={`${label}: ${axisLabel}`} type="range" min="0" max={points.length - 1}
-      value={index} onChange={event => setCursor(Number(event.target.value))} /></label>
+    {showScrubber && <label className="performance-chart-scrubber">{axisLabel} <input aria-label={`${label}: ${axisLabel}`} type="range" min="0" max={points.length - 1}
+      value={index} onChange={event => setCursor(Number(event.target.value))} /></label>}
     <div className="performance-chart-readout"><strong>{selected.label || formatTime(selected.time)}</strong>{visible.map(s => <span key={s.key}>
       {s.label}: <b style={{ color: s.color }}>{fmt(selected[s.key], 0)}</b></span>)}</div>
   </div>;

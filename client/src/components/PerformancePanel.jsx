@@ -67,7 +67,7 @@ function PlayerPerformance({ data }) {
       </select></label></div>
       <TimelineChart key={trend} points={[...data.recent].reverse().map((g, index) => ({ time: index + 1, value: g[trend], label: `Match ${g.matchId} · ${g.HeroName}` }))}
         series={[{ key: 'value', label: labels[trend], color: '#60a5fa' }]} label="Recent player performances"
-        axisLabel="Recorded games, oldest to newest" formatTime={n => fmt(n, 0)} showLegend={false} />
+        axisLabel="Recorded games, oldest to newest" formatTime={n => fmt(n, 0)} showLegend={false} showScrubber={false} />
       <p className="performance-note">Up to 30 enriched games. Changing heroes and patches can affect these values.</p>
     </Panel>
     <Panel title="Hero breakdown"><ReportTable centerStats rows={data.byHero} columns={columns} /></Panel>

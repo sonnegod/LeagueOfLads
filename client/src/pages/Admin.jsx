@@ -9,6 +9,7 @@ import GroupHeadToHeadEditor from "../components/GroupHeadToHeadEditor";
 import DeleteMatchCard from "../components/DeleteMatchCard";
 import PlayoffBracketEditor from "../components/PlayoffBracketEditor";
 import SeasonAdminPanel from "../components/SeasonAdminPanel";
+import SeasonSchedulePanel from "../components/SeasonSchedulePanel";
 import UnmatchedMatchTeamsPanel from "../components/UnmatchedMatchTeamsPanel";
 import LeagueRulesCard from "../components/LeagueRulesCard";
 import AdminManagementPanel from "../components/AdminManagementPanel";
@@ -30,6 +31,7 @@ export default function AdminPage() {
   const [activeEditorTab, setActiveEditorTab] = useState("teams");
   const [activeAdminTab, setActiveAdminTab] = useState("requests");
   const [seasonStatus, setSeasonStatus] = useState(null);
+  const [seasonId, setSeasonId] = useState(null);
 
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -56,6 +58,7 @@ export default function AdminPage() {
       if (!active) return;
       const status = data.season?.Status || null;
       setSeasonStatus(status);
+      setSeasonId(data.season?.SeasonId || null);
       if (status !== 'active') setActiveLeagueTab('overview');
     }).catch(() => {});
     return () => { active = false; };
@@ -90,7 +93,7 @@ export default function AdminPage() {
       {activeTab === "league" && <div className="ui-tabs" style={editorTabBarStyle}>
         {[
           ["overview", "Overview"],
-          ...(seasonStatus === 'active' ? [["editor", "Editor"], ["playoffs", "Playoffs"],
+          ...(seasonStatus === 'active' ? [["schedule", "Schedule"], ["editor", "Editor"], ["playoffs", "Playoffs"],
             ["settings", "Settings"]] : []),
         ].map(([key, label]) => <button key={key} type="button" className="ui-tab"
           aria-pressed={activeLeagueTab === key}
@@ -169,6 +172,9 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {activeTab === 'league' && activeLeagueTab === 'schedule' && seasonId &&
+          <SeasonSchedulePanel key={seasonId} seasonId={seasonId} />}
 
         {activeTab === "league" && activeLeagueTab === "playoffs" && (
           <div className="playoff-workspace">

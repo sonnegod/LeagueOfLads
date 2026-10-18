@@ -379,7 +379,7 @@ export default function SeasonAdminPanel({ onChanged }) {
         </form>
       </>}
       {season.Status === 'active' && <>
-        <p>League ID: {season.ExternalLeagueId}. Use Editor, Playoffs, and Settings for active league operations.</p>
+        <p>League ID: {season.ExternalLeagueId}. Use Schedule to suggest regular season matchups, or Editor, Playoffs, and Settings for other league operations.</p>
         <LeagueEndPanel season={season} onEnded={() => {
           reload().catch(err => setError(err.message));
           onChanged?.();
