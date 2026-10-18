@@ -8,7 +8,7 @@ export const PAGE_TYPES = {
   player: ['Player profiles', '/player/:id'], team: ['Team pages', '/team/:id'],
   match: ['Matches', '/match/:id'], series: ['Series', '/series/:id'],
   recents: ['Recent results', '/recents + /recentMatches'], h2h: ['Head to Head', '/h2h'],
-  signup: ['Signup', '/signup/:id'], rules: ['Rules', '/rules'],
+  signup: ['Signup', '/signup/:id'], rules: ['Rules', '/rules'], awards: ['Awards', '/awards'],
   betting: ['Betting', '/betting'], hero: ['Heroes', '/hero/:id'],
   other: ['Other public pages', 'Public lists and tools'],
 };

@@ -31,6 +31,7 @@ dotenv.config();
 const router = express.Router();
 router.use(createWarehouseReportingRouter(db.db));
 router.use(createPlayerAwardsRouter(playerId => db.getPlayerAwards(playerId)));
+router.use(createPlayerAwardsRouter(playerId => db.getPlayerAwards(playerId), () => db.getAwardsCatalog()));
 router.use('/site-analytics', createSiteAnalyticsRouter({
   excluded: req => excludedVisitor(req) || Boolean(getAdminForSteamId(req.user?.id)),
 }));

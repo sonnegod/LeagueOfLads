@@ -690,6 +690,7 @@ class DBInstance {
     }
 
     getPlayerAwards(playerId) { return this.playerAwards.forPlayer(playerId); }
+    getAwardsCatalog() { return this.playerAwards.catalog(); }
 
     getHeadToHeadMatches(p1Id, p2Id) {
         return this.queryDatabase(`

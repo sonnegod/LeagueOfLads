@@ -106,7 +106,13 @@ export default function PlayerAwards({ awards, criteria, loading, error, onRetry
         : <p className="player-awards-empty">{category === 'career' && selectedLeague !== 'all'
           ? 'Choose All Leagues above to see all-time records.'
           : 'No qualifying awards in this selection yet. New leaders appear automatically as results come in.'}</p>}
-    {criteria && <details className="player-awards-criteria">
+    <PlayerAwardsCriteria criteria={criteria} />
+  </section>;
+}
+
+export function PlayerAwardsCriteria({ criteria }) {
+  if (!criteria) return null;
+  return (<details className="player-awards-criteria">
       <summary>How awards are earned</summary>
       <ul>
         <li><strong>Hero Specialist:</strong> highest all-time win rate on a hero, compared with every qualifying player. Minimum {criteria.allTimeHeroGames} games on that hero across all seasons. Hero awards are all-time only.</li>
@@ -117,6 +123,5 @@ export default function PlayerAwards({ awards, criteria, loading, error, onRetry
       </ul>
       <p>Ties share the award. All-time records can change as games are played. Championship badges recognize completed seasons and reflect any data corrections.</p>
       <p>Stats include all completed league appearances, including stand-ins, across group stages, tiebreakers, and playoffs. Conflicting team or hero records and games without a valid winner are excluded. Automatic championship qualification counts only games for the winning team and excludes occasional stand-ins. Historical champion badges require a recorded champion.</p>
-    </details>}
-  </section>;
+    </details>);
 }

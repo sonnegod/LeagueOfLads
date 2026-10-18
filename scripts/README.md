@@ -133,6 +133,14 @@ There is no extra OpenDota request for a new match. The importer validates exist
 player/hero identities and writes expansion data in one transaction. It
 preserves original results, team IDs, league membership, dates, series and player
 statistics. Repeated core inserts do not append additional identical records.
+
+For deliberately refreshing incomplete historical core records from a more
+complete response, the numbered batch runner supports `--repair-incomplete`.
+It preserves warehouse team IDs and season/series metadata, records exact
+before/after changes, and validates all remaining protected data. See
+[repairing incomplete records](league/warehouse-batches/README.md#repair-incomplete-historical-records)
+for eligibility, preview/apply commands and report details. Ordinary nightly
+ingestion and batches without this flag retain their additive behavior.
 Malformed or missing sections retain prior observations; conflicts are reported.
 Substitute source team IDs and historical membership ID differences do not block
 enrichment or create errors. Raw team IDs remain in the source snapshot; curated

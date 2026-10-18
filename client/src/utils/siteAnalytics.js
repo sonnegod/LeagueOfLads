@@ -61,7 +61,7 @@ export function analyticsPage(pathname) {
   if (/^\/(recents|recentMatches)\/?$/.test(pathname)) return 'recents';
   const detail = /^\/(league|player|team|match|series|hero|signup)\/(?:roster\/)?\d+\/?$/.exec(pathname);
   if (detail) return detail[1];
-  if (/^\/(h2h|rules|betting)\/?$/.test(pathname)) return pathname.split('/')[1];
+  if (/^\/(h2h|rules|betting|awards)\/?$/.test(pathname)) return pathname.split('/')[1];
   if (/^\/(league|player|team|match|hero|search|request|draftgod|live)\/?$/.test(pathname)) return 'other';
   return null;
 }
