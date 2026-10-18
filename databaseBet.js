@@ -1,14 +1,12 @@
 import Database from "better-sqlite3";
 import dotenv from 'dotenv';
+import {bettingDatabasePath} from './betting/localTestPolicy.js';
 dotenv.config();
 
 class DBInstance {
     constructor(){
         if(!DBInstance.instance){
-            const dbPath = process.env.BETTING_DB || (
-                process.env.ENVIRONMENT === 'DEV'
-                ? './db/Betting.db'
-                : '/root/LeagueOfLads/db/Betting.db');
+            const dbPath = bettingDatabasePath();
                 
             this.db = new Database(dbPath);
             this.db.pragma('journal_mode = WAL');

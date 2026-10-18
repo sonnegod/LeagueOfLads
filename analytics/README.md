@@ -119,6 +119,102 @@ Betting must hold a metric with missing required games rather than silently
 settle it using a reduced denominator. GPM/XPM season totals are disabled in the
 metric catalog; net worth is retained for analysis without being an initial market.
 
+## Expanded EDW features (schema version 7)
+
+Analytics now reads the normalized EDW tables without making OpenDota requests
+or unpacking/copying compressed source responses. The build remains read-only
+against `LadsData.db`; all new facts are derived in `Analytics.db`.
+
+### Match time and availability
+
+`MatchTeam.StartTimeUtc` is the preferred kickoff time. The EDW stores Unix
+seconds; Analytics converts them to an ISO UTC instant. Older exact times in
+`MatchSourceDetails` or `MatchLeague.DatePlayed` remain fallbacks. A date-only
+value is never promoted to an exact midnight kickoff.
+
+`SourceObservedAtUtc` is separate from kickoff. The latest valid core observation,
+EDW successful import, or archived-response collection time is retained
+conservatively. A historical import or repair does not pretend its current values
+were available before that observation. Games observed after the build's as-of
+time, or not completed by that time, are excluded. Rebuilding does not advance
+the ingestion source-freshness watermarks.
+
+Imported completed leagues without signup settings or team submissions stay
+outside the normal dataset even if a later champion backfill assigned them an
+internal season ID above the signup cutoff. Historical previews remain available.
+
+### New tables
+
+| Table | Contents |
+|---|---|
+| `MatchContextFacts` | Patch, scores, first-blood seconds, enrichment status, section coverage, observation time and feature version. |
+| `PlayerPerformanceFacts` | Lane role, roaming, denies, level, wards placed/destroyed, stacks, stuns, neutral/ancient/objective kills, dewards per 10 minutes, contribution shares and kill participation. |
+| `PlayerEconomyCheckpoints` | Exact gold earned, XP and last-hit observations at 10/20/30/40/50/60 minutes, only for matches that reached the checkpoint. |
+| `TeamEconomyCheckpoints` | Gold/XP advantages and complete five-player economy totals at the same checkpoints. |
+| `TeamPerformanceFacts` | Observed lead/deficit extremes, timeline coverage, 10k comeback/lost-lead outcomes, objective control and recorded fight outcomes. |
+| `TeamfightFacts` | Per-side deaths/kills, damage, signed gold/XP changes, buybacks, inferred outcome and objectives recorded shortly afterward. |
+| `PlayerItemTimings` | First recorded purchase per player/game/item, including pregame purchases. These are purchases, not final inventory. |
+| `PlayerPerformanceStats` | Per-season/team/player/stage/membership summaries, including economy checkpoints, with separate valid samples per metric. |
+| `TeamPerformanceStats` | Equivalent team summaries and economy checkpoints. |
+| `PlayerHeroPatchStats` | Player/hero/patch/lane-role/stage/membership cohorts, games/wins and metric summaries with explicit samples. |
+| `HeroItemStats` | First-purchase timing summaries by season, hero, patch, lane role, stage and item. Includes all appearances. |
+
+Missing values stay null, while recorded zeroes count. Team damage/healing/net-worth
+shares require the statistic for all five players and a nonzero team total.
+Shares and kill participation are percentages from 0 to 100. `GoldEarned` comes
+from `gold_t`, which is cumulative gold earned, not net worth. A missing checkpoint
+is not filled from an earlier/later sample. Dewards per 10 minutes is
+`(observer kills + sentry kills) * 600 / match duration in seconds`.
+
+`Comeback10k` is a win/loss observation only for games with a recorded deficit of
+at least 10,000 gold. `Lost10kLead` is a loss/win observation only for games with
+a recorded lead of that size. Their `Samples` are those opportunities, their
+`Total` is the number of successes, and `Average` is a fraction from 0 to 1.
+Extremes are explicitly recorded-sample extremes; `GoldTimelineComplete` checks
+every expected minute. No eligible lead/deficit means a null conversion metric.
+`FirstTower`/`FirstRoshan` use the same 0/1 convention and stay null when no such
+objective occurred or attribution is unknown. Known objective sections with no
+events have zero counts; unavailable sections have null counts.
+
+Fight outcomes are inferred from fewer deaths, then higher team gold delta for
+equal deaths. Missing decisive data yields `unknown`. All five participants per
+side are required for each fight total. Real pre-horn fights retain negative
+timestamps. Objectives afterward are events within 90 seconds, before the next
+recorded fight and within the match, not proof that the fight caused the objective.
+
+Rate/share/checkpoint totals are disabled where a sum would be misleading.
+Summaries use arithmetic per-game means and population variance. Lane role is the
+recorded lane classification, not a claim about carry/support position. Unknown
+patch and lane role use `unknown` and `0`, respectively. Patch and lane cohorts
+stay separate; small cohorts are not presented as reliable rankings.
+
+### Betting and highlights
+
+`readSeasonPerformanceInputs()` in `analytics/bettingInputs.js` provides a private,
+bounded, versioned contract for the new player/team summaries and hero contexts.
+It refuses historical-preview generations. Existing market definitions, prices,
+settlement metrics, eligibility and accepted tickets are unchanged. New features
+must pass temporal model validation before a Betting model consumes them; unused
+feature bundles are not added to existing Betting input snapshots.
+
+Automatic league highlights now also recognize dewarding, stacking, stuns, recorded
+10k comebacks, and strong fights followed by objectives. They share existing daily
+quotas, moderation, correction/withdrawal and stand-in labeling. No public-match,
+signup MMR or other private pricing inputs enter the public templates.
+
+Run `npm run analytics:build` to migrate and rebuild the normal signup-era dataset.
+Or use Admin → League → Betting → Refresh Analytics and Betting to run the complete
+existing refresh pipeline. A signup-only season has no match features yet.
+For historical viewing, create an isolated preview, for example:
+
+```bash
+node scripts/analytics/build.js --preview-league 19264
+```
+
+This writes `Analytics-preview-19264.db`, not the live Analytics dataset. The admin
+Analytics widget reports enriched matches, EDW UTC start times and known patches.
+All new facts follow the existing atomic publication and two-generation retention.
+
 ## Automatic highlights and recaps
 
 Every successful Analytics build generates and validates league-only stories,
@@ -270,8 +366,9 @@ date. Existing source data is `untracked` until an instrumented job runs.
 
 League jobs record API start time in `MatchSourceDetails` and correct
 `MatchLeague.DatePlayed` for the matches they actually fetch. Series dates now use
-the actual New York match day. Old date-only records are not automatically
-converted into invented exact times; they carry an unknown timestamp. Historical
+the actual New York match day. Analytics prefers the expanded EDW UTC instant
+when available. Date-only records without an exact EDW/API time are not converted
+into invented exact times; they carry an unknown timestamp. Historical
 replay cannot be reconstructed by changing an as-of date against today's mutable
 source database; it needs retained source/feature snapshots.
 

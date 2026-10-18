@@ -2,7 +2,8 @@ import Database from 'better-sqlite3';
 import { existsSync } from 'node:fs';
 import { contentWindow } from './contentWindows.js';
 
-const metricLabels = { Kills: 'Kills', Assists: 'Assists', GPM: 'GPM', XPM: 'XPM', HeroDamage: 'Hero damage', TowerDamage: 'Tower damage', Healing: 'Healing' };
+const metricLabels = { Kills: 'Kills', Assists: 'Assists', GPM: 'GPM', XPM: 'XPM', HeroDamage: 'Hero damage', TowerDamage: 'Tower damage', Healing: 'Healing',
+  Dewards: 'Wards destroyed', CampsStacked: 'Camps stacked', StunSeconds: 'Seconds of stuns', GoldDeficit: 'Gold deficit overcome' };
 
 function ready(db) {
   return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'HighlightEvents'").get());

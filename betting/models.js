@@ -4,7 +4,7 @@ import { generatePlayoffBracket } from '../client/src/utils/playoffBracket.js';
 import {activeLineup,lineupPrior,resultAvailableAt} from './rosterStrength.js';
 import {plannedGameCounts} from './seasonFormat.js';
 
-export const MODEL_VERSION = 'league-lineup-v3';
+export const MODEL_VERSION = 'league-lineup-v4';
 export const METRICS = Object.freeze({ kills:'Kills',deaths:'Deaths',assists:'Assists',last_hits:'LastHits',
   hero_damage:'HeroDamage',tower_damage:'TowerDamage',healing:'Healing',gpm:'GPM',xpm:'XPM' });
 export const metricLabel = key => ({ last_hits:'Last hits',hero_damage:'Hero damage',tower_damage:'Tower damage',gpm:'GPM',xpm:'XPM' })[key] || key[0].toUpperCase()+key.slice(1);
@@ -21,6 +21,9 @@ export function teamProbability(inputs,a,b) {
   const prior=teamKey=> {
     const priorKey=`prior:${inputs.modelMode}:${teamKey}`;if(cache.has(priorKey))return cache.get(priorKey);
     const team=inputs.teams.find(t=>t.TeamSubmissionId===teamKey);
+    if(inputs.modelMode==='preseason_candidate'&&Number.isFinite(inputs.preseasonTeamPriors?.[teamKey])) {
+      const value=Math.max(.1,Math.min(.9,inputs.preseasonTeamPriors[teamKey]));cache.set(priorKey,value);return value;
+    }
     const mmrPrior=(inputs.modelMode==='roster'||inputs.modelMode?.startsWith('lineup'))&&Number.isFinite(team?.AverageSignupMMR)&&mmrs.length
       ? Math.max(.1,Math.min(.9,1/(1+Math.exp(-(team.AverageSignupMMR-mean(mmrs))/1000)))) : .5;
     const strength=inputs.modelMode?.startsWith('lineup')?lineupPrior({mmrPrior,
@@ -138,6 +141,17 @@ export function seriesForecast(inputs,event) {
 }
 export function statSampler(inputs,playerId,stat,random) {
   const column=METRICS[stat]; if(!column) return null;
+  if(inputs.preseasonDistributions) {
+    const distribution=inputs.preseasonDistributions.players[playerId]?.[stat];if(!distribution)return null;
+    let compiled=metricCache.get(inputs);if(!compiled){compiled=new Map();metricCache.set(inputs,compiled);}
+    const compile=(key,data)=>{if(!compiled.has(key)){let total=0;compiled.set(key,{values:data.values,
+      cumulative:data.weights.map(w=>(total+=w)),total});}return compiled.get(key);};
+    const own=compile(`preview:${playerId}:${stat}`,distribution);
+    const pool=compile(`previewpool:${distribution.poolKey}`,inputs.preseasonDistributions.pools[distribution.poolKey]);
+    const sample=data=>{const draw=random()*data.total;let lo=0,hi=data.cumulative.length-1;
+      while(lo<hi){const mid=(lo+hi)>>1;if(data.cumulative[mid]<draw)lo=mid+1;else hi=mid;}return data.values[lo];};
+    return ()=>sample(random()<distribution.personalWeight?own:pool);
+  }
   let cache=metricCache.get(inputs);if(!cache){cache=new Map();metricCache.set(inputs,cache);}
   if(!cache.has(stat)) {
     const pooled=[];const players=new Map();
@@ -165,9 +179,8 @@ export function statForecast(inputs,{playerId,stat,scope,games=1,event,teamKey,l
   return {line,over,under:1-over,samples,expected,teamKey};
 }
 
-export function simulateSeason(inputs,setup,random,samples=2000) {
+export function simulateSeason(inputs,setup,random,samples=2000,{includeMatchups=false}={}) {
   const rules=JSON.parse(inputs.season.RulesJson||'null'); if(!rules) return null;
-  if(rules.HasTiebreaker) return null;
   const groups=[...new Set(inputs.teams.map(t=>t.GroupId))];
   const gameCounts=plannedGameCounts(setup);
   if(groups.includes(null)) return null;
@@ -177,16 +190,28 @@ export function simulateSeason(inputs,setup,random,samples=2000) {
     !==(typeof gameCounts==='object'?gameCounts[team.TeamSubmissionId]:gameCounts)))) return null;
   const placement=new Map(inputs.teams.map(t=>[t.TeamSubmissionId,{upper:0,lower:0,eliminated:0}]));
   const champion=new Map(inputs.teams.map(t=>[t.TeamSubmissionId,0])); const finalist=new Map(champion);
-  const counts=[];
+  const counts=[];const matchups=new Map();
+  const regularWins=new Map(inputs.teams.map(t=>[t.TeamSubmissionId,Array((typeof gameCounts==='object'?gameCounts[t.TeamSubmissionId]:gameCounts)+1).fill(0)]));
   for(let sim=0;sim<samples;sim++) {
     const seeded=[];
     for(const group of groups) {
       const teams=inputs.teams.filter(t=>t.GroupId===group); const stats=new Map(teams.map(t=>[t.TeamSubmissionId,{wins:0,opponents:[]}]));
-      for(let a=0;a<teams.length;a++) for(let b=a+1;b<teams.length;b++) for(let game=0;game<2;game++) {
+      for(let a=0;a<teams.length;a++) for(let b=a+1;b<teams.length;b++) {
+        let seriesWins=0;
+        for(let game=0;game<2;game++) {
         const pa=teamProbability(inputs,teams[a].TeamSubmissionId,teams[b].TeamSubmissionId); const win=random()<pa;
+        seriesWins+=Number(win);
         const ta=stats.get(teams[a].TeamSubmissionId),tb=stats.get(teams[b].TeamSubmissionId);
         ta.wins+=Number(win);tb.wins+=Number(!win);ta.opponents.push({key:teams[b].TeamSubmissionId,won:win});tb.opponents.push({key:teams[a].TeamSubmissionId,won:!win});
+        }
+        if(includeMatchups) {
+          const team1Key=teams[a].TeamSubmissionId,team2Key=teams[b].TeamSubmissionId,key=`${team1Key}:${team2Key}`;
+          if(!matchups.has(key))matchups.set(key,{groupId:group,team1Key,team2Key,
+            gameWinProbability:teamProbability(inputs,team1Key,team2Key),scores:[0,0,0]});
+          matchups.get(key).scores[seriesWins]++;
+        }
       }
+      for(const team of teams)regularWins.get(team.TeamSubmissionId)[stats.get(team.TeamSubmissionId).wins]++;
       const rows=teams.map(t=>({...t,Wins:stats.get(t.TeamSubmissionId).wins,
         Neustadtl:stats.get(t.TeamSubmissionId).opponents.filter(o=>o.won).reduce((s,o)=>s+stats.get(o.key).wins,0),tie:random()}))
         .sort((a,b)=>b.Wins-a.Wins||b.Neustadtl-a.Neustadtl||a.tie-b.tie);
@@ -222,9 +247,23 @@ export function simulateSeason(inputs,setup,random,samples=2000) {
     }
     if(winner&&resolved===nodes.length) {champion.set(winner,champion.get(winner)+1);finalists.forEach(key=>finalist.set(key,finalist.get(key)+1));counts.push(1);}
   }
-  return { samples,placement:Object.fromEntries([...placement].map(([key,b])=>[key,Object.fromEntries(Object.entries(b).map(([k,n])=>[k,n/samples]))])),
+  return { samples,regularWins:Object.fromEntries(regularWins),...(includeMatchups?{matchups:[...matchups.values()]}:{}),placement:rules.HasTiebreaker?null:Object.fromEntries([...placement].map(([key,b])=>[key,Object.fromEntries(Object.entries(b).map(([k,n])=>[k,n/samples]))])),
     champion:counts.length===samples?Object.fromEntries([...champion].map(([k,n])=>[k,(n+1)/(samples+champion.size)])):null,
     finalist:counts.length===samples?Object.fromEntries([...finalist].map(([k,n])=>[k,(n+1)/(samples+2)])):null };
+}
+
+export function seasonWinsForecast(simulation,teamKey,fixedLine=null) {
+  const counts=simulation?.regularWins?.[teamKey];
+  if(!counts?.length||!Number.isInteger(simulation.samples)||simulation.samples<1
+    ||counts.some(n=>!Number.isInteger(n)||n<0)||counts.reduce((s,n)=>s+n,0)!==simulation.samples)return null;
+  const games=counts.length-1;if(games<1)return null;
+  const expected=counts.reduce((sum,n,wins)=>sum+n*wins,0)/simulation.samples;
+  const line=fixedLine??Math.max(.5,Math.min(games-.5,Math.floor(expected)+.5));
+  if(!Number.isFinite(line)||line<0||line>games)throw new Error('Invalid season wins line');
+  const above=counts.reduce((sum,n,wins)=>sum+(wins>line?n:0),0),below=counts.reduce((sum,n,wins)=>sum+(wins<line?n:0),0);
+  // Conditional on no exact-line push, matching stake refunds on integer lines.
+  const over=(above+1)/(above+below+2);
+  return {line,expected,games,samples:simulation.samples,over,under:1-over};
 }
 
 export function leaderForecast(inputs,roster,stat,scope,games,random,samples=2000) {

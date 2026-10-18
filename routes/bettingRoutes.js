@@ -6,38 +6,61 @@ import { fixtureGuard,seasonGuard } from '../betting/engine.js';
 import { queueBettingRefresh } from '../betting/runtime.js';
 import { settleLegacy } from '../betting/legacy.js';
 import {historicalPreviewPath,readHistoricalPreview} from '../betting/historicalPreview.js';
+import {signupPreviewPath} from '../betting/signupPreseasonPreview.js';
+import {rebuildPreseasonPreview} from '../betting/previewRefresh.js';
 import {groupPlayerMarkets,groupTeamMarkets} from '../betting/marketView.js';
+import {readFixtureMarketPage,readScheduledPlayers,marketBettors} from '../betting/fixtureMarketView.js';
 
 const positive=value=>/^\d+$/.test(String(value))&&Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):null;
 export function bettingActor(req) {
   if(!req.isAuthenticated?.()||!req.user)return null;
   try{const id=BigInt(req.user.id)-76561197960265728n;return id>0n&&id<=BigInt(Number.MAX_SAFE_INTEGER)?id.toString():null;}catch{return null;}
 }
-const endpoint=fn=>(req,res)=>{try{return fn(req,res);}catch(error){
+const endpoint=fn=>(req,res)=>{const report=error=>{
   if(error.status)return res.status(error.status).json({error:error.message,code:error.code});
   console.error('Betting request failed:',error.code||'internal');return res.status(500).json({error:'Betting request failed'});
-}};
-export function createBettingRoutes({book,schedules,league,analyticsPath,playerName=id=>`Player ${id}`,refresh=queueBettingRefresh}) {
+};try{const result=fn(req,res);return result?.then?result.catch(report):result;}catch(error){return report(error);}};
+export function createBettingRoutes({book,schedules,league,analyticsPath,playerName=id=>`Player ${id}`,refresh=queueBettingRefresh,rebuildPreview=rebuildPreseasonPreview}) {
   const publicRoutes=express.Router();const adminRoutes=express.Router();const db=book.db;
   const readEndpoint=fn=>endpoint((req,res)=>db.transaction(()=>fn(req,res))());
   const seasonId=req=>{
     const id=positive(req.query.seasonId||req.body?.seasonId);if(id)return id;
-    return league.prepare("SELECT SeasonId FROM LeagueSeasons ORDER BY CASE WHEN Status!='ended' THEN 0 ELSE 1 END,SeasonId DESC LIMIT 1").get()?.SeasonId||null;
+    return league.prepare("SELECT SeasonId FROM LeagueSeasons ORDER BY CASE WHEN Status!='ended' THEN 0 ELSE 1 END,ExternalLeagueId DESC NULLS LAST,SeasonId DESC LIMIT 1").get()?.SeasonId||null;
   };
   const register=id=>{const season=league.prepare('SELECT * FROM LeagueSeasons WHERE SeasonId=?').get(id);if(!season)fail('Season not found',404);book.registerSeason(season);return season;};
   const self=req=>{const actor=bettingActor(req);if(!actor)fail('Sign in with Steam to access your betting account',401);return actor;};
+  const offeredMarket=(m,sid,sourceState,changed,now)=>{
+    const guard=fixtureGuard(league,m.EventId,m,now,book.env)||seasonGuard(league,analyticsPath,sid,m,now,sourceState,book.env);
+    const locked=Date.parse(m.CloseAtUtc)<=now.getTime();
+    const activity=m.EventId?marketBettors(db,m.MarketId):null;
+    const selections=db.prepare('SELECT SelectionId,OutcomeKey,Label,OfferedMicros FROM BettingSelections WHERE MarketId=? AND IsActive=1 ORDER BY SelectionId').all(m.MarketId);
+    return {marketId:m.MarketId,seasonId:m.SeasonId,eventId:m.EventId,type:m.MarketType,title:m.Title,stat:m.StatKey,scope:m.Scope,
+      playerId:m.PlayerId,teamKey:m.TeamKey,line:m.Line,gameNumber:m.GameNumber,bestOf:m.BestOf,stage:m.Stage,
+      closeAt:m.CloseAtUtc,status:locked?'locked':guard?'held':m.Status,quoteVersion:m.QuoteVersion,bettorCount:activity?.total,
+      notice:guard||(m.Status==='held'?'Market temporarily unavailable':null),selections:selections.map(s=>({selectionId:s.SelectionId,key:s.OutcomeKey,label:s.Label,odds:s.OfferedMicros/ODDS_SCALE,
+        available:!s.OutcomeKey.startsWith('player:')||!changed.includes(Number(s.OutcomeKey.slice(7))),bettorCount:activity?.byOutcome[s.OutcomeKey]||0}))};
+  };
   publicRoutes.get('/meta',endpoint((req,res)=>{
-    const seasons=league.prepare('SELECT SeasonId,LeagueName,Status FROM LeagueSeasons ORDER BY SeasonId DESC LIMIT 30').all();
+    const seasons=league.prepare('SELECT SeasonId,LeagueName,Status FROM LeagueSeasons ORDER BY ExternalLeagueId DESC NULLS LAST,SeasonId DESC LIMIT 30').all();
     return res.json({seasons:seasons.map(s=>({seasonId:s.SeasonId,name:s.LeagueName,status:s.Status})),defaultSeasonId:seasonId(req),
-      stakeCap:1000,startingPoints:10000,movementPercent:10});
+      stakeCap:1000,startingPoints:10000,movementPercent:10,localTesting:book.localTesting});
   }));
   publicRoutes.get('/markets',readEndpoint((req,res)=>{
     const sid=seasonId(req);if(!sid)return res.json({markets:[],nextBefore:null});
     const limit=Math.min(20,positive(req.query.limit)||20);const before=positive(req.query.before);
-    const type=req.query.type||null;if(type&&!['series_winner','exact_score','player_prop','season_player','player_leader','champion','placement'].includes(type))fail('Invalid market type');
+    const type=req.query.type||null;if(type&&!['series_winner','exact_score','player_prop','season_player','season_team','player_leader','champion','placement'].includes(type))fail('Invalid market type');
     const search=String(req.query.search||'').trim();if(search.length>100)fail('Search is too long');
     const event=req.query.eventId?positive(req.query.eventId):null;if(req.query.eventId&&!event)fail('Invalid fixture');
     const view=req.query.view||'all';if(!['all','series','player','team'].includes(view))fail('Invalid market view');
+    if(req.query.groupFixtures!==undefined&&(req.query.groupFixtures!=='1'||view!=='series'))fail('Invalid fixture grouping');
+    if(req.query.includeProps!==undefined&&(req.query.includeProps!=='1'||req.query.groupFixtures!=='1'||!event))fail('Select a grouped fixture to load props');
+    const sourceState={};const now=book.now();
+    const changed=league.prepare("SELECT DISTINCT PlayerId FROM SeasonRosterChanges WHERE SeasonId=? AND Kind='permanent'").all(sid).map(r=>r.PlayerId);
+    if(req.query.groupFixtures==='1') {
+      const payload=readFixtureMarketPage({db,league,seasonId:sid,limit,before,eventId:event,search,includeProps:req.query.includeProps==='1',
+        localTesting:book.localTesting,playerName,project:m=>offeredMarket(m,sid,sourceState,changed,now)});
+      res.set('Cache-Control','no-store');return res.json(payload);
+    }
     const teams=view==='player'||view==='team'?schedules.teams(sid):[];
     if(teams.length>200)fail('This season exceeds the supported team count',409);
     const matching=view==='player'?db.prepare(`SELECT DISTINCT PlayerId FROM BettingMarkets WHERE SeasonId=?
@@ -58,24 +81,13 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
         AND Status IN ('open','held','locked') GROUP BY PlayerId,StatKey,Scope)
       ORDER BY PlayerId DESC,MarketId`).all(sid,...playerIds,sid):[];
     else if(view==='team')rows=db.prepare(`SELECT * FROM BettingMarkets WHERE SeasonId=? AND EventId IS NULL
-      AND MarketType IN ('champion','placement') AND Status IN ('open','held','locked') ORDER BY MarketId DESC LIMIT 201`).all(sid);
+      AND MarketType IN ('champion','placement','season_team') AND Status IN ('open','held','locked') ORDER BY MarketId DESC LIMIT 401`).all(sid);
     else rows=db.prepare(`SELECT * FROM BettingMarkets WHERE SeasonId=? AND Status IN ('open','held','locked')
       AND (? IS NULL OR MarketType=?) AND (? IS NULL OR EventId=?) AND (? IS NULL OR MarketId<?)
       AND (?!='series' OR EventId IS NOT NULL)
       AND Title LIKE ? ESCAPE '\\' ORDER BY MarketId DESC LIMIT ?`).all(sid,type,type,event,event,before,before,
         view,`%${search.replace(/[\\%_]/g,'\\$&')}%`,limit+1);
-    const sourceState={};const now=book.now();
-    const changed=league.prepare("SELECT DISTINCT PlayerId FROM SeasonRosterChanges WHERE SeasonId=? AND Kind='permanent'").all(sid).map(r=>r.PlayerId);
-    const markets=(view==='player'||view==='team'?rows:rows.slice(0,limit)).map(m=>{
-      const guard=fixtureGuard(league,m.EventId,m,now)||seasonGuard(league,analyticsPath,sid,m,now,sourceState);
-      const locked=Date.parse(m.CloseAtUtc)<=book.now().getTime();
-      const selections=db.prepare('SELECT SelectionId,OutcomeKey,Label,OfferedMicros FROM BettingSelections WHERE MarketId=? AND IsActive=1 ORDER BY SelectionId').all(m.MarketId);
-      return {marketId:m.MarketId,seasonId:m.SeasonId,eventId:m.EventId,type:m.MarketType,title:m.Title,stat:m.StatKey,scope:m.Scope,
-        playerId:m.PlayerId,teamKey:m.TeamKey,line:m.Line,gameNumber:m.GameNumber,bestOf:m.BestOf,stage:m.Stage,
-        closeAt:m.CloseAtUtc,status:locked?'locked':guard?'held':m.Status,quoteVersion:m.QuoteVersion,
-        notice:guard||(m.Status==='held'?'Market temporarily unavailable':null),selections:selections.map(s=>({selectionId:s.SelectionId,key:s.OutcomeKey,label:s.Label,odds:s.OfferedMicros/ODDS_SCALE,
-          available:!s.OutcomeKey.startsWith('player:')||!changed.includes(Number(s.OutcomeKey.slice(7)))}))};
-    });
+    const markets=(view==='player'||view==='team'?rows:rows.slice(0,limit)).map(m=>offeredMarket(m,sid,sourceState,changed,now));
     let groups=[];
     if(view==='team') {
       const season=league.prepare('SELECT ExternalLeagueId FROM LeagueSeasons WHERE SeasonId=?').get(sid);
@@ -87,15 +99,40 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
       players:view==='player'?groupPlayerMarkets(markets,selected.slice(0,limit),teams):[],teamGroups:groups,
       nextBefore:view==='team'?null:view==='player'?(selected.length>limit?selected[limit-1].playerId:null):rows.length>limit?rows[limit-1].MarketId:null});
   }));
-  publicRoutes.get('/events',endpoint((req,res)=>{const sid=seasonId(req);return res.json({events:sid?schedules.list(sid).map(e=>({
-    eventId:e.EventId,team1:e.Team1Name,team2:e.Team2Name,stage:e.Stage,bestOf:e.BestOf,startAt:e.ScheduledStartUtc,status:e.Status})):[]});}));
+  publicRoutes.get('/player-props',readEndpoint((req,res)=>{
+    const sid=seasonId(req);if(!sid)return res.json({players:[],nextBefore:null});
+    const event=req.query.eventId?positive(req.query.eventId):null;
+    if(req.query.eventId&&!event)fail('Invalid fixture');
+    const search=String(req.query.search||'').trim();if(search.length>100)fail('Search is too long');
+    const payload=readScheduledPlayers({db,league,seasonId:sid,limit:Math.min(20,positive(req.query.limit)||20),before:positive(req.query.before),
+      eventId:event,search,localTesting:book.localTesting,playerName});
+    res.set('Cache-Control','no-store');return res.json(payload);
+  }));
+  publicRoutes.get('/fixtures/:eventId',readEndpoint((req,res)=>{
+    const id=positive(req.params.eventId);if(!id)fail('Invalid fixture');
+    const playerId=req.query.playerId?positive(req.query.playerId):null;if(req.query.playerId&&!playerId)fail('Invalid player');
+    const event=schedules.get(id);
+    if(!event||event.SourceMessageId?.startsWith('local-test:')&&!book.localTesting)fail('Fixture not found',404);
+    const season=league.prepare('SELECT SeasonId,LeagueName,Status FROM LeagueSeasons WHERE SeasonId=?').get(event.SeasonId);
+    if(!season)fail('Season not found',404);
+    const sourceState={},now=book.now();
+    const changed=league.prepare("SELECT DISTINCT PlayerId FROM SeasonRosterChanges WHERE SeasonId=? AND Kind='permanent'").all(event.SeasonId).map(r=>r.PlayerId);
+    const payload=readFixtureMarketPage({db,league,seasonId:event.SeasonId,eventId:id,playerId,limit:1,before:null,search:'',includeProps:true,allowEmpty:true,
+      localTesting:book.localTesting,playerName,project:m=>offeredMarket(m,event.SeasonId,sourceState,changed,now)});
+    if(!payload.fixtures.length)fail('Fixture not found',404);
+    res.set('Cache-Control','no-store');return res.json({fixture:payload.fixtures[0],
+      season:{seasonId:season.SeasonId,name:season.LeagueName,status:season.Status},localTesting:book.localTesting});
+  }));
+  publicRoutes.get('/events',endpoint((req,res)=>{const sid=seasonId(req);return res.json({events:sid?schedules.list(sid,{includeLocalTests:book.localTesting}).map(e=>({
+    eventId:e.EventId,team1:e.Team1Name,team2:e.Team2Name,stage:e.Stage,bestOf:e.BestOf,startAt:e.ScheduledStartUtc,status:e.Status,
+    localTestFixture:e.SourceMessageId?.startsWith('local-test:')||false})):[]});}));
   publicRoutes.get('/quotes',readEndpoint((req,res)=>{
     const ids=String(req.query.ids||'').split(',').map(positive);if(!ids.length||ids.length>8||ids.some(n=>!n))fail('Invalid selections');
     const quotes=ids.map(id=>{
       const row=db.prepare(`SELECT s.SelectionId,s.OfferedMicros,s.OutcomeKey,s.IsActive,m.MarketType,m.PlayerId,m.TeamKey,m.QuoteVersion,m.Status,m.CloseAtUtc,m.SeasonId,m.EventId,m.EventRevision,m.ForecastId,m.RulesJson,m.UpdatedAtUtc
         FROM BettingSelections s JOIN BettingMarkets m ON m.MarketId=s.MarketId WHERE s.SelectionId=?`).get(id);
       if(!row)fail('Selection is unavailable',404);
-      const guard=fixtureGuard(league,row.EventId,row,book.now())||seasonGuard(league,analyticsPath,row.SeasonId,row,book.now());
+      const guard=fixtureGuard(league,row.EventId,row,book.now(),book.env)||seasonGuard(league,analyticsPath,row.SeasonId,row,book.now(),null,book.env);
       return {selectionId:id,odds:row.OfferedMicros/ODDS_SCALE,quoteVersion:row.QuoteVersion,status:!row.IsActive||guard?'held':Date.parse(row.CloseAtUtc)<=book.now().getTime()?'locked':row.Status};
     });return res.json({quotes});
   }));
@@ -127,16 +164,19 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
   }));
 
   adminRoutes.get('/preview',endpoint((req,res)=>{
-    const leagueId=positive(req.query.leagueId);if(!leagueId)fail('Select a valid historical league');
+    const leagueId=positive(req.query.leagueId),previewSeason=positive(req.query.seasonId);
+    if((!leagueId&&!previewSeason)||(req.query.leagueId!==undefined&&req.query.seasonId!==undefined))fail('Select a valid league or signup season');
+    if(req.query.seasonId!==undefined&&!previewSeason)fail('Invalid signup season');
+    if(previewSeason&&req.query.scope&&req.query.scope!=='preseason')fail('Signup previews cover preseason markets only');
     if(req.query.scope&&!['preseason','series'].includes(req.query.scope)||req.query.preseasonGroup&&!['all','player','team'].includes(req.query.preseasonGroup)||String(req.query.search||'').length>100)fail('Invalid preview filter');
     if(req.query.groupPlayers!==undefined&&req.query.groupPlayers!=='1')fail('Invalid player grouping');
     if(req.query.groupTeams!==undefined&&req.query.groupTeams!=='1')fail('Invalid team grouping');
     const eventId=req.query.eventId?positive(req.query.eventId):null;const before=req.query.before?positive(req.query.before):null;
     if(req.query.eventId&&!eventId||req.query.before&&!before)fail('Invalid preview filter');
-    const groupNames=league.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='GroupNames'").get()
+    const groupNames=previewSeason?Object.fromEntries(league.prepare('SELECT GroupId,GroupName FROM SeasonGroups WHERE SeasonId=?').all(previewSeason).map(g=>[g.GroupId,g.GroupName])):league.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='GroupNames'").get()
       ?Object.fromEntries(league.prepare('SELECT GroupId,GroupName FROM GroupNames WHERE LeagueId=?').all(leagueId).map(g=>[g.GroupId,g.GroupName])):{};
-    const payload=readHistoricalPreview(historicalPreviewPath(db.name,leagueId),{scope:req.query.scope||'preseason',preseasonGroup:req.query.preseasonGroup||'all',groupPlayers:req.query.groupPlayers==='1',groupTeams:req.query.groupTeams==='1',groupNames,eventId,before,search:String(req.query.search||'').trim()});
-    if(!payload)fail('Run the historical betting preview command for this league first',404);
+    const payload=readHistoricalPreview(previewSeason?signupPreviewPath(db.name,previewSeason):historicalPreviewPath(db.name,leagueId),{scope:req.query.scope||'preseason',preseasonGroup:req.query.preseasonGroup||'all',groupPlayers:req.query.groupPlayers==='1',groupTeams:req.query.groupTeams==='1',groupNames,eventId,before,search:String(req.query.search||'').trim()});
+    if(!payload)fail(previewSeason?'Run the signup preseason preview command first':'Run the historical betting preview command for this league first',404);
     res.set('Cache-Control','no-store');return res.json(payload);
   }));
 
@@ -146,17 +186,25 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
     const refreshState=league.prepare('SELECT * FROM BettingRefreshState WHERE Id=1').get();
     const messages=league.prepare(`SELECT MessageId,ChannelId,AuthoredAtUtc,EditedAtUtc,ParseStatus,IssueCode,EventId,Deleted FROM ScheduleMessages
       WHERE ParseStatus='needs_review' AND SeasonId=? ORDER BY LastSeenAtUtc DESC LIMIT 50`).all(sid);
-    return res.json({season:season?{seasonId:sid,name:season.LeagueName,status:season.Status,leagueId:season.ExternalLeagueId}:null,
-      seasons:league.prepare('SELECT SeasonId,LeagueName,Status FROM LeagueSeasons ORDER BY SeasonId DESC LIMIT 30').all().map(s=>({seasonId:s.SeasonId,name:s.LeagueName,status:s.Status})),
+    return res.json({localTesting:book.localTesting,season:season?{seasonId:sid,name:season.LeagueName,status:season.Status,leagueId:season.ExternalLeagueId}:null,
+      seasons:league.prepare('SELECT SeasonId,LeagueName,Status FROM LeagueSeasons ORDER BY ExternalLeagueId DESC NULLS LAST,SeasonId DESC LIMIT 30').all().map(s=>({seasonId:s.SeasonId,name:s.LeagueName,status:s.Status})),
       setup:setup?{revision:setup.Revision,gamesPerTeam:setup.RegularGamesPerTeam,gamesByTeam:JSON.parse(setup.SetupJson).gamesByTeam||null,finalizedAt:setup.FinalizedAtUtc,completion:setup.Completion,regularSeasonComplete:!!setup.RegularSeasonComplete}:null,
       teams:sid?schedules.teams(sid).map(t=>({teamKey:t.TeamSubmissionId,name:t.TeamName,teamId:t.ExternalTeamId})):[],
       refresh:{pending:refreshState.RequestedRevision>refreshState.CompletedRevision,lastAttemptAt:refreshState.LastAttemptAtUtc,
         lastCompletedAt:refreshState.LastCompletedAtUtc,failures:refreshState.ConsecutiveFailures,
         error:['refresh_failed','refresh_retry_exhausted'].includes(refreshState.LastErrorCode)?refreshState.LastErrorCode:null,nextRetryAt:refreshState.NextRetryAtUtc},
-      events:sid?schedules.list(sid):[],jobs,messages,legacyIssues:db.prepare('SELECT LegacyTicketId,IssueCode FROM BettingLegacyImportIssues ORDER BY LegacyTicketId LIMIT 50').all(),
+      events:sid?schedules.list(sid,{includeLocalTests:book.localTesting}):[],jobs,messages,legacyIssues:db.prepare('SELECT LegacyTicketId,IssueCode FROM BettingLegacyImportIssues ORDER BY LegacyTicketId LIMIT 50').all(),
       aliases:sid?league.prepare('SELECT RoleId,TeamSubmissionId FROM TeamDiscordAliases WHERE SeasonId=?').all(sid):[]});
   }));
   adminRoutes.post('/refresh',endpoint((req,res)=>{refresh();return res.status(202).json({queued:true});}));
+  adminRoutes.post('/seasons/:seasonId/preview',endpoint(async(req,res)=>{
+    const sid=positive(req.params.seasonId);if(!sid)fail('Invalid season');
+    const season=league.prepare('SELECT Status FROM LeagueSeasons WHERE SeasonId=?').get(sid);
+    if(!season)fail('Season not found',404);
+    if(!['signup_closed','active'].includes(season.Status))fail('Close signups before rebuilding preseason odds',409);
+    await rebuildPreview({seasonId:sid,leaguePath:league.name,analyticsPath,bettingPath:db.name});
+    res.set('Cache-Control','no-store');return res.json({rebuilt:true});
+  }));
   adminRoutes.post('/seasons/:seasonId/setup',endpoint((req,res)=>{
     const sid=positive(req.params.seasonId);if(!sid)fail('Invalid season');schedules.finalizeSetup(sid,req.body?.gamesPerTeam,bettingActor(req));return res.json({saved:true});
   }));

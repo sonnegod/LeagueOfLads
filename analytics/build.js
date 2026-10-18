@@ -3,6 +3,7 @@ import { ANALYTICS_DEFAULTS, ANALYTICS_VERSION, positiveId } from './config.js';
 import { METRICS } from './store.js';
 import { publishLeagueHighlights } from './highlights.js';
 import { bracketSeriesFormats } from './seriesStories.js';
+import { createWarehouseFeatures, warehouseMatchTime, summarizeWarehouseFeatures, WAREHOUSE_FACT_TABLES } from './warehouseFeatures.js';
 
 function hasTable(db, name) {
   return Boolean(db?.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
@@ -80,7 +81,7 @@ function summarize(db, runId) {
       WITH games AS (
         SELECT m.SeasonId, m.Stage, p.TeamSubmissionId, p.PlayerId, p.Membership, p.${metric} AS Value,
           ROW_NUMBER() OVER (PARTITION BY m.SeasonId, m.Stage, p.TeamSubmissionId, p.PlayerId, p.Membership
-            ORDER BY m.MatchId DESC) AS RecentRank
+            ORDER BY m.StartedAtUtc DESC,m.MatchId DESC) AS RecentRank
         FROM PlayerGameFacts p JOIN MatchFacts m ON m.RunId = p.RunId AND m.MatchId = p.MatchId
         WHERE p.RunId = ?
       ) SELECT ?, SeasonId, TeamSubmissionId, PlayerId, Stage, Membership, ?, COUNT(Value),
@@ -156,6 +157,7 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
       }
       const issue = analytics.prepare('INSERT OR IGNORE INTO DataQualityIssues VALUES (?, ?, ?, ?)');
       const flag = (type, id, code) => issue.run(runId, type, String(id), code);
+      const warehouse = createWarehouseFeatures({ league, analytics, runId, flag });
       const addSnapshot = analytics.prepare('INSERT INTO SourceSnapshots VALUES (?, ?, ?, ?, ?, ?, ?)');
       const snapshots = ['match_history', 'match_details'].map(name => snapshot(league, name, at));
       snapshots.push(snapshot(publicDb, 'public_matches', at));
@@ -178,9 +180,13 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
       analytics.prepare('UPDATE AnalyticsRuns SET FirstSeasonId = ? WHERE RunId = ?').run(firstSeasonId, runId);
       if (!firstSeasonId) flag('source', 'league', 'no_signup_seasons');
 
+      // Legacy champion imports can receive NEW internal IDs after signup seasons.
+      // An ID cutoff alone must not pull those historical, rosterless seasons in.
       seasons = firstSeasonId ? league.prepare(`SELECT SeasonId, ExternalLeagueId, LeagueName, Status
-        FROM LeagueSeasons WHERE SeasonId >= ? AND (? IS NULL OR SeasonId = ?) ORDER BY SeasonId`)
-        .all(firstSeasonId, seasonId, seasonId) : [];
+        FROM LeagueSeasons s WHERE SeasonId >= ? AND (? IS NULL OR SeasonId = ?)
+        AND (s.SeasonId=? OR s.Status<>'ended' OR NULLIF(TRIM(s.SignupTitle),'') IS NOT NULL
+          OR EXISTS(SELECT 1 FROM SeasonTeams t WHERE t.SeasonId=s.SeasonId)) ORDER BY SeasonId`)
+        .all(firstSeasonId, seasonId, seasonId, firstSeasonId) : [];
       if (seasonId && !seasons.length) throw new Error('Season is missing or predates signups; use an isolated league preview for historical data');
       }
       const addSeason = analytics.prepare('INSERT INTO SeasonFacts VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
@@ -203,12 +209,10 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
       const hasSignupMMRs = hasTable(league, 'SignupMMRs');
       const hasSubmittedMMRs = league.prepare("SELECT 1 FROM pragma_table_info('SeasonTeamPlayers') WHERE name = 'MMR'").get();
       const hasManualMMR = league.prepare("SELECT 1 FROM pragma_table_info('SeasonTeams') WHERE name = 'ManualAverageMMR'").get();
-      const matches = league.prepare(`SELECT ml.MatchId, ml.LeagueId, ml.DatePlayed, mt.TeamRad,
-        mt.TeamDire, mt.WinnerId, mt.Duration, mt.Rehost FROM MatchLeague ml
+      const matches = league.prepare(`SELECT mt.*, ml.LeagueId, ml.DatePlayed FROM MatchLeague ml
         JOIN MatchTeam mt ON mt.MatchId = ml.MatchId WHERE ml.LeagueId = ? ORDER BY ml.MatchId`);
       const assignments = league.prepare(`SELECT DISTINCT PlayerId, TeamId FROM MatchTeamPlayer WHERE MatchId = ?`);
-      const playerRows = league.prepare(`SELECT PlayerId, HeroId, Kills, Deaths, Assists, Lasthits,
-        GPM, XPM, Networth, HeroDamage, TowerDamage, Healing FROM MatchPlayer WHERE MatchId = ?`);
+      const playerRows = league.prepare('SELECT * FROM MatchPlayer WHERE MatchId = ?');
       let matchCount = 0;
       let playerCount = 0;
       for (const season of seasons) {
@@ -344,15 +348,20 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
           const stage = official?.StageOverride || matchStage(match.MatchId, boundary, links[0]?.Stage);
           if (stage === 'unknown') reject('unknown_match_stage');
           const detail = sourceTimes ? league.prepare('SELECT StartedAtUtc, ObservedAtUtc FROM MatchSourceDetails WHERE MatchId = ?').get(match.MatchId) : null;
-          if (utc(detail?.ObservedAtUtc) && utc(detail.ObservedAtUtc) > at) {
+          const metadata = warehouse.metadata(match.MatchId);
+          const timing = warehouseMatchTime(match, detail, metadata);
+          if (timing.observedAt && timing.observedAt > at) {
             reject('match_not_available_as_of'); continue;
           }
-          const startedAt = utc(detail?.StartedAtUtc) ?? utc(match.DatePlayed);
+          const startedAt = timing.startedAt;
           if (startedAt && startedAt > at) { reject('future_match'); continue; }
+          if (startedAt && Date.parse(startedAt) + match.Duration * 1000 > now.getTime()) {
+            reject('match_not_completed_as_of'); continue;
+          }
           if (!startedAt) reject('unknown_match_time');
           addMatch.run(runId, match.MatchId, season.SeasonId, season.ExternalLeagueId, links[0]?.SeriesId ?? null,
-            stage, startedAt, match.DatePlayed ?? null, detail ? 'api' : startedAt ? 'warehouse' : 'unknown',
-            match.Duration, match.WinnerId, utc(detail?.ObservedAtUtc));
+            stage, startedAt, match.DatePlayed ?? null, timing.timeSource,
+            match.Duration, match.WinnerId, timing.observedAt);
           addTeamGame.run(runId, match.MatchId, radiant, dire, match.TeamRad, Number(match.WinnerId === match.TeamRad), 'radiant');
           addTeamGame.run(runId, match.MatchId, dire, radiant, match.TeamDire, Number(match.WinnerId === match.TeamDire), 'dire');
           for (const [playerId, teamId] of map) {
@@ -369,6 +378,7 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
               Number(match.WinnerId === teamId), membership, ...values);
             playerCount += 1;
           }
+          warehouse.write({ match, metadata, stats, assignments: map, radiant, dire });
           matchCount += 1;
         }
       }
@@ -453,6 +463,7 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
         }
       } else flag('source', 'public', 'public_availability_untracked');
 
+      summarizeWarehouseFeatures(analytics, runId);
       publishLeagueHighlights(analytics, runId, now);
       beforePublish?.({ runId, analytics });
       const issueCount = analytics.prepare('SELECT COUNT(*) AS Count FROM DataQualityIssues WHERE RunId = ?').get(runId).Count;
@@ -465,7 +476,7 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
       const old = analytics.prepare(`SELECT RunId FROM AnalyticsRuns WHERE Status = 'complete'
         ORDER BY RunId DESC LIMIT -1 OFFSET ?`).all(ANALYTICS_DEFAULTS.retainedGenerations);
       for (const { RunId } of old) {
-        for (const table of ['SourceSnapshots', 'DataQualityIssues', 'SeasonFacts', 'TeamFacts', 'PlayerFacts',
+        for (const table of [...WAREHOUSE_FACT_TABLES, 'SourceSnapshots', 'DataQualityIssues', 'SeasonFacts', 'TeamFacts', 'PlayerFacts',
           'RosterMembership', 'RosterMembershipIntervals', 'MatchFacts', 'PlayerTeamSeasonStats', 'PlayerMetricStats', 'TeamSeasonStats', 'PrivatePlayerFeatures',
           'PrivateRosterInputs', 'PrivateTeamFeatures', 'HeroFacts', 'ChampionFacts', 'GroupFacts', 'SeriesFacts']) {
           analytics.prepare(`DELETE FROM ${table} WHERE RunId = ?`).run(RunId);

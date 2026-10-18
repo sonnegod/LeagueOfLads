@@ -1,4 +1,5 @@
 import { ANALYTICS_DEFAULTS, positiveId } from './config.js';
+import { readWarehouseBettingInputs } from './warehouseFeatures.js';
 
 // Server-only consumer contract. No route exposes this payload. Betting owns all
 // subsequent forecasts, lines, prices, markets and settlement decisions.
@@ -83,5 +84,19 @@ export function readSeasonBettingInputs(db, seasonId, now = new Date()) {
       games, appearances, history, metricHistory, historyTeams, strengthHistory, historyRosters,
       rosterIntervals:db.prepare(`SELECT r.* FROM RosterMembershipIntervals r JOIN TeamFacts t ON t.RunId=r.RunId AND t.TeamSubmissionId=r.TeamSubmissionId
         WHERE r.RunId=? AND t.SeasonId=? ORDER BY r.TeamSubmissionId,r.PlayerId,r.EffectiveFromUtc`).all(run.RunId,seasonId) };
+  })();
+}
+
+// Opt-in richer feature contract for model development. Existing prices and
+// accepted tickets continue to use their existing, validated input contract.
+export function readSeasonPerformanceInputs(db, seasonId) {
+  seasonId = positiveId(seasonId, 'season');
+  if (!seasonId) throw new Error('A season is required');
+  return db.transaction(() => {
+    const run = db.prepare(`SELECT r.RunId,r.AsOfUtc,r.Scope FROM AnalyticsRuns r
+      JOIN AnalyticsState s ON s.PublishedRunId=r.RunId WHERE r.Status='complete'`).get();
+    if (!run || run.Scope === 'legacy_preview'
+      || !db.prepare('SELECT 1 FROM SeasonFacts WHERE RunId=? AND SeasonId=?').get(run.RunId, seasonId)) return null;
+    return { analyticsRunId: run.RunId, asOf: run.AsOfUtc, ...readWarehouseBettingInputs(db, run.RunId, seasonId) };
   })();
 }

@@ -25,7 +25,7 @@ export default function Sidebar({ open, onClose }) {
         <NavLink to="/awards" className={navClassName} onClick={onClose}>Awards</NavLink>
         <NavLink to="/rules" className={navClassName} onClick={onClose}>Rules</NavLink>
 
-        <NavLink to="/betting" className={navClassName} onClick={onClose}>Betting</NavLink>
+        <NavLink to="/betting" className={({isActive})=>navClassName({isActive:isActive||pathname.startsWith('/bet/matchup/')})} onClick={onClose}>Betting</NavLink>
 
         {user && <span className="sidebar-section-label sidebar-account-label">Account</span>}
         {user && <NavLink to="/request" className={navClassName} onClick={onClose}>Request</NavLink>}

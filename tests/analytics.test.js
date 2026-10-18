@@ -276,6 +276,15 @@ test('active group alignment and live league rules override stale signup setup',
   } finally { f.close(); }
 });
 
+test('legacy seasons imported after the signup cutoff stay outside the normal dataset', () => {
+  const f = fixture();
+  try {
+    f.league.exec("INSERT INTO LeagueSeasons VALUES(4,98,'Late imported legacy','ended',NULL)");
+    buildAnalytics(f);
+    assert.deepEqual(f.analytics.prepare('SELECT SeasonId FROM SeasonFacts').all(), [{ SeasonId: 3 }]);
+  } finally { f.close(); }
+});
+
 test('league matches observed after the build cutoff are excluded even when their game time is earlier', () => {
   const f = fixture();
   try {

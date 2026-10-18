@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-export const ANALYTICS_VERSION = 6;
+export const ANALYTICS_VERSION = 7;
 export const ANALYTICS_DEFAULTS = Object.freeze({
   publicLookbackDays: 90,
   recentGames: 10,

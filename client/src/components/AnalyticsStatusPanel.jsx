@@ -55,6 +55,12 @@ export default function AnalyticsStatusPanel({ refreshKey }) {
         <p>Last completed build: <strong>{date(status.published.finishedAt)}</strong></p>
         <p>{status.published.matches.toLocaleString()} matches · {status.published.playerGames.toLocaleString()} player appearances
           {' · '}{status.published.issues.toLocaleString()} data quality flags</p>
+        {status.warehouse && <p className="admin-help">
+          Expanded match data: {status.warehouse.enrichedMatches.toLocaleString()} / {status.warehouse.matches.toLocaleString()} matches
+          {' · '}EDW UTC start times: {status.warehouse.edwUtcMatches.toLocaleString()}
+          {' · '}Known patches: {status.warehouse.patchedMatches.toLocaleString()}.
+          {' '}Individual statistics may have fewer samples where source data is missing.
+        </p>}
         <ul>{status.sources.map(source => <li key={source.name}>
           {source.name.replaceAll('_', ' ')}: {source.stale ? 'stale or not tracked' : 'current'}
           {' · '}Last successful refresh: {date(source.lastSuccessAt)}

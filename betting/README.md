@@ -46,6 +46,99 @@ they never populate the live point accounts with fabricated markets.
 
 ## Admin setup and results
 
+### Current signup-season odds preview
+
+Close signups, assign the groups and save qualification rules. Do not start the
+league just to view preseason prices. With the current local SeasonId of 3:
+
+```bash
+npm run betting:preview -- --season-id 3
+```
+
+Open **Admin → League → Betting → Open preseason odds preview**, or
+`/betting?previewSeason=3`. Use **Rebuild preseason preview** on that page or in
+Betting administration after changing rosters, groups or rules. The calculation
+runs in a separate worker; the preview page reloads its prices on completion.
+The normal **Refresh Analytics and Betting** button updates canonical live data,
+not these separate preview files. The command above also rebuilds the preview.
+`--history-seasons 3` (default, range 1–5) and `--simulations 2000` are
+optional. `--season-id` is mutually exclusive with historical reconstruction flags.
+
+The command rebuilds the normal local Analytics dataset, reads its real signup
+rosters and groups, and generates historical Analytics facts in memory for up to
+three earlier league seasons. It does not copy the EDW, call external APIs, start
+the season, finalize betting setup, or change live Betting wallets or tickets.
+Only the generated candidate prices and private model inputs are written to
+`Betting-preseason-3.db`. The live Betting store rejects this preview database.
+
+Candidate player distributions use up to 100 personal appearances, a compatible
+lane-role reference pool, a 180-day recency half-life and twice the weight for
+the latest recorded patch represented in the history. A lane is inferred only
+when it is a majority of the last ten appearances and has at least five samples;
+it is not assumed to be a submitted carry/support position. Personal history
+shrinks toward its reference pool with weight `n / (n + 10)`. Reference arrays
+are shared across players and sampled with cached cumulative distributions.
+
+Team priors combine private signup MMR with historical player win records.
+Use up to 100 earlier appearances per player, soften the record toward 50% with
+20 prior games, average the five player log-odds signals, cap that average at
++/-0.6 and apply a modest 0.35 weight alongside MMR. Players without history
+receive a neutral history signal. The experimental performance regression and
+resource-demand penalty have been removed. This choice does not establish that
+the MMR-plus-record model is calibrated; the preview remains separate from live
+pricing. Player-stat props still use their historical statistic distributions.
+The existing 10% decimal-odds reduction applies to the reference odds.
+
+Team tables also offer **Season wins** over/under: individual regular-season
+game wins, not series wins. A BO2 split gives each team one win; tiebreakers and
+playoffs do not count. Histograms are collected from the same group simulations
+used for placement, without extra random draws. The initial half-point line is
+near the simulated mean, bounded within the team's planned game count. Over and
+under probabilities come from the histogram with small-sample smoothing. An
+existing live market retains its accepted line when prices refresh. Team totals
+use each group's own planned count, including unequal groups. These regular-
+season markets can be priced when an unresolved tiebreaker or unsupported
+playoff bracket prevents champion/placement prices.
+
+The live publication/validation gates also apply to team-win markets; creating
+them in the preview does not make them wagerable. Settlement waits for verified
+regular-season completion and complete official team results. Player appearance
+thresholds do not apply to a team total. Shortened/canceled seasons refund
+unresolved bets, as does a regular-season forfeit involving that team; unplayed
+forfeits are not assigned invented game wins. Zero wins is valid. Corrections
+reconcile payouts idempotently. The normal Betting database's existing generic
+market tables support `season_team` without a schema change.
+
+Games must be completed and observed by the preview's UTC cutoff. All target-
+season performances and results, future observations, and tiebreakers are
+excluded. Legacy membership is explicitly unknown; those prior appearances
+inform this offline candidate only, never season-market settlement. Player
+statistics with fewer than five valid earlier samples are withheld independently.
+Leader markets require a complete priced field. Regular-season totals use the
+saved BO2 group schedule, including different game counts for uneven groups.
+
+Only the existing supported playoff formats receive champion prices. Unsupported
+brackets keep champion markets pending while group placement can still be priced.
+The current 19-team local setup has 10/9-team groups (18/16 planned games). Two
+upper and four lower qualifiers per group produce a supported 4-upper/8-lower
+bracket. Five lower qualifiers per group produce an unsupported 4-upper/10-lower
+layout and hold champion markets until its routing is implemented.
+
+These previews are admin-only, contain no selectable real wagers, and expose no
+MMR values or raw source records to the browser. They do not
+override canonical signup-era scope or the temporal validation required before
+candidate models can price live markets. Existing live models are unchanged.
+
+The signup preview also has an admin-only **Matchup simulations** tab. Each
+within-group BO2 shows the model's single-game win chances and calculated score
+probabilities, alongside actual score counts from the saved season simulations.
+Diagnostics count the same random draws used for standings; collecting them does
+not alter the simulation or its prices. They are saved with the preview and
+regenerated by **Rebuild preseason preview**. Old previews need one rebuild.
+The tab explains independent game draws, standings, playoff progression and
+sampling noise. These diagnostics are not public markets and expose no MMRs or
+raw historical player records.
+
 ### Season 21 historical test
 
 ```bash
@@ -93,7 +186,53 @@ or reconstructed rosters, preseason markets hold and played-series illustrations
 are still available. This explicit legacy exception applies only to the isolated
 preview reader; the live Analytics consumer remains signup-era only.
 
-### Live setup
+### Local wager testing
+
+Set `BETTING_LOCAL_TEST_MODE=true` in the ignored local `.env`, with
+`ENVIRONMENT=DEV` and `NODE_ENV` unset or `development`. Production refuses this
+configuration. Restart the local API after changing it. The API and worker both
+use `db/Betting-local-test.db` (or `BETTING_LOCAL_TEST_DB`) for isolated wallets,
+tickets and quotes; they retain the same league and Analytics sources. No EDW
+copy is required. Test and normal Betting paths cannot coincide. A persistent
+database marker prevents reopening the test store as a normal/production store.
+
+For the current closed signup season:
+
+```bash
+npm run betting:refresh -- --season-id 3 --prepare-local-test
+```
+
+This explicit development command finalizes the saved BO2 round-robin Betting
+setup and, if no future regular fixture exists, adds one same-group BO2 test
+fixture three days ahead. It does not start the league or create match results.
+Preparation is idempotent; repeating it reuses the future fixture. Generated
+fixtures carry a `local-test:` source marker and are excluded from ordinary
+scheduling, production pricing and kickoff selection.
+
+Sign in and open `/betting`, then select **Preseason → Player odds / Team odds**
+or **Scheduled games**. Both the normal betting page and admin panel visibly
+identify local test mode. The separate `/betting?previewSeason=3` remains read
+only. Wallets begin at 10,000 points. The background worker uses the same
+signup-MMR/player-win-record model and empirical player distributions as the
+preview, including the bounded exposure movement after wagers.
+
+Only tagged local markets bypass historical model-validation and source-feed
+publication gates. The canonical Analytics generation must still be complete,
+recent and earlier than the quote. Authentication, funds, stake caps, quote
+versions, setup/roster checks and kickoff locking remain in force. During closed
+signups, local player props verify membership against finalized, unchanged
+Betting setup; they do not invent historical effective roster dates. Settlement
+continues to require actual verified results; cancelling a fixture tests refunds.
+No synthetic result or unrestricted payout endpoint is provided. Validation
+reports flag the prices as development-only and not production approved.
+
+Admin edits continue to queue background Analytics/Betting refreshes in this
+mode. Set `BETTING_LOCAL_TEST_MODE=false` and restart to return to the normal
+Betting store. Test balances/tickets are not migrated into it. The standalone
+`betting:validate` command continues to report actual production-model readiness;
+development test mode does not make those validation results pass.
+
+### Production setup
 
 1. Close signups; finalize team rosters, groups, and qualification rules.
 2. Add verified fixtures with both teams, stage, BO format, and New York kickoff.
@@ -150,7 +289,7 @@ metric distributions need at least 20 scored samples and Brier ≤0.30, with fiv
 personal and fifty pooled observations before scoring. These checks do not claim
 the model is calibrated for a new production dataset. Elo is excluded.
 
-The `league-lineup-v3` candidates add these private, interpretable priors:
+The `league-lineup-v4` candidates add these private, interpretable priors:
 
 - Lineup strength averages five players' earlier rostered win records, shrunk
   toward 50% with 20 prior games and weighted at 0.75 in log-odds space alongside
@@ -196,9 +335,14 @@ wallets remain separate, including late credits. All acceptance uses the signed-
 Steam account; a submitted account ID cannot spend another user's balance.
 
 A user's cumulative stake across tickets is capped at 1,000 points per market.
-The full parlay stake counts against each market. Tickets have up to eight legs,
-one selection per fixture and one preseason future, excluding unsupported
-correlated combinations. Idempotent request keys prevent duplicate debits.
+The full parlay stake counts against each market. Tickets have up to eight legs.
+Scheduled player props can combine within a fixture or across fixtures, including
+one matchup-result selection per fixture. Each market allows one outcome only.
+For the same player/stat/fixture, series totals and averages cannot combine with
+each other or with individual-game props; separate individual games can combine.
+Every preseason bet is a standalone single and cannot combine with scheduled
+markets or another preseason selection. The slip and API share these checks.
+Idempotent request keys prevent duplicate debits.
 
 Both season total and average selections require ≥5 rostered regular-season
 games and strictly more than half of the team's official games. Ineligible

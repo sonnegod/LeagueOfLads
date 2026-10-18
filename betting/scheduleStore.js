@@ -40,9 +40,10 @@ export class ScheduleStore {
     return rows;
   }
   get(eventId) { return this.db.prepare('SELECT * FROM ScheduledEvents WHERE EventId = ?').get(eventId); }
-  list(seasonId) { return this.db.prepare(`SELECT e.*, a.TeamName AS Team1Name, b.TeamName AS Team2Name FROM ScheduledEvents e
+  list(seasonId,{includeLocalTests=false}={}) { return this.db.prepare(`SELECT e.*, a.TeamName AS Team1Name, b.TeamName AS Team2Name FROM ScheduledEvents e
     JOIN SeasonTeams a ON a.TeamSubmissionId = e.Team1Key JOIN SeasonTeams b ON b.TeamSubmissionId = e.Team2Key
-    WHERE e.SeasonId = ? ORDER BY e.ScheduledStartUtc, e.EventId LIMIT 200`).all(seasonId); }
+    WHERE e.SeasonId = ? AND (?=1 OR e.SourceMessageId IS NULL OR e.SourceMessageId NOT LIKE 'local-test:%')
+    ORDER BY e.ScheduledStartUtc, e.EventId LIMIT 200`).all(seasonId,Number(includeLocalTests)); }
   revision(eventId, actor, reason) {
     const event = this.get(eventId);
     this.db.prepare('INSERT INTO ScheduleEventRevisions VALUES (?, ?, ?, ?, ?, ?)')

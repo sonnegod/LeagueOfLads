@@ -156,7 +156,7 @@ export function buildHistoricalPreview(source,{leagueId=19817,trainingLeagueId=n
         const season=simulateSeason(teamInputs,{RegularGamesPerTeam:planned.gameCounts},random,simulations);
         if(season?.champion)add('preseason',{type:'champion',title:'League champion',neutralPrior:!knownMmr},teamInputs.teams.map(t=>({key:`team:${t.TeamId}`,label:t.TeamName,probability:season.champion[t.TeamId]})));
         else held.push({scope:'preseason',reason:'group_or_bracket_format_not_supported'});
-        if(season)for(const t of teamInputs.teams) {
+        if(season?.placement)for(const t of teamInputs.teams) {
           const outcomes=Object.entries(season.placement[t.TeamId]).filter(([,p])=>p>0&&p<1);
           if(outcomes.length>=2&&Math.abs(outcomes.reduce((sum,[,p])=>sum+p,0)-1)<1e-6)add('preseason',{type:'placement',teamKey:t.TeamId,title:`${t.TeamName} — Bracket placement`,neutralPrior:!knownMmr},outcomes.map(([key,probability])=>({key,label:key==='upper'?'Upper bracket':key==='lower'?'Lower bracket':'Eliminated',probability})));
         }
@@ -250,8 +250,8 @@ export function readHistoricalPreview(path,{scope='preseason',preseasonGroup='al
           json_extract(t.value,'$.TeamName') AS TeamName FROM PreviewRuns r,json_each(r.PrivateInputsJson,'$.inputs.teams') t
           WHERE r.RunId=? LIMIT 201`).all(run.RunId);
         if(teams.length>200)throw new Error('Team preview exceeds bounds');
-        const markets=db.prepare("SELECT * FROM PreviewMarkets WHERE RunId=? AND Scope='preseason' AND MarketType IN ('champion','placement') ORDER BY MarketId DESC LIMIT 202").all(run.RunId);
-        if(markets.length>201)throw new Error('Team preview exceeds market bounds');
+        const markets=db.prepare("SELECT * FROM PreviewMarkets WHERE RunId=? AND Scope='preseason' AND MarketType IN ('champion','placement','season_team') ORDER BY MarketId DESC LIMIT 402").all(run.RunId);
+        if(markets.length>401)throw new Error('Team preview exceeds market bounds');
         const champion=markets.find(m=>m.MarketType==='champion');
         const championPrices=champion?new Map(db.prepare('SELECT OutcomeKey,Odds FROM PreviewSelections WHERE RunId=? AND MarketId=?').all(run.RunId,champion.MarketId).map(s=>[s.OutcomeKey,s.Odds])):new Map();
         const placements=new Map();
@@ -266,9 +266,14 @@ export function readHistoricalPreview(path,{scope='preseason',preseasonGroup='al
         const query=search.toLocaleLowerCase('en-US');const grouped=new Map();
         for(const team of teams) {
           const placement=placements.get(team.TeamId)||[];
-          if(query&&!`${team.TeamName} ${groupNames[team.GroupId]||''} league champion bracket placement ${placement.map(p=>p.label).join(' ')}`.toLocaleLowerCase('en-US').includes(query))continue;
+          const winsMarket=markets.find(m=>m.MarketType==='season_team'&&JSON.parse(m.DefinitionJson).teamKey===team.TeamId);
+          const winsDefinition=winsMarket?JSON.parse(winsMarket.DefinitionJson):null;
+          const wins=winsDefinition?{...marketDto(winsMarket),line:winsDefinition.line,stat:winsDefinition.stat}:null;
+          if(query&&!`${team.TeamName} ${groupNames[team.GroupId]||''} league champion bracket placement ${wins?'regular season wins':''} ${placement.map(p=>p.label).join(' ')}`.toLocaleLowerCase('en-US').includes(query))continue;
           if(!grouped.has(team.GroupId))grouped.set(team.GroupId,{groupId:team.GroupId,name:groupNames[team.GroupId]||`Group ${team.GroupId??'unassigned'}`,teams:[]});
-          grouped.get(team.GroupId).teams.push({teamId:team.TeamId,name:team.TeamName,championOdds:championPrices.get(`team:${team.TeamId}`)??null,placement});
+          const signupTeam=report.previewKind==='signup'?report.rosterTeams.find(t=>t.teamId===team.TeamId):null;
+          grouped.get(team.GroupId).teams.push({teamKey:team.TeamId,teamId:report.previewKind==='signup'?signupTeam?.externalTeamId||null:team.TeamId,
+            name:team.TeamName,championOdds:championPrices.get(`team:${team.TeamId}`)??null,placement,wins});
         }
         teamGroups.push(...[...grouped.values()].sort((a,b)=>Number(a.groupId)-Number(b.groupId)).map(g=>({...g,
           teams:g.teams.sort((a,b)=>a.name.localeCompare(b.name,'en',{sensitivity:'base'})||a.teamId-b.teamId)})));
@@ -287,11 +292,12 @@ export function readHistoricalPreview(path,{scope='preseason',preseasonGroup='al
         })};
       });
       const rows=playerView||teamView?[]:db.prepare(`SELECT * FROM PreviewMarkets WHERE RunId=? AND Scope=? AND (? IS NULL OR EventId=?) AND (? IS NULL OR MarketId<?)
-        AND (?='all' OR (?='player' AND MarketType IN ('season_player','player_leader')) OR (?='team' AND MarketType IN ('champion','placement')))
+        AND (?='all' OR (?='player' AND MarketType IN ('season_player','player_leader')) OR (?='team' AND MarketType IN ('champion','placement','season_team')))
         AND Title LIKE ? ESCAPE '\\' ORDER BY MarketId DESC LIMIT 21`).all(run.RunId,scope,eventId,eventId,before,before,group,group,group,pattern);
-      // Explicit projection: private inputs, MMRs, probabilities and raw source
-      // records are never serialized to the browser.
-      return {leagueId:report.leagueId,leagueName:report.leagueName,cutoffDay:report.cutoffDay,trainingLeagueId:report.trainingLeagueId,
+      // Admin-only projection: matchup probabilities are intentional diagnostics;
+      // private inputs, MMRs and raw source records remain excluded.
+      return {previewKind:report.previewKind||'historical',seasonId:report.seasonId||null,asOf:report.asOf||null,
+        leagueId:report.leagueId,leagueName:report.leagueName,cutoffDay:report.cutoffDay,trainingLeagueId:report.trainingLeagueId,
         trainingLeagueName:report.trainingLeagueName,trainingGames:report.trainingGames,trainingLastDay:report.trainingLastDay,
         preseasonStatus:report.preseasonStatus,preseasonMarkets:report.preseasonMarkets,seriesMarkets:report.seriesMarkets,rosterSource:report.rosterSource,neutralTeamPriors:report.neutralTeamPriors,
         rosterTeams:report.rosterTeams.map(t=>({teamId:t.teamId,teamName:t.teamName,rosterMatchId:t.rosterMatchId,regularGames:t.regularGames,
@@ -304,6 +310,10 @@ export function readHistoricalPreview(path,{scope='preseason',preseasonGroup='al
           selections:db.prepare('SELECT Label AS label,Odds AS odds FROM PreviewSelections WHERE RunId=? AND MarketId=? ORDER BY OutcomeKey').all(run.RunId,m.MarketId)})),
         players,
         teamGroups,
+        matchupSimulation:teamView&&report.matchupSimulation?{samples:report.matchupSimulation.samples,
+          matchups:report.matchupSimulation.matchups.map(m=>({groupId:m.groupId,groupName:groupNames[m.groupId]||`Group ${m.groupId}`,team1Key:m.team1Key,team2Key:m.team2Key,
+            team1:m.team1,team2:m.team2,gameWinProbability:m.gameWinProbability,
+            scores:m.scores.map(s=>({score:s.score,probability:s.probability,count:s.count}))}))}:null,
         leaderMarkets:playerView?db.prepare("SELECT * FROM PreviewMarkets WHERE RunId=? AND Scope='preseason' AND MarketType='player_leader' AND Title LIKE ? ESCAPE '\\' ORDER BY MarketId DESC LIMIT 4").all(run.RunId,pattern).map(marketDto):[],
         markets:rows.slice(0,20).map(marketDto),
         nextBefore:playerView?(playerRows.length>20?playerRows[19].Cursor:null):(rows.length>20?rows[19].MarketId:null)};

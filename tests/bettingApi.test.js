@@ -9,6 +9,83 @@ import { createBettingRoutes } from '../routes/bettingRoutes.js';
 import { runBetting,fixtureGuard,seasonGuard } from '../betting/engine.js';
 const now=new Date('2026-10-13T12:00:00.000Z');
 
+test('scheduled reads page whole fixtures and lazily expose complete player props with guarded, selectable quotes',async()=>{
+  const f=engineFixture(),directory=mkdtempSync(join(tmpdir(),'lads-fixture-api-'));let server;
+  try {
+    f.league.exec("INSERT INTO TeamRosterMembershipHistory(TeamSubmissionId,PlayerId,Slot,EffectiveFromUtc,FromEstimated) SELECT TeamSubmissionId,PlayerId,Slot,'2026-09-01T00:00:00.000Z',0 FROM SeasonTeamPlayers;");
+    const first=f.schedules.save(1,{team1Key:11,team2Key:12,stage:'regular',bestOf:2,scheduledStartUtc:'2026-10-17T01:00:00Z'},null,now);
+    const second=f.schedules.save(1,{team1Key:11,team2Key:12,stage:'playoff',bestOf:3,scheduledStartUtc:'2026-10-18T01:00:00Z'},null,now);
+    runBetting({...f,now,simulations:50});
+    const path=join(directory,'Analytics.db');await f.analytics.backup(path);
+    f.book.eventGuard=(id,m)=>fixtureGuard(f.league,id,m,now);f.book.seasonGuard=(id,m)=>seasonGuard(f.league,path,id,m,now);
+    const app=express();app.use(express.json());app.use((req,res,next)=>{
+      req.isAuthenticated=()=>true;req.user={id:'76561197960265827'};next();
+    });
+    app.use('/betting',createBettingRoutes({...f,analyticsPath:path,playerName:id=>`Captain ${id}`,refresh:()=>{}}).publicRoutes);
+    server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
+    const base=`http://127.0.0.1:${server.address().port}/betting`;
+    const get=async query=>{const response=await fetch(`${base}/markets?seasonId=1&view=series&groupFixtures=1&${query}`);assert.equal(response.status,200);return response.json();};
+    const page=await get('limit=1');assert.equal(page.fixtures.length,1);assert.equal(page.fixtures[0].eventId,second.EventId);
+    assert.equal(page.fixtures[0].propsLoaded,false);assert.deepEqual(page.fixtures[0].players,[]);assert.equal(page.fixtures[0].propsAvailable,true);
+    assert.equal(page.fixtures[0].exactScore.selections.length,4);assert.ok(page.nextBefore);
+    const next=await get(`limit=1&before=${page.nextBefore}`);assert.equal(next.fixtures[0].eventId,first.EventId);assert.equal(next.nextBefore,null);
+    assert.deepEqual(next.fixtures[0].exactScore.selections.map(s=>s.key),['2-0','1-1','0-2']);
+    assert.equal(next.fixtures[0].team1.teamId,1011111);assert.equal(next.fixtures[0].team2.name,'B');
+    const expanded=await get(`eventId=${first.EventId}&includeProps=1`),fixture=expanded.fixtures[0];
+    assert.equal(fixture.propsLoaded,true);assert.equal(fixture.players.length,10);
+    assert.ok(fixture.players.every(p=>p.markets.length>20));
+    const player=fixture.players[0];assert.equal(player.name,'Captain 1');assert.equal(player.teamName,'A');
+    assert.deepEqual(player.markets.filter(m=>m.stat==='kills'&&m.scope==='game').map(m=>m.gameNumber).sort(),[1,2]);
+    assert.ok(player.markets.some(m=>m.scope==='total'));assert.ok(player.markets.some(m=>m.scope==='average'));
+    assert.equal((await get('search=Captain%201')).fixtures.length,2);
+    assert.deepEqual((await get(`eventId=${first.EventId}&includeProps=1&search=Captain%201`)).fixtures[0].players.map(p=>p.playerId),[1,10]);
+    assert.equal((await get('search=does-not-exist')).fixtures.length,0);
+    assert.equal((await fetch(`${base}/markets?seasonId=1&view=series&groupFixtures=1&includeProps=1`)).status,400);
+    // Direct links resolve their own season and return the entire matchup without pagination or search state.
+    const detailResponse=await fetch(`${base}/fixtures/${first.EventId}`);assert.equal(detailResponse.status,200);
+    assert.equal(detailResponse.headers.get('cache-control'),'no-store');
+    const detail=await detailResponse.json();assert.equal(detail.season.seasonId,1);assert.equal(detail.season.name,'Test league');
+    assert.deepEqual(detail.fixture,fixture);
+    const onlyPlayer=await (await fetch(`${base}/fixtures/${first.EventId}?playerId=1`)).json();
+    assert.deepEqual(onlyPlayer.fixture.players.map(p=>p.playerId),[1]);assert.deepEqual(onlyPlayer.fixture.players[0],fixture.players[0]);
+    const props=async query=>{const response=await fetch(`${base}/player-props?seasonId=1&${query}`);assert.equal(response.status,200);return response.json();};
+    const propsPage=await props('limit=5');assert.equal(propsPage.players.length,5);assert.ok(propsPage.nextBefore);
+    assert.ok(propsPage.players.every(p=>p.fixture.eventId===second.EventId&&p.bettorCount===0&&!Object.hasOwn(p,'markets')));
+    const nextPlayers=await props(`limit=5&before=${propsPage.nextBefore}`);assert.equal(nextPlayers.players.length,5);
+    assert.ok(nextPlayers.players.every(p=>!propsPage.players.some(a=>a.playerId===p.playerId&&a.fixture.eventId===p.fixture.eventId)));
+    assert.equal((await props('search=Captain%201')).players.length,4);
+    assert.equal((await props(`eventId=${first.EventId}`)).players.length,10);
+    assert.equal((await props('search=no-such-player')).players.length,0);
+    assert.equal((await fetch(`${base}/fixtures/99999`)).status,404);
+    assert.equal((await fetch(`${base}/fixtures/invalid`)).status,400);
+    const pending=f.schedules.save(1,{team1Key:11,team2Key:12,stage:'regular',bestOf:2,scheduledStartUtc:'2026-10-19T01:00:00Z'},null,now);
+    const awaiting=await (await fetch(`${base}/fixtures/${pending.EventId}`)).json();
+    assert.equal(awaiting.fixture.exactScore,null);assert.deepEqual(awaiting.fixture.players,[]);
+    f.league.prepare("UPDATE ScheduledEvents SET SourceMessageId='local-test:hidden' WHERE EventId=?").run(pending.EventId);
+    assert.equal((await fetch(`${base}/fixtures/${pending.EventId}`)).status,404);
+    for(const secret of ['Probability','AnchorMicros','InputJson','ForecastJson','SignupMMR','RulesJson'])assert.equal(JSON.stringify(expanded).includes(secret),false,secret);
+    const market=player.markets.find(m=>m.stat==='kills'&&m.scope==='game'&&m.gameNumber===2),selection=market.selections[0];
+    const place=key=>fetch(`${base}/tickets`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({seasonId:1,stake:100,requestKey:key,
+      legs:[{selectionId:selection.selectionId,quoteVersion:market.quoteVersion}]})});
+    const accepted=await place('fixture_grouped_selection');assert.equal(accepted.status,201,JSON.stringify(await accepted.json()));assert.equal(f.book.wallet(1,'99').balance,9900);
+    const repeat=(user,index,outcome)=>f.book.accept(user,{seasonId:1,stake:100,requestKey:`fixture_activity_${index}`,
+      legs:[{selectionId:market.selections[outcome].selectionId,quoteVersion:f.betting.prepare('SELECT QuoteVersion FROM BettingMarkets WHERE MarketId=?').get(market.marketId).QuoteVersion}]});
+    repeat('99',1,0);repeat('100',2,1);
+    const activity=await (await fetch(`${base}/fixtures/${first.EventId}?playerId=1`)).json();
+    assert.equal(activity.fixture.players[0].bettorCount,2);
+    const populated=activity.fixture.players[0].markets.find(m=>m.marketId===market.marketId);
+    assert.equal(populated.bettorCount,2);assert.deepEqual(populated.selections.map(s=>s.bettorCount),[1,1]);
+    assert.equal((await props(`eventId=${first.EventId}&search=Captain%201`)).players.find(p=>p.playerId===1).bettorCount,2);
+    f.book.settle(market.marketId,{over:{result:'void'},under:{result:'void'}},{reason:'test refund'});
+    assert.equal((await props(`eventId=${first.EventId}&search=Captain%201`)).players.find(p=>p.playerId===1).bettorCount,0);
+    f.schedules.save(1,{eventId:first.EventId,revision:first.Revision,team1Key:11,team2Key:12,stage:'regular',bestOf:2,scheduledStartUtc:first.ScheduledStartUtc,status:'started'},'1',now);
+    const held=(await get(`eventId=${first.EventId}&includeProps=1`)).fixtures[0];
+    assert.notEqual(held.exactScore.status,'open');assert.ok(held.players.every(p=>p.markets.every(m=>m.status!=='open')));
+    const heldDetail=await (await fetch(`${base}/fixtures/${first.EventId}`)).json();assert.deepEqual(heldDetail.fixture,held);
+    assert.equal((await place('fixture_grouped_started')).status,409);
+  }finally{if(server)await new Promise(resolve=>server.close(resolve));f.close();rmSync(directory,{recursive:true,force:true});}
+});
+
 test('public market reads expose only quotes, owned accounts require authentication, and submitted user IDs cannot debit another wallet',async()=>{
   const f=engineFixture();const directory=mkdtempSync(join(tmpdir(),'lads-bet-api-'));let server;
   try {
@@ -73,6 +150,9 @@ test('live grouped preseason reads keep full players together, sort group teams,
     const teams=await get('view=team');assert.equal(teams.teamGroups.length,2);assert.deepEqual(teams.teamGroups.map(g=>g.name),['Juliet','Romeo']);
     assert.equal(teams.teamGroups[0].teams[0].name,'Aardvark');
     const champion=teams.teamGroups[0].teams[0].champion;assert.ok(champion.selection.selectionId);assert.ok(champion.market.quoteVersion);
+    const seasonWins=teams.teamGroups[0].teams[0].wins;
+    assert.equal(seasonWins.type,'season_team');assert.equal(seasonWins.stat,'wins');assert.equal(seasonWins.status,'open');
+    assert.equal(seasonWins.line%1,.5);assert.equal(seasonWins.selections.length,2);
     assert.equal((await get('view=team&search=Romeo')).teamGroups.length,1);
     for(const secret of ['AverageSignupMMR','privatePlayerFeatures','publicFeatureHistory','Probability','AnchorMicros','InputJson','ForecastJson'])
       assert.equal(JSON.stringify({first,teams}).includes(secret),false,secret);
@@ -86,6 +166,9 @@ test('live grouped preseason reads keep full players together, sort group teams,
     const selectedChampion=await fetch(`${base}/tickets`,{method:'POST',headers,body:JSON.stringify({seasonId:2,stake:100,requestKey:'grouped_team_selection',
       legs:[{selectionId:champion.selection.selectionId,quoteVersion:champion.market.quoteVersion}]})});
     assert.equal(selectedChampion.status,201);
+    const selectedWins=await fetch(`${base}/tickets`,{method:'POST',headers,body:JSON.stringify({seasonId:2,stake:100,requestKey:'grouped_team_wins',
+      legs:[{selectionId:seasonWins.selections[0].selectionId,quoteVersion:seasonWins.quoteVersion}]})});
+    assert.equal(selectedWins.status,201);
     const event=f.schedules.list(2)[0];f.schedules.save(2,{...event,eventId:event.EventId,revision:event.Revision,team1Key:event.Team1Key,team2Key:event.Team2Key,
       stage:'regular',bestOf:2,scheduledStartUtc:event.ScheduledStartUtc,status:'started'},'1',now);
     assert.ok((await get('view=player')).players.every(p=>p.markets.every(m=>m.status==='held')));

@@ -4,14 +4,24 @@ import { digest, fail } from './scheduleStore.js';
 import { anchorPrice, movedPrices, ODDS_SCALE, PRICE_POLICY,configuredPricePolicy } from './pricing.js';
 import { importLegacyPending } from './legacy.js';
 import { toPointCents,exactPayoutCents } from '../client/src/utils/bettingPoints.js';
+import {localBettingTestMode} from './localTestPolicy.js';
+import {parlayConflict} from '../client/src/utils/bettingParlays.js';
 
 export function pointCents(value) {
   const cents=toPointCents(value);if(cents===null)fail('Enter points with at most two decimal places');return cents;
 }
 export class BettingStore {
-  constructor(db, { eventGuard = () => null, seasonGuard = () => null, now = () => new Date(),policy=configuredPricePolicy() } = {}) {
+  constructor(db, { eventGuard = () => null, seasonGuard = () => null, now = () => new Date(),policy=configuredPricePolicy(),env=process.env } = {}) {
     if(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='BettingPreviewMetadata'").get())throw new Error('Historical previews cannot be used as a live betting database');
-    this.db = db; this.eventGuard = eventGuard; this.seasonGuard = seasonGuard; this.now = now;this.policy=policy;
+    const localTesting=localBettingTestMode(env);
+    const marked=!!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='BettingLocalTestMetadata'").get();
+    if(marked&&!localTesting)throw new Error('Local test betting databases cannot be used outside development test mode');
+    if(localTesting&&!marked) {
+      if(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ('BettingSchema','BettingMarkets','MatchTeam','AnalyticsRuns') LIMIT 1").get())
+        throw new Error('Refusing to convert an existing database into a local test database');
+      db.exec('CREATE TABLE BettingLocalTestMetadata(Id INTEGER PRIMARY KEY CHECK(Id=1));INSERT INTO BettingLocalTestMetadata VALUES(1)');
+    }
+    this.db = db; this.eventGuard = eventGuard; this.seasonGuard = seasonGuard; this.now = now;this.policy=policy;this.env=env;this.localTesting=localTesting;
     db.pragma('foreign_keys = ON'); db.pragma('busy_timeout = 5000');
     db.exec(readFileSync(new URL('../scripts/db/betting-v2.schema.sql', import.meta.url), 'utf8'));
     if(!db.pragma('table_info(BettingForecasts)').some(c=>c.name==='ForecastKey'))db.exec('ALTER TABLE BettingForecasts ADD COLUMN ForecastKey TEXT');
@@ -65,11 +75,13 @@ export class BettingStore {
   }
   publish(definition, probabilities, forecastId, closeAt) {
     return this.db.transaction(() => {
+      if(Boolean(definition.rules?.localTesting)!==this.localTesting)fail('Local test markets require a dedicated development test database',409);
       if (!probabilities.length || probabilities.some(p => !(p.probability > 0 && p.probability < 1))
         || Math.abs(probabilities.reduce((sum,p) => sum + p.probability,0) - 1) > .000001) fail('Invalid forecast probabilities');
       const key = digest({ season: definition.seasonId, event: definition.eventId || null, type: definition.type,
         scope: definition.scope || null, stat: definition.stat || null, player: definition.playerId || null, team: definition.teamKey || null,
-        game: definition.gameNumber || null, regularGames: definition.scope==='total'?definition.regularGames||null:null });
+        game: definition.gameNumber || null, regularGames: definition.scope==='total'?definition.regularGames||null:null,
+        ...(this.localTesting?{localTesting:true}:{}) });
       const previous = this.db.prepare('SELECT * FROM BettingMarkets WHERE DefinitionKey=?').get(key);
       if(previous&&previous.Line!==(definition.line??null))fail('An existing market keeps its original line',409);
       if (previous && ['settled','void','locked'].includes(previous.Status)) return previous.MarketId;
@@ -127,16 +139,18 @@ export class BettingStore {
         if (previous.SeasonId !== seasonId || previous.StakeCents !== cents || JSON.stringify(oldLegs) !== JSON.stringify(current)) fail('Request key was already used for another ticket',409);
         return { ticketId: previous.TicketId, reused: true };
       }
-      const seenMarkets = new Set(); const seenEvents = new Set(); const accepted = [];
+      const accepted = [];
       for (const leg of legs) {
         const row = this.db.prepare(`SELECT s.*,m.* FROM BettingSelections s JOIN BettingMarkets m ON m.MarketId=s.MarketId WHERE s.SelectionId=?`).get(Number(leg.selectionId));
         if (!row || !row.IsActive || row.SeasonId !== seasonId || row.Status !== 'open' || Date.parse(row.CloseAtUtc) <= this.now().getTime()) fail('A selected market is closed',409,'MARKET_CLOSED');
+        if(JSON.parse(row.RulesJson).localTesting&&!localBettingTestMode(this.env))fail('Local test markets are disabled',409,'MARKET_HELD');
         if (row.QuoteVersion !== Number(leg.quoteVersion)) fail('Odds changed. Review the refreshed quote before placing your bet.',409,'QUOTE_CHANGED');
         const guard = this.eventGuard(row.EventId, row);
         const seasonIssue = this.seasonGuard(seasonId, row);
         if (guard || seasonIssue) fail(guard || seasonIssue,409,'MARKET_HELD');
-        if (seenMarkets.has(row.MarketId) || seenEvents.has(row.EventId || `season:${seasonId}`)) fail('Related selections cannot be combined in a parlay');
-        seenMarkets.add(row.MarketId); seenEvents.add(row.EventId || `season:${seasonId}`);
+        const conflict=parlayConflict([...accepted,row].map(m=>({marketId:m.MarketId,selectionId:m.SelectionId,eventId:m.EventId,
+          type:m.MarketType,playerId:m.PlayerId,stat:m.StatKey,scope:m.Scope,gameNumber:m.GameNumber})));
+        if(conflict)fail(conflict.message,400,conflict.code);
         const used = this.db.prepare(`SELECT COALESCE(SUM(t.StakeCents),0) AS cents FROM BettingTickets t
           JOIN BettingTicketLegs l ON l.TicketId=t.TicketId WHERE t.UserId=? AND l.MarketId=?`).get(userId,row.MarketId).cents;
         if (used + cents > PRICE_POLICY.stakeCap * 100) fail('Your cumulative stake on this market exceeds 1,000 points',409,'STAKE_CAP');

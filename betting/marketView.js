@@ -12,12 +12,14 @@ export function groupTeamMarkets(markets,teams,groupNames={}) {
   const champion=markets.find(m=>m.type==='champion');
   for(const team of teams) {
     const placement=markets.find(m=>m.type==='placement'&&m.teamKey===team.TeamSubmissionId);
+    const wins=markets.find(m=>m.type==='season_team'&&m.stat==='wins'&&m.teamKey===team.TeamSubmissionId);
     const selection=champion?.selections.find(s=>s.key===`team:${team.TeamSubmissionId}`);
-    if(!placement&&!selection)continue;
+    if(!placement&&!selection&&!wins)continue;
     if(!groups.has(team.GroupId))groups.set(team.GroupId,{groupId:team.GroupId,
       name:groupNames[team.GroupId]||(team.GroupId==null?'Unassigned':`Group ${team.GroupId}`),teams:[]});
     groups.get(team.GroupId).teams.push({teamKey:team.TeamSubmissionId,teamId:team.ExternalTeamId,name:team.TeamName,
       champion:selection?{market:identity(champion),selection}:null,
+      wins:wins||null,
       placement:placement?placement.selections.map(s=>({key:s.key,market:identity(placement),selection:s})):[]});
   }
   return [...groups.values()].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}))

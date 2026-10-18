@@ -8,7 +8,10 @@ import {tmpdir} from 'node:os';
 import {join,resolve,dirname} from 'node:path';
 import {engineFixture,preseasonFixture} from './helpers/bettingFixture.js';
 
-const execute=promisify(execFile);
+const executeRaw=promisify(execFile);
+// Worker fixtures explicitly exercise production gates, regardless of a
+// developer's ignored .env enabling local test betting on their real checkout.
+const execute=(command,args,options={})=>executeRaw(command,args,{...options,env:{...process.env,BETTING_LOCAL_TEST_MODE:'false',...options.env}});
 test('real worker migrates older refresh state, preserves a failed pending revision and recovers on the next successful run',async()=>{
   const f=engineFixture(),scratch=mkdtempSync(join(tmpdir(),'lads-worker-recovery-'));let league;
   try {

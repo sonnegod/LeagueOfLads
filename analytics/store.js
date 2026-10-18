@@ -16,6 +16,7 @@ export function migrateAnalytics(db) {
   if (version === ANALYTICS_VERSION) return;
   db.transaction(() => {
     db.exec(readFileSync(new URL('../scripts/db/analytics.schema.sql', import.meta.url), 'utf8'));
+    db.exec(readFileSync(new URL('../scripts/db/analyticsWarehouse.schema.sql', import.meta.url), 'utf8'));
     if (!db.pragma('table_info(MatchFacts)').some(column => column.name === 'SourceObservedAtUtc')) {
       db.exec('ALTER TABLE MatchFacts ADD COLUMN SourceObservedAtUtc TEXT');
     }
@@ -70,6 +71,12 @@ export function safeAnalyticsStatus(db, now = new Date()) {
     FROM DataQualityIssues WHERE RunId = ? GROUP BY Code ORDER BY Code`).all(published.RunId) : [];
   const lock = db.prepare('SELECT LeaseUntilUtc FROM AnalyticsBuildLock WHERE Id = 1').get();
   const running = Boolean(lock && Date.parse(lock.LeaseUntilUtc) > now.getTime());
+  const warehouse = published && db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='MatchContextFacts'").get()
+    ? db.prepare(`SELECT COUNT(*) AS matches,
+      COALESCE(SUM(c.EnrichmentStatus IN ('ready','partial')),0) AS enrichedMatches,
+      COALESCE(SUM(m.TimeSource='edw'),0) AS edwUtcMatches,
+      COALESCE(SUM(c.PatchKey IS NOT NULL),0) AS patchedMatches
+      FROM MatchContextFacts c JOIN MatchFacts m USING(RunId,MatchId) WHERE c.RunId=?`).get(published.RunId) : null;
   return {
     available: true,
     running,
@@ -82,7 +89,7 @@ export function safeAnalyticsStatus(db, now = new Date()) {
     latest: latest ? { runId: latest.RunId, startedAt: latest.StartedAtUtc, finishedAt: latest.FinishedAtUtc,
       status: latest.Status === 'running' && !running ? 'interrupted' : latest.Status,
       failureCode: latest.FailureCode } : null,
-    sources, issues,
+    sources, issues, warehouse,
     highlights: db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'HighlightEvents'").get()
       ? { paused: Boolean(db.prepare('SELECT Paused FROM HighlightSettings WHERE Id = 1').get()?.Paused),
         published: db.prepare("SELECT COUNT(*) AS n FROM HighlightEvents WHERE Status = 'published' AND Hidden = 0 AND OverrideNeedsReview = 0").get().n,

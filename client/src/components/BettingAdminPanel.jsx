@@ -12,6 +12,7 @@ function localInput(value) {
 }
 function parserTime(value){const [day,time]=value.split('T');const [hour,minute]=time.split(':');const h=Number(hour);return `${day} ${h%12||12}:${minute} ${h>=12?'PM':'AM'} EST`;}
 const issues={insufficient_temporal_samples:'More verified league history is needed to validate pricing.',baseline_validation_failed:'Pricing validation did not pass.',
+  local_test_only:'Development test pricing is enabled; historical publication gates are bypassed only for this separate test Betting database.',
   league_source_not_ready:'Refresh the league sources before publishing new prices.',analytics_not_available:'Build Analytics for this season.',
   new_team_roster_prior_not_validated:'New-team pricing needs a validated roster model.',preseason_roster_prior_not_validated:'Preseason pricing needs a validated roster model.',
   champion_format_not_supported:'Champion futures are pending a supported group and bracket format.',roster_prior_missing:'A team needs complete signup or manual MMR inputs.'};
@@ -36,17 +37,24 @@ export default function BettingAdminPanel({refreshKey}) {
     bestOf:event.BestOf,localTime:localInput(event.ScheduledStartUtc),utcTime:'',status:event.Status==='replaced'?'needs_review':event.Status,seriesId:event.SeriesId||''});}
   const sid=data?.season?.seasonId;
   return <section className="betting-admin-panel"><div className="sportsbook-heading"><h2>Betting and schedules</h2><button type="button" onClick={()=>setRefresh(r=>r+1)}>Refresh view</button></div>
+    {data?.localTesting&&<p className="sportsbook-test-banner" role="status"><strong>Local test betting enabled.</strong> Wallets and tickets use the separate development test database. Login, stake limits, quote checks, roster/setup verification and kickoff locking remain active.</p>}
     <p className="admin-help">Manage scheduled series and betting for the selected season. Discord normally creates fixtures automatically; use these cards to finish setup, resolve scheduling issues and confirm results.</p>
     <details className="admin-help"><summary>What do the refresh buttons do?</summary>
       <ul>
         <li><strong>Refresh view</strong> reloads this page’s status and fixture list.</li>
         <li><strong>Refresh Analytics and Betting</strong> rebuilds summaries and highlights from imported data, then updates eligible odds and settles verified results. Admin changes and scheduled jobs normally trigger this automatically; use it to retry a failed refresh or reprocess a correction.</li>
+        <li><strong>Rebuild preseason preview</strong> regenerates the separate preview after roster, group or rule changes. The normal Betting refresh does not rebuild this preview.</li>
         <li>The refresh runs in the background. Check Refresh view for completion. Missing imports or insufficient history can still keep markets on hold.</li>
         <li>Accepted bets keep their original odds. Verified results, refunds and corrections can update ticket payouts and point balances.</li>
       </ul>
       <p>New match data and Discord posts arrive through their scheduled import jobs; this button uses data already imported.</p>
     </details>
-    {data?.season?.leagueId&&<a href={`/betting?previewLeague=${data.season.leagueId}`} target="_blank" rel="noopener noreferrer">Open historical betting preview</a>}
+    {data?.season&&data.season.status!=='ended'&&<div className="season-actions">
+      <a href={`/betting?previewSeason=${data.season.seasonId}`} target="_blank" rel="noopener noreferrer">Open preseason odds preview</a>
+      <button type="button" disabled={busy||data.season.status==='signup_open'||data.season.status==='draft'}
+        onClick={()=>run(()=>request(`/api/admin/betting/seasons/${data.season.seasonId}/preview`,{}),'Preseason preview rebuilt. Reload an already-open preview tab to see the new prices.')}>Rebuild preseason preview</button>
+    </div>}
+    {data?.season?.leagueId&&data.season.status==='ended'&&<a href={`/betting?previewLeague=${data.season.leagueId}`} target="_blank" rel="noopener noreferrer">Open historical betting preview</a>}
     {data?.seasons&&<label>Season <select disabled={busy} value={selectedSeason||data.season?.seasonId||''} onChange={e=>{setSelectedSeason(e.target.value);setData(null);setFixture(blank);setError('');setMessage('');}}>
       {data.seasons.map(s=><option key={s.seasonId} value={s.seasonId}>{s.name}</option>)}</select></label>}
     {error&&<p role="alert" className="sportsbook-error">{error}</p>}{message&&<p role="status">{message}</p>}
@@ -84,7 +92,7 @@ export default function BettingAdminPanel({refreshKey}) {
           <button disabled={busy||data.season.status==='ended'&&!fixture.eventId}>Save fixture</button><button type="button" onClick={()=>setFixture(blank)}>Clear</button>
         </form><p className="admin-help">Reschedule by editing this fixture to preserve tickets. Changing teams, stage or format replaces it and refunds its bets. Cancellations and forfeits also refund affected series bets.</p>
         <div className="betting-admin-events"><table className="sportsbook-table"><thead><tr><th>Fixture</th><th>Teams</th><th>Kickoff (NY)</th><th>Stage / Format</th><th>Status</th><th>Series</th><th /></tr></thead><tbody>
-          {data.events.map(e=><tr key={e.EventId}><td>#{e.EventId}</td><td>{e.Team1Name} vs {e.Team2Name}</td><td>{date(e.ScheduledStartUtc)}</td><td>{e.Stage} / BO{e.BestOf}</td><td>{e.Status}</td>
+          {data.events.map(e=><tr key={e.EventId}><td>#{e.EventId}{e.SourceMessageId?.startsWith('local-test:')&&<small> · Test fixture</small>}</td><td>{e.Team1Name} vs {e.Team2Name}</td><td>{date(e.ScheduledStartUtc)}</td><td>{e.Stage} / BO{e.BestOf}</td><td>{e.Status}</td>
             <td>{e.SeriesId?<a href={`/series/${e.SeriesId}`}>{e.SeriesId}</a>:'Unlinked'}</td><td><button type="button" disabled={['replaced','cancelled','forfeit'].includes(e.Status)} onClick={()=>edit(e)}>Edit</button></td></tr>)}</tbody></table></div>
       </section>
       <section className="betting-admin-widget"><h3>Discord team roles</h3><p className="admin-help">Optional override: the bot normally matches a mentioned role’s name to the season’s team name, ignoring capitalization. Link a role ID here when its name differs; this mapping takes priority over name matching.</p><form className="betting-admin-form" onSubmit={e=>{e.preventDefault();run(()=>request(`/api/admin/betting/seasons/${sid}/aliases`,{roleId:role,teamKey:Number(aliasTeam)},'PUT'),'Discord role linked.');}}>

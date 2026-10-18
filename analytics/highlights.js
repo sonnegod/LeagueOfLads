@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { ANALYTICS_DEFAULTS } from './config.js';
 import { emitStageStories } from './stageStories.js';
+import { emitWarehouseHighlights } from './warehouseHighlights.js';
 
 const DAY = 86400000;
 const stageNames = { regular: 'regular season', tiebreaker: 'tiebreakers', playoff: 'playoffs', unknown: 'league' };
@@ -317,6 +318,7 @@ export function publishLeagueHighlights(db, runId, now = new Date()) {
     } else db.prepare('UPDATE HighlightEvents SET GeneratedRunId = ? WHERE HighlightId = ?').run(runId, old.HighlightId);
   };
   makeCandidates(db, runId, now, saveCandidate);
+  emitWarehouseHighlights(db, runId, saveCandidate);
   emitStageStories(db, runId, now, saveCandidate);
 
   // A filtered build may not withdraw another season's still-valid publications.

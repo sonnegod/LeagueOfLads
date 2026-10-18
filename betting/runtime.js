@@ -5,16 +5,19 @@ import { BettingStore } from './store.js';
 import { ScheduleStore } from './scheduleStore.js';
 import { fixtureGuard,seasonGuard,settleOperationalChanges } from './engine.js';
 import {createRefreshQueue} from './refreshQueue.js';
+import {localBettingTestMode} from './localTestPolicy.js';
 
 let refreshQueue=null;
 export function queueBettingRefresh(markDirty=true) {
   refreshQueue?.request(markDirty);
 }
 export function mutationRefresh(req,res,next) {
+  if(/^\/betting\/seasons\/\d+\/preview\/?$/.test(req.path))return next();
   if(['POST','PUT','PATCH','DELETE'].includes(req.method))res.once('finish',()=>{if(res.statusCode>=200&&res.statusCode<300)queueBettingRefresh();});
   next();
 }
 export function createBettingRuntime(league,betting,audit=()=>{}) {
+  localBettingTestMode();
   const paths=analyticsPaths();
   let book;
   const schedules=new ScheduleStore(league,{audit,changed:seasonId=>{
