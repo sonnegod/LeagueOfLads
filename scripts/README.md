@@ -53,6 +53,28 @@ but does not bypass OpenDota request quotas. Use bounded, resumable collection
 and import only the additional fields for curated existing match IDs; preserve
 production corrections and newer data rather than replacing the live database.
 
+### Recover missing historical match durations
+
+Historical enrichment preserved the original `MatchTeam.Duration`, including null
+values. A missing duration prevents per-minute statistics and checkpoint eligibility
+even when some recorded gameplay data is present. Recover these values from the
+already saved source responses, without calling OpenDota:
+
+```bash
+node scripts/db/repairWarehouseDurations.js db/LadsData.db
+node scripts/db/repairWarehouseDurations.js db/LadsData.db --apply
+```
+
+Preview is read only. Optionally scope either command with `--league=19264`.
+Apply creates a SQLite backup and JSON report beside the database, verifies the
+archive hash and match ID, and fills only null/zero/negative durations using positive
+whole-second source durations. Existing valid durations, results, teams, player stats
+and source archives are preserved. Changed/deleted records are skipped if they no
+longer match the preview. This repair is explicit, not a server-start migration.
+Keep it separate from an active backfill so that the backfill's preservation check
+does not mistake the duration changes for unrelated edits. Reports refresh through
+their existing cache; unavailable parsed timelines or support stats remain unknown.
+
 ## Match warehouse expansion
 
 This is a shared EDW foundation in **LadsData**. Existing consumers retain their

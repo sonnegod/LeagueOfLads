@@ -8,6 +8,7 @@ import { initializeWarehouse, ingestWarehouseMatch } from '../config/warehouseIn
 import { WarehouseReporting, getReportingPlayers, draftPhases } from '../config/warehouseReporting.js';
 import { createWarehouseReportingRouter } from '../routes/warehouseReportingRoutes.js';
 import { ExpandedPerformanceReporting } from '../config/expandedPerformanceReporting.js';
+import { planWarehouseDurationRepair, applyWarehouseDurationRepair } from '../config/warehouseDurationRepair.js';
 
 function fixture() {
   const db = new Database(':memory:');
@@ -84,6 +85,29 @@ test('player reports count eligible samples, preserve zero, exclude unplayed che
     assert.equal(reporting.performance('player',1,{patchId:patch}).coverage.enriched,2);
     assert.equal(reporting.performance('player',1,{patchId:999999}).coverage.enriched,0);
   } finally {db.close();}
+});
+
+test('saved duration recovery restores player calculations without inventing unavailable parsed statistics',()=>{
+  const {db,reporting}=fixture();
+  try {
+    db.exec('UPDATE MatchTeam SET Duration=NULL WHERE MatchId IN (1,2)');
+    const before=reporting.performance('player',1,{leagueId:20});
+    assert.equal(before.byHero[0].games,2);
+    assert.equal(before.summary.damagePerMinute.samples,0);
+    assert.equal(before.summary.lh10.samples,0);
+    assert.equal(before.summary.damageShare.samples,2,'damage share does not need a duration');
+    const result=applyWarehouseDurationRepair(db,planWarehouseDurationRepair(db));
+    assert.equal(result.repaired.length,2);
+    const after=reporting.performance('player',1,{leagueId:20});
+    assert.equal(after.summary.damagePerMinute.samples,2);
+    assert.equal(after.summary.wards10.value,0,'known zeros remain valid');
+    assert.deepEqual(after.summary.lh10,{value:10,samples:1},'short games remain excluded from checkpoints');
+    assert.equal(db.prepare('SELECT ObserversPlaced FROM MatchPlayer WHERE MatchId=1 AND PlayerId=2').get().ObserversPlaced,null);
+    db.exec('DELETE FROM MatchPlayerTimeline WHERE MatchId=1 AND PlayerId=1 AND TimeSeconds=600');
+    const missing=reporting.performance('player',1,{leagueId:20});
+    assert.deepEqual(missing.summary.lh10,{value:null,samples:0},'missing timeline points stay unavailable');
+    assert.equal(missing.summary.damagePerMinute.samples,2);
+  }finally{db.close();}
 });
 
 test('team reports normalize advantage to the selected side, use actual denominators and require complete team statistics',()=>{
