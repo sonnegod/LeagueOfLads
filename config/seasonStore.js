@@ -5,6 +5,7 @@ import TeamRosterStore from './teamRosterStore.js';
 import SeasonScheduleStore from './seasonScheduleStore.js';
 import { backfillLegacyChampions } from './legacyLeagueChampions.js';
 import { ensureChampionshipRosterSchema, hasSignupRoster, CHAMPIONSHIP_ROSTER_PLAYERS_SQL } from './championshipRoster.js';
+import { screenshotMimeFromBytes } from '../shared/screenshotFormat.js';
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -441,13 +442,9 @@ export default class SeasonStore {
     if (!match) fail('Screenshot must be a JPEG, PNG, or WebP image');
     const data = Buffer.from(match[2], 'base64');
     if (!data.length || data.length > 2 * 1024 * 1024) fail('Each screenshot must be 2 MB or less');
-    const signatures = {
-      'image/jpeg': data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff,
-      'image/png': data.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')),
-      'image/webp': data.toString('ascii', 0, 4) === 'RIFF' && data.toString('ascii', 8, 12) === 'WEBP',
-    };
-    if (!signatures[match[1]]) fail('Screenshot contents do not match the image type');
-    return { ScreenshotMime: match[1], ScreenshotData: data };
+    const mime = screenshotMimeFromBytes(data);
+    if (!mime) fail('Screenshot contents are not a supported JPEG, PNG, or WebP image. Save the image as JPEG or PNG and try again.');
+    return { ScreenshotMime: mime, ScreenshotData: data };
   }
 
   addManualTeam(seasonId, teamName, averageMMR) {

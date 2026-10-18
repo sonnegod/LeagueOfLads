@@ -176,6 +176,33 @@ test('signup uploads five players separately and publishes only a complete team'
   } finally { db.close(); }
 });
 
+test('signup stores the actual image MIME type when screenshots have a different upload label', () => {
+  const db = database();
+  try {
+    const store = new SeasonStore(db);
+    const season = store.create('Image format season');
+    store.saveSignup(season.SeasonId, 'Sign up', 'Five players');
+    store.setSignupStatus(season.SeasonId, true);
+    const draftId = store.startSignupDraft(season.SeasonId, 1);
+    const pngBytes = Buffer.from('89504e470d0a1a0a', 'hex');
+    store.saveSignupDraftPlayer(season.SeasonId, 1, draftId, 0, {
+      playerId: 1, playerName: 'Captain', mmr: 6000,
+      dotaProfileUrl: 'https://www.dotabuff.com/players/1',
+      screenshot: `data:image/webp;base64,${pngBytes.toString('base64')}`,
+    });
+    const saved = db.prepare('SELECT ScreenshotMime, ScreenshotData FROM SeasonSignupDraftPlayers WHERE DraftId = ?').get(draftId);
+    assert.equal(saved.ScreenshotMime, 'image/png');
+    assert.deepEqual(saved.ScreenshotData, pngBytes);
+    const jpeg = store.decodeScreenshot(`data:image/webp;base64,${Buffer.from('ffd8ffe0', 'hex').toString('base64')}`);
+    assert.equal(jpeg.ScreenshotMime, 'image/jpeg');
+    const webp = Buffer.from('524946460400000057454250', 'hex');
+    assert.equal(store.decodeScreenshot(`data:image/webp;base64,${webp.toString('base64')}`).ScreenshotMime, 'image/webp');
+    for (const bytes of [Buffer.from('<html>not an image</html>'), Buffer.from('RIFF0000WAVE'), Buffer.from('ffd8', 'hex')]) {
+      assert.throws(() => store.decodeScreenshot(`data:image/webp;base64,${bytes.toString('base64')}`), { status: 400 });
+    }
+  } finally { db.close(); }
+});
+
 test('signup draft rejects screenshots over 2 MiB without publishing any players', () => {
   const db = database();
   try {
