@@ -127,25 +127,30 @@ export default class TeamRosterStore {
       ORDER BY ml.DatePlayed, mtp.MatchId, mtp.PlayerId`).all(teamId, leagueId, leagueId);
     const matches = new Map();
     for (const row of rows) {
-      if (!matches.has(row.MatchId)) matches.set(row.MatchId, { ...row, players: [] });
-      matches.get(row.MatchId).players.push({ PlayerId: row.PlayerId, PlayerName: row.PlayerName });
+      const key = `${row.LeagueId}:${row.MatchId}`;
+      if (!matches.has(key)) matches.set(key, { ...row, players: [] });
+      const match = matches.get(key);
+      if (!match.players.some(player => player.PlayerId === row.PlayerId)) {
+        match.players.push({ PlayerId: row.PlayerId, PlayerName: row.PlayerName });
+      }
     }
     const history = [];
-    const lastByLeague = new Map();
+    const lineups = new Map();
     for (const match of matches.values()) {
-      const signature = match.players.map(player => player.PlayerId).join(',');
-      const previous = lastByLeague.get(match.LeagueId);
-      if (previous?.signature === signature) {
-        previous.period.EffectiveTo = match.DatePlayed;
-        previous.period.LastMatchId = match.MatchId;
-        previous.period.GamesPlayed += 1;
+      const signature = `${match.LeagueId}:${match.players.map(player => player.PlayerId).sort((a, b) => a - b).join(',')}`;
+      const previous = lineups.get(signature);
+      if (previous) {
+        previous.EffectiveFrom ||= match.DatePlayed;
+        previous.EffectiveTo = match.DatePlayed || previous.EffectiveTo;
+        previous.LastMatchId = match.MatchId;
+        previous.GamesPlayed += 1;
       } else {
         const period = { TeamId: Number(teamId), LeagueId: match.LeagueId, LeagueName: match.LeagueName,
           Source: 'match_lineup', EffectiveFrom: match.DatePlayed, EffectiveTo: match.DatePlayed,
           FromEstimated: 1, MatchId: match.MatchId, LastMatchId: match.MatchId, GamesPlayed: 1,
           players: match.players };
         history.push(period);
-        lastByLeague.set(match.LeagueId, { signature, period });
+        lineups.set(signature, period);
       }
     }
     return history;

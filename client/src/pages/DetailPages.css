@@ -24,8 +24,11 @@
 .team-roster-history summary { cursor: pointer; font-weight: 600; }
 .team-roster-history-note { font-size: 0.85rem; color: var(--muted-text, #9ca3af); }
 .team-roster-history-table { width: 100%; min-width: 650px; border-collapse: collapse; }
+.content .team-roster-history-table { border: 0 !important; border-radius: 0 !important; }
 .team-roster-history-table th, .team-roster-history-table td {
-  padding: 0.8rem; text-align: left; border: 1px solid var(--border, #2a2d33); vertical-align: top; }
+  padding: 0.8rem; text-align: left; border: 0; vertical-align: top; }
+.team-roster-history-table tr > * + * { border-left: 1px solid var(--border, #2a2d33); }
+.team-roster-history-table tbody tr > * { border-top: 1px solid var(--border, #2a2d33); }
 .team-roster-history-table td:not(:first-child) { white-space: nowrap; }
 .team-roster-history-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0.65rem; }
 .team-roster-history-meta small { color: var(--muted-text, #9ca3af); }

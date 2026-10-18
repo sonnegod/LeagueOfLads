@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { trackSiteEvent } from '../utils/siteAnalytics';
 import { useParams } from 'react-router-dom';
 import PlayerStatsTable from "../components/PlayerStatsTable";
@@ -9,6 +9,7 @@ import LeagueFilter from '../components/LeagueFilter';
 import DotabuffLink from '../components/DotabuffLink';
 import PlayerAwards, { PlayerAwardHighlights, PlayerChampionshipTrophies } from '../components/PlayerAwards';
 import './DetailPages.css';
+const PerformancePanel = lazy(() => import('../components/PerformancePanel'));
 
 export default function PlayerPage() {
   const { player_id } = useParams(); // gets :player_id from URL
@@ -119,6 +120,7 @@ export default function PlayerPage() {
       {/* Tabs */}
       <div className='flex gap-2 mb-4 detail-page-tabs ui-tabs'>
         <button className="ui-tab" aria-pressed={activeTab === 'home'} onClick={() => setActiveTab('home')} style={activeTab === 'home' ? activeTabStyle : tabStyle}>Home</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'performance'} onClick={() => setActiveTab('performance')}>Performance</button>
         <button className="ui-tab" aria-pressed={activeTab === 'season'} onClick={() => setActiveTab('season')} style={activeTab === 'season' ? activeTabStyle : tabStyle}>Season Stats</button>
         <button className="ui-tab" aria-pressed={activeTab === 'allMatches'} onClick={() => setActiveTab('allMatches')} style={activeTab === 'allMatches' ? activeTabStyle : tabStyle}>Total Matches</button>
         <button className="ui-tab" aria-pressed={activeTab === 'heroes'} onClick={() => setActiveTab('heroes')} style={activeTab === 'heroes' ? activeTabStyle : tabStyle}>Heroes</button>
@@ -131,6 +133,9 @@ export default function PlayerPage() {
       </div>
 
       {/* Tab content */}
+      {activeTab === 'performance' && <Suspense fallback={<p role="status">Loading performance…</p>}>
+        <PerformancePanel key={`${player_id}:${selectedLeague}`} type="player" id={player_id} leagueId={selectedLeague} seasons={playerLeagues} onLeagueChange={setSelectedLeague} />
+      </Suspense>}
       {activeTab === 'awards' && <PlayerAwards awards={selectedAwards} criteria={currentAwards?.criteria}
         loading={!currentAwards} error={currentAwards?.error} selectedLeague={selectedLeague}
         onRetry={() => { setAwardsData(null); setAwardsAttempt(value => value + 1); }} />}

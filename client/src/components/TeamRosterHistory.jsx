@@ -57,7 +57,7 @@ export default function TeamRosterHistory({ roster, leagueId = 'all' }) {
       : current.error ? <p role="alert">{current.error}</p>
         : !current.history.length ? <p>No roster history recorded.</p>
           : <>
-            <p className="team-roster-history-note">Signup dates show effective roster periods. Match lineups show the dates those players were observed together.</p>
+            <p className="team-roster-history-note">Signup dates show effective roster periods. Legacy match lineups combine appearances by the same players within each season. Dates show their first and last recorded appearances together; other lineups may have played between them.</p>
             <div className="detail-table-scroll"><table className="team-roster-history-table">
               <thead><tr><th>Roster</th><th>From</th><th>To</th></tr></thead>
               <tbody>{current.history.map(period => <tr key={`${period.Source}:${period.TeamSubmissionId ?? period.MatchId}`}>

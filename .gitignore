@@ -12,3 +12,5 @@ LadsData.db
 !backups/
 !backups/**/*.db
 Logs/
+client/src/data/dotaItems.generated.json
+client/src/data/dotaItems.generated.json.*.tmp

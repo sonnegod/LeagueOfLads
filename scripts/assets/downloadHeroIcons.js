@@ -3,43 +3,12 @@
 import fs from "fs";
 import path from "path";
 import Database from "better-sqlite3";
+import { toHeroSlug } from "../../config/heroNames.js";
 
 const db = new Database("./db/LadsData.db");
 
-const overrides = {
-  "Queen of Pain": "queenofpain",
-  "Nature's Prophet": "furion",
-  "Clockwerk": "rattletrap",
-  "Wraith King": "skeleton_king",
-  "Necrophos": "necrolyte",
-  "Outworld Destroyer": "obsidian_destroyer",
-  "Doom": "doom_bringer",
-  "Timbersaw": "shredder",
-  "Magnus": "magnataur",
-  "Underlord": "abyssal_underlord",
-  "Anti-Mage": "antimage",
-  "Shadow Fiend": "nevermore",
-  "Vengeful Spirit": "vengefulspirit",
-  "Windranger": "windrunner",
-  "Zeus": "zuus",
-  "Lifestealer": "life_stealer",
-  "Treant Protector": "treant",
-  "Io": "wisp",
-  "Centaur Warrunner": "centaur"
-};
-
 const outputDir = "./client/public/heroes/icons";
 fs.mkdirSync(outputDir, { recursive: true });
-
-function toHeroSlug(heroName) {
-  if (overrides[heroName]) return overrides[heroName];
-  return heroName
-    .toLowerCase()
-    .replace(/'/g, "")
-    .replace(/\./g, "")
-    .replace(/-/g, "_")
-    .replace(/\s+/g, "_");
-}
 
 const heroes = db
   .prepare(`SELECT HeroId, HeroName FROM HeroInfo ORDER BY HeroId`)

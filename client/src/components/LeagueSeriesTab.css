@@ -175,6 +175,9 @@
   font-variant-numeric: tabular-nums;
 }
 
+.league-match-draft .league-draft-cell { position: relative; }
+.league-draft-number { position: absolute; bottom: 1px; left: 1px; padding: 1px 3px; border-radius: 2px; background: rgba(0, 0, 0, .8); color: #fff; font-size: 10px; font-weight: 700; line-height: 1; pointer-events: none; }
+
 .league-series-matches .league-match-draft th,
 .league-series-matches .league-match-draft td {
   height: 32px;
