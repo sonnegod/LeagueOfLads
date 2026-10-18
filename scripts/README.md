@@ -151,6 +151,197 @@ The separate `syncWarehousePatches.js` job runs before active-league ingestion,
 including between seasons. It requests Valve's calendar, applies the 1 AM New York
 cutoff and updates patch assignments for landed kickoff times.
 
+### Public match, player and team analysis
+
+`config/warehouseReporting.js` reads the landed EDW without fetching OpenDota or
+changing match records. `routes/warehouseReportingRoutes.js` provides these public
+endpoints, mounted under `/api`:
+
+- `/matches/:matchId/analysis`: scoreboard, patch/kickoff, team and all-player timelines, and objectives.
+- `/matches/:matchId/analysis/inventories`: all players' final inventories in one response, from one cached source read.
+- `/matches/:matchId/analysis/events`: timed hero kills from the cached gameplay archive, with victim icons assigned opposite their own side.
+- `/matches/:matchId/analysis/draft?scope=season|patch&period=full|before`: final lineups, hero familiarity, league hero pick/ban counts and opposing-player experience for banned heroes. Full season is the default.
+- `/matches/:matchId/analysis/draft/views`: all available season/patch and full/before views in one response for the Picks & bans tab.
+- `/matches/:matchId/analysis/players/:playerId`: player timelines, purchases and final inventory.
+- `/matches/:matchId/analysis/fights`: expandable fight observations and side totals.
+- `/player/:playerId/performance`: farming, combat/support rates, hero/patch/team breakdowns and examples.
+- `/teams/:teamId/performance`: early advantages, lead conversion, objectives, contribution distribution and examples.
+
+Performance endpoints accept `leagueId` and `patchId` (numeric IDs or `all`);
+the player endpoint also accepts `heroId`. Each metric includes its own eligible
+sample count. Only successfully enriched `ready`/`partial` games contribute;
+unenriched games remain in the coverage denominator. Zero remains a value,
+missing data is unavailable, and checkpoint metrics exclude games that ended
+before that checkpoint. Team sums require five recorded players. Duplicate
+legacy membership/player rows do not multiply the reported observations.
+
+Game flow overlays gold and XP advantages with independently selectable lines.
+The chart uses full panel width, with the event log below. Hero death, tower and
+Roshan icons can be toggled independently. Same-side events within 30 seconds
+of a stack's first event align vertically at their mean time; neighboring columns
+are separated to avoid overlap. Hover details and highlight lines retain exact
+event times. Hovering or focusing an icon or log entry highlights both. Hero
+death times come from archived `kills_log` entries, so creep/world deaths may
+be absent. No source response or private fields are exposed by the events endpoint.
+Player economy supports any combination of players, retaining the selection
+across gold, XP and last-hit views. Overview → Items shows all final inventories
+and a separate player selector for purchases. Scoreboard Details buttons open
+Items with that player selected. `gold_t` is total earned gold, not net worth; the scoreboard retains
+the separately recorded final net worth. Team header GP/WR use the match's season.
+
+Draft context loads all period/patch combinations in one request when Picks &
+bans is opened. Changing the period dial, patch filter or context view uses that
+loaded snapshot without fetching again. Leaving and reopening the tab requests
+the snapshot again; normal server report caching still applies. Full season is selected
+by default, including the current match and later games in the same season.
+The labeled period switch applies to every draft context view. Before this match
+limits history to earlier match IDs, also rejecting known kickoff times at or
+after this match. Missing kickoff times use match order, disclosed in that view.
+The optional same-patch view excludes games without a matching patch assignment.
+Legacy scoreboards contribute without requiring EDW enrichment. Duplicate player
+rows and bans do not multiply samples; unknown results do not become losses.
+Hero familiarity includes stand-in appearances and makes no claim about a ban's
+intent. This report does not fetch external data or alter warehouse records.
+Draft frequency is the default context view, with Team Specific and League
+Specific groups showing pick, ban and same-phase percentages with explicit
+counts/denominators. Team samples follow the acting team's curated ID across
+Radiant and Dire and count only its own actions. Team phase samples require an
+action by that team in the phase. Phase labels follow
+consecutive pick/ban blocks in the actual ordered draft, accommodating different
+season formats. Picks and pick rates use deduplicated played lineups, including
+valid games without a stored draft. League pick samples require ten known unique
+heroes; team pick samples require five known heroes assigned to that team.
+Bans, phases and contest rates use complete, unambiguous recorded drafts.
+Contest keeps its own numerator from those drafts rather than adding played
+picks from the larger game sample. The UI labels game and draft samples separately.
+Matches without draft actions show played heroes without inferred order or phases.
+Same-phase denominators include only
+drafts containing that phase. Missing history is unavailable, not 0%.
+On ban rows, Team Specific Ban % also shows a secondary opponent pick rate,
+using only the opposing team's played heroes and known team lineups. Hover reveals
+the opponent name and sample count. Unknown opponent history is unavailable.
+
+Source player slots determine sides; legacy fallback requires an unambiguous
+membership in a recorded match team. Corrected warehouse team IDs are retained.
+Tower events caused by creeps can be assigned from the destroyed structure;
+player credit remains unknown. Denies are excluded from first-tower rates.
+First-objective rates require an identifiable first event. Lead-conversion rates
+exclude tied checkpoints and unknown winners. Comebacks/leads lost use an
+explicit 10,000-gold threshold. Team reports show gold/XP advantage and ahead/behind
+win rates at 30, 40, 50 minutes and later ten-minute checkpoints using the existing
+minute timelines. Only games reaching each checkpoint with the relevant recorded
+sample contribute. Percentage colors progress from red to yellow to green, with a
+50% midpoint for win/objective rates and 20% for role-dependent damage share.
+Fight windows do not imply a verified fight winner.
+
+Player farming and contribution metrics show percentiles of player averages within
+the selected season, patch and hero. Each metric requires five eligible games per
+player and two qualifying players; ties use the midpoint rank, including the viewed
+player. The cached comparison pool includes all eligible league players, not just
+opponents of the viewed player. Shares remain role-dependent context. Team
+distribution includes average per-game final net worth share, requiring all five
+players' net worth. Expanded team game examples include every available later gold
+checkpoint. Performance filters include Season alongside Patch and Hero; the
+single-series player trend uses its statistic dropdown without a line-toggle legend.
+
+Team performance cards show percentiles against team averages/rates in the selected
+season and patch. The comparison pool is cached across team pages and built in one
+pass over league data, including teams that have not faced the viewed team. Each
+metric requires five eligible games per team and at least two qualifying teams;
+conditional win rates require five games meeting that condition. Ties share a rank.
+Earlier first-tower and first-Roshan timings receive higher percentiles. Team cards
+keep eligible-game counts in hover text rather than repeating them below values.
+
+### Hero and league performance
+
+The read-only reporting router also exposes:
+
+- `/api/hero/:heroId/performance`
+- `/api/leagues/:leagueId/performance`
+
+Filters are `leagueId`, `patchId` (`all` or a positive ID), and `stage` (`all`,
+`regular`, `tiebreakers`, `playoffs`, `unknown`). Explicit series stages take priority over stored
+league stage boundaries. Missing or conflicting classifications remain unknown;
+they are included in All stages and are not guessed into another stage.
+
+Hero Performance and League Performance load on opening their tabs. Responses use
+the existing bounded, revision-aware 60-second cache. Completed backfill imports
+become visible without another Analytics job, schema change or API download.
+No source-match or roster records are modified by these views.
+Hero Performance exposes Season and Patch filters; Stage is available on League Performance.
+
+Hero reports distinguish played picks from complete-draft bans/contest rates,
+show usage/results, player rankings on that hero, patch results, and item purchase
+timings. Role-mixed farming/contribution cards and cross-hero percentiles are omitted.
+Purchase timing is the median of the first recorded
+purchase of each item in each game; recipes, negative pregame times and events
+after match end are excluded. Purchase win rate is descriptive, not causal.
+Player-table percentiles compare players on the selected hero; roles can still
+differ. Damage/net-worth shares are role-dependent context.
+
+League reports include season averages, sortable team and player comparisons,
+hero draft trends, 10K comeback wins, smallest final gold gaps, longest games and
+standout player performances. Player/team combinations remain separate records.
+Percentiles compare the full eligible population in the filters, not only the
+rows visible after search/minimum-game filtering. Tables initially show 50 rows;
+sorting applies to the complete dataset before the row limit.
+
+New performance tables have no exterior frame inside cards, center numeric columns
+and leave the first column left aligned. Game samples remain in hover text when a
+Games column or coverage label already exists. Percentiles display as `X% out of Y`
+players, teams, heroes or player/team records as appropriate; five eligible samples
+per entry and two entries are required. Frequency percentages remain neutral;
+win/contribution percentages and percentiles use the red/yellow/green gradient.
+
+Fight breakdowns compare recorded deaths, gold/XP edges, team damage shares,
+healing and buybacks. The summary names the team with fewer deaths; gold/XP
+edges are shown separately. Team totals and resource edges require all five player
+records and the relevant values on each side. Deaths and buybacks are grouped
+by team beside the comparison table. Deaths count events,
+so a player can die more than once after buying back. The overview counts fight
+windows containing buybacks; overlapping windows prevent safely summing unique
+buybacks across the match. Resource changes include everything recorded during
+the window, including farming. Objective context shows non-denied structures,
+Roshan, Tormentor and Aegis events during a fight and within 90 seconds afterward,
+stopping at the next fight's start or match end. This timing does not establish
+that the fight caused an objective to be taken.
+Collapsed fight summaries also show this aftermath as team-colored objective
+badges or "No objective gained". Missing objective data is shown as unavailable.
+
+The reporting cache is limited to 48 entries with a 60-second TTL, and is cleared
+on detected database changes. Detailed analysis and the player/team Performance
+tabs load on demand. The final-item name/icon catalog is bundled from
+[OpenDota dotaconstants](https://github.com/odota/dotaconstants/blob/master/build/items.json);
+inventory images use Steam's CDN. The compressed source archive is decoded only
+for the requested match/player inventory, and no raw archive, ranks, MMR or
+public-match scouting is sent to these endpoints. These reports do not depend
+on Draft God. There is no additional schema migration for the views.
+
+### Item catalog refresh
+
+Deployment runs `node scripts/assets/refreshDotaItems.js` before building the
+client. The same command can be run manually from the repository root. It fetches
+OpenDota's item constants with a 15-second timeout and an 8 MB response limit,
+then keeps only the frontend's item ID, key, display name and Steam image path.
+Unnamed internal entries are skipped. Malformed schemas, duplicate IDs, unsafe
+image paths and suspiciously small responses are rejected.
+
+The generated catalog is `client/src/data/dotaItems.generated.json`, ignored by
+Git so deployment refreshes do not block later pulls. Updates merge into the last
+valid catalog, retaining retired items and refusing to remap an existing item's
+ID to a different key. A temporary file and atomic rename protect the last good
+file. A source or write failure logs a warning and lets deployment use the
+existing catalog. If no usable bundled catalog exists, the command fails.
+
+Vite resolves `@dota-items` to the validated generated catalog, falling back to
+the bundled `dotaItems.json` when the generated file is absent or invalid.
+New metadata takes effect on the next frontend build. Images still load from
+Steam's CDN; failed images retain the visible item-name fallback.
+
+Local examples with the Season 20 pilot data:
+`/match/8687558273`, `/player/99623012` and `/team/9592563` (select Season 20,
+then Performance on player/team pages).
+
 ### Season 20 validation run: explicit, bounded and manual
 
 The planner reads **existing warehouse match IDs only**, including undated

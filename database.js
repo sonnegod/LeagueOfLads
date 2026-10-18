@@ -14,6 +14,7 @@ import { getUnmatchedMatchTeams } from './config/unmatchedMatchTeams.js';
 import { getLeagueSeries } from './config/leagueSeries.js';
 import PlayerAwardsStore from './config/playerAwards.js';
 import { deleteMatchRecords } from './config/matchMaintenance.js';
+import { getReportingPlayers } from './config/warehouseReporting.js';
 import { updateMatchRecord } from './config/matchRecordAdmin.js';
 import { initializeWarehouse } from './config/warehouseIngestion.js';
 import { configureWarehouseConnection } from './config/warehouseConnection.js';
@@ -2405,10 +2406,11 @@ class DBInstance {
                     END AS WinnerSide,
                     li.LeagueName,
                     li.LeagueId,
-                    mt.Duration,
+                    mt.Duration,mt.StartTimeUtc,mt.RadiantScore,mt.DireScore,mt.FirstBloodTime,p.PatchKey,
                     ml.DatePlayed
              FROM MatchLeague ml
              JOIN MatchTeam mt ON ml.MatchId = mt.MatchId
+             LEFT JOIN Patches p ON p.PatchId = mt.PatchId
              JOIN TeamInfo radTeam ON mt.TeamRad = radTeam.TeamId
              JOIN TeamInfo direTeam ON mt.TeamDire = direTeam.TeamId
              JOIN LeagueInfo li ON ml.LeagueId = li.LeagueId
@@ -2418,16 +2420,7 @@ class DBInstance {
     }
 
     getMatchPlayerInformation(matchId) {
-        return this.queryDatabase(
-            `SELECT pi.PlayerName, hi.HeroName, mp.Kills, mp.Deaths, mp.Assists, mp.Lasthits, mp.HeroDamage,
-                    mp.TowerDamage, mp.Healing, mp.GPM, mp.XPM, pi.PlayerId, hi.HeroId
-             FROM MatchPlayer mp
-             JOIN PlayerInfo pi ON mp.PlayerId = pi.PlayerId
-             JOIN HeroInfo hi ON mp.HeroId = hi.HeroId
-             JOIN MatchLeague ml ON ml.MatchId = mp.MatchId
-             WHERE mp.MatchId = ?`,
-            [matchId]
-        );
+        return getReportingPlayers(this.db, matchId);
     }
 
     getMatchPickBanInformation(matchId){

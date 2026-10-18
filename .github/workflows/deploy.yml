@@ -27,6 +27,9 @@ jobs:
             # Validate the runtime before installing native SQLite/client dependencies
             node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (!((major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major > 22)) { console.error("Node 20.19+ or 22.12+ is required; Node 22.12+ is recommended."); process.exit(1); }'
             
+            # Refresh item metadata; source failures retain the last valid catalog
+            node scripts/assets/refreshDotaItems.js
+
             # Build the Client
             cd client
             npm install

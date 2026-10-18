@@ -886,6 +886,8 @@ export default class SeasonStore {
       signup: current?.Status === 'signup_open' ? {
         seasonId: current.SeasonId, title: current.SignupTitle,
         description: current.SignupDescription,
+        teamCount: this.db.prepare('SELECT COUNT(*) AS count FROM SeasonTeams WHERE SeasonId = ? AND IsManual = 0')
+          .get(current.SeasonId).count,
       } : null,
       champion: this.championFeature(completed) };
   }

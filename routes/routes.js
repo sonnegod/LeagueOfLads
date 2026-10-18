@@ -23,11 +23,14 @@ import {
 } from './utility/liveMatchResponses.js';
 import { getAppStandingsPayload } from './utility/standingsResponses.js';
 import { createPlayerAwardsRouter } from './playerAwardsRoutes.js';
+import { createWarehouseReportingRouter } from './warehouseReportingRoutes.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
+router.use(createWarehouseReportingRouter(db.db));
+router.use(createPlayerAwardsRouter(playerId => db.getPlayerAwards(playerId)));
 router.use(createPlayerAwardsRouter(playerId => db.getPlayerAwards(playerId), () => db.getAwardsCatalog()));
 router.use('/site-analytics', createSiteAnalyticsRouter({
   excluded: req => excludedVisitor(req) || Boolean(getAdminForSteamId(req.user?.id)),
@@ -1725,6 +1728,7 @@ router.get('/matches/:matchId', async (req, res) => {
 
   try {
     const match = await db.getMatch(matchId);
+    if (!match.length) return res.status(404).json({ error: 'Match not found' });
     const matchPlayers = await db.getMatchPlayerInformation(matchId);
     const matchPicksBans = await db.getMatchPickBanInformation(matchId);
 

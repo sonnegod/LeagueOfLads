@@ -4,7 +4,16 @@
   border: 1px solid var(--border, #344); border-radius: 16px;
   padding: clamp(1.5rem, 4vw, 3rem); background: var(--surface, #101827);
 }
-.home-signup-hero { border-color: var(--primary, #646cff); }
+.home-signup-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2rem; border-color: var(--primary, #646cff); }
+.home-signup-copy { grid-column: 1; grid-row: 1; min-width: 0; overflow-wrap: anywhere; }
+.home-signup-count { grid-column: 2; grid-row: 1; display: grid; gap: .5rem; min-width: 0; justify-items: center; text-align: center; }
+.home-signup-count strong { color: #c7d2fe; font-size: clamp(4rem, 7vw, 6rem); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.home-signup-count span { color: var(--muted-text, #a8b2c5); font-size: 1rem; font-weight: 600; }
+@media (max-width: 600px) {
+  .home-signup-hero { grid-template-columns: minmax(0, 1fr) 84px; gap: 12px; }
+  .home-signup-count strong { font-size: 3rem; }
+  .home-signup-count span { font-size: .85rem; }
+}
 .home-offseason-champion .home-signup-hero { width: min(100%, 1150px); justify-self: center; }
 .home-eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.12em;
   font-weight: 700; color: #a5b4fc; }

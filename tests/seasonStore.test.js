@@ -42,6 +42,7 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
     assert.throws(() => store.create('Second league'), { status: 409 });
     store.saveSignup(season.SeasonId, 'Season signup', 'Bring your team');
     store.setSignupStatus(season.SeasonId, true);
+    assert.equal(store.publicHome().signup.teamCount, 0);
     db.prepare('INSERT INTO PlayerInfo (PlayerId, PlayerName) VALUES (?, ?)').run(1, 'Captain');
     db.prepare(`INSERT INTO AdjustedPlayers (PlayerId, AdjustedMMR, CreatedAt, UpdatedAt)
       VALUES (1, 7000, 'now', 'now')`).run();
@@ -50,6 +51,7 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
       mmr: 6000, dotaProfileUrl: 'https://www.dotabuff.com/players/1', screenshot,
     }));
     const team = store.saveTeam(season.SeasonId, 1, { teamName: 'The Lads', players });
+    assert.equal(store.publicHome().signup.teamCount, 1);
     assert.equal(store.teams(season.SeasonId, true)[0].CaptainName, 'Captain');
     assert.equal(team.players[0].MMR, 7000);
     assert.equal('ScreenshotData' in team.players[0], false);
@@ -57,6 +59,7 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
     assert.throws(() => store.saveTeam(season.SeasonId, 99, { teamName: 'Other', players }),
       { status: 400 });
     store.setSignupStatus(season.SeasonId, false);
+    assert.equal(store.publicHome().signup, null);
     db.prepare('UPDATE AdjustedPlayers SET AdjustedMMR = 8000 WHERE PlayerId = 1').run();
     assert.equal(store.getTeam(team.TeamSubmissionId).players[0].MMR, 7000);
     const manual = store.addManualTeam(season.SeasonId, 'Manual', 6200);
@@ -123,7 +126,11 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
     db.prepare('UPDATE LeagueStageBoundaries SET TieBreakerEndMatchId = NULL WHERE LeagueId = 12345').run();
     assert.equal(store.publicHome().champion.players[0].spotlight.stage, 'Playoffs');
     assert.ok(audit.some(([type]) => type === 'League Ended'));
-    assert.equal(store.create('Next Season').Status, 'draft');
+    const nextSeason = store.create('Next Season');
+    assert.equal(nextSeason.Status, 'draft');
+    store.saveSignup(nextSeason.SeasonId, 'Next season signup', 'Bring your team');
+    store.setSignupStatus(nextSeason.SeasonId, true);
+    assert.equal(store.publicHome().signup.teamCount, 0, 'previous-season teams are not counted');
     assert.equal(manual.IsManual, 1);
   } finally { db.close(); }
 });
@@ -145,6 +152,7 @@ test('signup uploads five players separately and publishes only a complete team'
       mmr: 6000, dotaProfileUrl: 'https://www.dotabuff.com/players/1', screenshot });
     store.saveSignupDraftPlayer(season.SeasonId, 1, draftId, 0, { ...player(1), playerName: '' });
     assert.equal(store.teams(season.SeasonId).length, 0);
+    assert.equal(store.publicHome().signup.teamCount, 0, 'incomplete drafts do not count as submitted teams');
     assert.throws(() => store.submitSignupDraft(season.SeasonId, 1, draftId, 'The Team'),
       { status: 400 });
     assert.throws(() => store.saveSignupDraftPlayer(season.SeasonId, 2, draftId, 1, player(2)),
@@ -157,11 +165,14 @@ test('signup uploads five players separately and publishes only a complete team'
     assert.equal(db.prepare('SELECT COUNT(*) AS Count FROM PlayerInfo WHERE PlayerId = 5').get().Count, 0);
     assert.equal(store.teams(season.SeasonId).length, 0);
     const team = store.submitSignupDraft(season.SeasonId, 1, draftId, 'The Team');
+    assert.equal(store.publicHome().signup.teamCount, 1);
     assert.equal(team.players.length, 5);
     assert.equal(db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId = 5').get().PlayerName, 'New Player');
     assert.equal(store.screenshot(team.TeamSubmissionId, 5).ScreenshotMime, 'image/png');
     assert.equal(db.prepare('SELECT COUNT(*) AS Count FROM SeasonSignupDrafts').get().Count, 0);
     assert.equal(db.prepare('SELECT COUNT(*) AS Count FROM SeasonSignupDraftPlayers').get().Count, 0);
+    store.removeTeam(season.SeasonId, team.TeamSubmissionId);
+    assert.equal(store.publicHome().signup.teamCount, 0, 'removed submissions no longer count');
   } finally { db.close(); }
 });
 
