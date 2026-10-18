@@ -36,6 +36,9 @@ run_step() {
     fi
 }
 
+"$NODE_BIN" "$PROJECT_ROOT/scripts/league/syncWarehousePatches.js" "$PROJECT_ROOT/db/LadsData.db" >> "$LOG_FILE" 2>&1 || echo "Warehouse patch sync unavailable" >> "$LOG_FILE"
+"$NODE_BIN" "$PROJECT_ROOT/scripts/league/syncDraftPatches.js" "$PROJECT_ROOT/db/LadsData.db" 8 >> "$LOG_FILE" 2>&1 || echo "Patch sync unavailable" >> "$LOG_FILE"
+
 ACTIVE_CHECK_OK=1
 if ! ACTIVE_LEAGUE_ID="$("$NODE_BIN" "$PROJECT_ROOT/scripts/league/getActiveLeagueId.js" 2>> "$LOG_FILE")"; then
     echo "$(date) - Active league check failed; source freshness will not be advanced." >> "$LOG_FILE"
@@ -50,6 +53,8 @@ elif [ "$ACTIVE_CHECK_OK" -eq 1 ]; then
     echo "$(date) - Active league: $ACTIVE_LEAGUE_ID" >> "$LOG_FILE"
     run_step "$NODE_BIN" "$PROJECT_ROOT/scripts/league/currentLeagueData.js"
     run_step "$NODE_BIN" "$PROJECT_ROOT/scripts/league/matchDetails.js"
+    # Keep private draft enrichment bounded; source outages must not stop settlement.
+    "$NODE_BIN" "$PROJECT_ROOT/scripts/league/enrichDraftGod.js" "$PROJECT_ROOT/db/LadsData.db" --league="$ACTIVE_LEAGUE_ID" --limit=20 >> "$LOG_FILE" 2>&1 || echo "Draft enrichment unavailable" >> "$LOG_FILE"
     run_step "$NODE_BIN" "$PROJECT_ROOT/scripts/league/populateTeamNames.js"
     run_step "$NODE_BIN" "$PROJECT_ROOT/scripts/league/updateNeustadtl.js"
     run_step "$NODE_BIN" "$PROJECT_ROOT/scripts/league/checkPlayoffSeries.js"

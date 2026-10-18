@@ -1,0 +1,710 @@
+[
+  {
+    "key": "7.08",
+    "startsAt": "2018-02-01T08:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.08"
+  },
+  {
+    "key": "7.09",
+    "startsAt": "2018-02-15T08:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.09"
+  },
+  {
+    "key": "7.10",
+    "startsAt": "2018-03-01T08:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.10"
+  },
+  {
+    "key": "7.11",
+    "startsAt": "2018-03-15T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.11"
+  },
+  {
+    "key": "7.12",
+    "startsAt": "2018-03-29T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.12"
+  },
+  {
+    "key": "7.13",
+    "startsAt": "2018-04-12T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.13"
+  },
+  {
+    "key": "7.13b",
+    "startsAt": "2018-04-13T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.13b"
+  },
+  {
+    "key": "7.14",
+    "startsAt": "2018-04-24T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.14"
+  },
+  {
+    "key": "7.15",
+    "startsAt": "2018-05-10T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.15"
+  },
+  {
+    "key": "7.16",
+    "startsAt": "2018-05-27T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.16"
+  },
+  {
+    "key": "7.17",
+    "startsAt": "2018-06-10T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.17"
+  },
+  {
+    "key": "7.18",
+    "startsAt": "2018-06-25T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.18"
+  },
+  {
+    "key": "7.19",
+    "startsAt": "2018-07-29T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.19"
+  },
+  {
+    "key": "7.19b",
+    "startsAt": "2018-09-01T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.19b"
+  },
+  {
+    "key": "7.19c",
+    "startsAt": "2018-09-14T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.19c"
+  },
+  {
+    "key": "7.19d",
+    "startsAt": "2018-10-12T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.19d"
+  },
+  {
+    "key": "7.20",
+    "startsAt": "2018-11-19T08:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.20"
+  },
+  {
+    "key": "7.20b",
+    "startsAt": "2018-11-20T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.20b"
+  },
+  {
+    "key": "7.20c",
+    "startsAt": "2018-11-24T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.20c"
+  },
+  {
+    "key": "7.20d",
+    "startsAt": "2018-11-30T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.20d"
+  },
+  {
+    "key": "7.20e",
+    "startsAt": "2018-12-09T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.20e"
+  },
+  {
+    "key": "7.21",
+    "startsAt": "2019-01-29T08:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.21"
+  },
+  {
+    "key": "7.21b",
+    "startsAt": "2019-02-16T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.21b"
+  },
+  {
+    "key": "7.21c",
+    "startsAt": "2019-03-02T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.21c"
+  },
+  {
+    "key": "7.21d",
+    "startsAt": "2019-03-24T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.21d"
+  },
+  {
+    "key": "7.22",
+    "startsAt": "2019-05-24T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.22"
+  },
+  {
+    "key": "7.22b",
+    "startsAt": "2019-05-27T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.22b"
+  },
+  {
+    "key": "7.22c",
+    "startsAt": "2019-06-09T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.22c"
+  },
+  {
+    "key": "7.22d",
+    "startsAt": "2019-06-30T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.22d"
+  },
+  {
+    "key": "7.22e",
+    "startsAt": "2019-07-14T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.22e"
+  },
+  {
+    "key": "7.22f",
+    "startsAt": "2019-07-28T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.22f"
+  },
+  {
+    "key": "7.22g",
+    "startsAt": "2019-09-06T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.22g"
+  },
+  {
+    "key": "7.22h",
+    "startsAt": "2019-09-29T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.22h"
+  },
+  {
+    "key": "7.23",
+    "startsAt": "2019-11-26T08:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.23"
+  },
+  {
+    "key": "7.23a",
+    "startsAt": "2019-11-27T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.23a"
+  },
+  {
+    "key": "7.23b",
+    "startsAt": "2019-11-29T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.23b"
+  },
+  {
+    "key": "7.23c",
+    "startsAt": "2019-12-06T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.23c"
+  },
+  {
+    "key": "7.23d",
+    "startsAt": "2019-12-11T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.23d"
+  },
+  {
+    "key": "7.23e",
+    "startsAt": "2019-12-14T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.23e"
+  },
+  {
+    "key": "7.23f",
+    "startsAt": "2020-01-06T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.23f"
+  },
+  {
+    "key": "7.24",
+    "startsAt": "2020-01-26T08:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.24"
+  },
+  {
+    "key": "7.24b",
+    "startsAt": "2020-02-26T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.24b"
+  },
+  {
+    "key": "7.25",
+    "startsAt": "2020-03-17T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.25"
+  },
+  {
+    "key": "7.25a",
+    "startsAt": "2020-03-18T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.25a"
+  },
+  {
+    "key": "7.25b",
+    "startsAt": "2020-03-24T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.25b"
+  },
+  {
+    "key": "7.25c",
+    "startsAt": "2020-04-06T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.25c"
+  },
+  {
+    "key": "7.26",
+    "startsAt": "2020-04-17T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.26"
+  },
+  {
+    "key": "7.26a",
+    "startsAt": "2020-04-21T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.26a"
+  },
+  {
+    "key": "7.26b",
+    "startsAt": "2020-04-28T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.26b"
+  },
+  {
+    "key": "7.26c",
+    "startsAt": "2020-05-02T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.26c"
+  },
+  {
+    "key": "7.27",
+    "startsAt": "2020-06-28T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.27"
+  },
+  {
+    "key": "7.27a",
+    "startsAt": "2020-07-04T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.27a"
+  },
+  {
+    "key": "7.27b",
+    "startsAt": "2020-07-15T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.27b"
+  },
+  {
+    "key": "7.27c",
+    "startsAt": "2020-07-17T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.27c"
+  },
+  {
+    "key": "7.27d",
+    "startsAt": "2020-08-26T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.27d"
+  },
+  {
+    "key": "7.28",
+    "startsAt": "2020-12-17T08:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.28"
+  },
+  {
+    "key": "7.28a",
+    "startsAt": "2020-12-21T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.28a"
+  },
+  {
+    "key": "7.28b",
+    "startsAt": "2021-01-10T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.28b"
+  },
+  {
+    "key": "7.28c",
+    "startsAt": "2021-02-19T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.28c"
+  },
+  {
+    "key": "7.29",
+    "startsAt": "2021-04-09T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.29"
+  },
+  {
+    "key": "7.29b",
+    "startsAt": "2021-04-16T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.29b"
+  },
+  {
+    "key": "7.29c",
+    "startsAt": "2021-04-29T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.29c"
+  },
+  {
+    "key": "7.29d",
+    "startsAt": "2021-05-24T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.29d"
+  },
+  {
+    "key": "7.30",
+    "startsAt": "2021-08-17T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.30"
+  },
+  {
+    "key": "7.30b",
+    "startsAt": "2021-08-22T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.30b"
+  },
+  {
+    "key": "7.30c",
+    "startsAt": "2021-09-10T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.30c"
+  },
+  {
+    "key": "7.30d",
+    "startsAt": "2021-09-25T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.30d"
+  },
+  {
+    "key": "7.30e",
+    "startsAt": "2021-10-28T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.30e"
+  },
+  {
+    "key": "7.31",
+    "startsAt": "2022-02-23T08:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.31"
+  },
+  {
+    "key": "7.31b",
+    "startsAt": "2022-02-28T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.31b"
+  },
+  {
+    "key": "7.31c",
+    "startsAt": "2022-05-02T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.31c"
+  },
+  {
+    "key": "7.31d",
+    "startsAt": "2022-06-08T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.31d"
+  },
+  {
+    "key": "7.32",
+    "startsAt": "2022-08-23T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.32"
+  },
+  {
+    "key": "7.32b",
+    "startsAt": "2022-08-30T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.32b"
+  },
+  {
+    "key": "7.32c",
+    "startsAt": "2022-09-27T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.32c"
+  },
+  {
+    "key": "7.32d",
+    "startsAt": "2022-11-29T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.32d"
+  },
+  {
+    "key": "7.32e",
+    "startsAt": "2023-03-06T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.32e"
+  },
+  {
+    "key": "7.33",
+    "startsAt": "2023-04-20T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.33"
+  },
+  {
+    "key": "7.33b",
+    "startsAt": "2023-04-25T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.33b"
+  },
+  {
+    "key": "7.33c",
+    "startsAt": "2023-05-13T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.33c"
+  },
+  {
+    "key": "7.33d",
+    "startsAt": "2023-06-15T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.33d"
+  },
+  {
+    "key": "7.33e",
+    "startsAt": "2023-07-12T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.33e"
+  },
+  {
+    "key": "7.34",
+    "startsAt": "2023-08-08T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.34"
+  },
+  {
+    "key": "7.34b",
+    "startsAt": "2023-08-14T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.34b"
+  },
+  {
+    "key": "7.34c",
+    "startsAt": "2023-09-08T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.34c"
+  },
+  {
+    "key": "7.34d",
+    "startsAt": "2023-10-04T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.34d"
+  },
+  {
+    "key": "7.34e",
+    "startsAt": "2023-11-20T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.34e"
+  },
+  {
+    "key": "7.35",
+    "startsAt": "2023-12-14T08:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.35"
+  },
+  {
+    "key": "7.35b",
+    "startsAt": "2023-12-21T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.35b"
+  },
+  {
+    "key": "7.35c",
+    "startsAt": "2024-02-21T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.35c"
+  },
+  {
+    "key": "7.35d",
+    "startsAt": "2024-03-21T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.35d"
+  },
+  {
+    "key": "7.36",
+    "startsAt": "2024-05-22T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.36"
+  },
+  {
+    "key": "7.36a",
+    "startsAt": "2024-05-26T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.36a"
+  },
+  {
+    "key": "7.36b",
+    "startsAt": "2024-06-06T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.36b"
+  },
+  {
+    "key": "7.36c",
+    "startsAt": "2024-06-24T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.36c"
+  },
+  {
+    "key": "7.37",
+    "startsAt": "2024-07-31T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.37"
+  },
+  {
+    "key": "7.37b",
+    "startsAt": "2024-08-14T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.37b"
+  },
+  {
+    "key": "7.37c",
+    "startsAt": "2024-08-28T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.37c"
+  },
+  {
+    "key": "7.37d",
+    "startsAt": "2024-10-01T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.37d"
+  },
+  {
+    "key": "7.37e",
+    "startsAt": "2024-11-19T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.37e"
+  },
+  {
+    "key": "7.38",
+    "startsAt": "2025-02-18T08:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.38"
+  },
+  {
+    "key": "7.38b",
+    "startsAt": "2025-03-04T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.38b"
+  },
+  {
+    "key": "7.38c",
+    "startsAt": "2025-03-27T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.38c"
+  },
+  {
+    "key": "7.39",
+    "startsAt": "2025-05-22T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.39"
+  },
+  {
+    "key": "7.39b",
+    "startsAt": "2025-05-29T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.39b"
+  },
+  {
+    "key": "7.39c",
+    "startsAt": "2025-06-24T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.39c"
+  },
+  {
+    "key": "7.39d",
+    "startsAt": "2025-08-05T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.39d"
+  },
+  {
+    "key": "7.39e",
+    "startsAt": "2025-10-02T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.39e"
+  },
+  {
+    "key": "7.40",
+    "startsAt": "2025-12-15T08:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.40"
+  },
+  {
+    "key": "7.40b",
+    "startsAt": "2025-12-23T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.40b"
+  },
+  {
+    "key": "7.40c",
+    "startsAt": "2026-01-21T08:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.40c"
+  },
+  {
+    "key": "7.41",
+    "startsAt": "2026-03-24T07:00:00.000Z",
+    "major": 1,
+    "source": "https://www.dota2.com/patches/7.41"
+  },
+  {
+    "key": "7.41a",
+    "startsAt": "2026-03-27T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.41a"
+  },
+  {
+    "key": "7.41b",
+    "startsAt": "2026-04-07T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.41b"
+  },
+  {
+    "key": "7.41c",
+    "startsAt": "2026-05-06T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.41c"
+  },
+  {
+    "key": "7.41d",
+    "startsAt": "2026-06-04T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.41d"
+  },
+  {
+    "key": "7.41e",
+    "startsAt": "2026-07-30T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.41e"
+  },
+  {
+    "key": "7.41f",
+    "startsAt": "2026-09-15T07:00:00.000Z",
+    "major": 0,
+    "source": "https://www.dota2.com/patches/7.41f"
+  }
+]

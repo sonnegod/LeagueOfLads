@@ -1,0 +1,9 @@
+{
+  "dailyRequestBudget": 2500,
+  "dailyReserve": 300,
+  "seasonRetryAllowance": 5,
+  "requestDelayMs": 2000,
+  "minuteCooldownMs": 120000,
+  "minuteReserve": 5,
+  "maxMinuteRetries": 3
+}

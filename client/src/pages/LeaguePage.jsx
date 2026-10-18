@@ -7,9 +7,10 @@ import TieBreakerView from "../components/TieBreakerView";
 import CurrentPlayoffBracketView from "../components/CurrentPlayoffBracketView";
 import HeroDisplay from "../components/HeroDisplay";
 import LeagueHomeTab from "../components/LeagueHomeTab";
-import MatchResultBadge from "../components/MatchResultBadge";
 import LeagueHighlightsFeed from "../components/LeagueHighlightsFeed";
+import LeagueSeriesTab from "../components/LeagueSeriesTab";
 import './LeaguePage.css';
+const LeaguePerformance = React.lazy(() => import('../components/LeaguePerformance'));
 
 export default function LeaguePage({
   leagueIdOverride,
@@ -24,7 +25,6 @@ export default function LeaguePage({
   const [data, setLeague] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("home");
-  const [expandedMatches, setExpandedMatches] = useState({});
   const [expandedHeroes, setExpandedHeroes] = useState({});
   const [stageInfo, setStageInfo] = useState(null);
   const [stageExists, setStageExists] = useState(false);
@@ -81,9 +81,6 @@ export default function LeaguePage({
     fetchStageInfo();
   }, [leagueId]);
 
-  const toggleMatchExpanded = (matchId) => {
-    setExpandedMatches(prev => ({ ...prev, [matchId]: !prev[matchId] }));
-  };
   const toggleHeroExpanded = async (heroId) => {
     setExpandedHeroes(prev => ({ ...prev, [heroId]: !prev[heroId] }));
   }
@@ -132,14 +129,18 @@ export default function LeaguePage({
       <div className="league-page-tabs ui-tabs" style={{ marginBottom: "1rem" }}>
         {stageTabsFirst && stageButtons}
         <button className="ui-tab" aria-pressed={activeTab === "home"} onClick={() => setActiveTab("home")} style={activeTab === "home" ? activeTabStyle : tabStyle}>Home</button>
+        <button className="ui-tab" aria-pressed={activeTab === "performance"} onClick={() => setActiveTab("performance")}>Performance</button>
         {!stageTabsFirst && stageButtons}
         <button className="ui-tab" aria-pressed={activeTab === "teams"} onClick={() => setActiveTab("teams")} style={activeTab === "teams" ? activeTabStyle : tabStyle}>Teams</button>
-        <button className="ui-tab" aria-pressed={activeTab === "matches"} onClick={() => setActiveTab("matches")} style={activeTab === "matches" ? activeTabStyle : tabStyle}>Matches</button>
+        <button className="ui-tab" aria-pressed={activeTab === "series"} onClick={() => setActiveTab("series")} style={activeTab === "series" ? activeTabStyle : tabStyle}>Series</button>
         <button className="ui-tab" aria-pressed={activeTab === "players"} onClick={() => setActiveTab("players")} style={activeTab === "players" ? activeTabStyle : tabStyle}>Players</button>
         <button className="ui-tab" aria-pressed={activeTab === "heroes"} onClick={() => setActiveTab("heroes")} style={activeTab === "heroes" ? activeTabStyle : tabStyle}>Heroes</button>
       </div>
 
       {/* Home Tab */}
+      {activeTab === 'performance' && <React.Suspense fallback={<p role="status">Loading performance…</p>}>
+        <LeaguePerformance key={leagueId} leagueId={leagueId} />
+      </React.Suspense>}
       {activeTab === "home" && (
         <LeagueHomeTab
           league={league[0]}
@@ -197,82 +198,9 @@ export default function LeaguePage({
         </table>
       )}
 
-      {/* Matches Tab */}
-      {activeTab === "matches" && (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Match ID</th>
-              <th style={thStyle}>Radiant Team</th>
-              <th style={thStyle}>Dire Team</th>
-            </tr>
-          </thead>
-          <tbody>
-            {matchesWithPlayers.map(m => (
-              <React.Fragment key={m.MatchId}>
-                <tr
-                  onClick={() => toggleMatchExpanded(m.MatchId)}
-                  style={{ cursor: "pointer"}}
-                >
-                  <td style={tdStyle}><Link to={`/match/${m.MatchId}`}>{m.MatchId}</Link></td>
-                  <td style={tdStyle}><Link to={`/team/${m.RadiantTeamId}`}>{m.RadiantTeamName} <MatchResultBadge winnerSide={m.WinnerSide} side="r" /></Link></td>
-                  <td style={tdStyle}><Link to={`/team/${m.DireTeamId}`}>{m.DireTeamName} <MatchResultBadge winnerSide={m.WinnerSide} side="d" /></Link></td>
-                </tr>
-
-                {expandedMatches[m.MatchId] && m.matchPlayers && (
-                  <tr>
-                    <td colSpan="3" style={{ paddingLeft: "2rem" }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem" }}>
-                        <thead>
-                          <tr>
-                            <th style={thStyle}>Player</th>
-                            <th style={thStyle}>Hero</th>
-                            <th style={thStyle}>Kills</th>
-                            <th style={thStyle}>Deaths</th>
-                            <th style={thStyle}>Assists</th>
-                            <th style={thStyle}>Last Hits</th>
-                            <th style={thStyle}>GPM</th>
-                            <th style={thStyle}>XPM</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {m.matchPlayers.map((p, idx) => (
-                            <React.Fragment key={p.PlayerId}>
-                              {idx === 0 && (
-                                <tr>
-                                  <td colSpan="8" style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                                    Radiant <MatchResultBadge winnerSide={m.WinnerSide} side="r" />
-                                  </td>
-                                </tr>
-                              )}
-                              {idx === 5 && (
-                                <tr>
-                                  <td colSpan="8" style={{ textAlign: 'center', fontWeight: 'bold'}}>
-                                    Dire <MatchResultBadge winnerSide={m.WinnerSide} side="d" />
-                                  </td>
-                                </tr>
-                              )}
-                              <tr>
-                                <td style={tdStyle}><Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link></td>
-                                <td style={tdStyle}><HeroDisplay heroId={p.HeroId} heroName={p.HeroName} /></td>
-                                <td style={tdCenter}>{p.Kills}</td>
-                                <td style={tdCenter}>{p.Deaths}</td>
-                                <td style={tdCenter}>{p.Assists}</td>
-                                <td style={tdCenter}>{p.Lasthits}</td>
-                                <td style={tdCenter}>{p.GPM}</td>
-                                <td style={tdCenter}>{p.XPM}</td>
-                              </tr>
-                            </React.Fragment>
-                          ))}
-                        </tbody>
-                      </table>
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
+      {/* Series Tab */}
+      {activeTab === "series" && (
+        <LeagueSeriesTab key={leagueId} series={data.series} matches={matchesWithPlayers} />
       )}
 
       {/* Players Tab */}
@@ -313,7 +241,7 @@ export default function LeaguePage({
 
       {/* Heroes Tab */}
       {activeTab === "heroes" && (
-        <table style={tableStyle}>
+        <table className="league-heroes-table" style={tableStyle}>
             <thead>
             <tr>
                 <th style={thStyle}>Hero</th>
@@ -382,6 +310,5 @@ export default function LeaguePage({
 const tableStyle = { width: "100%", borderCollapse: "collapse", minWidth: "900px" };
 const thStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center"};
 const tdStyle = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
-const tdCenter = { border: "1px solid #ccc", padding: "8px", textAlign: "center" };
 const tabStyle = { padding: "0.5rem 1rem", marginRight: "0.5rem", cursor: "pointer" };
 const activeTabStyle = { ...tabStyle, fontWeight: "bold"};

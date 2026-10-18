@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-export default function MatchEditorPanel({ onMatchUpdated }) {
+export default function MatchEditorPanel({ onMatchUpdated, leagueId }) {
   const [matchId, setMatchId] = useState("");
   const [teamList, setTeamList] = useState([]);
 
@@ -17,11 +17,13 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
   // Load full list of teams (used for dropdowns)
   // ---------------------------------------------------------
   useEffect(() => {
-    fetch("/api/activeTeams")
-      .then(res => res.json())
-      .then(data => setTeamList(data.teams))
-      .catch(err => console.error("Team load error:", err));
-  }, []);
+    const controller=new AbortController();
+    fetch(leagueId?`/api/admin/recordTeams?leagueId=${leagueId}`:'/api/activeTeams',{signal:controller.signal})
+      .then(async res => {const data=await res.json();if(!res.ok)throw new Error(data.error||'Error loading teams');return data;})
+      .then(data => setTeamList(data.teams||[]))
+      .catch(err => {if(err.name!=='AbortError')setMessage(err.message);});
+    return()=>controller.abort();
+  }, [leagueId]);
 
   // ---------------------------------------------------------
   // Load match data by ID
@@ -36,28 +38,29 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
     setMessage("");
 
     try {
-        const res = await fetch(`/api/matchEdit/${matchId}`);
+        const res = await fetch(`/api/matchEdit/${encodeURIComponent(matchId.trim())}${leagueId?`?leagueId=${leagueId}`:''}`);
         const data = await res.json();
-
+        if(!res.ok)throw new Error(data.error||'Error loading match');
 
         if (!data || Object.keys(data).length === 0) {
         setMessage("Match not found.");
         } else {
-        setTeam1(data.team1.TeamId || "");
-        setTeam2(data.team2.TeamId || "");
-        setWinner(data.winner.TeamId || "");
+        setTeam1(String(data.team1.TeamId ?? ''));
+        setTeam2(String(data.team2.TeamId ?? ''));
+        setWinner(String(data.winner.TeamId ?? ''));
         setMessage("Match loaded successfully.");
 
         //helps check for change
         setOriginal({
-            team1: data.team1.TeamId,
-            team2: data.team2.TeamId,
-            winner: data.winner.TeamId,
+            team1: String(data.team1.TeamId),
+            team2: String(data.team2.TeamId),
+            winner: String(data.winner.TeamId),
         });
         }
     } catch (err) {
         console.error("Load error:", err);
-        setMessage("Error loading match.");
+        setOriginal(null);
+        setMessage(err.message||"Error loading match.");
     }
 
     setLoading(false);
@@ -68,8 +71,8 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
   // Update match in DB
   // ---------------------------------------------------------
   const updateMatch = async () => {
-    if (!team1 || !team2) {
-      setMessage("Team1 and Team2 must be selected.");
+    if (!original || Number(team1)<=0 || Number(team2)<=0 || team1===team2 || ![team1,team2].includes(winner)) {
+      setMessage("Load a match, select two different teams, and select their winner.");
       return;
     }
 
@@ -90,13 +93,14 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          matchId,
+          matchId:matchId.trim(),
           team1,
           team2,
           winner,
 
           team1Old: original.team1,
           team2Old: original.team2,
+          ...(leagueId?{leagueId}:{}),
         })
       });
 
@@ -114,7 +118,7 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
 
         onMatchUpdated && onMatchUpdated();
       } else {
-        setMessage("Update failed.");
+        setMessage(result.error||"Update failed.");
       }
     } catch (err) {
       console.error("Update error:", err);
@@ -137,24 +141,26 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
         <input
           type="text"
           value={matchId}
-          onChange={e => setMatchId(e.target.value)}
+          disabled={loading}
+          onChange={e => {setMatchId(e.target.value);setOriginal(null);setTeam1('');setTeam2('');setWinner('');setMessage('');}}
           placeholder="Enter match ID"
           style={{ flex: 1 }}
         />
-        <button onClick={loadMatch}>Load</button>
+        <button onClick={loadMatch} disabled={loading}>Load</button>
       </div>
 
       {/* TEAM 1 */}
       <label>Team 1</label>
       <select
         value={team1}
-        onChange={e => setTeam1(e.target.value)}
+        disabled={loading||!original}
+        onChange={e => {const next=e.target.value;if(winner===team1)setWinner(next);setTeam1(next);}}
         style={{ width: "100%", marginBottom: 12 }}
       >
         <option value="">Select Team</option>
         {teamList.map(t => (
             <option key={t.TeamId} value={t.TeamId}>
-            {t.TeamName}
+            {t.TeamName} ({t.TeamId})
             </option>
         ))}
       </select>
@@ -163,13 +169,14 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
       <label>Team 2</label>
       <select
         value={team2}
-        onChange={e => setTeam2(e.target.value)}
+        disabled={loading||!original}
+        onChange={e => {const next=e.target.value;if(winner===team2)setWinner(next);setTeam2(next);}}
         style={{ width: "100%", marginBottom: 12 }}
       >
         <option value="">Select Team</option>
         {teamList.map(t => (
             <option key={t.TeamId} value={t.TeamId}>
-            {t.TeamName}
+            {t.TeamName} ({t.TeamId})
             </option>
         ))}
       </select>
@@ -178,6 +185,7 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
       <label>Winner</label>
       <select
         value={winner}
+        disabled={loading||!original}
         onChange={e => setWinner(e.target.value)}
         style={{ width: "100%", marginBottom: 18 }}
       >
@@ -199,7 +207,7 @@ export default function MatchEditorPanel({ onMatchUpdated }) {
       <button
         className="ui-button-primary"
         onClick={updateMatch}
-        disabled={loading}
+        disabled={loading||!original}
         style={{
           width: "100%",
           padding: "8px 12px",

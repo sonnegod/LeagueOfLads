@@ -5,6 +5,7 @@ import {
 } from '../../publicDatabase.js';
 import { startSourceLoad, finishSourceLoad, ensurePublicAvailability } from '../../analytics/sourceMetadata.js';
 import { publicMatchPages } from '../../analytics/publicMatchInput.js';
+import { recordPublicSync } from '../../config/publicScouting.js';
 
 const REQUEST_DELAY_MS = 350;
 
@@ -94,11 +95,13 @@ async function main() {
           seen += rows.length;
           inserted += insertPublicMatchRows(stores.publicDb, rows);
         }
+        recordPublicSync(stores.publicDb, playerId, true);
         totalRowsSeen += seen;
         totalRowsInserted += inserted;
         console.log(`[${index + 1}/${totalPlayers}] ${player.PlayerName || playerId}: seen=${seen}, inserted=${inserted}`);
       } catch (err) {
         failures += 1;
+        recordPublicSync(stores.publicDb, playerId, false, 'FETCH_FAILED');
         console.error(
           `[${index + 1}/${totalPlayers}] Failed ${player.PlayerName || playerId}: ${err.message}`
         );

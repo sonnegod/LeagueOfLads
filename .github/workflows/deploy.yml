@@ -27,10 +27,13 @@ jobs:
             
             # Pull latest code
             git pull origin main
+
+            # Validate the runtime before installing native SQLite/client dependencies
+            node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (!((major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major > 22)) { console.error("Node 20.19+ or 22.12+ is required; Node 22.12+ is recommended."); process.exit(1); }'
             
-            # Install server dependencies and verify the documented runtime.
-            node -e 'const [major,minor]=process.versions.node.split(".").map(Number); if(major<22 || major===22 && minor<12) throw new Error("Node 22.12+ is required")'
+            # Install server dependencies and refresh the item catalog before building.
             npm install
+            node scripts/assets/refreshDotaItems.js
 
             # Build before changing the published client.
             cd client
@@ -38,9 +41,10 @@ jobs:
             npm run build
             
             cd ..
-            # Back up before additive migrations. Initialize roster history before
-            # Analytics reads it; Betting owns market creation and settlement.
+            # Back up before migrations. Initialize roster history before Analytics
+            # reads it; Betting owns market creation and settlement.
             bash scripts/db/backupDatabases.sh
+            node scripts/db/migrateWarehouse.js db/LadsData.db --apply
             node scripts/betting/run.js --init-only
             node scripts/analytics/build.js
             node scripts/betting/run.js

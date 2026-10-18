@@ -80,15 +80,20 @@ export default function Home() {
     </div>}
     <div className="home-announcements">
     {home.signup && <section className="home-signup-hero home-signup-ribbon">
-      <div><p className="home-eyebrow">Signups are open</p>
+      <div className="home-signup-copy"><p className="home-eyebrow">Signups are open</p>
       <h2>{home.signup.title}</h2>
-      <p className="home-signup-description">{home.signup.description}</p></div>
+      <p className="home-signup-description">{home.signup.description}</p>
       {user ? <Link to={`/signup/${home.signup.seasonId}`} className="home-signup-button">
         Sign up your team
       </Link> : <a href={`/api/auth/steam?returnTo=${encodeURIComponent(`/signup/${home.signup.seasonId}`)}`}
         className="home-signup-button" aria-disabled={authLoading}>
         {authLoading ? 'Checking Steam login...' : 'Sign in with Steam to sign up'}
       </a>}
+      </div>
+      <div className="home-signup-count">
+        <strong>{home.signup.teamCount ?? 0}</strong>
+        <span>{home.signup.teamCount === 1 ? 'Team signed up' : 'Teams signed up'}</span>
+      </div>
     </section>}
     {showChampion && <section className="home-champion-ribbon">
       <div><p className="home-eyebrow">League champions</p>

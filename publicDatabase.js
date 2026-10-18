@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import dotenv from 'dotenv';
+import { ensurePublicScoutingSchema } from './config/publicScouting.js';
 
 dotenv.config();
 
@@ -76,6 +77,7 @@ export function assertPublicSchema(publicDb) {
       `PublicMatchPlayer missing columns: ${missingMatchColumns.join(', ')}. Run public_db_create_script.txt.`
     );
   }
+  ensurePublicScoutingSchema(publicDb);
 }
 
 export function closePublicDataStores(stores) {

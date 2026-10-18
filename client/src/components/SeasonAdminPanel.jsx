@@ -106,6 +106,7 @@ function SubmissionCard({ team, seasonId, onChanged }) {
 }
 
 function GroupsPanel({ season, teams, groups, spread, refresh, run, busy }) {
+  const [revealView, setRevealView] = useState(false);
   const [name, setName] = useState('');
   const [manualName, setManualName] = useState('');
   const [manualMMR, setManualMMR] = useState('');
@@ -188,11 +189,21 @@ function GroupsPanel({ season, teams, groups, spread, refresh, run, busy }) {
   }
 
   const unassigned = visibleTeams.filter(team => !team.GroupId);
-  const columns = [{ GroupId: null, GroupName: 'Unassigned', teams: unassigned, AverageMMR: null }, ...visibleGroups];
-  return <section className="season-groups">
-    <h3>Groups</h3>
-    <p>Create the group structure, then randomize 100 assignments. One of the 10 lowest-spread assignments is chosen at random.</p>
-    <div className="season-actions">
+  const columns = [
+    ...(!revealView || unassigned.length ? [{ GroupId: null, GroupName: 'Unassigned', teams: unassigned, AverageMMR: null }] : []),
+    ...visibleGroups,
+  ];
+  return <section className={`season-groups${revealView ? ' season-groups-reveal' : ''}`}>
+    <div className="season-groups-toolbar">
+      <h3>Groups</h3>
+      <button type="button" aria-pressed={revealView} disabled={Boolean(dragged)}
+        onClick={() => setRevealView(current => !current)}>
+        {revealView ? 'Back to group editing' : 'Reveal view'}
+      </button>
+    </div>
+    {!revealView && <>
+      <p>Create the group structure, then randomize 100 assignments. One of the 10 lowest-spread assignments is chosen at random.</p>
+      <div className="season-actions">
       <form onSubmit={addGroup}><input value={name} onChange={event => setName(event.target.value)}
         maxLength="60" placeholder="Group name" required /> <button disabled={busy}>Add group</button></form>
       <form onSubmit={addManual}><input value={manualName} onChange={event => setManualName(event.target.value)}
@@ -207,11 +218,12 @@ function GroupsPanel({ season, teams, groups, spread, refresh, run, busy }) {
     <small role="status">{refreshError ? 'Automatic updates failed. Use Refresh to retry.'
       : 'Group changes from other admins appear automatically.'}</small>
     {visibleSpread !== null && <p><strong>Spread: {Number(visibleSpread).toFixed(0)} MMR</strong></p>}
+    </>}
     <div className="season-group-grid">{columns.map(group => <div key={group.GroupId ?? 'none'}
-      className="season-group-column" onDragOver={event => event.preventDefault()}
-      onDrop={event => drop(event, group.GroupId)}>
+      className="season-group-column" onDragOver={revealView ? undefined : event => event.preventDefault()}
+      onDrop={revealView ? undefined : event => drop(event, group.GroupId)}>
       <div className="season-group-heading"><h4>{group.GroupName}</h4>
-        {group.GroupId && <button type="button" disabled={busy} onClick={() => {
+        {!revealView && group.GroupId && <button type="button" disabled={busy} onClick={() => {
           const newName = window.prompt('Group name', group.GroupName)?.trim();
           if (newName && newName !== group.GroupName) run(() => request(
             `/api/admin/seasons/${seasonId}/groups/${group.GroupId}`, {
@@ -219,21 +231,24 @@ function GroupsPanel({ season, teams, groups, spread, refresh, run, busy }) {
               body: JSON.stringify({ groupName: newName }),
             }), 'Group renamed.');
         }}>Rename</button>}
-        {group.GroupId && <button type="button" disabled={busy} onClick={() => {
+        {!revealView && group.GroupId && <button type="button" disabled={busy} onClick={() => {
           if (window.confirm(`Remove ${group.GroupName}? Teams will become unassigned.`)) {
             run(() => request(`/api/admin/seasons/${seasonId}/groups/${group.GroupId}`, { method: 'DELETE' }), 'Group removed.');
           }
         }}>Remove</button>}</div>
-      {group.GroupId && <small>Average {group.AverageMMR === null ? '—' : Number(group.AverageMMR).toFixed(0)} MMR</small>}
-      {group.teams.map(team => <div key={team.TeamSubmissionId} className="season-drag-team" draggable
+      {!revealView && group.GroupId && <small>Average {group.AverageMMR === null ? '—' : Number(group.AverageMMR).toFixed(0)} MMR</small>}
+      {group.teams.map(team => <div key={team.TeamSubmissionId} className="season-drag-team" draggable={!revealView}
         onDragStart={event => { event.dataTransfer.setData('text/plain', String(team.TeamSubmissionId)); setDragged(team.TeamSubmissionId); }}
         onDragEnd={() => setDragged(null)}>
-        <strong>{team.TeamName}</strong><small>{Number(team.AverageMMR).toFixed(0)} MMR</small>
-        <select aria-label={`Group for ${team.TeamName}`} value={team.GroupId ?? ''}
+        <strong>{team.TeamName}</strong>
+        {!revealView && <>
+          <small>{Number(team.AverageMMR).toFixed(0)} MMR</small>
+          <select aria-label={`Group for ${team.TeamName}`} value={team.GroupId ?? ''}
           onChange={event => move(team.TeamSubmissionId, event.target.value ? Number(event.target.value) : null)}>
           <option value="">Unassigned</option>
           {visibleGroups.map(choice => <option key={choice.GroupId} value={choice.GroupId}>{choice.GroupName}</option>)}
         </select>
+        </>}
       </div>)}
     </div>)}</div>
   </section>;
@@ -245,8 +260,6 @@ export default function SeasonAdminPanel({ onChanged }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [leagueId, setLeagueId] = useState('');
-  const [latestChampionId, setLatestChampionId] = useState('');
-  const [latestTeams, setLatestTeams] = useState([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -260,14 +273,6 @@ export default function SeasonAdminPanel({ onChanged }) {
     setTitle(result.season?.SignupTitle || '');
     setDescription(result.season?.SignupDescription || '');
     setLeagueId(result.season?.ExternalLeagueId ? String(result.season.ExternalLeagueId) : '');
-    if (result.latest && !result.season) {
-      setLatestChampionId(String(result.latest.ChampionTeamId ?? ''));
-      request(`/api/admin/seasons/${result.latest.SeasonId}/championCandidates`)
-        .then(value => setLatestTeams(value.teams)).catch(() => setLatestTeams([]));
-    } else {
-      setLatestChampionId('');
-      setLatestTeams([]);
-    }
     return result;
   }, []);
 
@@ -381,21 +386,5 @@ export default function SeasonAdminPanel({ onChanged }) {
         }} />
       </>}
     </>}
-    {!season && data?.latest && <div className="season-inline-form">
-      <h3>Correct completed league champion: {data.latest.LeagueName}</h3>
-      <label>Champion
-        <select value={latestChampionId} onChange={event => setLatestChampionId(event.target.value)}>
-          <option value="">Select champion</option>
-          {latestTeams.map(team => <option key={team.TeamId} value={team.TeamId}>{team.TeamName} ({team.TeamId})</option>)}
-        </select>
-      </label>
-      <button type="button" disabled={busy || !latestChampionId || Number(latestChampionId) === data.latest.ChampionTeamId}
-        onClick={() => { if (window.confirm('Change the published champion for this league?')) {
-          run(() => request(`/api/admin/seasons/${data.latest.SeasonId}/champion`, {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ championTeamId: latestChampionId }),
-          }), 'Champion corrected.').catch(() => {});
-        } }}>{data.latest.ChampionTeamId ? 'Correct champion' : 'Confirm champion'}</button>
-    </div>}
   </section>;
 }

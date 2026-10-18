@@ -132,7 +132,7 @@ test('roster periods preserve exact new start dates and backfill older dates as 
   } finally { db.close(); }
 });
 
-test('lineup history groups consecutive matching players and preserves returning lineups and league boundaries', () => {
+test('legacy history groups each player once per season across stand-in lineups', () => {
   const db = fixture();
   try {
     const store = new TeamRosterStore(db);
@@ -140,19 +140,29 @@ test('lineup history groups consecutive matching players and preserves returning
       const leagueId = matchId === 5 ? 500 : 400;
       db.prepare('INSERT INTO MatchTeam VALUES (?, 444, 222)').run(matchId);
       db.prepare('INSERT INTO MatchLeague VALUES (?, ?, ?)').run(matchId, leagueId, `2026-01-0${matchId}`);
-      for (const playerId of matchId === 3 ? [1, 6] : [1, 2]) {
+      for (const playerId of matchId === 3 ? [1, 2, 3, 4, 6] : [5, 4, 3, 2, 1]) {
         db.prepare('INSERT INTO MatchTeamPlayer VALUES (?, ?, 444)').run(matchId, playerId);
         db.prepare('INSERT INTO MatchPlayer VALUES (?, ?)').run(matchId, playerId);
       }
     }
+    db.exec('INSERT INTO MatchTeamPlayer VALUES(4,1,444); INSERT INTO MatchPlayer VALUES(4,1)');
     const history = store.historyForTeam(444, 400);
-    assert.equal(history.length, 3);
+    assert.equal(history.length, 1);
     assert.deepEqual(history.map(period => [period.EffectiveFrom, period.EffectiveTo, period.GamesPlayed]), [
-      ['2026-01-04', '2026-01-04', 1], ['2026-01-03', '2026-01-03', 1], ['2026-01-01', '2026-01-02', 2],
+      ['2026-01-01', '2026-01-04', 4],
     ]);
-    assert.deepEqual(history.map(period => period.players.map(player => player.PlayerId)), [[1, 2], [1, 6], [1, 2]]);
-    assert.equal(store.historyForTeam(444).length, 4);
-    assert.equal(store.historyForTeam(444, 500).length, 1);
+    assert.deepEqual(history[0].players.map(player => player.PlayerId), [1, 2, 3, 4, 5, 6]);
+    assert.deepEqual(history[0].players.map(player => [player.PlayerId, player.GamesPlayed, player.EffectiveFrom, player.EffectiveTo]), [
+      [1,4,'2026-01-01','2026-01-04'],[2,4,'2026-01-01','2026-01-04'],
+      [3,4,'2026-01-01','2026-01-04'],[4,4,'2026-01-01','2026-01-04'],
+      [5,3,'2026-01-01','2026-01-04'],[6,1,'2026-01-03','2026-01-03'],
+    ]);
+    assert.equal(history[0].MatchId,1);assert.equal(history[0].LastMatchId,4);
+    assert.equal(store.historyForTeam(444).length, 2);
+    const later=store.historyForTeam(444, 500);
+    assert.equal(later.length, 1);
+    assert.equal(later[0].GamesPlayed,1);
+    assert.deepEqual(later[0].players.map(player=>[player.PlayerId,player.GamesPlayed]),[[1,1],[2,1],[3,1],[4,1],[5,1]]);
   } finally { db.close(); }
 });
 

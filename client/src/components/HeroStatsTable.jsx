@@ -1,65 +1,67 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
+const columns = [
+  { key: 'MatchId', label: 'Match ID' },
+  { key: 'PlayerName', label: 'Player Name' },
+  { key: 'Kills', label: 'Kills' },
+  { key: 'Deaths', label: 'Deaths' },
+  { key: 'Assists', label: 'Assists' },
+  { key: 'Lasthits', label: 'Last Hits' },
+  { key: 'HeroDamage', label: 'Hero Damage' },
+  { key: 'TowerDamage', label: 'Tower Damage' },
+  { key: 'Healing', label: 'Healing' },
+  { key: 'GPM', label: 'GPM' },
+  { key: 'XPM', label: 'XPM' },
+  { key: 'Winner', label: 'Win' },
+  { key: 'LeagueName', label: 'League Name' },
+];
 
 export default function HeroStatsTable({ data }) {
   const [sortConfig, setSortConfig] = useState({ key: 'MatchId', direction: 'desc' });
 
-  if (!data || data.length === 0) return <div>No player data available.</div>;
-
-  // Sorting function
   const sortedData = useMemo(() => {
-    return [...data].sort((a, b) => {
-      let aVal = a[sortConfig.key];
-      let bVal = b[sortConfig.key];
-
-      // Convert to uppercase for string comparison to make it case insensitive
-      if (typeof aVal === 'string') aVal = aVal.toUpperCase();
-      if (typeof bVal === 'string') bVal = bVal.toUpperCase();
-
-      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-      return 0;
+    return [...(data || [])].sort((a, b) => {
+      const aValue = a[sortConfig.key], bValue = b[sortConfig.key];
+      let comparison;
+      if (sortConfig.key === 'PlayerName' || sortConfig.key === 'LeagueName') {
+        comparison = String(aValue ?? '').localeCompare(String(bValue ?? ''), undefined,
+          { sensitivity: 'base', numeric: true });
+      } else {
+        const aMissing = aValue == null || !Number.isFinite(Number(aValue));
+        const bMissing = bValue == null || !Number.isFinite(Number(bValue));
+        if (aMissing !== bMissing) return aMissing ? 1 : -1;
+        comparison = aMissing ? 0 : Number(aValue) - Number(bValue);
+      }
+      return (sortConfig.direction === 'asc' ? comparison : -comparison)
+        || Number(b.MatchId) - Number(a.MatchId) || Number(a.PlayerId) - Number(b.PlayerId);
     });
   }, [data, sortConfig]);
 
-  // Handle header click to sort
   const onSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
+    setSortConfig(current => ({ key, direction: current.key === key
+      ? current.direction === 'desc' ? 'asc' : 'desc'
+      : key === 'PlayerName' || key === 'LeagueName' ? 'asc' : 'desc' }));
   };
 
-  // Display sort arrow
-  const getSortArrow = (key) => {
-    if (sortConfig.key !== key) return '';
-    return sortConfig.direction === 'asc' ? ' 🔼' : ' 🔽';
-  };
+  if (!data || data.length === 0) return <div>No player data available.</div>;
 
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <div className="detail-table-scroll" style={{ overflowX: 'auto' }}>
+    <table style={{ width: '100%', minWidth: '1100px', borderCollapse: 'collapse' }}>
       <thead>
-        <tr>
-          <th style={thStyle} onClick={() => onSort('MatchId')}>Match Id{getSortArrow('MatchId')}</th>
-          <th style={thStyle} onClick={() => onSort('PlayerName')}>Player Name{getSortArrow('PlayerName')}</th>
-          <th style={thStyle} onClick={() => onSort('Kills')}>Kills{getSortArrow('Kills')}</th>
-          <th style={thStyle} onClick={() => onSort('Deaths')}>Deaths{getSortArrow('Deaths')}</th>
-          <th style={thStyle} onClick={() => onSort('Assists')}>Assists{getSortArrow('Assists')}</th>
-          <th style={thStyle} onClick={() => onSort('Lasthits')}>Last Hits{getSortArrow('Lasthits')}</th>
-          <th style={thStyle} onClick={() => onSort('HeroDamage')}>Hero Damage{getSortArrow('HeroDamage')}</th>
-          <th style={thStyle} onClick={() => onSort('TowerDamage')}>Tower Damage{getSortArrow('TowerDamage')}</th>
-          <th style={thStyle} onClick={() => onSort('Healing')}>Healing{getSortArrow('Healing')}</th>
-          <th style={thStyle} onClick={() => onSort('GPM')}>GPM{getSortArrow('GPM')}</th>
-          <th style={thStyle} onClick={() => onSort('XPM')}>XPM{getSortArrow('XPM')}</th>
-          <th style={thStyle} onClick={() => onSort('Winner')}>Win{getSortArrow('Winner')}</th>
-          <th style={thStyle} onClick={() => onSort('LeagueName')}>League Name{getSortArrow('LeagueName')}</th>
-        </tr>
+        <tr>{columns.map(column => <th key={column.key} style={thStyle}
+          aria-sort={sortConfig.key === column.key
+            ? sortConfig.direction === 'asc' ? 'ascending' : 'descending' : 'none'}>
+          <button type="button" className="detail-sort-button" onClick={() => onSort(column.key)}>
+            {column.label}<span aria-hidden="true">{sortConfig.key === column.key
+              ? sortConfig.direction === 'asc' ? '▲' : '▼' : '↕'}</span>
+          </button>
+        </th>)}</tr>
       </thead>
       <tbody>
-        {sortedData.map((player, idx) => (
-          <tr>
+        {sortedData.map(player => (
+          <tr key={`${player.MatchId}:${player.PlayerId}`}>
             <td style={tdStyle}>
                 <Link to={`/match/${player.MatchId}`}>{player.MatchId}</Link>
             </td>
@@ -77,12 +79,13 @@ export default function HeroStatsTable({ data }) {
             <td style={tdCenter}>{player.XPM}</td>
             <td style={tdCenter}>{player.Winner === 1 ? 'Yes' : 'No'}</td>
             <td style={tdStyle}>              
-              <Link to={`/League/${player.LeagueId}`}>{player.LeagueName}</Link>
+              <Link to={`/league/${player.LeagueId}`}>{player.LeagueName}</Link>
             </td>
           </tr>
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 
@@ -90,7 +93,6 @@ const thStyle = {
   border: '1px solid #ccc',
   padding: '8px',
   textAlign: 'center',
-  cursor: 'pointer', // show pointer cursor for clickable header
 };
 
 const tdStyle = {

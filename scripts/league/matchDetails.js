@@ -1,3 +1,6 @@
+import { ingestWarehouseMatch } from '../../config/warehouseIngestion.js';
+import { ingestDraftTelemetry } from '../../config/draftTelemetry.js';
+import { withSqliteBusyRetry } from '../../config/warehouseConnection.js';
 import db from '../../database.js';
 import apiUrl from '../../apiURL.js';
 import { startSourceLoad, finishSourceLoad, recordMatchStart } from '../../analytics/sourceMetadata.js';
@@ -50,8 +53,9 @@ async function getMatchDetails(matches, currentStage, leagueId){
 
         try {
             const response = await fetch(apiUrl.baseMatchData + match.MatchId, { method: 'GET' });
-            if (!response.ok) throw new Error('Match detail request failed');
+            if (!response.ok) throw new Error(`OpenDota returned ${response.status}`);
             const data = await response.json();
+            if (Number(data.match_id) !== Number(matchId)) throw new Error('Mismatched match ID');
             if (!Array.isArray(data.players) || typeof data.radiant_win !== 'boolean' || !data.start_time) {
                 throw new Error('Incomplete match detail response');
             }
@@ -172,6 +176,10 @@ async function getMatchDetails(matches, currentStage, leagueId){
                 }
               })();
               for (const player of committedPlayers) knownPlayers.add(player.player_id);
+              // Enrichment owns its transactions; retry only after the core match has committed.
+              try { await withSqliteBusyRetry(() => ingestWarehouseMatch(db.db, data, { expectedMatchId: matchId })); }
+              catch(e) { console.warn(`Warehouse enrichment ${matchId}:`, e.message); }
+              try { ingestDraftTelemetry(db.db, data); } catch(e) { console.warn('Draft telemetry:', e.message); }
             }
             records += 1;
         } catch (err) {

@@ -2,10 +2,17 @@ import express from 'express';
 import passport from 'passport';
 
 import { checkAdmin, checkHeadAdmin, getAdminForSteamId } from '../middleware/checkAdmin.js';
+import { isSiteManagerSteamId } from '../middleware/checkSiteManager.js';
+import siteManagementRoutes from './siteManagementRoutes.js';
+import { createSiteAnalyticsRouter } from './siteAnalyticsRoutes.js';
+import { excludedVisitor, createSiteSignupProgress } from '../config/siteAnalytics.js';
 
 import db from '../database.js';
 import dbBet from '../databaseBet.js';
 import dbPublic from '../databasePublic.js';
+import DraftGodStore from '../config/draftGodStore.js';
+import { createDraftGodRouter } from './draftGodRoutes.js';
+import { isDraftGodOwner } from '../middleware/checkDraftGod.js';
 import { publicSeasonRoutes, adminSeasonRoutes } from './seasonRoutes.js';
 import { createAnalyticsRoutes } from './analyticsRoutes.js';
 import { createBettingRoutes } from './bettingRoutes.js';
@@ -18,6 +25,8 @@ import {
   withLiveMatchJson,
 } from './utility/liveMatchResponses.js';
 import { getAppStandingsPayload } from './utility/standingsResponses.js';
+import { createPlayerAwardsRouter } from './playerAwardsRoutes.js';
+import { createWarehouseReportingRouter } from './warehouseReportingRoutes.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
@@ -30,6 +39,14 @@ const { publicRoutes: publicBettingRoutes, adminRoutes: adminBettingRoutes } = c
 const { adminRoutes: adminAnalyticsRoutes, publicRoutes: publicAnalyticsRoutes } = createAnalyticsRoutes({
   audit: (type, message) => db.recordAdminAudit(type, message),
 });
+router.use(createWarehouseReportingRouter(db.db));
+router.use(createPlayerAwardsRouter(playerId => db.getPlayerAwards(playerId), () => db.getAwardsCatalog()));
+router.use('/site-analytics', createSiteAnalyticsRouter({
+  excluded: req => excludedVisitor(req) || Boolean(getAdminForSteamId(req.user?.id)),
+}));
+router.use('/signup', createSiteSignupProgress({
+  excluded: req => excludedVisitor(req) || Boolean(getAdminForSteamId(req.user?.id)),
+}));
 const STEAM_ID64_BASE = BigInt('76561197960265728');
 
 function resolveActiveLeague() {
@@ -60,45 +77,6 @@ function resolveAccountIdFromSteamId(steamId64) {
   return (BigInt(steamId64) - STEAM_ID64_BASE).toString();
 }
 
-function hasDraftAccess(accountId) {
-  if (!accountId) return false;
-  const row = db.queryDatabase(
-    `
-    SELECT 1
-    FROM DraftAccess
-    WHERE PlayerId = ?
-    LIMIT 1
-    `,
-    [accountId]
-  )[0];
-  return !!row;
-}
-
-function checkDraftGodAccess(req, res, next) {
-  if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
-    return res.status(401).json({ error: 'Unauthorized: not logged in' });
-  }
-
-  try {
-    const accountId = resolveAccountIdFromSteamId(req.user.id);
-    let canDraftGod = typeof req.session?.canDraftGod === 'boolean'
-      ? req.session.canDraftGod
-      : hasDraftAccess(accountId);
-
-    if (req.session && typeof req.session.canDraftGod !== 'boolean') {
-      req.session.canDraftGod = canDraftGod;
-    }
-
-    if (!canDraftGod) {
-      return res.status(403).json({ error: 'Forbidden: draft access denied' });
-    }
-    return next();
-  } catch (err) {
-    console.error('Error in draft access middleware:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}
-
 router.get('/auth/steam',
   (req, res, next) => {
     const returnTo = req.query.returnTo;
@@ -116,7 +94,7 @@ router.get('/auth/steam/return',
   (req, res, next) => {
     db.login(req.user.displayName, req.user.id, new Date().toISOString());
     const accountId = resolveAccountIdFromSteamId(req.user.id);
-    const canDraftGod = hasDraftAccess(accountId);
+    const canDraftGod = isDraftGodOwner(req.user.id);
     const destination = req.session?.signupReturnTo || '/dashboard';
     if (req.session) delete req.session.signupReturnTo;
 
@@ -147,13 +125,7 @@ router.get('/auth/steam/return',
 router.get('/auth/user', (req, res) => {
   if (req.isAuthenticated() && req.user) {
     const accountId = resolveAccountIdFromSteamId(req.user.id);
-    let canDraftGod = typeof req.session?.canDraftGod === 'boolean'
-      ? req.session.canDraftGod
-      : hasDraftAccess(accountId);
-
-    if (req.session && typeof req.session.canDraftGod !== 'boolean') {
-      req.session.canDraftGod = canDraftGod;
-    }
+    const canDraftGod = isDraftGodOwner(req.user.id);
 
     const admin = getAdminForSteamId(req.user.id);
 
@@ -167,6 +139,7 @@ router.get('/auth/user', (req, res) => {
       canDraftGod,
       isAdmin: Boolean(admin),
       isHeadAdmin: Boolean(admin?.HeadAdmin),
+      isSiteManager: isSiteManagerSteamId(req.user.id),
     });
   } else {
     res.status(401).json({ error: 'Not logged in' });
@@ -233,6 +206,7 @@ router.get('/rules', (req, res) => {
 router.use(publicSeasonRoutes);
 router.use('/analytics', publicAnalyticsRoutes);
 router.use('/betting', publicBettingRoutes);
+router.use('/site-management', siteManagementRoutes);
 
 router.use('/admin', checkAdmin);
 router.use('/admin', mutationRefresh);
@@ -724,387 +698,7 @@ router.get('/app/standings', async (req, res) => {
   }
 });
 
-router.get('/draftgod', checkDraftGodAccess, (req, res) => {
-  try {
-    const leagueId = toNumber(req.query.leagueId || resolveActiveLeague(), null);
-
-    if (!leagueId) {
-      return res.json({
-        leagueId: null,
-        leagueName: null,
-        recentLeagueIds: [],
-        recentLeagues: [],
-        recent5LeagueIds: [],
-        recent5Leagues: [],
-        teams: [],
-        ourTeam: null,
-        selectedOpponentTeamId: null,
-        ourRoster: [],
-        opponentRoster: [],
-        heroPool: [],
-        currentLeagueDraftRows: [],
-        recentLeagueDraftRows: [],
-        recent5LeagueDraftRows: [],
-        ourTeamDraftRows: [],
-        opponentTeamDraftRows: [],
-        ourPlayerHeroRows: [],
-        opponentPlayerHeroRows: [],
-        ourPublicHeroRows: [],
-        opponentPublicHeroRows: [],
-        publicHeroBaselineRows: [],
-      });
-    }
-
-    const leagueRow = db.queryDatabase(
-      `
-      SELECT LeagueId, LeagueName
-      FROM LeagueInfo
-      WHERE LeagueId = ?
-      LIMIT 1
-      `,
-      [leagueId]
-    )[0];
-
-    const teams = db.queryDatabase(
-      `
-      SELECT
-        t.TeamId,
-        ti.TeamName
-      FROM (
-        SELECT mt.TeamRad AS TeamId
-        FROM MatchTeam mt
-        JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
-        WHERE ml.LeagueId = ?
-        UNION
-        SELECT mt.TeamDire AS TeamId
-        FROM MatchTeam mt
-        JOIN MatchLeague ml ON ml.MatchId = mt.MatchId
-        WHERE ml.LeagueId = ?
-      ) t
-      JOIN TeamInfo ti ON ti.TeamId = t.TeamId
-      ORDER BY ti.TeamName ASC
-      `,
-      [leagueId, leagueId]
-    );
-
-    const ourTeam = db.queryDatabase(
-      `
-      SELECT
-        mtp.TeamId,
-        ti.TeamName,
-        COUNT(*) AS GamesPlayed
-      FROM MatchTeamPlayer mtp
-      JOIN MatchLeague ml ON ml.MatchId = mtp.MatchId
-      JOIN TeamInfo ti ON ti.TeamId = mtp.TeamId
-      WHERE mtp.PlayerId = ?
-        AND ml.LeagueId = ?
-      GROUP BY mtp.TeamId, ti.TeamName
-      ORDER BY GamesPlayed DESC
-      LIMIT 1
-      `,
-      [DRAFT_ADMIN_PLAYER_ID, leagueId]
-    )[0];
-
-    const ourTeamId = ourTeam ? toNumber(ourTeam.TeamId) : null;
-    const requestedOpponentId = req.query.opponentTeamId
-      ? toNumber(req.query.opponentTeamId)
-      : null;
-
-    const validTeamIds = new Set(teams.map((team) => toNumber(team.TeamId)));
-    let selectedOpponentTeamId =
-      requestedOpponentId && validTeamIds.has(requestedOpponentId)
-        ? requestedOpponentId
-        : null;
-
-    if (!selectedOpponentTeamId) {
-      const fallbackTeam =
-        teams.find((team) => toNumber(team.TeamId) !== ourTeamId) || teams[0];
-      selectedOpponentTeamId = fallbackTeam ? toNumber(fallbackTeam.TeamId) : null;
-    }
-
-    const recentLeagues = db
-      .queryDatabase(
-        `
-        SELECT DISTINCT ml.LeagueId, li.LeagueName
-        FROM MatchLeague ml
-        JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
-        ORDER BY ml.LeagueId DESC
-        LIMIT 3
-        `
-      )
-      .map((row) => ({
-        LeagueId: toNumber(row.LeagueId),
-        LeagueName: row.LeagueName || `League ${toNumber(row.LeagueId)}`,
-      }))
-      .filter((row) => row.LeagueId > 0);
-    const recentLeagueIds = recentLeagues.map((row) => row.LeagueId);
-
-    const recent5Leagues = db
-      .queryDatabase(
-        `
-        SELECT DISTINCT ml.LeagueId, li.LeagueName
-        FROM MatchLeague ml
-        JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
-        ORDER BY ml.LeagueId DESC
-        LIMIT 5
-        `
-      )
-      .map((row) => ({
-        LeagueId: toNumber(row.LeagueId),
-        LeagueName: row.LeagueName || `League ${toNumber(row.LeagueId)}`,
-      }))
-      .filter((row) => row.LeagueId > 0);
-    const recent5LeagueIds = recent5Leagues.map((row) => row.LeagueId);
-
-    const getRoster = (teamId) => {
-      if (!teamId) return [];
-      return db.queryDatabase(
-        `
-        SELECT
-          mtp.PlayerId,
-          pi.PlayerName,
-          COUNT(*) AS GamesPlayed
-        FROM MatchTeamPlayer mtp
-        JOIN MatchLeague ml ON ml.MatchId = mtp.MatchId
-        JOIN PlayerInfo pi ON pi.PlayerId = mtp.PlayerId
-        WHERE mtp.TeamId = ?
-          AND ml.LeagueId = ?
-        GROUP BY mtp.PlayerId, pi.PlayerName
-        ORDER BY GamesPlayed DESC
-        `,
-        [teamId, leagueId]
-      );
-    };
-
-    const ourRoster = getRoster(ourTeamId);
-    const opponentRoster = getRoster(selectedOpponentTeamId);
-
-    const getTeamDraftRows = (teamId) => {
-      if (!teamId || recentLeagueIds.length === 0) return [];
-      const placeholders = recentLeagueIds.map(() => '?').join(', ');
-      return db.queryDatabase(
-        `
-        SELECT
-          pi.MatchId,
-          ml.LeagueId,
-          pi.IsPick,
-          pi.Hero_Id AS HeroId,
-          hi.HeroName,
-          pi.OrderNum,
-          pi.Team AS DraftSide,
-          mt.TeamRad,
-          mt.TeamDire,
-          mt.WinnerId
-        FROM PickInfo pi
-        JOIN MatchLeague ml ON ml.MatchId = pi.MatchId
-        JOIN MatchTeam mt ON mt.MatchId = pi.MatchId
-        JOIN HeroInfo hi ON hi.HeroId = pi.Hero_Id
-        WHERE ml.LeagueId IN (${placeholders})
-          AND (
-            (mt.TeamRad = ? AND pi.Team = 0)
-            OR
-            (mt.TeamDire = ? AND pi.Team = 1)
-          )
-        ORDER BY ml.LeagueId DESC, pi.MatchId DESC, pi.OrderNum ASC
-        `,
-        [...recentLeagueIds, teamId, teamId]
-      );
-    };
-
-    const getLeagueDraftRows = (leagueIds) => {
-      if (!leagueIds.length) return [];
-      const placeholders = leagueIds.map(() => '?').join(', ');
-      return db.queryDatabase(
-        `
-        SELECT
-          pi.MatchId,
-          ml.LeagueId,
-          pi.IsPick,
-          pi.Hero_Id AS HeroId,
-          hi.HeroName,
-          pi.OrderNum,
-          pi.Team AS DraftSide,
-          mt.TeamRad,
-          mt.TeamDire,
-          mt.WinnerId
-        FROM PickInfo pi
-        JOIN MatchLeague ml ON ml.MatchId = pi.MatchId
-        JOIN MatchTeam mt ON mt.MatchId = pi.MatchId
-        JOIN HeroInfo hi ON hi.HeroId = pi.Hero_Id
-        WHERE ml.LeagueId IN (${placeholders})
-        ORDER BY ml.LeagueId DESC, pi.MatchId DESC, pi.OrderNum ASC
-        `,
-        [...leagueIds]
-      );
-    };
-
-    const getPlayerHeroRows = (playerIds) => {
-      if (!playerIds.length || recentLeagueIds.length === 0) return [];
-      const playerPlaceholders = playerIds.map(() => '?').join(', ');
-      const leaguePlaceholders = recentLeagueIds.map(() => '?').join(', ');
-      return db.queryDatabase(
-        `
-        SELECT
-          mp.MatchId,
-          ml.LeagueId,
-          mp.PlayerId,
-          pi.PlayerName,
-          mp.HeroId,
-          hi.HeroName,
-          mp.GPM,
-          (mp.Kills + mp.Assists) * 1.0 / CASE WHEN mp.Deaths = 0 THEN 1 ELSE mp.Deaths END AS KDA,
-          mp.HeroDamage,
-          CASE WHEN mtp.TeamId = mt.WinnerId THEN 1 ELSE 0 END AS WonMatch,
-          mtp.TeamId
-        FROM MatchPlayer mp
-        JOIN MatchLeague ml ON ml.MatchId = mp.MatchId
-        JOIN PlayerInfo pi ON pi.PlayerId = mp.PlayerId
-        JOIN HeroInfo hi ON hi.HeroId = mp.HeroId
-        JOIN MatchTeamPlayer mtp ON mtp.MatchId = mp.MatchId AND mtp.PlayerId = mp.PlayerId
-        JOIN MatchTeam mt ON mt.MatchId = mp.MatchId
-        WHERE mp.PlayerId IN (${playerPlaceholders})
-          AND ml.LeagueId IN (${leaguePlaceholders})
-          AND mt.WinnerId IS NOT NULL
-        ORDER BY ml.LeagueId DESC, mp.MatchId DESC
-        `,
-        [...playerIds, ...recentLeagueIds]
-      );
-    };
-
-    const getPublicHeroRows = (playerIds) => {
-      if (!playerIds.length) return [];
-      const playerPlaceholders = playerIds.map(() => '?').join(', ');
-      return dbPublic.queryDatabase(
-        `
-        SELECT
-          pmp.MatchId,
-          pmp.PlayerId,
-          pmp.HeroId,
-          pmp.Won,
-          pmp.DateCreated
-        FROM PublicMatchPlayer pmp
-        WHERE pmp.PlayerId IN (${playerPlaceholders})
-          AND pmp.DateCreated IS NOT NULL
-          AND datetime(pmp.DateCreated) >= datetime('now', '-30 day')
-        ORDER BY pmp.PlayerId ASC, pmp.DateCreated DESC, pmp.MatchId DESC
-        `,
-        [...playerIds]
-      );
-    };
-
-    const getPublicHeroBaselineRows = () =>
-      dbPublic.queryDatabase(
-        `
-        SELECT
-          pmp.HeroId,
-          COUNT(*) AS Games,
-          SUM(pmp.Won) AS Wins
-        FROM PublicMatchPlayer pmp
-        WHERE pmp.DateCreated IS NOT NULL
-          AND datetime(pmp.DateCreated) >= datetime('now', '-30 day')
-        GROUP BY pmp.HeroId
-        ORDER BY Games DESC
-        `
-      );
-
-    const ourPlayerIds = ourRoster.map((row) => toNumber(row.PlayerId)).filter((id) => id > 0);
-    const opponentPlayerIds = opponentRoster
-      .map((row) => toNumber(row.PlayerId))
-      .filter((id) => id > 0);
-
-    return res.json({
-      leagueId,
-      leagueName: leagueRow?.LeagueName || `League ${leagueId}`,
-      recentLeagueIds,
-      recentLeagues,
-      recent5LeagueIds,
-      recent5Leagues,
-      adminPlayerId: DRAFT_ADMIN_PLAYER_ID,
-      teams: teams.map((team) => ({
-        TeamId: toNumber(team.TeamId),
-        TeamName: team.TeamName,
-      })),
-      ourTeam: ourTeam
-        ? {
-            TeamId: ourTeamId,
-            TeamName: ourTeam.TeamName,
-            GamesPlayed: toNumber(ourTeam.GamesPlayed),
-          }
-        : null,
-      selectedOpponentTeamId,
-      ourRoster: ourRoster.map((row) => ({
-        PlayerId: toNumber(row.PlayerId),
-        PlayerName: row.PlayerName,
-        GamesPlayed: toNumber(row.GamesPlayed),
-      })),
-      opponentRoster: opponentRoster.map((row) => ({
-        PlayerId: toNumber(row.PlayerId),
-        PlayerName: row.PlayerName,
-        GamesPlayed: toNumber(row.GamesPlayed),
-      })),
-      heroPool: db.queryDatabase(
-        `
-        SELECT HeroId, HeroName
-        FROM HeroInfo
-        ORDER BY HeroName ASC
-        `
-      ).map((row) => ({
-        HeroId: toNumber(row.HeroId),
-        HeroName: row.HeroName,
-      })),
-      currentLeagueDraftRows: db.queryDatabase(
-        `
-        SELECT
-          pi.MatchId,
-          ml.LeagueId,
-          pi.IsPick,
-          pi.Hero_Id AS HeroId,
-          hi.HeroName,
-          pi.OrderNum,
-          pi.Team AS DraftSide,
-          mt.TeamRad,
-          mt.TeamDire,
-          mt.WinnerId
-        FROM PickInfo pi
-        JOIN MatchLeague ml ON ml.MatchId = pi.MatchId
-        JOIN MatchTeam mt ON mt.MatchId = pi.MatchId
-        JOIN HeroInfo hi ON hi.HeroId = pi.Hero_Id
-        WHERE ml.LeagueId = ?
-        ORDER BY pi.MatchId DESC, pi.OrderNum ASC
-        `,
-        [leagueId]
-      ),
-      recentLeagueDraftRows: getLeagueDraftRows(recentLeagueIds),
-      recent5LeagueDraftRows: getLeagueDraftRows(recent5LeagueIds),
-      ourTeamDraftRows: getTeamDraftRows(ourTeamId),
-      opponentTeamDraftRows: getTeamDraftRows(selectedOpponentTeamId),
-      ourPlayerHeroRows: getPlayerHeroRows(ourPlayerIds),
-      opponentPlayerHeroRows: getPlayerHeroRows(opponentPlayerIds),
-      ourPublicHeroRows: getPublicHeroRows(ourPlayerIds).map((row) => ({
-        MatchId: toNumber(row.MatchId),
-        PlayerId: toNumber(row.PlayerId),
-        HeroId: toNumber(row.HeroId),
-        Won: toNumber(row.Won),
-        DateCreated: row.DateCreated || null,
-      })),
-      opponentPublicHeroRows: getPublicHeroRows(opponentPlayerIds).map((row) => ({
-        MatchId: toNumber(row.MatchId),
-        PlayerId: toNumber(row.PlayerId),
-        HeroId: toNumber(row.HeroId),
-        Won: toNumber(row.Won),
-        DateCreated: row.DateCreated || null,
-      })),
-      publicHeroBaselineRows: getPublicHeroBaselineRows().map((row) => ({
-        HeroId: toNumber(row.HeroId),
-        Games: toNumber(row.Games),
-        Wins: toNumber(row.Wins),
-      })),
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Failed to load DraftGod data' });
-  }
-});
+router.use('/draftgod', createDraftGodRouter(new DraftGodStore(db.db, dbPublic.db)));
 
 router.post('/admin/updateMatchTeams', (req, res) => {
   
@@ -1115,13 +709,15 @@ router.post('/admin/updateMatchTeams', (req, res) => {
 
   const originalTeamRad = req.body.team1Old;
   const originalTeamDire = req.body.team2Old;
+  const leagueId = req.body.leagueId === undefined ? null : positiveInteger(req.body.leagueId);
+  if (req.body.leagueId !== undefined && !leagueId) return res.status(400).json({error:'Invalid season'});
 
   try {
     // Call your DB function that handles validation & update
-    const result = db.adminUpdateMatch(matchId, teamRad, teamDire, winnerId, originalTeamRad, originalTeamDire);
+    const result = db.adminUpdateMatch(matchId, teamRad, teamDire, winnerId, originalTeamRad, originalTeamDire, leagueId);
     if (!result.success) {
 
-      return res.status(400).json({ error: result.message });
+      return res.status(result.status || 400).json({ error: result.message });
     }
 
     res.json({ success: true});
@@ -1142,11 +738,21 @@ router.get('/admin/unmatchedMatchTeams', checkAdmin, (req, res) => {
   }
 });
 
+router.get('/admin/recordTeams', checkAdmin, (req,res) => {
+  const leagueId=positiveInteger(req.query.leagueId);
+  if(!leagueId)return res.status(400).json({error:'Select a season'});
+  if(!db.queryDatabase('SELECT 1 FROM LeagueInfo WHERE LeagueId=?',[leagueId]).length)return res.status(404).json({error:'Season not found'});
+  return res.json({teams:db.adminCurrentTeams(leagueId)});
+});
+
 router.get('/admin/matchTeamIdOptions', checkAdmin, (req, res) => {
   try {
-    const league = db.getActiveLeague()?.[0] || null;
+    const leagueId=req.query.leagueId===undefined?null:positiveInteger(req.query.leagueId);
+    if(req.query.leagueId!==undefined&&!leagueId)return res.status(400).json({error:'Invalid season'});
+    const league = leagueId ? db.queryDatabase('SELECT LeagueId,LeagueName FROM LeagueInfo WHERE LeagueId=?',[leagueId])[0] : db.getActiveLeague()?.[0] || null;
+    if(leagueId&&!league)return res.status(404).json({error:'Season not found'});
     if (!league) return res.json({ league: null, sources: [], targets: [] });
-    const teams = db.adminCurrentTeams();
+    const teams = db.adminCurrentTeams(league.LeagueId);
     const linkedIds = new Set(db.queryDatabase(
       'SELECT TeamId FROM LeagueRosterEntries WHERE LeagueId = ? AND TeamId IS NOT NULL',
       [league.LeagueId]
@@ -1169,8 +775,9 @@ router.post('/admin/replaceMatchTeamId', checkAdmin, (req, res) => {
   if (![sourceId, targetId].every((id) => Number.isSafeInteger(id) && id > 0) || sourceId === targetId) {
     return res.status(400).json({ error: 'Select two different valid team IDs' });
   }
-  const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
-  if (!leagueId) return res.status(400).json({ error: 'No active league' });
+  const leagueId = req.body.leagueId===undefined ? db.getActiveLeague()?.[0]?.LeagueId : positiveInteger(req.body.leagueId);
+  if (!leagueId) return res.status(400).json({ error: 'Select a valid season' });
+  if (!db.queryDatabase('SELECT 1 FROM LeagueInfo WHERE LeagueId=?',[leagueId]).length) return res.status(404).json({error:'Season not found'});
   try {
     const updated = db.replaceUngroupedMatchTeamId(leagueId, sourceId, targetId);
     return res.json({ success: true, ...updated });
@@ -1659,7 +1266,15 @@ router.post('/admin/updateTeamStandings', checkAdmin, (req, res) => {
 
 router.delete('/admin/deleteMatch', (req, res) => {
   try {
-      const matchId = req.body.matchId;
+      const matchId = positiveInteger(req.body.matchId);
+      if(!matchId)return res.status(400).json({error:'Enter a valid match ID'});
+      if(req.body.leagueId!==undefined){
+        const leagueId=positiveInteger(req.body.leagueId);
+        if(!leagueId)return res.status(400).json({error:'Invalid season'});
+        if(!db.queryDatabase('SELECT 1 FROM MatchLeague WHERE MatchId=? AND LeagueId=?',[matchId,leagueId]).length){
+          return res.status(404).json({error:'Match is not in the selected season'});
+        }
+      }
 
       const result = db.adminDeleteMatch(matchId);
       
@@ -2086,6 +1701,16 @@ router.get('/matches/:matchId/players', async (req, res) => {
   }
 });
 
+router.get('/matches/:matchId/draft', (req, res) => {
+  const matchId = positiveInteger(req.params.matchId);
+  if (!matchId) return res.status(400).json({ error: 'Invalid match ID' });
+  try {
+    return res.json(db.getMatchPickBanInformation(matchId));
+  } catch (err) {
+    return res.status(500).json({ error: 'Could not load match draft' });
+  }
+});
+
 router.get('/matches', async (req, res) => {
   const { leagueId } = req.query;
 
@@ -2117,6 +1742,7 @@ router.get('/matches/:matchId', async (req, res) => {
 
   try {
     const match = await db.getMatch(matchId);
+    if (!match.length) return res.status(404).json({ error: 'Match not found' });
     const matchPlayers = await db.getMatchPlayerInformation(matchId);
     const matchPicksBans = await db.getMatchPickBanInformation(matchId);
 
@@ -2370,12 +1996,15 @@ router.get('/activeTeams', async (req, res) => {
 
 router.get('/matchEdit/:matchId', async (req, res) => {
   const { matchId } = req.params;
+  const leagueId=req.query.leagueId===undefined?null:positiveInteger(req.query.leagueId);
+  if(!positiveInteger(matchId)||(req.query.leagueId!==undefined&&!leagueId))return res.status(400).json({error:'Invalid match or season'});
   try {
-    const matchTeams = await db.getTeamsMatchEdit(matchId);
+    const matchTeams = await db.getTeamsMatchEdit(matchId,leagueId);
 
-    if (!matchTeams) return res.status(404).json({ error: 'Teams not found' });
+    if (!matchTeams?.length) return res.status(404).json({ error: leagueId?'Match is not in the selected season':'Match not found' });
     
     res.json({
+      matchId:Number(matchId),league:{LeagueId:matchTeams[0].LeagueId,LeagueName:matchTeams[0].LeagueName},
       team1: { TeamId: matchTeams[0].TeamRad, TeamName:  matchTeams[0].RadTeamName },
       team2: { TeamId:  matchTeams[0].TeamDire, TeamName:  matchTeams[0].DireTeamName },
       winner: { TeamId:  matchTeams[0].WinnerId, TeamName:  matchTeams[0].WinnerTeamName }
@@ -2583,6 +2212,7 @@ router.get('/leagues/:leagueId', async (req, res) => {
     const teams = await db.getAllTeams(leagueId);
     const hasGroups = db.getLeagueLeaderboard(leagueId).length > 0;
     const matches = await db.getLeagueMatchesData(leagueId);
+    const series = await db.getLeagueSeries(leagueId);
     const heroes = await db.getLeagueHeroData(leagueId);
 
     const matchesWithPlayers = await Promise.all(
@@ -2612,6 +2242,7 @@ router.get('/leagues/:leagueId', async (req, res) => {
       teams,
       players,
       matchesWithPlayers,
+      series,
       heroesWithPlayers
     });
 
@@ -2624,12 +2255,8 @@ router.get('/homepageSeries', async (req, res) => {
 
   try {
     const leagueId = req.query.leagueId || resolveActiveLeague();
-
-    if (!leagueId) {
-      return res.json([]);
-    }
-
-    const series = await db.getLeagueSeriesGroupstage(leagueId);
+    if (!leagueId) return res.json([]);
+    const series = await db.getLeagueSeries(leagueId);
 
     const seriesWithMatches = await Promise.all(
       series.map(async (series) => {
@@ -2641,8 +2268,6 @@ router.get('/homepageSeries', async (req, res) => {
       })
     );
 
-
-    if (!series) return res.status(404).json({ error: 'Series not found' });
 
     res.json(seriesWithMatches);
 

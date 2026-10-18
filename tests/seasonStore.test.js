@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import AdjustedPlayersStore from '../config/adjustedPlayersStore.js';
 import SeasonStore from '../config/seasonStore.js';
+import PlayerAwardsStore from '../config/playerAwards.js';
+import { CHAMPIONSHIP_ROSTER_PLAYERS_SQL } from '../config/championshipRoster.js';
 
 const screenshot = `data:image/png;base64,${Buffer.from('89504e470d0a1a0a', 'hex').toString('base64')}`;
 
@@ -40,6 +42,7 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
     assert.throws(() => store.create('Second league'), { status: 409 });
     store.saveSignup(season.SeasonId, 'Season signup', 'Bring your team');
     store.setSignupStatus(season.SeasonId, true);
+    assert.equal(store.publicHome().signup.teamCount, 0);
     db.prepare('INSERT INTO PlayerInfo (PlayerId, PlayerName) VALUES (?, ?)').run(1, 'Captain');
     db.prepare(`INSERT INTO AdjustedPlayers (PlayerId, AdjustedMMR, CreatedAt, UpdatedAt)
       VALUES (1, 7000, 'now', 'now')`).run();
@@ -48,6 +51,7 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
       mmr: 6000, dotaProfileUrl: 'https://www.dotabuff.com/players/1', screenshot,
     }));
     const team = store.saveTeam(season.SeasonId, 1, { teamName: 'The Lads', players });
+    assert.equal(store.publicHome().signup.teamCount, 1);
     assert.equal(store.teams(season.SeasonId, true)[0].CaptainName, 'Captain');
     assert.equal(team.players[0].MMR, 7000);
     assert.equal('ScreenshotData' in team.players[0], false);
@@ -55,6 +59,7 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
     assert.throws(() => store.saveTeam(season.SeasonId, 99, { teamName: 'Other', players }),
       { status: 400 });
     store.setSignupStatus(season.SeasonId, false);
+    assert.equal(store.publicHome().signup, null);
     db.prepare('UPDATE AdjustedPlayers SET AdjustedMMR = 8000 WHERE PlayerId = 1').run();
     assert.equal(store.getTeam(team.TeamSubmissionId).players[0].MMR, 7000);
     const manual = store.addManualTeam(season.SeasonId, 'Manual', 6200);
@@ -101,6 +106,8 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
         (2, 2, 111), (1, 3, 111), (3, 3, 111);`);
     const ended = store.end(season.SeasonId, 111);
     assert.equal(ended.Status, 'ended');
+    assert.deepEqual(store.championshipRoster(season.SeasonId, 111), { editable: false, source: 'signup' });
+    assert.throws(() => store.correctChampion(season.SeasonId, 111, [1, 2, 3, 4, 5]), { status: 409 });
     assert.equal(store.rosters.forSubmission(team.TeamSubmissionId).EffectiveTo, ended.EndedAt);
     assert.equal(store.publicHome().champion.teamName, 'The Lads');
     assert.deepEqual(store.publicHome().champion.groupGames, { wins: 1, losses: 0 });
@@ -119,7 +126,11 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
     db.prepare('UPDATE LeagueStageBoundaries SET TieBreakerEndMatchId = NULL WHERE LeagueId = 12345').run();
     assert.equal(store.publicHome().champion.players[0].spotlight.stage, 'Playoffs');
     assert.ok(audit.some(([type]) => type === 'League Ended'));
-    assert.equal(store.create('Next Season').Status, 'draft');
+    const nextSeason = store.create('Next Season');
+    assert.equal(nextSeason.Status, 'draft');
+    store.saveSignup(nextSeason.SeasonId, 'Next season signup', 'Bring your team');
+    store.setSignupStatus(nextSeason.SeasonId, true);
+    assert.equal(store.publicHome().signup.teamCount, 0, 'previous-season teams are not counted');
     assert.equal(manual.IsManual, 1);
   } finally { db.close(); }
 });
@@ -141,6 +152,7 @@ test('signup uploads five players separately and publishes only a complete team'
       mmr: 6000, dotaProfileUrl: 'https://www.dotabuff.com/players/1', screenshot });
     store.saveSignupDraftPlayer(season.SeasonId, 1, draftId, 0, { ...player(1), playerName: '' });
     assert.equal(store.teams(season.SeasonId).length, 0);
+    assert.equal(store.publicHome().signup.teamCount, 0, 'incomplete drafts do not count as submitted teams');
     assert.throws(() => store.submitSignupDraft(season.SeasonId, 1, draftId, 'The Team'),
       { status: 400 });
     assert.throws(() => store.saveSignupDraftPlayer(season.SeasonId, 2, draftId, 1, player(2)),
@@ -153,11 +165,14 @@ test('signup uploads five players separately and publishes only a complete team'
     assert.equal(db.prepare('SELECT COUNT(*) AS Count FROM PlayerInfo WHERE PlayerId = 5').get().Count, 0);
     assert.equal(store.teams(season.SeasonId).length, 0);
     const team = store.submitSignupDraft(season.SeasonId, 1, draftId, 'The Team');
+    assert.equal(store.publicHome().signup.teamCount, 1);
     assert.equal(team.players.length, 5);
     assert.equal(db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId = 5').get().PlayerName, 'New Player');
     assert.equal(store.screenshot(team.TeamSubmissionId, 5).ScreenshotMime, 'image/png');
     assert.equal(db.prepare('SELECT COUNT(*) AS Count FROM SeasonSignupDrafts').get().Count, 0);
     assert.equal(db.prepare('SELECT COUNT(*) AS Count FROM SeasonSignupDraftPlayers').get().Count, 0);
+    store.removeTeam(season.SeasonId, team.TeamSubmissionId);
+    assert.equal(store.publicHome().signup.teamCount, 0, 'removed submissions no longer count');
   } finally { db.close(); }
 });
 
@@ -213,7 +228,7 @@ test('an optional League ID can be saved with the draft and used when starting',
   } finally { db.close(); }
 });
 
-test('the latest completed legacy league can have its champion confirmed', () => {
+test('legacy league champions import on startup and preserve subsequent admin corrections', () => {
   const db = database();
   try {
     db.exec(`INSERT INTO LeagueInfo VALUES (77, 'Old league', 0);
@@ -223,9 +238,129 @@ test('the latest completed legacy league can have its champion confirmed', () =>
     const store = new SeasonStore(db);
     const completed = store.lastEnded();
     assert.equal(completed.ExternalLeagueId, 77);
-    assert.equal(store.publicHome().champion, null);
-    store.correctChampion(completed.SeasonId, 1);
+    assert.equal(completed.ChampionTeamId, 1);
     assert.equal(store.publicHome().champion.teamName, 'Winners');
+    store.correctChampion(completed.SeasonId, 2);
     assert.equal(new SeasonStore(db).lastEnded().SeasonId, completed.SeasonId);
+    assert.equal(store.get(completed.SeasonId).ChampionTeamId, 2);
+  } finally { db.close(); }
+});
+
+test('champion corrections use season-specific teams and names while preserving other seasons', () => {
+  const db = database();
+  try {
+    const audit = [];
+    const store = new SeasonStore(db, (type, message) => audit.push([type, message]));
+    db.exec(`INSERT INTO LeagueSeasons
+      (SeasonId, LeagueName, Status, ExternalLeagueId, ChampionTeamId, CreatedAt, UpdatedAt, EndedAt) VALUES
+      (1, 'Season 19', 'ended', 119, 10, 'old', 'old', '2025-01-01'),
+      (2, 'Season 20', 'ended', 120, 10, 'old', 'old', '2025-06-01'),
+      (3, 'Current test', 'active', 999, NULL, 'now', 'now', NULL);
+      INSERT INTO TeamInfo VALUES (10, 'Current global name'), (20, 'Other global name'), (30, 'New team');
+      INSERT INTO MatchTeam VALUES (1, 10, 20, 10), (2, 10, 30, 30);
+      INSERT INTO MatchLeague VALUES (1, 119, '2025-01-01'), (2, 120, '2025-06-01');
+      INSERT INTO LeagueTeamNames VALUES (119, 10, 'Old name'), (120, 10, 'New name');
+      INSERT INTO SeasonTeams (SeasonId, TeamName, ExternalTeamId, SubmittedAt, UpdatedAt)
+        VALUES (1, 'Submitted name', 20, 'old', 'old');
+      INSERT INTO LeagueRosterEntries (LeagueId, TeamId, DisplayName, SortOrder)
+        VALUES (120, 30, 'Roster name', 0);`);
+    assert.deepEqual(store.completedChampions().map(season => season.SeasonId), [2, 1]);
+    assert.deepEqual(store.championTeams(1), [
+      { TeamId: 10, TeamName: 'Old name' }, { TeamId: 20, TeamName: 'Submitted name' },
+    ]);
+    assert.deepEqual(store.championTeams(2), [
+      { TeamId: 10, TeamName: 'New name' }, { TeamId: 30, TeamName: 'Roster name' },
+    ]);
+    assert.throws(() => store.correctChampion(1, 30), { status: 409 });
+    assert.throws(() => store.correctChampion(3, 10), { status: 409 });
+    assert.throws(() => store.correctChampion(444, 10), { status: 404 });
+    const current = store.get(3);
+    const other = store.get(2);
+    const updated = store.correctChampion(1, 20);
+    assert.equal(updated.ChampionTeamId, 20);
+    assert.equal(updated.Status, 'ended');
+    assert.equal(updated.EndedAt, '2025-01-01');
+    assert.deepEqual(store.get(3), current);
+    assert.deepEqual(store.get(2), other);
+    assert.deepEqual(audit, [['Champion Corrected',
+      'Changed Season 19 (league 119) champion from Old name (10) to Submitted name (20)']]);
+    store.correctChampion(1, 20);
+    assert.equal(audit.length, 1);
+  } finally { db.close(); }
+});
+
+test('admins confirm exactly five legacy championship players scoped to the season and team', () => {
+  const db = database();
+  try {
+    const audit = [];
+    const store = new SeasonStore(db, (type, message) => audit.push([type, message]));
+    db.exec(`INSERT INTO LeagueInfo VALUES (119, 'Old season', 0), (120, 'Other season', 0);
+      INSERT INTO LeagueSeasons
+        (SeasonId, LeagueName, Status, ExternalLeagueId, ChampionTeamId, CreatedAt, UpdatedAt, EndedAt) VALUES
+        (1, 'Old season', 'ended', 119, 20, 'old', 'old', '2025-01-01'),
+        (2, 'Other season', 'ended', 120, 10, 'old', 'old', '2025-06-01');
+      INSERT INTO TeamInfo VALUES (10, 'Chosen team'), (20, 'Opponents');
+      INSERT INTO HeroInfo VALUES (1, 'Axe');`);
+    for (let id = 1; id <= 8; id++) db.prepare('INSERT INTO PlayerInfo VALUES (?, ?)').run(id, `Player ${id}`);
+    for (let match = 1; match <= 4; match++) {
+      db.prepare('INSERT INTO MatchTeam VALUES (?, 10, 20, 10)').run(match);
+      db.prepare('INSERT INTO MatchLeague VALUES (?, 119, NULL)').run(match);
+      for (let player = 1; player <= 7; player++) {
+        if (player === 6 && match > 1) continue;
+        db.prepare('INSERT INTO MatchPlayer (MatchId, PlayerId, HeroId) VALUES (?, ?, 1)').run(match, player);
+        db.prepare('INSERT INTO MatchTeamPlayer VALUES (?, ?, ?)').run(match, player, player === 7 ? 20 : 10);
+      }
+    }
+    db.exec(`INSERT INTO MatchTeam VALUES (5, 10, 20, 10);
+      INSERT INTO MatchLeague VALUES (5, 120, NULL);
+      INSERT INTO MatchPlayer (MatchId, PlayerId, HeroId) VALUES (5, 8, 1);
+      INSERT INTO MatchTeamPlayer VALUES (5, 8, 10);
+      INSERT INTO MatchTeamPlayer VALUES (1, 1, 10), (1, 7, 10);
+      INSERT INTO MatchPlayer (MatchId, PlayerId, HeroId) VALUES (1, 1, 1);`);
+    const initial = store.championshipRoster(1, 10);
+    assert.equal(initial.source, 'inferred');
+    assert.deepEqual(initial.selectedPlayerIds, [1, 2, 3, 4, 5]);
+    assert.deepEqual(initial.players.map(player => player.PlayerId), [1, 2, 3, 4, 5, 6]);
+    assert.equal(initial.players[0].Games, 4); // Duplicate imports count once; conflicting sides are excluded.
+    // Real warehouse regression: repeated unindexed MatchPlayer scans block the API event loop.
+    const plan = db.prepare(`EXPLAIN QUERY PLAN ${CHAMPIONSHIP_ROSTER_PLAYERS_SQL}`)
+      .all(10, 119, 10, 10).map(step => step.detail).join('\n');
+    assert.match(plan, /SEARCH ml USING COVERING INDEX .*\(LeagueId=\?\)/);
+    assert.match(plan, /SEARCH p USING COVERING INDEX .*\(MatchId=\?/);
+    assert.match(plan, /SEARCH mp(?: EXISTS)? USING COVERING INDEX .*\(MatchId=\? AND PlayerId=\?\)/);
+    assert.doesNotMatch(plan, /SCAN (?:ml|mp|p)\b/);
+    for (const invalid of [[], [1, 2, 3, 4], [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 4],
+      [1, 2, 3, 4, 7], [1, 2, 3, 4, 8], [1, 2, 3, 4, '6'], null]) {
+      assert.throws(() => store.correctChampion(1, 10, invalid), { status: 400 });
+      assert.equal(store.get(1).ChampionTeamId, 20);
+      assert.equal(db.prepare('SELECT COUNT(*) n FROM ChampionshipRosterPlayers').get().n, 0);
+    }
+    const awards = new PlayerAwardsStore(db);
+    assert.equal(awards.forPlayer(6).awards.some(a => a.type === 'champion'), false);
+    const other = store.get(2);
+    const chosen = [1, 2, 3, 4, 6];
+    store.correctChampion(1, 10, chosen);
+    assert.deepEqual(store.get(2), other);
+    assert.equal(store.get(1).EndedAt, '2025-01-01');
+    assert.deepEqual(store.championshipRoster(1, 10).selectedPlayerIds, chosen);
+    assert.equal(store.championshipRoster(1, 10).source, 'admin');
+    const title = awards.forPlayer(6).awards.find(a => a.type === 'champion');
+    assert.equal(title.rosterSource, 'admin');
+    assert.equal(title.games, 1);
+    assert.equal(title.teamGames, 4);
+    assert.equal(awards.forPlayer(5).awards.some(a => a.type === 'champion'), false);
+    assert.equal(awards.withChampionships([{ PlayerId: 6 }])[0].championships.length, 1);
+    assert.equal(audit.filter(([type]) => type === 'Championship Roster Changed').length, 1);
+    store.correctChampion(1, 10, [...chosen].reverse());
+    assert.equal(audit.length, 2); // One roster change and one champion correction; no duplicate writes.
+    store.correctChampion(1, 20);
+    assert.equal(awards.forPlayer(6).awards.some(a => a.type === 'champion'), false);
+    store.correctChampion(1, 10);
+    assert.equal(awards.forPlayer(6).awards.some(a => a.type === 'champion'), true);
+    assert.deepEqual(new SeasonStore(db).championshipRoster(1, 10).selectedPlayerIds, chosen);
+    // Confirmed membership survives a later correction to historical match data.
+    db.prepare('DELETE FROM MatchTeamPlayer WHERE PlayerId = 6').run();
+    assert.equal(store.championshipRoster(1, 10).players.find(p => p.PlayerId === 6).Games, 0);
+    assert.equal(awards.forPlayer(6).awards.find(a => a.type === 'champion').games, 0);
   } finally { db.close(); }
 });

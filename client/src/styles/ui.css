@@ -40,7 +40,7 @@
   line-height: 1.18;
 }
 
-.content :where(button):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.leaderboard-h2h-table *):not(.admin-teams-matrix *):not(.h2h-page *) {
+.content :where(button):not(.draft-period-switch):not(.detail-sort-button):not(.player-award-highlights *):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.leaderboard-h2h-table *):not(.admin-teams-matrix *):not(.h2h-page *) {
   min-height: 38px;
   border: 1px solid #334155;
   border-radius: 8px;
@@ -51,7 +51,7 @@
   transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease;
 }
 
-.content :where(button:hover):not(:disabled):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.leaderboard-h2h-table *):not(.admin-teams-matrix *):not(.h2h-page *) {
+.content :where(button:hover):not(.draft-period-switch):not(.detail-sort-button):not(.player-award-highlights *):not(:disabled):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.leaderboard-h2h-table *):not(.admin-teams-matrix *):not(.h2h-page *) {
   background: #223450;
   border-color: #60a5fa;
   color: #fff;
@@ -250,6 +250,36 @@
 
 .content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) tbody > tr:has(table) > td {
   background: #111c30 !important;
+}
+
+/* Expanded result tables use internal dividers without an outer frame. */
+.content :is(.teams-list-page, .players-list-page, .team-detail-page, .player-detail-page) table table,
+.content :is(.league-heroes-table, .league-series-content) table {
+  border: 0 !important;
+  border-radius: 0 !important;
+  border-spacing: 0;
+}
+
+.content :is(.teams-list-page, .players-list-page, .team-detail-page, .player-detail-page) table table > :is(thead, tbody, tfoot) > tr > :is(th, td),
+.content :is(.league-heroes-table, .league-series-content) table > :is(thead, tbody, tfoot) > tr > :is(th, td) {
+  border: 0 !important;
+}
+
+.content :is(.teams-list-page, .players-list-page, .team-detail-page, .player-detail-page) table table > :is(thead, tbody, tfoot) > tr > * + *,
+.content :is(.league-heroes-table, .league-series-content) table > :is(thead, tbody, tfoot) > tr > * + * {
+  border-left: 1px solid var(--border, #334155) !important;
+}
+
+.content :is(.teams-list-page, .players-list-page, .team-detail-page, .player-detail-page) table table > :is(thead, tbody, tfoot) > tr + tr > *,
+.content :is(.teams-list-page, .players-list-page, .team-detail-page, .player-detail-page) table table > :is(thead, tbody, tfoot) + :is(thead, tbody, tfoot) > tr:first-child > *,
+.content :is(.league-heroes-table, .league-series-content) table > :is(thead, tbody, tfoot) > tr + tr > *,
+.content :is(.league-heroes-table, .league-series-content) table > :is(thead, tbody, tfoot) + :is(thead, tbody, tfoot) > tr:first-child > * {
+  border-top: 1px solid var(--border, #334155) !important;
+}
+
+.content :is(.teams-list-page, .players-list-page, .team-detail-page, .player-detail-page) td:has(> table),
+.content :is(.league-heroes-table, .league-series-content) td:has(> table) {
+  border: 0 !important;
 }
 
 @media (max-width: 767px) {

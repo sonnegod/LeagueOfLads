@@ -14,8 +14,8 @@ const MatchDetailsTable = ({ matchData, styles }) => {
         return <div style={{ textAlign: 'center', padding: '20px' }}>Loading match details...</div>;
     }
     
-    const radiantPlayers = matchData.matchPlayers.slice(0, 5);
-    const direPlayers = matchData.matchPlayers.slice(5, 10);
+    const radiantPlayers = matchData.matchPlayers.filter(player => player.TeamSide === 0);
+    const direPlayers = matchData.matchPlayers.filter(player => player.TeamSide === 1);
 
     // Reusing styles from the parent scope
     const { tableStyle, thTdStyle } = styles;

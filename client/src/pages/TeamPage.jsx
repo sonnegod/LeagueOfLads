@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import TeamRecentMatches from '../components/TeamRecentMatches';
 import TeamPlayers from '../components/TeamPlayers';
@@ -10,6 +10,7 @@ import TeamRoster from '../components/TeamRoster';
 import TeamRosterHistory from '../components/TeamRosterHistory';
 import DotabuffLink from '../components/DotabuffLink';
 import './DetailPages.css';
+const PerformancePanel = lazy(() => import('../components/PerformancePanel'));
 
 
 export default function TeamPage() {
@@ -131,6 +132,7 @@ export default function TeamPage() {
       {/* Tab Buttons */}
       {teamId && <div className="detail-page-tabs ui-tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
         <button className="ui-tab" aria-pressed={activeTab === 'home'} onClick={() => setActiveTab('home')}>Home</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'performance'} onClick={() => setActiveTab('performance')}>Performance</button>
         <button className="ui-tab" aria-pressed={activeTab === 'recent'} onClick={() => setActiveTab('recent')}>Recent Matches</button>
         <button className="ui-tab" aria-pressed={activeTab === 'players'} onClick={() => setActiveTab('players')}>Players</button>
         {/*<button onClick={() => setActiveTab('averages')}>Averages</button>*/}
@@ -139,6 +141,9 @@ export default function TeamPage() {
       </div>}
 
       {/* Tab Content */}
+      {teamId && activeTab === 'performance' && <Suspense fallback={<p role="status">Loading performance…</p>}>
+        <PerformancePanel key={`${teamId}:${selectedLeague}`} type="team" id={teamId} leagueId={selectedLeague} seasons={teamLeagues} onLeagueChange={setSelectedLeague} />
+      </Suspense>}
       {teamId && activeTab === 'home' && (
         <TeamHomeTab
           teamId={teamId}

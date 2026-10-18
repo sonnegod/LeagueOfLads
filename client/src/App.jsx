@@ -1,11 +1,14 @@
 import { Routes, Route } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
+import SiteManagement from './pages/SiteManagement';
 import PlayerPage from './pages/PlayerPage';
 import HeroPage from './pages/HeroPage';
 import HeroesPage from "./pages/HeroesPage";
+import AwardsPage from './pages/AwardsPage';
 import TeamPage from './pages/TeamPage';
 import TeamsPage from './pages/TeamsPage';
 import PlayersPage from './pages/PlayersPage';
@@ -19,7 +22,7 @@ import RequestPage from "./pages/RequestPage";
 import SeriesPage from "./pages/SeriesPage";
 import BettingPage from "./pages/BettingPage";
 import HeadToHeadPage from "./pages/HeadToHeadPage";
-import DraftGodPage from "./pages/DraftGod";
+const DraftGodPage = lazy(() => import('./pages/DraftGod'));
 import LiveMatchesPage from "./pages/LiveMatchesPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import RulesPage from "./pages/RulesPage";
@@ -34,6 +37,7 @@ export default function App() {
         <Route path="/recents" element={<RecentsPage />} />
         <Route path="/recentMatches" element={<RecentsPage />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/site-management" element={<SiteManagement />} />
         <Route path="/player/:player_id" element={<PlayerPage />} />
         <Route path="/hero/:hero_id" element={<HeroPage />} />
         <Route path="/team/:teamId" element={<TeamPage />} />
@@ -47,10 +51,11 @@ export default function App() {
         <Route path="/match" element={<MatchesPage />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/hero" element={<HeroesPage />} />
+        <Route path="/awards" element={<AwardsPage />} />
         <Route path="/request" element={<RequestPage />} />
         <Route path="/series/:seriesId" element={<SeriesPage />} />
         <Route path="/betting" element={<BettingPage />} />
-        <Route path="/draftgod" element={<DraftGodPage />} />
+        <Route path="/draftgod" element={<Suspense fallback={<p>Loading Draft God…</p>}><DraftGodPage /></Suspense>} />
         <Route path="/live" element={<LiveMatchesPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/rules" element={<RulesPage />} />

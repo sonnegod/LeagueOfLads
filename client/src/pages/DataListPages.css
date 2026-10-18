@@ -2,6 +2,8 @@
   display: none;
 }
 
+.players-list-name { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+
 @media (max-width: 767px) {
   .data-list-page {
     padding: 12px !important;

@@ -1,0 +1,45 @@
+.player-page-heading { flex-wrap: wrap; }
+.player-championship-trophies { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.player-championship-trophy { display: inline-flex; align-items: center; justify-content: center;
+  color: #fcd778; line-height: 1; }
+.player-championship-trophy:hover { color: #ffe9a6; }
+.player-championship-trophy:focus-visible { outline: 2px solid #fcd778; outline-offset: 4px; border-radius: 3px; }
+.player-award-highlights { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -4px 0 20px; }
+.player-award-highlight { display: inline-flex; align-items: center; justify-content: center;
+  box-sizing: border-box; width: 40px; height: 40px; flex: 0 0 40px; padding: 5px; border: 1px solid #34415d;
+  border-radius: 50%; color: #dbeafe; background: #101b30; cursor: pointer; line-height: 1; }
+.player-award-highlight:hover { border-color: #8ab4ff; background: #17243b; }
+.player-award-highlight:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 3px; }
+.player-awards-open { padding: 7px 5px; color: var(--primary, #8ab4ff); cursor: pointer; border: 0;
+  background: transparent; font: inherit; font-size: .8rem; }
+.player-awards-open:hover { text-decoration: underline; }
+.player-awards-loading { font-size: .8rem; color: var(--muted-text, #9ca3af); margin: 0 0 16px; }
+.player-awards-heading h2 { margin: 0; font-size: 1.2rem; }
+.player-awards-heading p { margin: 6px 0 14px; color: var(--muted-text, #9ca3af); font-size: .85rem; }
+.player-awards-categories { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.player-awards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 14px; }
+.player-award-card { padding: 18px; border: 1px solid #303d56; border-radius: 10px; background: #0f182a; min-width: 0; }
+.player-award-card--champion { border-color: #72582a; background: linear-gradient(135deg, #272111, #101827); }
+.player-award-card-heading { display: flex; align-items: center; gap: 12px; }
+.player-award-icon { display: flex; align-items: center; color: #9fc6ff; flex-shrink: 0; }
+.player-award-card--champion .player-award-icon { color: #fcd778; }
+.player-award-card h3 { margin: 0; font-size: .95rem; }
+.player-award-card-heading p { margin: 4px 0 0; color: #a7b5cb; font-size: .75rem; }
+.player-award-subject { display: inline-block; margin-top: 13px; font-weight: 600; }
+.player-award-value { display: flex; align-items: baseline; gap: 9px; margin-top: 14px; }
+.player-award-value strong { font-size: 1.8rem; color: #dbeafe; }
+.player-award-value span { font-size: .75rem; color: #a7b5cb; }
+.player-award-record { margin: 3px 0 14px; font-size: .8rem; color: #c3cee0; }
+.player-award-scope { font-size: .8rem; }
+.player-award-flags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.player-award-flags span { padding: 3px 7px; background: #25334a; border-radius: 5px; color: #bed7ff; font-size: .68rem; }
+.player-award-qualification { display: block; margin-top: 12px; font-size: .72rem; line-height: 1.6; color: #9caec5; }
+.player-awards-empty { padding: 20px; border: 1px dashed #34415d; border-radius: 8px; color: #a7b5cb; }
+.player-awards-criteria { margin-top: 22px; padding-top: 14px; border-top: 1px solid #303d56; color: #a7b5cb; font-size: .8rem; line-height: 1.7; }
+.player-awards-criteria summary { cursor: pointer; color: #dbeafe; }
+.player-awards-criteria ul { padding-left: 22px; }
+.player-awards-criteria li + li { margin-top: 7px; }
+@media (max-width: 767px) {
+  .player-award-highlights { gap: 6px; }
+  .player-award-card { padding: 15px; }
+}

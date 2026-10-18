@@ -1,209 +1,81 @@
-// src/pages/MatchPage.jsx
-import React, { useState, useEffect } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import HeroDisplay from '../components/HeroDisplay';
 import MatchResultBadge from '../components/MatchResultBadge';
+import { useReport, ReportState, Panel, ReportTable, fmt, clock } from '../components/PerformanceUI';
 import './MatchSeriesPages.css';
+
+const MatchAnalysis = lazy(() => import('../components/MatchAnalysis'));
+const MatchDraftAnalysis = lazy(() => import('../components/MatchDraftAnalysis'));
+const modes = {
+  combat: [['Kills', 'K'], ['Deaths', 'D'], ['Assists', 'A'], ['HeroDamage', 'Hero damage'], ['Healing', 'Healing'], ['TowerDamage', 'Tower damage']],
+  economy: [['Lasthits', 'LH'], ['Denies', 'Denies'], ['Networth', 'Net worth'], ['GPM', 'GPM'], ['XPM', 'XPM'], ['FinalLevel', 'Level']],
+  support: [['ObserversPlaced', 'Observers'], ['SentriesPlaced', 'Sentries'], ['ObserversKilled', 'Obs destroyed'],
+    ['SentriesKilled', 'Dewards'], ['CampsStacked', 'Stacks'], ['StunSeconds', 'Stun seconds']],
+};
 
 export default function MatchPage() {
   const { matchId } = useParams();
-  const [match, setMatch] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const report = useReport(`/api/matches/${matchId}`);
+  return <div className="match-detail-page ui-page"><ReportState report={report}>{data =>
+    data.match?.length ? <MatchView key={matchId} data={data} matchId={matchId} /> : <p>Match not found.</p>}
+  </ReportState></div>;
+}
 
-  useEffect(() => {
-    async function fetchMatch() {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/matches/${matchId}`);
-        const data = await res.json();
-        setMatch(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchMatch();
-  }, [matchId]);
-
-  if (loading) return <div>Loading match...</div>;
-  if (!match) return <div>Match not found</div>;
-
-  const radiantPlayers = match.matchPlayers.slice(0, 5);
-  const direPlayers = match.matchPlayers.slice(5, 10);
-
-  const tableStyle = {
-    width: '100%',
-    borderCollapse: 'collapse',
-    border: '1px solid var(--border, #222428)',
-    background: 'transparent',
-    color: 'var(--text, #e6e6e6)'
-  };
-
-  const thTdStyle = {
-    border: '1px solid var(--border, #222428)',
-    padding: '6px',
-    textAlign: 'center',
-    color: 'var(--text, #e6e6e6)'
-  };
-
-  return (
-    <div className="match-detail-page ui-page" style={{ width: '100%', margin: '0 auto', padding: '1rem' }}>
-      <h1>Match {match.match[0].MatchId}</h1>
-      <p><strong>Date:</strong> {match.match[0].DatePlayed}</p>
-      <p><strong>League:</strong><Link to={`/league/${match.match[0].LeagueId}`}> {match.match[0].LeagueName}</Link></p>
-      <p><strong>Duration:</strong> {Math.floor(match.match[0].Duration / 60)}:{(match.match[0].Duration % 60).toString().padStart(2, '0')}</p>
-      {/* Teams side by side */}
-      <div className="match-team-grid" style={{ display: 'flex', gap: '2rem', marginTop: '2rem' }}>
-        {/* Radiant */}
-          <div className="match-team-panel" style={{ flex: 1, border: '2px solid #0f6b58', borderRadius: '8px', background: 'var(--surface, #121315)' }}>
-            <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #0f6b58', color: 'var(--text, #e6e6e6)' }}>
-              <Link to={`/team/${match.match[0].rad_team_id}`} style={{ color: 'inherit' }}>{match.match[0].rad_team_name}</Link> <MatchResultBadge winnerSide={match.match[0].WinnerSide} side="r" />
-            </div>
-          <table className="match-player-table" style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thTdStyle}>Player</th>
-                <th style={thTdStyle}>Hero</th>
-                <th style={thTdStyle}>K</th>
-                <th style={thTdStyle}>D</th>
-                <th style={thTdStyle}>A</th>
-                <th style={thTdStyle}>LH</th>
-                <th style={thTdStyle}>Hero Dmg</th>
-                <th style={thTdStyle}>Healing</th>
-                <th style={thTdStyle}>Tower Dmg</th>
-                <th style={thTdStyle}>GPM</th>
-                <th style={thTdStyle}>XPM</th>
-              </tr>
-            </thead>
-            <tbody>
-              {radiantPlayers.map(p => (
-                <tr key={p.PlayerId}>
-                  <td style={thTdStyle}><Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link></td>
-                  <td style={thTdStyle}>
-                    <HeroDisplay heroId={p.HeroId} heroName={p.HeroName} showName={false} />
-                  </td>
-                  <td style={thTdStyle}>{p.Kills}</td>
-                  <td style={thTdStyle}>{p.Deaths}</td>
-                  <td style={thTdStyle}>{p.Assists}</td>
-                  <td style={thTdStyle}>{p.Lasthits}</td>
-                  <td style={thTdStyle}>{p.HeroDamage}</td>
-                  <td style={thTdStyle}>{p.Healing}</td>
-                  <td style={thTdStyle}>{p.TowerDamage}</td>
-                  <td style={thTdStyle}>{p.GPM}</td>
-                  <td style={thTdStyle}>{p.XPM}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Dire */}
-        <div className="match-team-panel" style={{ flex: 1, border: '2px solid #6b1a1a', borderRadius: '8px', background: 'var(--surface, #121315)' }}>
-          <div style={{ textAlign: 'center', padding: '0.5rem', fontWeight: 'bold', borderBottom: '2px solid #6b1a1a', color: 'var(--text, #e6e6e6)' }}>
-            <Link to={`/team/${match.match[0].dire_team_id}`} style={{ color: 'inherit' }}>{match.match[0].dire_team_name}</Link> <MatchResultBadge winnerSide={match.match[0].WinnerSide} side="d" />
-          </div>
-          <table className="match-player-table" style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thTdStyle}>Player</th>
-                <th style={thTdStyle}>Hero</th>
-                <th style={thTdStyle}>K</th>
-                <th style={thTdStyle}>D</th>
-                <th style={thTdStyle}>A</th>
-                <th style={thTdStyle}>LH</th>
-                <th style={thTdStyle}>Hero Dmg</th>
-                <th style={thTdStyle}>Healing</th>
-                <th style={thTdStyle}>Tower Dmg</th>
-                <th style={thTdStyle}>GPM</th>
-                <th style={thTdStyle}>XPM</th>
-              </tr>
-            </thead>
-            <tbody>
-              {direPlayers.map(p => (
-                <tr key={p.PlayerId}>
-                  <td style={thTdStyle}><Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link></td>
-                  <td style={thTdStyle}>
-                    <HeroDisplay heroId={p.HeroId} heroName={p.HeroName} showName={false} />
-                  </td>
-                  <td style={thTdStyle}>{p.Kills}</td>
-                  <td style={thTdStyle}>{p.Deaths}</td>
-                  <td style={thTdStyle}>{p.Assists}</td>
-                  <td style={thTdStyle}>{p.Lasthits}</td>
-                  <td style={thTdStyle}>{p.HeroDamage}</td>
-                  <td style={thTdStyle}>{p.Healing}</td>
-                  <td style={thTdStyle}>{p.TowerDamage}</td>
-                  <td style={thTdStyle}>{p.GPM}</td>
-                  <td style={thTdStyle}>{p.XPM}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+function MatchView({ data, matchId }) {
+  const [tab, setTab] = useState('overview'), [mode, setMode] = useState('combat'), [playerId, setPlayerId] = useState(null);
+  const match = data.match[0];
+  const groups = [0, 1, null].map(side => ({ side, players: data.matchPlayers.filter(p => p.TeamSide === side) })).filter(g => g.players.length);
+  const columns = [
+    { key: 'PlayerName', label: 'Player', render: p => <Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link> },
+    { key: 'HeroName', label: 'Hero', render: p => <HeroDisplay heroId={p.HeroId} heroName={p.HeroName} showName={false} /> },
+    ...(modes[mode] || []).map(([key, label]) => ({ key, label })),
+    { key: 'details', label: 'Details', sortable: false, value: () => null, render: p => <button type="button"
+      onClick={() => { setPlayerId(p.PlayerId); setMode('items'); }}>View</button> },
+  ].map(column => ({ ...column, className: column.key === 'PlayerName' ? 'performance-cell-left' : 'performance-cell-center' }));
+  const date = match.StartTimeUtc ? `${new Intl.DateTimeFormat(undefined, { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })
+    .format(new Date(match.StartTimeUtc * 1000))} ET` : match.DatePlayed || 'Date unavailable';
+  return <>
+    <header className="match-overview-header">
+      <div className="match-overview-main">
+        <h1 className="match-overview-score">
+          <span className={`match-overview-team ${match.WinnerSide === 'r' ? 'is-winner' : match.WinnerSide === 'd' ? 'is-loser' : ''}`}><Link className="performance-side-0" to={`/team/${match.rad_team_id}`}>{match.rad_team_name}</Link>
+            <MatchResultBadge winnerSide={match.WinnerSide} side="r" />
+            <small title={`${match.LeagueName} · current season record`}>GP {fmt(data.teamSeasonRad?.[0]?.GamesPlayed, 0)} · WR {fmt(data.teamSeasonRad?.[0]?.WinPercentage)}%</small></span>
+          <span className="match-overview-score-block"><strong>{fmt(match.RadiantScore, 0)} - {fmt(match.DireScore, 0)}</strong>
+            <span className="match-overview-time" aria-label={`Match time ${clock(match.Duration)}`}>{clock(match.Duration)}</span></span>
+          <span className={`match-overview-team ${match.WinnerSide === 'd' ? 'is-winner' : match.WinnerSide === 'r' ? 'is-loser' : ''}`}><Link className="performance-side-1" to={`/team/${match.dire_team_id}`}>{match.dire_team_name}</Link>
+            <MatchResultBadge winnerSide={match.WinnerSide} side="d" />
+            <small title={`${match.LeagueName} · current season record`}>GP {fmt(data.teamSeasonDire?.[0]?.GamesPlayed, 0)} · WR {fmt(data.teamSeasonDire?.[0]?.WinPercentage)}%</small></span>
+        </h1>
       </div>
-
-    <div style={{ marginTop: '2rem', marginBottom: '2rem' }}> 
-      <h2 style={{ textAlign: 'center', marginBottom: '1rem', color: 'var(--text, #e6e6e6)' }}> 
-        Picks and Bans 
-        </h2> 
-        <table style={tableStyle}> 
-                    <thead> 
-                    <tr> 
-                        <th style={thTdStyle}>
-                            Team
-                        </th> 
-                        <th style={thTdStyle}>
-                            Action
-                        </th> 
-                        <th style={thTdStyle}>
-                            Hero
-                        </th> 
-                    </tr> 
-                    </thead> 
-                    <tbody>
-                      {match.matchPicksBans.map((pb, index) => (
-                        <tr key={index}>
-                          <td style={thTdStyle}>
-                            {pb.Team === 0 ? (
-                              <span style={{ color: '#4fd6a3', fontWeight: 'bold' }}>Radiant</span>
-                            ) : (
-                              <span style={{ color: '#ff8b8b', fontWeight: 'bold' }}>Dire</span>
-                            )}
-                          </td>
-                          <td style={thTdStyle}>{pb.IsPick ? 'Pick' : 'Ban'}</td>
-                          <td style={thTdStyle}>
-                            <HeroDisplay heroId={pb.HeroId} heroName={pb.HeroName} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                </table> 
-            </div> 
-
-      {/* Teams summary */}
-      <h2 style={{ marginTop: '2rem' }}>Teams</h2>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thTdStyle}>Team</th>
-            <th style={thTdStyle}>Games Played</th>
-            <th style={thTdStyle}>Win %</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style={thTdStyle}><Link to={`/team/${match.match[0].rad_team_id}`}>{match.match[0].rad_team_name}</Link></td>
-            <td style={thTdStyle}>{match.teamSeasonRad[0].GamesPlayed}</td>
-            <td style={thTdStyle}>{match.teamSeasonRad[0].WinPercentage?.toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td style={thTdStyle}><Link to={`/team/${match.match[0].dire_team_id}`}>{match.match[0].dire_team_name}</Link></td>
-            <td style={thTdStyle}>{match.teamSeasonDire[0].GamesPlayed}</td>
-            <td style={thTdStyle}>{match.teamSeasonDire[0].WinPercentage?.toFixed(2)}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div className="match-overview-meta" aria-label="Match details"><Link to={`/league/${match.LeagueId}`}>{match.LeagueName}</Link>
+        <span>Match {match.MatchId}</span>
+        <span>{date}</span><span>Patch {match.PatchKey || 'unavailable'}</span></div>
+    </header>
+    <div className="ui-tabs" aria-label="Match sections">{[['overview', 'Overview'], ['gameflow', 'Game flow'], ['economy', 'Player economy'], ['fights', 'Teamfights']].map(([key, label]) =>
+      <button className="ui-tab" key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>{label}</button>)}
     </div>
-  );
+    {tab === 'overview' ? <div className="performance-report">
+      <div className="ui-tabs" aria-label="Overview sections">{[...Object.keys(modes), 'items', 'draft'].map(key => <button key={key} className="ui-tab"
+        aria-pressed={mode === key} onClick={() => setMode(key)}>{key === 'draft' ? 'Picks & bans' : key[0].toUpperCase() + key.slice(1)}</button>)}</div>
+      {mode === 'items' ? <Suspense fallback={<p role="status">Loading items…</p>}>
+        <MatchAnalysis matchId={matchId} section="items" initialPlayerId={playerId} />
+      </Suspense> : mode === 'draft' ? <Suspense fallback={<p role="status">Loading draft context…</p>}>
+        <MatchDraftAnalysis matchId={matchId} />
+      </Suspense> : <>
+      {groups.map(({ side, players }) => <Panel key={side ?? 'unknown'} className="match-scoreboard">
+        <div className={`match-scoreboard-team performance-side-${side}`}>
+          <h2>{side === null ? 'Side unavailable' : <Link to={`/team/${side === 0 ? match.rad_team_id : match.dire_team_id}`}>
+            {side === 0 ? match.rad_team_name : match.dire_team_name}</Link>}</h2>
+          {side !== null && <MatchResultBadge winnerSide={match.WinnerSide} side={side === 0 ? 'r' : 'd'} />}
+        </div>
+        <ReportTable key={mode} rows={players} columns={columns} rowKey="PlayerId" initialSort="PlayerSlot" initialDirection="asc" />
+      </Panel>)}
+      <p className="performance-note">Extended statistics are shown where recorded. Missing values are unavailable, not zero.</p>
+      </>}
+    </div> : <Suspense fallback={<p role="status">Loading match analysis…</p>}>
+      <MatchAnalysis matchId={matchId} section={tab} initialPlayerId={playerId} />
+    </Suspense>}
+  </>;
 }

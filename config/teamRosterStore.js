@@ -146,28 +146,38 @@ export default class TeamRosterStore {
       ORDER BY ml.DatePlayed, mtp.MatchId, mtp.PlayerId`).all(teamId, leagueId, leagueId);
     const matches = new Map();
     for (const row of rows) {
-      if (!matches.has(row.MatchId)) matches.set(row.MatchId, { ...row, players: [] });
-      matches.get(row.MatchId).players.push({ PlayerId: row.PlayerId, PlayerName: row.PlayerName });
-    }
-    const history = [];
-    const lastByLeague = new Map();
-    for (const match of matches.values()) {
-      const signature = match.players.map(player => player.PlayerId).join(',');
-      const previous = lastByLeague.get(match.LeagueId);
-      if (previous?.signature === signature) {
-        previous.period.EffectiveTo = match.DatePlayed;
-        previous.period.LastMatchId = match.MatchId;
-        previous.period.GamesPlayed += 1;
-      } else {
-        const period = { TeamId: Number(teamId), LeagueId: match.LeagueId, LeagueName: match.LeagueName,
-          Source: 'match_lineup', EffectiveFrom: match.DatePlayed, EffectiveTo: match.DatePlayed,
-          FromEstimated: 1, MatchId: match.MatchId, LastMatchId: match.MatchId, GamesPlayed: 1,
-          players: match.players };
-        history.push(period);
-        lastByLeague.set(match.LeagueId, { signature, period });
+      const key = `${row.LeagueId}:${row.MatchId}`;
+      if (!matches.has(key)) matches.set(key, { ...row, players: [] });
+      const match = matches.get(key);
+      if (!match.players.some(player => player.PlayerId === row.PlayerId)) {
+        match.players.push({ PlayerId: row.PlayerId, PlayerName: row.PlayerName });
       }
     }
-    return history;
+    const seasons = new Map();
+    for (const match of matches.values()) {
+      let period = seasons.get(match.LeagueId);
+      if (!period) {
+        period = { TeamId: Number(teamId), LeagueId: match.LeagueId, LeagueName: match.LeagueName,
+          Source: 'match_lineup', EffectiveFrom: match.DatePlayed, EffectiveTo: match.DatePlayed,
+          FromEstimated: 1, MatchId: match.MatchId, LastMatchId: match.MatchId, GamesPlayed: 0,
+          players: new Map() };
+        seasons.set(match.LeagueId, period);
+      }
+      period.EffectiveFrom ||= match.DatePlayed;
+      period.EffectiveTo = match.DatePlayed || period.EffectiveTo;
+      period.LastMatchId = match.MatchId;
+      period.GamesPlayed += 1;
+      for (const player of match.players) {
+        const appearance = period.players.get(player.PlayerId) || { ...player, GamesPlayed: 0,
+          EffectiveFrom: match.DatePlayed, EffectiveTo: match.DatePlayed };
+        appearance.GamesPlayed += 1;
+        appearance.EffectiveFrom ||= match.DatePlayed;
+        appearance.EffectiveTo = match.DatePlayed || appearance.EffectiveTo;
+        period.players.set(player.PlayerId, appearance);
+      }
+    }
+    return [...seasons.values()].map(period => ({ ...period,
+      players: [...period.players.values()].sort((a, b) => b.GamesPlayed - a.GamesPlayed || a.PlayerId - b.PlayerId) }));
   }
 
   appearances(teamId, leagueId = 'all') {

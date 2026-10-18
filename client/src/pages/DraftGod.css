@@ -1,0 +1,98 @@
+.dg-page { max-width: 1800px; min-width: 0; }
+.dg-header { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; align-items: start; margin-bottom: 20px; }
+.dg-header h1 { margin: 0 0 5px; }
+.dg-eyebrow { color: #7dd3fc; font-size: .75rem; text-transform: uppercase; letter-spacing: .12em; margin: 0 0 5px; }
+.dg-muted { color: var(--muted-text, #94a3b8); font-size: .85rem; line-height: 1.6; }
+.dg-page h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 12px; }
+.dg-page h3 { font-size: .95rem; font-weight: 600; margin: 10px 0; }
+.dg-page h4 { margin: 12px 0 5px; }
+.dg-panel { min-width: 0; padding: 18px; border: 1px solid var(--border, #334155); border-radius: 12px; background: var(--surface, #0f172a); }
+.dg-tabs { margin-bottom: 16px; flex-wrap: wrap; }
+.dg-page label { display: grid; gap: 6px; font-size: .85rem; }
+.dg-page input:not([type=checkbox]), .dg-page select, .dg-page textarea { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--border, #334155); background: #020617; border-radius: 6px; color: #e2e8f0; }
+.dg-page button { white-space: normal; }
+.dg-save { display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; width: min(100%, 420px); }
+.dg-save label, .dg-save input { grid-column: 1 / -1; }
+.dg-save [role=status] { font-size: .8rem; color: #94a3b8; align-self: center; }
+.dg-error { padding: 12px; border: 1px solid #9f3939; background: #3a161d; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.dg-warning { color: #fbbf24; }
+.dg-preparation, .dg-scouting { display: grid; gap: 18px; }
+.dg-settings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.dg-two-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 16px 0; }
+.dg-lineup h3 { display: flex; justify-content: space-between; }
+.dg-lineup-rows { display: grid; gap: 8px; margin: 12px 0; }
+.dg-lineup-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, .8fr) auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border, #334155); }
+.dg-lineup-row strong, .dg-lineup-row small { display: block; overflow-wrap: anywhere; }
+.dg-lineup-row small { font-size: .75rem; color: #94a3b8; }
+.dg-lineup > label { margin: 10px 0; }
+.dg-format { margin: 16px 0; }
+.dg-format textarea { font-family: monospace; margin: 8px 0; }
+.dg-saved-list { display: grid; margin-top: 12px; gap: 8px; }
+.dg-saved-list article { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--border, #334155); padding: 10px 0; }
+.dg-saved-list article > div { flex: 1; min-width: 160px; }
+.dg-saved-list small { display: block; color: #94a3b8; }
+.dg-context-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: .8rem; padding: 12px 0; margin-bottom: 8px; }
+.dg-context-bar details { width: 100%; color: #94a3b8; }
+.dg-live-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 18px; align-items: start; }
+.dg-live-main, .dg-live-aside { display: grid; gap: 16px; min-width: 0; }
+.dg-board-heading, .dg-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.dg-board-heading { justify-content: space-between; margin-bottom: 12px; }
+.dg-controls input { flex: 1; min-width: 130px !important; max-width: 240px; }
+.dg-controls label { flex: 1; min-width: 150px; }
+.dg-assessment { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; padding: 12px; background: #0a1425; border-radius: 8px; }
+.dg-assessment > strong { font-size: 1.4rem; grid-row: 1 / 3; align-self: center; }
+.dg-assessment small { color: #94a3b8; }
+.dg-assessment progress { grid-column: 1 / -1; width: 100%; accent-color: #38bdf8; height: 6px; }
+.dg-board-sides { display: grid; gap: 14px; margin: 14px 0; }
+.dg-team-board h3 { display: flex; justify-content: space-between; gap: 12px; }
+.dg-team-board h3 small { color: #94a3b8; font-weight: 400; font-size: .75rem; }
+.dg-radiant h3 { color: #6ee7b7; } .dg-dire h3 { color: #fca5a5; }
+.dg-picks { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.dg-picks button { min-width: 0; padding: 8px 4px; min-height: 90px; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: .75rem; }
+.dg-picks button > span { display: flex !important; flex-direction: column; gap: 4px !important; }
+.dg-picks small { color: #94a3b8; font-size: .68rem; }
+.dg-bans { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.dg-bans > span { font-size: .75rem; color: #94a3b8; margin-right: 6px; }
+.dg-bans button { padding: 4px; min-width: 30px; min-height: 30px; }
+.dg-timeline { display: flex; gap: 4px; flex-wrap: wrap; }
+.dg-timeline > span { padding: 4px 6px; font-size: .65rem; border: 1px solid #263449; border-radius: 4px; color: #64748b; }
+.dg-timeline .dg-current-step { color: #7dd3fc; border-color: #38bdf8; background: #0c2940; }
+.dg-timeline .dg-complete-step { color: #cbd5e1; }
+.dg-page .dg-selected { outline: 2px solid #38bdf8; outline-offset: -2px; background: #12354d; }
+.dg-hero-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)); gap: 6px; max-height: 340px; overflow-y: auto; margin-top: 14px; padding: 2px; }
+.dg-hero-grid button { text-align: left; min-width: 0; padding: 6px; font-size: .75rem; }
+.dg-hero-grid button > span { gap: 5px !important; }
+.dg-recommendation { border-top: 1px solid var(--border, #334155); padding: 12px 0; font-size: .8rem; }
+.dg-recommendation > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dg-recommendation p { color: #94a3b8; margin: 6px 0; }
+.dg-recommendation ul { padding-left: 16px; margin: 8px 0; line-height: 1.5; }
+.dg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dg-chips > span { display: inline-flex; align-items: center; gap: 6px; font-size: .75rem; padding: 4px 7px; border: 1px solid #334155; border-radius: 5px; }
+.dg-composition + .dg-composition { border-top: 1px solid var(--border, #334155); margin-top: 10px; }
+.dg-player-detail { border-bottom: 1px solid var(--border, #334155); padding: 12px 0; }
+.dg-player-detail summary { display: flex; align-items: center; gap: 10px; justify-content: space-between; cursor: pointer; }
+.dg-player-detail summary > span { color: #94a3b8; font-size: .75rem; }
+.dg-table-wrap { overflow-x: auto; margin: 12px 0; }
+.dg-page table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.dg-page th, .dg-page td { padding: 8px; border-bottom: 1px solid var(--border, #334155); text-align: left; }
+.dg-page fieldset { min-width: 0; padding: 12px; margin: 12px 0; border: 1px solid var(--border, #334155); border-radius: 6px; }
+.dg-checks { display: flex; flex-wrap: wrap; gap: 12px; }
+.dg-checks label { display: flex; gap: 6px; align-items: center; }
+@media (max-width: 1100px) { .dg-live-grid { grid-template-columns: minmax(0, 1fr); } .dg-live-aside { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 750px) {
+  .dg-settings, .dg-two-columns, .dg-live-aside { grid-template-columns: minmax(0, 1fr); }
+  .dg-lineup-row { grid-template-columns: minmax(0, 1fr) auto; } .dg-lineup-row > span { grid-column: 1 / -1; }
+  .dg-picks button { font-size: .6rem; padding: 5px 2px; }
+  .dg-panel { padding: 12px; } .dg-assessment { grid-template-columns: minmax(0, 1fr); } .dg-assessment > strong { grid-row: auto; }
+  .dg-team-board h3, .dg-player-detail summary { flex-wrap: wrap; }
+}
+
+.dg-intelligence { display: grid; gap: 1rem; }
+.dg-stat-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .8rem; margin: .75rem 0; }
+.dg-stat-grid>div { background: #0b1424; border-radius: .5rem; padding: .8rem; min-width: 0; }
+.dg-stat-grid strong { display: block; font-size: 1.15rem; }
+.dg-stat-grid small,.dg-block { display: block; color: #94a3b8; font-weight: normal; }
+.dg-intelligence .dg-table-wrap { max-height: 30rem; overflow: auto; }
+.dg-intelligence details { margin-top: .8rem; }
+.dg-intelligence summary { cursor: pointer; padding: .4rem 0; }
+@media(max-width: 600px) { .dg-stat-grid { grid-template-columns: 1fr; } }

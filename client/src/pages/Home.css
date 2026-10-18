@@ -20,7 +20,10 @@
 .home-announcements:empty { display: none; }
 .home-announcements .home-signup-ribbon, .home-champion-ribbon { display: flex; justify-content: space-between; align-items: center;
   gap: 1rem; padding: .75rem 1rem; border: 1px solid #9a774c80; border-radius: 10px; background: var(--surface, #101827); }
-.home-announcements .home-signup-ribbon { border-color: var(--primary, #646cff); }
+.home-announcements .home-signup-ribbon { display: grid; grid-template-columns: minmax(0, 1fr) auto; border-color: var(--primary, #646cff); }
+.home-announcements .home-signup-count strong { font-size: clamp(2.5rem, 5vw, 4rem); }
+.home-announcements .home-signup-count span { font-size: .8rem; }
+.home-announcements .home-signup-copy .home-signup-button { margin-top: .5rem; }
 .home-announcements .home-signup-ribbon h2, .home-champion-ribbon h2 { font-size: 1.05rem; margin: .2rem 0; }
 .home-announcements .home-eyebrow { font-size: .65rem; display: inline; margin-right: .6rem; }
 .home-announcements .home-signup-ribbon h2, .home-champion-ribbon h2 { display: inline; }
@@ -34,7 +37,16 @@
   border: 1px solid var(--border, #344); border-radius: 16px;
   padding: clamp(1.5rem, 4vw, 3rem); background: var(--surface, #101827);
 }
-.home-signup-hero { border-color: var(--primary, #646cff); }
+.home-signup-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2rem; border-color: var(--primary, #646cff); }
+.home-signup-copy { grid-column: 1; grid-row: 1; min-width: 0; overflow-wrap: anywhere; }
+.home-signup-count { grid-column: 2; grid-row: 1; display: grid; gap: .5rem; min-width: 0; justify-items: center; text-align: center; }
+.home-signup-count strong { color: #c7d2fe; font-size: clamp(4rem, 7vw, 6rem); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.home-signup-count span { color: var(--muted-text, #a8b2c5); font-size: 1rem; font-weight: 600; }
+@media (max-width: 600px) {
+  .home-signup-hero { grid-template-columns: minmax(0, 1fr) 84px; gap: 12px; }
+  .home-signup-count strong { font-size: 3rem; }
+  .home-signup-count span { font-size: .85rem; }
+}
 .home-eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.12em;
   font-weight: 700; color: #a5b4fc; }
 .home-signup-hero h2, .home-champion-title { margin: .6rem 0; font-size: clamp(2rem, 4vw, 3.2rem); }
@@ -84,7 +96,7 @@
 
 @media (max-width: 767px) {
   .home-toolbar { align-items: start; }
-  .home-announcements .home-signup-ribbon, .home-champion-ribbon { flex-wrap: wrap; }
+  .home-champion-ribbon { flex-wrap: wrap; }
   .home-page { padding: 12px !important; }
   .home-page h2 { margin: 0 0 12px; font-size: 1.35rem; }
   .home-tabs { max-width: 100%; gap: 8px !important; overflow-x: auto; padding-bottom: 4px; }

@@ -245,7 +245,7 @@ metadata rows; financial/provenance history persists.
 
 ## Deployment and workers
 
-The deploy workflow checks Node 22.12+, installs dependencies/builds the client,
+The deploy workflow checks Node 20.19+ or 22.12+ (22.12+ recommended), installs dependencies/builds the client,
 backs up databases, initializes additive Betting/roster tables, and runs Analytics
 then Betting. It publishes the built client after these steps succeed, then
 restarts PM2. Deployments serialize instead of overlapping. No production deploy

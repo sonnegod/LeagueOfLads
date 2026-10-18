@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
+import { trackSiteEvent } from '../utils/siteAnalytics';
 import { useParams } from 'react-router-dom';
 import PlayerStatsTable from "../components/PlayerStatsTable";
 import { Link } from 'react-router-dom';
-import HeroDisplay from '../components/HeroDisplay';
+import { PlayerHeroesTable, PlayerTeamsTable } from '../components/DetailSummaryTables';
 import PlayerHomeTab from '../components/PlayerHomeTab';
 import LeagueFilter from '../components/LeagueFilter';
 import DotabuffLink from '../components/DotabuffLink';
+import PlayerAwards, { PlayerAwardHighlights, PlayerChampionshipTrophies } from '../components/PlayerAwards';
 import './DetailPages.css';
+const PerformancePanel = lazy(() => import('../components/PerformancePanel'));
 
 export default function PlayerPage() {
   const { player_id } = useParams(); // gets :player_id from URL
@@ -15,26 +18,46 @@ export default function PlayerPage() {
   const [activeTab, setActiveTab] = useState('home');
   const [selectedLeague, setSelectedLeague] = useState('all');
   const [teammatesData, setTeammatesData] = useState(null);
+  const [awardsData, setAwardsData] = useState(null);
+  const [awardsAttempt, setAwardsAttempt] = useState(0);
   const currentSeasonPlayerData = playerData?.playerStats?.filter(stat => stat.LeagueId === playerData.LeagueId);
   
   useEffect(() => {
+    const controller = new AbortController();
     async function fetchPlayer() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/player/${player_id}`);
+        const res = await fetch(`/api/player/${player_id}`, { signal: controller.signal });
         if (!res.ok) throw new Error('Player not found');
         const data = await res.json();
 
-        setPlayerData(data);
+        if (!controller.signal.aborted) setPlayerData(data);
       } catch (err) {
+        if (controller.signal.aborted) return;
         console.error(err);
         setPlayerData(null);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     fetchPlayer();
+    return () => controller.abort();
   }, [player_id]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`/api/player/${player_id}/awards`, { signal: controller.signal })
+      .then(async response => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not load player awards');
+        return result;
+      }).then(data => {
+        if (!controller.signal.aborted) setAwardsData({ playerId: player_id, ...data });
+      }).catch(error => {
+        if (!controller.signal.aborted) setAwardsData({ playerId: player_id, error: error.message, awards: [] });
+      });
+    return () => controller.abort();
+  }, [player_id, awardsAttempt]);
 
   useEffect(() => {
     if (activeTab !== 'teammates') return undefined;
@@ -69,15 +92,22 @@ export default function PlayerPage() {
   const selectedHeroStats = getHeroStatsFromMatches(selectedPlayerStats);
   const teammateKey = `${player_id}:${selectedLeague}`;
   const selectedTeammates = teammatesData?.key === teammateKey ? teammatesData : null;
+  const currentAwards = awardsData?.playerId === player_id ? awardsData : null;
+  const selectedAwards = (currentAwards?.awards || []).filter(award => selectedLeague === 'all'
+    || String(award.leagueId) === String(selectedLeague));
 
   return (
     <div className='p-4 detail-page player-detail-page'>
       <div className="player-page-heading">
         <h1>{playerStats[0]?.PlayerName || player_id}</h1>
+        <PlayerChampionshipTrophies awards={currentAwards?.awards || []} />
         <DotabuffLink playerId={player_id} name={playerStats[0]?.PlayerName || player_id} />
       </div>
 
-      {(activeTab === 'home' || activeTab === 'season' || activeTab === 'allMatches' || activeTab === 'heroes' || activeTab === 'teammates') && (
+      <PlayerAwardHighlights awards={selectedAwards} loading={!currentAwards} error={currentAwards?.error}
+        onViewAll={() => setActiveTab('awards')} />
+
+      {(activeTab === 'home' || activeTab === 'season' || activeTab === 'allMatches' || activeTab === 'heroes' || activeTab === 'teammates' || activeTab === 'awards') && (
         <div className="detail-page-filter" style={{ marginBottom: '1rem' }}>
           <LeagueFilter
             leagues={playerLeagues}
@@ -90,14 +120,25 @@ export default function PlayerPage() {
       {/* Tabs */}
       <div className='flex gap-2 mb-4 detail-page-tabs ui-tabs'>
         <button className="ui-tab" aria-pressed={activeTab === 'home'} onClick={() => setActiveTab('home')} style={activeTab === 'home' ? activeTabStyle : tabStyle}>Home</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'performance'} onClick={() => setActiveTab('performance')}>Performance</button>
         <button className="ui-tab" aria-pressed={activeTab === 'season'} onClick={() => setActiveTab('season')} style={activeTab === 'season' ? activeTabStyle : tabStyle}>Season Stats</button>
         <button className="ui-tab" aria-pressed={activeTab === 'allMatches'} onClick={() => setActiveTab('allMatches')} style={activeTab === 'allMatches' ? activeTabStyle : tabStyle}>Total Matches</button>
         <button className="ui-tab" aria-pressed={activeTab === 'heroes'} onClick={() => setActiveTab('heroes')} style={activeTab === 'heroes' ? activeTabStyle : tabStyle}>Heroes</button>
-        <button className="ui-tab" aria-pressed={activeTab === 'teammates'} onClick={() => setActiveTab('teammates')} style={activeTab === 'teammates' ? activeTabStyle : tabStyle}>Teammates</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'teammates'} onClick={() => {
+          if (activeTab !== 'teammates') trackSiteEvent('teammates_opened');
+          setActiveTab('teammates');
+        }} style={activeTab === 'teammates' ? activeTabStyle : tabStyle}>Teammates</button>
         <button className="ui-tab" aria-pressed={activeTab === 'teams'} onClick={() => setActiveTab('teams')} style={activeTab === 'teams' ? activeTabStyle : tabStyle}>Teams</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'awards'} onClick={() => setActiveTab('awards')} style={activeTab === 'awards' ? activeTabStyle : tabStyle}>Awards</button>
       </div>
 
       {/* Tab content */}
+      {activeTab === 'performance' && <Suspense fallback={<p role="status">Loading performance…</p>}>
+        <PerformancePanel key={`${player_id}:${selectedLeague}`} type="player" id={player_id} leagueId={selectedLeague} seasons={playerLeagues} onLeagueChange={setSelectedLeague} />
+      </Suspense>}
+      {activeTab === 'awards' && <PlayerAwards awards={selectedAwards} criteria={currentAwards?.criteria}
+        loading={!currentAwards} error={currentAwards?.error} selectedLeague={selectedLeague}
+        onRetry={() => { setAwardsData(null); setAwardsAttempt(value => value + 1); }} />}
       {activeTab === 'home' && (
         <PlayerHomeTab
           playerStats={selectedPlayerStats}
@@ -108,59 +149,8 @@ export default function PlayerPage() {
       )}
       {activeTab === 'season' && <div className="detail-table-scroll"><PlayerStatsTable data={selectedSeasonStats} /></div>}
       {activeTab === 'allMatches' && <div className="detail-table-scroll"><PlayerStatsTable data={selectedPlayerStats} /></div>}
-      {activeTab === 'heroes' && (
-        <div className="detail-table-scroll"><table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Hero</th>
-              <th style={thStyle}>Games</th>
-              <th style={thStyle}>Win %</th>
-              <th style={thStyle}>Avg K/D/A</th>
-              <th style={thStyle}>Avg Last Hits</th>
-              <th style={thStyle}>Avg GPM</th>
-              <th style={thStyle}>Avg XPM</th>
-            </tr>
-          </thead>
-          <tbody>
-            {selectedHeroStats.map(hero => (
-              <tr key={hero.HeroId}>
-                <td style={tdStyle}>
-                  <HeroDisplay heroId={hero.HeroId} heroName={hero.HeroName} />
-                </td>
-                <td style={tdStyle}>{hero.GamesPlayed}</td>
-                <td style={tdStyle}>{hero.WinPercentage?.toFixed(2)}%</td>
-                <td style={tdStyle}>{hero.AvgKills.toFixed(1)}/{hero.AvgDeaths.toFixed(1)}/{hero.AvgAssists.toFixed(1)}</td>
-                <td style={tdStyle}>{hero.AvgLastHits.toFixed(1)}</td>
-                <td style={tdStyle}>{hero.AvgGPM.toFixed(1)}</td>
-                <td style={tdStyle}>{hero.AvgXPM.toFixed(1)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div>
-      )}
-
-      {activeTab === 'teams' && (
-        <div className="detail-table-scroll"><table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Team</th>
-              <th style={thStyle}>Games</th>
-              <th style={thStyle}>Win %</th>
-            </tr>
-          </thead>
-          <tbody>
-            {playerTeamStats.map(team => (
-              <tr key={team.TeamId}>
-                <td style={tdStyle}>
-                  <Link to={`/team/${team.TeamId}`}>{team.TeamName}</Link>
-                  </td>
-                <td style={tdStyle}>{team.GamesPlayed}</td>
-                <td style={tdStyle}>{team.WinPercentage?.toFixed(2)}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div>
-      )}
+      {activeTab === 'heroes' && <PlayerHeroesTable rows={selectedHeroStats} />}
+      {activeTab === 'teams' && <PlayerTeamsTable rows={playerTeamStats} />}
 
       {activeTab === 'teammates' && (
         !selectedTeammates || selectedTeammates.loading ? <p>Loading teammates...</p>

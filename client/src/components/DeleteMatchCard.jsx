@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 
-export default function DeleteMatchCard({ onMatchDeleted }) {
+export default function DeleteMatchCard({ onMatchDeleted, leagueId }) {
   const [matchId, setMatchId] = useState("");
   const [matchData, setMatchData] = useState(null);
+  const [loadedMatchId, setLoadedMatchId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -17,10 +18,14 @@ export default function DeleteMatchCard({ onMatchDeleted }) {
 
     setLoading(true);
     setMessage("");
+    setMatchData(null);
+    setLoadedMatchId(null);
 
     try {
-      const res = await fetch(`/api/matchEdit/${matchId}`);
+      const id=matchId.trim();
+      const res = await fetch(`/api/matchEdit/${encodeURIComponent(id)}${leagueId?`?leagueId=${leagueId}`:''}`);
       const data = await res.json();
+      if(!res.ok)throw new Error(data.error||'Error loading match');
 
 
       if (!data) {
@@ -28,11 +33,12 @@ export default function DeleteMatchCard({ onMatchDeleted }) {
         setMessage("Match not found.");
       } else {
         setMatchData(data);
+        setLoadedMatchId(id);
         setMessage("Match loaded.");
       }
     } catch (err) {
       console.error(err);
-      setMessage("Error loading match.");
+      setMessage(err.message||"Error loading match.");
     }
 
     setLoading(false);
@@ -48,7 +54,7 @@ export default function DeleteMatchCard({ onMatchDeleted }) {
     }
 
     const confirmDelete = window.confirm(
-      `Are you sure you want to delete Match ${matchId}?`
+      `Are you sure you want to delete Match ${loadedMatchId}${matchData.league?.LeagueName?` from ${matchData.league.LeagueName}`:''}?`
     );
 
     if (!confirmDelete) return;
@@ -60,19 +66,20 @@ export default function DeleteMatchCard({ onMatchDeleted }) {
       const res = await fetch("/api/admin/deleteMatch", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId }),
+        body: JSON.stringify({ matchId:loadedMatchId, ...(leagueId?{leagueId}:{} ) }),
       });
 
       const data = await res.json();
 
       if (data.success) {
-        setMessage(`Match ${matchId} deleted successfully.`);
+        setMessage(`Match ${loadedMatchId} deleted successfully.`);
         setMatchData(null);
+        setLoadedMatchId(null);
         setMatchId("");
 
         onMatchDeleted && onMatchDeleted();
       } else {
-        setMessage("Delete failed.");
+        setMessage(data.error||"Delete failed.");
       }
     } catch (err) {
       console.error(err);
@@ -103,11 +110,12 @@ export default function DeleteMatchCard({ onMatchDeleted }) {
         <input
           type="text"
           value={matchId}
-          onChange={(e) => setMatchId(e.target.value)}
+          disabled={loading}
+          onChange={(e) => {setMatchId(e.target.value);setMatchData(null);setLoadedMatchId(null);setMessage('');}}
           placeholder="Enter match ID"
           style={{ flex: 1 }}
         />
-        <button onClick={loadMatch}>Load</button>
+        <button onClick={loadMatch} disabled={loading}>Load</button>
       </div>
 
       {/* MATCH PREVIEW */}

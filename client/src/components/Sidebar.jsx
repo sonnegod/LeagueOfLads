@@ -22,6 +22,7 @@ export default function Sidebar({ open, onClose }) {
         <NavLink to="/league" className={navClassName} onClick={onClose}>Leagues</NavLink>
         <NavLink to="/h2h" className={navClassName} onClick={onClose}>Head to Head</NavLink>
         <NavLink to="/hero" className={navClassName} onClick={onClose}>Heroes</NavLink>
+        <NavLink to="/awards" className={navClassName} onClick={onClose}>Awards</NavLink>
         <NavLink to="/rules" className={navClassName} onClick={onClose}>Rules</NavLink>
 
         <NavLink to="/betting" className={navClassName} onClick={onClose}>Betting</NavLink>
@@ -29,8 +30,9 @@ export default function Sidebar({ open, onClose }) {
         {user && <span className="sidebar-section-label sidebar-account-label">Account</span>}
         {user && <NavLink to="/request" className={navClassName} onClick={onClose}>Request</NavLink>}
         {/* Show admin button only if user is admin */}
-        {user?.canDraftGod && <NavLink to="/draftgod" className={navClassName} onClick={onClose}>DraftGod</NavLink>}
+        {user?.canDraftGod && String(user.accountId) === '49219700' && <NavLink to="/draftgod" className={navClassName} onClick={onClose}>DraftGod</NavLink>}
         {user?.isAdmin && <NavLink to="/admin" className={navClassName} onClick={onClose}>Admin Portal</NavLink>}
+        {user?.isSiteManager && <NavLink to="/site-management" className={navClassName} onClick={onClose}>Site Management</NavLink>}
 
       </nav>
     </aside>
