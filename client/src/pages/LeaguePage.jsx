@@ -9,6 +9,7 @@ import HeroDisplay from "../components/HeroDisplay";
 import LeagueHomeTab from "../components/LeagueHomeTab";
 import LeagueSeriesTab from "../components/LeagueSeriesTab";
 import './LeaguePage.css';
+const LeaguePerformance = React.lazy(() => import('../components/LeaguePerformance'));
 
 export default function LeaguePage({
   leagueIdOverride,
@@ -125,6 +126,7 @@ export default function LeaguePage({
       <div className="league-page-tabs ui-tabs" style={{ marginBottom: "1rem" }}>
         {stageTabsFirst && stageButtons}
         <button className="ui-tab" aria-pressed={activeTab === "home"} onClick={() => setActiveTab("home")} style={activeTab === "home" ? activeTabStyle : tabStyle}>Home</button>
+        <button className="ui-tab" aria-pressed={activeTab === "performance"} onClick={() => setActiveTab("performance")}>Performance</button>
         {!stageTabsFirst && stageButtons}
         <button className="ui-tab" aria-pressed={activeTab === "teams"} onClick={() => setActiveTab("teams")} style={activeTab === "teams" ? activeTabStyle : tabStyle}>Teams</button>
         <button className="ui-tab" aria-pressed={activeTab === "series"} onClick={() => setActiveTab("series")} style={activeTab === "series" ? activeTabStyle : tabStyle}>Series</button>
@@ -133,6 +135,9 @@ export default function LeaguePage({
       </div>
 
       {/* Home Tab */}
+      {activeTab === 'performance' && <React.Suspense fallback={<p role="status">Loading performance…</p>}>
+        <LeaguePerformance key={leagueId} leagueId={leagueId} />
+      </React.Suspense>}
       {activeTab === "home" && (
         <LeagueHomeTab
           league={league[0]}

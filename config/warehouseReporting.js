@@ -11,7 +11,7 @@ const sideOf = slot => slot != null && slot >= 0 && slot <= 4 ? 0 : slot >= 128 
 const placeholders = ids => JSON.stringify(ids);
 const parse = (json, fallback = {}) => { try { return JSON.parse(json); } catch { return fallback; } };
 const playerMetrics = ['gold10', 'xp10', 'lh10', 'gold20', 'xp20', 'lh20', 'damagePerMinute', 'healingPerMinute', 'damageShare',
-  'wards10', 'sentries10', 'dewards10', 'stacks10', 'stuns10', 'Denies', 'FinalLevel'];
+  'wards10', 'sentries10', 'dewards10', 'stacks10', 'stuns10', 'Denies', 'FinalLevel', 'killParticipation', 'towerDamagePerMinute'];
 const teamMetrics = ['gold10', 'gold20', 'xp10', 'xp20', 'wards10', 'dewards10', 'stacks10', 'damagePerMinute', 'healingPerMinute'];
 const groupMatches = data => {
   const groups = new Map();
@@ -41,6 +41,7 @@ const summarizeTeamGames = games => {
         ? games.reduce((n, g) => n + g.roshans, 0) / games.reduce((n, g) => n + g.totalRoshans, 0) * 100 : null,
         samples: games.filter(g => g.totalRoshans > 0).length } } };
 };
+export { mean, number, playerMetrics, summarizeTeamGames, groupMatches };
 
 // Source slots take priority over legacy membership rows, which can be duplicated
 // or retain a former team ID. Ambiguous legacy memberships remain unassigned.
@@ -132,9 +133,9 @@ export class WarehouseReporting {
       WHERE ${where.join(' AND ')} ORDER BY COALESCE(m.StartTimeUtc,0) DESC,m.MatchId DESC`).all(...params);
   }
 
-  rows(table, ids, extra = '', params = []) {
+  rows(table, ids, extra = '', params = [], columns = '*') {
     if (!ids.length) return [];
-    return this.db.prepare(`SELECT * FROM ${table} WHERE MatchId IN(SELECT value FROM json_each(?)) ${extra}`)
+    return this.db.prepare(`SELECT ${columns} FROM ${table} WHERE MatchId IN(SELECT value FROM json_each(?)) ${extra}`)
       .all(placeholders(ids), ...params);
   }
 
@@ -404,11 +405,12 @@ export class WarehouseReporting {
     });
   }
 
-  performanceGames(matches, { playerId = null, heroId = null } = {}) {
-      const enriched = matches.filter(m => ['ready', 'partial'].includes(m.Status));
+  performanceGames(matches, { playerId = null, heroId = null, includeLegacy = false, basicOnly = false } = {}) {
+      const enriched = matches.filter(m => includeLegacy || ['ready', 'partial'].includes(m.Status));
       const ids = enriched.map(m => m.MatchId), metadata = new Map(enriched.map(m => [m.MatchId, m]));
       const rows = this.rows('MatchPlayer', ids, `AND rowid IN(SELECT MAX(rowid) FROM MatchPlayer
-        WHERE MatchId IN(SELECT value FROM json_each(?)) GROUP BY MatchId,PlayerId)`, [placeholders(ids)]);
+        WHERE MatchId IN(SELECT value FROM json_each(?)) GROUP BY MatchId,PlayerId)`, [placeholders(ids)],
+        basicOnly ? 'MatchId,PlayerId,HeroId,PlayerSlot,Kills,Deaths,Assists,GPM,XPM' : '*');
       const names = new Map(this.db.prepare('SELECT PlayerId,PlayerName FROM PlayerInfo').all().map(p => [p.PlayerId, p.PlayerName]));
       const heroes = new Map(this.db.prepare('SELECT HeroId,HeroName FROM HeroInfo').all().map(h => [h.HeroId, h.HeroName]));
       const members = new Map();
@@ -428,23 +430,29 @@ export class WarehouseReporting {
         const key = `${p.MatchId}:${p.TeamSide}`, group = byMatchSide.get(key) || [];
         group.push(p); byMatchSide.set(key, group);
       }
-      const checkpoints = this.rows('MatchPlayerTimeline', ids, `AND TimeSeconds IN(600,1200) ${playerId != null ? 'AND PlayerId=?' : ''}`, playerId != null ? [playerId] : []);
+      const checkpoints = basicOnly ? [] : this.rows('MatchPlayerTimeline', ids, `AND TimeSeconds IN(600,1200) ${playerId != null ? 'AND PlayerId=?' : ''}`, playerId != null ? [playerId] : []);
       const sample = new Map(checkpoints.map(p => [`${p.MatchId}:${p.PlayerId}:${p.TimeSeconds}`, p]));
       const playerGames = rows.filter(p => (playerId == null || p.PlayerId === playerId) && (heroId == null || p.HeroId === heroId)).map(p => {
         const m = metadata.get(p.MatchId), teamPlayers = p.TeamSide === null ? [] : byMatchSide.get(`${p.MatchId}:${p.TeamSide}`) || [];
+        const context = { PlayerName: names.get(p.PlayerId) || `Player ${p.PlayerId}`, matchId: m.MatchId, leagueId: m.LeagueId, leagueName: m.LeagueName, patch: m.PatchKey,
+          teamId: p.TeamSide === null ? null : p.TeamSide === 0 ? m.TeamRad : m.TeamDire,
+          teamName: p.TeamSide === null ? 'Unassigned side' : p.TeamSide === 0 ? m.RadiantTeamName : m.DireTeamName,
+          won: p.TeamSide === null || m.WinnerSide === null ? null : p.TeamSide === m.WinnerSide };
+        if (basicOnly) return { ...p, ...context };
         const teamDamage = teamPlayers.length === 5 && teamPlayers.every(p => number(p.HeroDamage) !== null)
           ? teamPlayers.reduce((n, p) => n + p.HeroDamage, 0) : null;
         const teamNetworth = teamPlayers.length === 5 && teamPlayers.every(p => number(p.Networth) !== null)
           ? teamPlayers.reduce((n, p) => n + p.Networth, 0) : null;
+        const teamKills = teamPlayers.length === 5 && teamPlayers.every(p => number(p.Kills) !== null)
+          ? teamPlayers.reduce((n, p) => n + p.Kills, 0) : null;
         const point10 = m.Duration >= 600 ? sample.get(`${p.MatchId}:${p.PlayerId}:600`) : null;
         const point20 = m.Duration >= 1200 ? sample.get(`${p.MatchId}:${p.PlayerId}:1200`) : null;
-        return { ...p, matchId: m.MatchId, leagueId: m.LeagueId, leagueName: m.LeagueName, patch: m.PatchKey,
-          teamId: p.TeamSide === null ? null : p.TeamSide === 0 ? m.TeamRad : m.TeamDire,
-          teamName: p.TeamSide === null ? 'Unassigned side' : p.TeamSide === 0 ? m.RadiantTeamName : m.DireTeamName,
-          won: p.TeamSide === null || m.WinnerSide === null ? null : p.TeamSide === m.WinnerSide,
+        return { ...p, ...context,
           gold10: point10?.Gold ?? null, xp10: point10?.Experience ?? null, lh10: point10?.LastHits ?? null,
           gold20: point20?.Gold ?? null, xp20: point20?.Experience ?? null, lh20: point20?.LastHits ?? null,
           damagePerMinute: rate(p.HeroDamage, m.Duration), healingPerMinute: rate(p.Healing, m.Duration),
+          towerDamagePerMinute: rate(p.TowerDamage, m.Duration),
+          killParticipation: teamKills > 0 && number(p.Kills) !== null && number(p.Assists) !== null ? (p.Kills + p.Assists) / teamKills * 100 : null,
           damageShare: teamDamage > 0 ? p.HeroDamage / teamDamage * 100 : null,
           networthShare: teamNetworth > 0 ? p.Networth / teamNetworth * 100 : null,
           wards10: rate(p.ObserversPlaced, m.Duration, 600), sentries10: rate(p.SentriesPlaced, m.Duration, 600),
@@ -538,7 +546,7 @@ export class WarehouseReporting {
       const games = enriched.flatMap(m => (teamId == null ? [m.TeamRad, m.TeamDire] : [teamId]).map(id => {
         const side = m.TeamRad === id ? 0 : 1, direction = side === 0 ? 1 : -1;
         const points = timelinesByMatch.get(m.MatchId) || [];
-        const gold = points.filter(p => number(p.RadiantGoldAdvantage) !== null).map(p => p.RadiantGoldAdvantage * direction);
+        const gold = points.filter(p => p.TimeSeconds <= m.Duration && number(p.RadiantGoldAdvantage) !== null).map(p => p.RadiantGoldAdvantage * direction);
         const events = (objectivesByMatch.get(m.MatchId) || []).map(describeObjective).sort((a, b) => a.time - b.time);
         const firstTower = events.find(e => e.category === 'tower' && !e.denied);
         const firstRoshan = events.find(e => e.category === 'roshan');

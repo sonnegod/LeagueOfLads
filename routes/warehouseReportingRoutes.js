@@ -1,5 +1,5 @@
 import express from 'express';
-import { WarehouseReporting } from '../config/warehouseReporting.js';
+import { ExpandedPerformanceReporting } from '../config/expandedPerformanceReporting.js';
 
 function positive(value) {
   const raw = String(value ?? '');
@@ -10,11 +10,11 @@ function positive(value) {
 function filter(value) { return value == null || value === 'all' ? null : positive(value); }
 
 export function createWarehouseReportingRouter(db) {
-  const router = express.Router(), reporting = new WarehouseReporting(db);
+  const router = express.Router(), reporting = new ExpandedPerformanceReporting(db);
   const handle = build => (req, res) => {
     try {
       const data = build(req);
-      if (data == null) return res.status(404).json({ error: 'Match or player not found' });
+      if (data == null) return res.status(404).json({ error: 'Requested record not found' });
       return res.json(data);
     } catch (error) {
       if (error.status === 400) return res.status(400).json({ error: error.message });
@@ -22,6 +22,13 @@ export function createWarehouseReportingRouter(db) {
       return res.status(500).json({ error: 'Could not load performance data' });
     }
   };
+  const performanceFilters = req => {
+    const stage = req.query.stage || 'all';
+    if (!['all', 'regular', 'tiebreakers', 'playoffs', 'unknown'].includes(stage)) throw Object.assign(new Error('Invalid stage'), { status: 400 });
+    return { leagueId: filter(req.query.leagueId), patchId: filter(req.query.patchId), stage };
+  };
+  router.get('/hero/:heroId/performance', handle(req => reporting.heroPerformance(positive(req.params.heroId), performanceFilters(req))));
+  router.get('/leagues/:leagueId/performance', handle(req => reporting.leaguePerformance(positive(req.params.leagueId), performanceFilters(req))));
   router.get('/matches/:matchId/analysis', handle(req => reporting.match(positive(req.params.matchId))));
   router.get('/matches/:matchId/analysis/inventories', handle(req => reporting.inventories(positive(req.params.matchId))));
   router.get('/matches/:matchId/analysis/events', handle(req => reporting.events(positive(req.params.matchId))));

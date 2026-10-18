@@ -36,18 +36,24 @@ export default function Home() {
 
   return <main className={`ui-page home-offseason${home.champion ? ' home-offseason-champion' : ''}`}>
     {home.signup && <section className="home-signup-hero">
-      <p className="home-eyebrow">Signups are open</p>
-      <h1>{home.signup.title}</h1>
-      <p>{home.signup.description}</p>
-      {user ? <Link to={`/signup/${home.signup.seasonId}`} className="home-signup-button">
-        Sign up your team
-      </Link> : <a href={`/api/auth/steam?returnTo=${encodeURIComponent(`/signup/${home.signup.seasonId}`)}`}
-        className="home-signup-button" aria-disabled={authLoading}>
-        {authLoading ? 'Checking Steam login...' : 'Sign in with Steam to sign up'}
-      </a>}
-      {!user && !authLoading && <p className="home-signup-login-note">
-        You’ll return to this league’s signup form after signing in with Steam.
-      </p>}
+      <div className="home-signup-copy">
+        <p className="home-eyebrow">Signups are open</p>
+        <h1>{home.signup.title}</h1>
+        <p>{home.signup.description}</p>
+        {user ? <Link to={`/signup/${home.signup.seasonId}`} className="home-signup-button">
+          Sign up your team
+        </Link> : <a href={`/api/auth/steam?returnTo=${encodeURIComponent(`/signup/${home.signup.seasonId}`)}`}
+          className="home-signup-button" aria-disabled={authLoading}>
+          {authLoading ? 'Checking Steam login...' : 'Sign in with Steam to sign up'}
+        </a>}
+        {!user && !authLoading && <p className="home-signup-login-note">
+          You’ll return to this league’s signup form after signing in with Steam.
+        </p>}
+      </div>
+      <div className="home-signup-count">
+        <strong>{home.signup.teamCount ?? 0}</strong>
+        <span>{home.signup.teamCount === 1 ? 'Team signed up' : 'Teams signed up'}</span>
+      </div>
     </section>}
     {home.champion && <section className="home-champion-hero">
       <p className="home-eyebrow">League champions</p>

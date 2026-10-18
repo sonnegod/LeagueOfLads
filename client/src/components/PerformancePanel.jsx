@@ -8,6 +8,7 @@ import { useReport, ReportState, Panel, Metric, MetricGrid, ReportTable, Timelin
 const labels = {
   gold10: 'Gold earned @10', xp10: 'XP @10', lh10: 'Last hits @10', gold20: 'Gold earned @20', xp20: 'XP @20', lh20: 'Last hits @20',
   damagePerMinute: 'Hero damage / min', healingPerMinute: 'Healing / min', damageShare: 'Team damage share', networthShare: 'Net worth share',
+  killParticipation: 'Kill participation', towerDamagePerMinute: 'Tower damage / min',
   wards10: 'Observers / 10 min', sentries10: 'Sentries / 10 min', dewards10: 'Dewards / 10 min',
   stacks10: 'Stacks / 10 min', stuns10: 'Stun seconds / 10 min', Denies: 'Denies / game', FinalLevel: 'Final level',
 };
@@ -33,7 +34,6 @@ export default function PerformancePanel({ type, id, leagueId, seasons, onLeague
       </select></label>}
       <p className="performance-coverage"><strong>{data.coverage.enriched} enriched games</strong> of {data.coverage.total} recorded games in this selection</p>
     </div>
-    <p className="performance-note performance-color-key">Percentage colors run from red through yellow to green as values increase. Win and objective rates use 50% as the yellow reference. Damage and net worth shares use 20%; their meaning depends on hero and role.</p>
     {!data.coverage.enriched ? <Panel title="Performance"><p className="performance-message">Extended data is not available for this selection yet. Choose a season with imported matches to explore performance.</p></Panel>
       : type === 'player' ? <PlayerPerformance data={data} /> : <TeamPerformance data={data} />}
     <details className="performance-expand"><summary>How these numbers are calculated</summary>
@@ -57,8 +57,8 @@ function PlayerPerformance({ data }) {
   return <>
     <Panel title="Farming checkpoints"><MetricGrid>{['lh10', 'gold10', 'xp10', 'lh20', 'gold20', 'xp20'].map(key =>
       <Metric key={key} label={labels[key]} metric={data.summary[key]} digits={0} percentile={data.percentiles?.[key]} showSamples={false} />)}</MetricGrid></Panel>
-    <Panel title="Combat & support contributions"><MetricGrid>{['damagePerMinute', 'healingPerMinute', 'damageShare', 'wards10', 'sentries10', 'dewards10', 'stacks10', 'stuns10', 'Denies'].map(key =>
-      <Metric key={key} label={labels[key]} metric={data.summary[key]} suffix={key === 'damageShare' ? '%' : ''} percentageReference={key === 'damageShare' ? 20 : 50} percentile={data.percentiles?.[key]} showSamples={false} />)}</MetricGrid>
+    <Panel title="Combat & support contributions"><MetricGrid>{['damagePerMinute', 'healingPerMinute', 'damageShare', 'killParticipation', 'towerDamagePerMinute', 'wards10', 'sentries10', 'dewards10', 'stacks10', 'stuns10', 'Denies'].map(key =>
+      <Metric key={key} label={labels[key]} metric={data.summary[key]} suffix={['damageShare', 'killParticipation'].includes(key) ? '%' : ''} percentageReference={key === 'damageShare' ? 20 : 50} percentile={data.percentiles?.[key]} showSamples={false} />)}</MetricGrid>
       <p className="performance-note">Percentiles compare player averages within the selected season, patch and hero. Each metric requires five eligible games per player and at least two qualifying players. Ties share a rank; higher means more of that statistic, with hero and role affecting its interpretation.</p>
     </Panel>
     <Panel title="Recent performance">
@@ -105,7 +105,7 @@ function TeamPerformance({ data }) {
     <Panel title="Converting the game"><MetricGrid>{[['ahead10', 'Win rate when ahead @10'], ['behind10', 'Win rate when behind @10'],
       ['ahead20', 'Win rate when ahead @20'], ['behind20', 'Win rate when behind @20']].map(([key, label]) =>
       <Metric key={key} label={label} metric={data.conversions[key]} suffix="%" percentile={data.percentiles?.[key]} showSamples={false} />)}</MetricGrid>
-      <p className="performance-note">Ahead/behind refers to gold advantage. Tied checkpoints and unknown winners are excluded.</p>
+      <p className="performance-note">Ahead/behind refers to gold advantage</p>
     </Panel>
     <Panel title="Later game checkpoints">
       <ReportTable centerStats rows={(data.checkpoints || []).filter(point => point.minute >= 30)} rowKey="minute" initialSort="minute" initialDirection="asc" columns={[
@@ -127,7 +127,6 @@ function TeamPerformance({ data }) {
       Roshan share counts kills across those games, rather than giving each game equal weight.</p></Panel>
     <Panel title="Team contributions"><MetricGrid>{['wards10', 'dewards10', 'stacks10', 'damagePerMinute', 'healingPerMinute'].map(key =>
       <Metric key={key} label={labels[key]} metric={data.summary[key]} percentile={data.percentiles?.[key]} showSamples={false} />)}</MetricGrid>
-      <p className="performance-note">Team totals require all five players to have the relevant recorded statistic.</p>
     </Panel>
     <Panel title="Damage & support distribution"><ReportTable centerStats rows={data.distribution} rowKey="playerId" columns={[
       { key: 'name', label: 'Player', render: row => <Link to={`/player/${row.playerId}`}>{row.name}</Link> },

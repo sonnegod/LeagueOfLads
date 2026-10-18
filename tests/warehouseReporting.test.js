@@ -7,6 +7,7 @@ import express from 'express';
 import { initializeWarehouse, ingestWarehouseMatch } from '../config/warehouseIngestion.js';
 import { WarehouseReporting, getReportingPlayers, draftPhases } from '../config/warehouseReporting.js';
 import { createWarehouseReportingRouter } from '../routes/warehouseReportingRoutes.js';
+import { ExpandedPerformanceReporting } from '../config/expandedPerformanceReporting.js';
 
 function fixture() {
   const db = new Database(':memory:');
@@ -204,6 +205,7 @@ test('later team checkpoints use reached times, normalize sides and preserve sep
     assert.deepEqual(dire.checkpoints.find(p=>p.minute===40).behind,{value:0,samples:1,wins:0});
     assert.deepEqual(dire.checkpoints.find(p=>p.minute===50).gold,{value:null,samples:0});
     assert.deepEqual(dire.checkpoints.find(p=>p.minute===50).xp,{value:5000,samples:1});
+    assert.equal(radiant.recent.find(g=>g.matchId===1).largestLead,8000,'samples after match end cannot manufacture a lost lead or comeback');
   }finally{db.close();}
 });
 
@@ -514,6 +516,93 @@ test('draft history defaults to full season and switches independently to before
   }finally{db.close();}
 });
 
+test('expanded hero reporting preserves played picks without drafts and uses first purchases within the played match',()=>{
+  const {db}=fixture(),reporting=new ExpandedPerformanceReporting(db);
+  try {
+    let order=0;const insert=db.prepare('INSERT INTO PickInfo VALUES(1,?,?,?,?)');
+    for(let hero=11;hero<=15;hero++)insert.run(0,hero,order++,hero%2);
+    for(let hero=1;hero<=10;hero++)insert.run(1,hero,order++,hero<=5?0:1);
+    for(let hero=16;hero<=20;hero++)insert.run(0,hero,order++,hero%2);
+    db.exec(`INSERT INTO MatchPlayerPurchases VALUES(1,1,10,600,'blink'),(1,1,11,1200,'blink'),
+      (2,1,10,300,'blink'),(2,1,11,900,'blink'),(1,2,12,30,'blink'),
+      (1,1,13,-60,'boots'),(1,1,14,2000,'heart'),(1,1,15,500,'recipe_blink');`);
+    const hero=reporting.heroPerformance(1);
+    assert.deepEqual(hero.coverage,{total:3,enriched:2});
+    assert.equal(hero.draft.picks,3);assert.equal(hero.draft.playedGames,3);assert.equal(hero.draft.completeDrafts,1);
+    assert.equal(hero.draft.pickRate.value,100);assert.equal(hero.draft.contestRate.value,100);
+    assert.equal(hero.draft.phases[0].picks,1);
+    assert.deepEqual(hero.items.find(i=>i.key==='blink').timing,{value:450,samples:2},'repeated purchases and other players do not affect the timing sample');
+    assert.equal(hero.items.find(i=>i.key==='blink').games,2);
+    assert.ok(!hero.items.some(i=>['boots','heart','recipe_blink'].includes(i.key)));
+    assert.equal('summary' in hero,false,'role-mixed hero summary metrics are omitted');
+    assert.equal('percentiles' in hero,false,'heroes are not compared to other heroes');
+    assert.deepEqual(hero.players[0].gold10,{value:1000,samples:1});
+    assert.equal(hero.players[0].percentiles.gold10.value,null,'insufficient games cannot yield a percentile');
+    assert.equal(hero.players[0].games,2);
+    assert.equal(reporting.heroPerformance(9999),null);
+    assert.deepEqual(reporting.heroPerformance(1,{leagueId:21}).coverage,{total:1,enriched:0});
+    assert.equal(reporting.heroPerformance(1,{patchId:9999}).record.games,0);
+    assert.doesNotMatch(JSON.stringify(hero),/rank_tier|mmr_estimate|99999/);
+  }finally{db.close();}
+});
+
+test('expanded league reports filter stages, separate stand-ins, require real checkpoint coverage and keep unknown stages explicit',()=>{
+  const {db}=fixture(),reporting=new ExpandedPerformanceReporting(db);
+  try {
+    db.exec(`INSERT INTO LeagueStageBoundaries VALUES(20,1,1);
+      UPDATE MatchPlayer SET PlayerSlot=CASE PlayerId WHEN 1 THEN 128 WHEN 6 THEN 0 ELSE PlayerSlot END WHERE MatchId=2;
+      UPDATE MatchTeam SET Duration=2400 WHERE MatchId=1;
+      INSERT INTO MatchTeamTimeline VALUES(1,1800,-11000,-1000),(1,2400,500,1000);`);
+    const league=reporting.leaguePerformance(20);
+    assert.deepEqual(league.coverage,{total:2,enriched:2});
+    assert.equal(league.players.filter(p=>p.playerId===1).length,2,'a stand-in appearance belongs to its own team record');
+    assert.deepEqual(league.players.filter(p=>p.playerId===1).map(p=>p.games),[1,1]);
+    assert.equal(league.teams.find(t=>t.teamId===100).gold30.value,-11000);
+    assert.equal(league.teams.find(t=>t.teamId===200).gold30.value,11000);
+    assert.equal(league.notable.comebacks[0].matchId,1);
+    assert.equal(league.notable.closest[0].finalLead,500);
+    assert.equal(reporting.leaguePerformance(20,{stage:'regular'}).coverage.total,1);
+    assert.equal(reporting.leaguePerformance(20,{stage:'playoffs'}).coverage.total,1);
+    assert.equal(reporting.leaguePerformance(20,{stage:'tiebreakers'}).coverage.total,0);
+    assert.equal(reporting.leaguePerformance(21).unknownStages,1);
+    db.exec(`INSERT INTO SeriesInfo(SeriesId,Team1,Team2,LeagueId,Stage) VALUES(1,100,200,20,'Tiebreakers');
+      INSERT INTO SeriesMatch(SeriesId,MatchId) VALUES(1,2);`);
+    assert.equal(reporting.leaguePerformance(20,{stage:'tiebreakers'}).coverage.total,1,'explicit series stage takes priority');
+    assert.equal(reporting.leaguePerformance(20,{stage:'playoffs'}).coverage.total,0);
+    db.exec(`INSERT INTO SeriesInfo(SeriesId,Team1,Team2,LeagueId,Stage) VALUES(2,100,200,20,'Playoffs');
+      INSERT INTO SeriesMatch(SeriesId,MatchId) VALUES(2,2);`);
+    assert.equal(reporting.leaguePerformance(20,{stage:'unknown'}).coverage.total,1,'contradictory stages are not guessed');
+    assert.equal(reporting.leaguePerformance(999),null);
+    assert.equal(reporting.leaguePerformance(20,{patchId:999}).coverage.total,0);
+  }finally{db.close();}
+});
+
+test('hero players compare only to players on that hero while league player/team pools and corrected data stay current',()=>{
+  const {db}=fixture(),reporting=new ExpandedPerformanceReporting(db);
+  try {
+    for(const matchId of [4,5,6,7]) {
+      for(const table of ['MatchTeam','MatchLeague','MatchPlayer','MatchTeamPlayer','MatchPlayerTimeline','MatchTeamTimeline','MatchIngestionState']) {
+        const columns=db.pragma(`table_info(${table})`).map(c=>c.name).filter(name=>name!=='UID');
+        db.prepare(`INSERT INTO ${table} (${columns.join(',')}) SELECT ${columns.map(c=>c==='MatchId'?'?':c).join(',')} FROM ${table} WHERE MatchId=1`).run(matchId);
+      }
+    }
+    const hero=reporting.heroPerformance(1,{leagueId:20});
+    const player=hero.players.find(p=>p.playerId===1);
+    assert.equal(player.percentiles.lh10.entities,1,'other heroes do not enter the comparison pool');
+    assert.equal(player.percentiles.lh10.value,null,'one qualifying player cannot be ranked');
+    assert.equal(player.percentiles.lh10.entity,'players');
+    assert.equal(reporting.heroPerformance(1,{leagueId:20}),hero);
+    const league=reporting.leaguePerformance(20);
+    assert.equal(league.players[0].percentiles.gold10.entity,'players');
+    assert.equal(league.players[0].percentiles.gold10.entities,10);
+    assert.equal(league.teams.find(t=>t.teamId===100).percentiles.gold10.value,75);
+    db.exec('UPDATE MatchPlayerTimeline SET Gold=Gold+1000 WHERE PlayerId=1');
+    const changed=reporting.heroPerformance(1,{leagueId:20});
+    assert.notEqual(changed,hero);assert.ok(changed.players.find(p=>p.playerId===1).gold10.value>player.gold10.value);
+    assert.equal(changed.players.find(p=>p.playerId===1).percentiles.gold10.entities,1);
+  }finally{db.close();}
+});
+
 test('cached reports are refreshed after database edits and expiry',()=>{
   const {db}=fixture();let now=0;
   try{
@@ -531,10 +620,15 @@ test('public reporting API validates identifiers and filters and supports legacy
   const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
   const base=`http://127.0.0.1:${server.address().port}/api`;
   try{
-    for(const url of ['/matches/no/analysis','/matches/0/analysis/fights','/matches/1/analysis/draft?scope=bad','/matches/1/analysis/draft?period=bad','/player/1/performance?patchId=bad','/teams/1/performance?leagueId=-1']){
+    for(const url of ['/matches/no/analysis','/matches/0/analysis/fights','/matches/1/analysis/draft?scope=bad','/matches/1/analysis/draft?period=bad','/player/1/performance?patchId=bad','/teams/1/performance?leagueId=-1',
+      '/hero/1/performance?stage=bad','/leagues/20/performance?patchId=bad']){
       assert.equal((await fetch(base+url)).status,400,url);
     }
     assert.equal((await fetch(base+'/matches/999/analysis')).status,404);
+    assert.equal((await fetch(base+'/hero/99999/performance')).status,404);
+    assert.equal((await fetch(base+'/leagues/99999/performance')).status,404);
+    assert.equal((await fetch(base+'/hero/1/performance')).status,200);
+    assert.equal((await fetch(base+'/leagues/20/performance')).status,200);
     assert.equal((await fetch(base+'/matches/999/analysis/inventories')).status,404);
     assert.equal((await fetch(base+'/matches/999/analysis/events')).status,404);
     assert.equal((await fetch(base+'/matches/999/analysis/draft')).status,404);

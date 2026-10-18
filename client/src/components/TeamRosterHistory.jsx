@@ -57,18 +57,20 @@ export default function TeamRosterHistory({ roster, leagueId = 'all' }) {
       : current.error ? <p role="alert">{current.error}</p>
         : !current.history.length ? <p>No roster history recorded.</p>
           : <>
-            <p className="team-roster-history-note">Signup dates show effective roster periods. Legacy match lineups combine appearances by the same players within each season. Dates show their first and last recorded appearances together; other lineups may have played between them.</p>
+            <p className="team-roster-history-note">Signup dates show effective roster periods. Legacy seasons list each observed player once, including stand-ins, rather than confirmed roster membership.
+              Dates show the team's first and last recorded appearances. Hover a player's name for their game count and appearance dates.</p>
             <div className="detail-table-scroll"><table className="team-roster-history-table">
               <thead><tr><th>Roster</th><th>From</th><th>To</th></tr></thead>
-              <tbody>{current.history.map(period => <tr key={`${period.Source}:${period.TeamSubmissionId ?? period.MatchId}`}>
+              <tbody>{current.history.map(period => <tr key={`${period.Source}:${period.TeamSubmissionId ?? period.LeagueId}`}>
                 <td>
                   <div className="team-roster-history-meta">
                     <Link to={`/league/${period.LeagueId}`}>{period.LeagueName || `League ${period.LeagueId}`}</Link>
                     {period.Source === 'signup' ? <small>Signup roster</small>
-                      : <small>Match lineup · {period.GamesPlayed} {period.GamesPlayed === 1 ? 'game' : 'games'}</small>}
+                      : <small>Match appearances · {period.GamesPlayed} {period.GamesPlayed === 1 ? 'game' : 'games'}</small>}
                   </div>
                   <ul className="team-active-roster-players">{period.players.map(player => <li key={player.PlayerId}>
-                    <Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link>
+                    <Link to={`/player/${player.PlayerId}`} title={period.Source === 'signup' ? undefined
+                      : `${player.GamesPlayed} ${player.GamesPlayed === 1 ? 'game' : 'games'} · ${formatDate(player.EffectiveFrom)} – ${formatDate(player.EffectiveTo)}`}>{player.PlayerName}</Link>
                     <DotabuffLink playerId={player.PlayerId} name={player.PlayerName} />
                   </li>)}</ul>
                 </td>

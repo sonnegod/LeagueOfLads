@@ -36,10 +36,10 @@ function LoadedAnalysis({ data, section, initialPlayerId }) {
         ]} markers={events.filter(o => (['death', 'tower', 'roshan'].includes(o.category) && !hiddenEvents.includes(o.category)) || o.index === activeEvent)}
           activeMarkerId={activeEvent} onMarkerHover={setHoveredEvent} onMarkerFocus={setFocusedEvent}
           endTime={match.Duration} signed label="Team gold and XP advantage over game time" />
-        <p className="performance-note">Above zero favors <strong>{match.RadiantTeamName}</strong>; below zero favors <strong>{match.DireTeamName}</strong>. A killed hero appears on the opposing side: Dire heroes at the top, Radiant heroes at the bottom. Tower and Roshan icons sit on the side credited with the event. Events within 30 seconds of a stack’s first event align in one column. Hover an icon or event below for its exact time. Dots on the curves show the selected time.</p>
+        <p className="performance-note">Above zero favors <strong>{match.RadiantTeamName}</strong>; below zero favors <strong>{match.DireTeamName}</strong>. Hover an icon or event below for its exact time. Dots on the curves show the selected time.</p>
         {eventsReport.loading && <p className="performance-note" role="status">Loading hero death events…</p>}
         {eventsReport.error && <p className="performance-note" role="alert">Hero death events could not be loaded. <button type="button" onClick={eventsReport.retry}>Retry</button></p>}
-        {eventsReport.data && <p className="performance-note">{eventsReport.data.available ? 'Hero deaths reflect recorded hero kills; deaths to creeps or other unrecorded sources may be absent.' : 'Individual hero death times were not recorded for this match.'}</p>}
+        {eventsReport.data && <p className="performance-note">{eventsReport.data.available ? '' : 'Individual hero death times were not recorded for this match.'}</p>}
       </Panel>
       <Panel title="Objectives & key events" className="match-flow-events">
         {events.length ? <ol className="performance-events">{events.map(event => <li key={event.index} tabIndex={0}

@@ -134,26 +134,31 @@ export default class TeamRosterStore {
         match.players.push({ PlayerId: row.PlayerId, PlayerName: row.PlayerName });
       }
     }
-    const history = [];
-    const lineups = new Map();
+    const seasons = new Map();
     for (const match of matches.values()) {
-      const signature = `${match.LeagueId}:${match.players.map(player => player.PlayerId).sort((a, b) => a - b).join(',')}`;
-      const previous = lineups.get(signature);
-      if (previous) {
-        previous.EffectiveFrom ||= match.DatePlayed;
-        previous.EffectiveTo = match.DatePlayed || previous.EffectiveTo;
-        previous.LastMatchId = match.MatchId;
-        previous.GamesPlayed += 1;
-      } else {
-        const period = { TeamId: Number(teamId), LeagueId: match.LeagueId, LeagueName: match.LeagueName,
+      let period = seasons.get(match.LeagueId);
+      if (!period) {
+        period = { TeamId: Number(teamId), LeagueId: match.LeagueId, LeagueName: match.LeagueName,
           Source: 'match_lineup', EffectiveFrom: match.DatePlayed, EffectiveTo: match.DatePlayed,
-          FromEstimated: 1, MatchId: match.MatchId, LastMatchId: match.MatchId, GamesPlayed: 1,
-          players: match.players };
-        history.push(period);
-        lineups.set(signature, period);
+          FromEstimated: 1, MatchId: match.MatchId, LastMatchId: match.MatchId, GamesPlayed: 0,
+          players: new Map() };
+        seasons.set(match.LeagueId, period);
+      }
+      period.EffectiveFrom ||= match.DatePlayed;
+      period.EffectiveTo = match.DatePlayed || period.EffectiveTo;
+      period.LastMatchId = match.MatchId;
+      period.GamesPlayed += 1;
+      for (const player of match.players) {
+        const appearance = period.players.get(player.PlayerId) || { ...player, GamesPlayed: 0,
+          EffectiveFrom: match.DatePlayed, EffectiveTo: match.DatePlayed };
+        appearance.GamesPlayed += 1;
+        appearance.EffectiveFrom ||= match.DatePlayed;
+        appearance.EffectiveTo = match.DatePlayed || appearance.EffectiveTo;
+        period.players.set(player.PlayerId, appearance);
       }
     }
-    return history;
+    return [...seasons.values()].map(period => ({ ...period,
+      players: [...period.players.values()].sort((a, b) => b.GamesPlayed - a.GamesPlayed || a.PlayerId - b.PlayerId) }));
   }
 
   appearances(teamId, leagueId = 'all') {

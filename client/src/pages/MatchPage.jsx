@@ -11,7 +11,7 @@ const modes = {
   combat: [['Kills', 'K'], ['Deaths', 'D'], ['Assists', 'A'], ['HeroDamage', 'Hero damage'], ['Healing', 'Healing'], ['TowerDamage', 'Tower damage']],
   economy: [['Lasthits', 'LH'], ['Denies', 'Denies'], ['Networth', 'Net worth'], ['GPM', 'GPM'], ['XPM', 'XPM'], ['FinalLevel', 'Level']],
   support: [['ObserversPlaced', 'Observers'], ['SentriesPlaced', 'Sentries'], ['ObserversKilled', 'Obs destroyed'],
-    ['SentriesKilled', 'Sentries destroyed'], ['CampsStacked', 'Stacks'], ['StunSeconds', 'Stun seconds']],
+    ['SentriesKilled', 'Dewards'], ['CampsStacked', 'Stacks'], ['StunSeconds', 'Stun seconds']],
 };
 
 export default function MatchPage() {
@@ -32,7 +32,7 @@ function MatchView({ data, matchId }) {
     ...(modes[mode] || []).map(([key, label]) => ({ key, label })),
     { key: 'details', label: 'Details', sortable: false, value: () => null, render: p => <button type="button"
       onClick={() => { setPlayerId(p.PlayerId); setMode('items'); }}>View</button> },
-  ].map(column => ({ ...column, className: 'performance-cell-center' }));
+  ].map(column => ({ ...column, className: column.key === 'PlayerName' ? 'performance-cell-left' : 'performance-cell-center' }));
   const date = match.StartTimeUtc ? `${new Intl.DateTimeFormat(undefined, { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })
     .format(new Date(match.StartTimeUtc * 1000))} ET` : match.DatePlayed || 'Date unavailable';
   return <>
@@ -64,7 +64,7 @@ function MatchView({ data, matchId }) {
       </Suspense> : mode === 'draft' ? <Suspense fallback={<p role="status">Loading draft context…</p>}>
         <MatchDraftAnalysis matchId={matchId} />
       </Suspense> : <>
-      {groups.map(({ side, players }) => <Panel key={side ?? 'unknown'}>
+      {groups.map(({ side, players }) => <Panel key={side ?? 'unknown'} className="match-scoreboard">
         <div className={`match-scoreboard-team performance-side-${side}`}>
           <h2>{side === null ? 'Side unavailable' : <Link to={`/team/${side === 0 ? match.rad_team_id : match.dire_team_id}`}>
             {side === 0 ? match.rad_team_name : match.dire_team_name}</Link>}</h2>

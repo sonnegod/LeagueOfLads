@@ -244,6 +244,47 @@ conditional win rates require five games meeting that condition. Ties share a ra
 Earlier first-tower and first-Roshan timings receive higher percentiles. Team cards
 keep eligible-game counts in hover text rather than repeating them below values.
 
+### Hero and league performance
+
+The read-only reporting router also exposes:
+
+- `/api/hero/:heroId/performance`
+- `/api/leagues/:leagueId/performance`
+
+Filters are `leagueId`, `patchId` (`all` or a positive ID), and `stage` (`all`,
+`regular`, `tiebreakers`, `playoffs`, `unknown`). Explicit series stages take priority over stored
+league stage boundaries. Missing or conflicting classifications remain unknown;
+they are included in All stages and are not guessed into another stage.
+
+Hero Performance and League Performance load on opening their tabs. Responses use
+the existing bounded, revision-aware 60-second cache. Completed backfill imports
+become visible without another Analytics job, schema change or API download.
+No source-match or roster records are modified by these views.
+Hero Performance exposes Season and Patch filters; Stage is available on League Performance.
+
+Hero reports distinguish played picks from complete-draft bans/contest rates,
+show usage/results, player rankings on that hero, patch results, and item purchase
+timings. Role-mixed farming/contribution cards and cross-hero percentiles are omitted.
+Purchase timing is the median of the first recorded
+purchase of each item in each game; recipes, negative pregame times and events
+after match end are excluded. Purchase win rate is descriptive, not causal.
+Player-table percentiles compare players on the selected hero; roles can still
+differ. Damage/net-worth shares are role-dependent context.
+
+League reports include season averages, sortable team and player comparisons,
+hero draft trends, 10K comeback wins, smallest final gold gaps, longest games and
+standout player performances. Player/team combinations remain separate records.
+Percentiles compare the full eligible population in the filters, not only the
+rows visible after search/minimum-game filtering. Tables initially show 50 rows;
+sorting applies to the complete dataset before the row limit.
+
+New performance tables have no exterior frame inside cards, center numeric columns
+and leave the first column left aligned. Game samples remain in hover text when a
+Games column or coverage label already exists. Percentiles display as `X% out of Y`
+players, teams, heroes or player/team records as appropriate; five eligible samples
+per entry and two entries are required. Frequency percentages remain neutral;
+win/contribution percentages and percentiles use the red/yellow/green gradient.
+
 Fight breakdowns compare recorded deaths, gold/XP edges, team damage shares,
 healing and buybacks. The summary names the team with fewer deaths; gold/XP
 edges are shown separately. Team totals and resource edges require all five player

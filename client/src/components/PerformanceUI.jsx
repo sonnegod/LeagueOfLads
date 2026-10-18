@@ -29,15 +29,15 @@ export function ReportState({ report, children }) {
   return report.data ? children(report.data) : null;
 }
 
-export function Metric({ label, metric, suffix = '', digits = 1, time = false, description, percentageReference = 50, percentile, showSamples = true }) {
-  const entity = percentile?.teams != null ? 'teams' : 'players';
-  const comparison = entity === 'teams' ? 'team averages and rates in the selected season and patch' : 'player averages in the selected season, patch and hero';
+export function Metric({ label, metric, suffix = '', digits = 1, time = false, description, percentageReference = 50, percentile, showSamples = true, colorPercentage = true }) {
+  const entity = percentile?.entity || (percentile?.teams != null ? 'teams' : 'players');
+  const comparison = `${entity} averages and rates in the selected filters`;
   return <div className="performance-metric" title={description ?? (!showSamples ? `${metric?.samples || 0} eligible games` : undefined)}>
-    <span>{label}</span><strong style={suffix === '%' ? { color: percentageColor(metric?.value, { reference: percentageReference }) } : undefined}>
+    <span>{label}</span><strong style={suffix === '%' && colorPercentage ? { color: percentageColor(metric?.value, { reference: percentageReference }) } : undefined}>
       {time ? clock(metric?.value) : fmt(metric?.value, digits)}{metric?.value != null ? suffix : ''}</strong>
     {showSamples && <small>{metric?.samples || 0} eligible {metric?.samples === 1 ? 'game' : 'games'}</small>}
-    {percentile && <small className="performance-percentile" title={`Percentile of ${comparison}. At least ${percentile.minimumGames} eligible games per ${entity === 'teams' ? 'team' : 'player'} and two qualifying ${entity} required; ties share a rank.${percentile.higherIsBetter === false ? ' Earlier objective timing receives a higher percentile.' : ''}`}>
-      {percentile.value == null ? 'Percentile unavailable' : <><span style={{ color: percentageColor(percentile.value) }}>{fmt(percentile.value, 0)}%</span> out of {percentile.teams ?? percentile.players} {entity}</>}
+    {percentile && <small className="performance-percentile" title={`Percentile of ${comparison}. At least ${percentile.minimumGames} eligible games per comparison entry and two qualifying entries required; ties share a rank.${percentile.higherIsBetter === false ? ' Lower values receive a higher percentile.' : ''}`}>
+      {percentile.value == null ? 'Percentile unavailable' : <><span style={{ color: percentageColor(percentile.value) }}>{fmt(percentile.value, 0)}%</span> out of {percentile.entities ?? percentile.teams ?? percentile.players} {entity}</>}
     </small>}
   </div>;
 }
@@ -47,7 +47,7 @@ export function Panel({ title, children, className = '' }) {
   return <section className={`performance-panel ${className}`}>{title && <h2>{title}</h2>}{children}</section>;
 }
 
-export function ReportTable({ columns, columnGroups, rows, rowKey = 'key', initialSort = 'games', initialDirection = 'desc', centerStats = false, empty = 'No eligible games in this selection.' }) {
+export function ReportTable({ columns, columnGroups, rows, rowKey = 'key', initialSort = 'games', initialDirection = 'desc', centerStats = false, limit = Infinity, empty = 'No eligible games in this selection.' }) {
   const [sort, setSort] = useState({ key: initialSort, direction: initialDirection });
   if (!rows.length) return <p className="performance-message">{empty}</p>;
   const column = columns.find(c => c.key === sort.key);
@@ -65,8 +65,11 @@ export function ReportTable({ columns, columnGroups, rows, rowKey = 'key', initi
         direction: s.key === c.key && s.direction === 'desc' ? 'asc' : 'desc' }))}>
         {c.label}<span aria-hidden="true">{sort.key === c.key ? sort.direction === 'asc' ? '▲' : '▼' : '↕'}</span>
       </button>}</th>)}</tr></thead>
-    <tbody>{sorted.map((row, index) => <tr key={`${row[rowKey] ?? index}`}>
-      {columns.map(c => <td key={c.key} className={c.className}>{c.render ? c.render(row) : fmt(c.value ? c.value(row) : row[c.key])}</td>)}
+    <tbody>{sorted.slice(0, limit).map((row, index) => <tr key={`${row[rowKey] ?? index}`}>
+      {columns.map(c => {
+        const value = c.value ? c.value(row) : row[c.key];
+        return <td key={c.key} className={c.className}>{c.render ? c.render(row) : typeof value === 'string' ? value : fmt(value)}</td>;
+      })}
     </tr>)}</tbody>
   </table></div>;
 }
@@ -196,7 +199,8 @@ function EventGlyph({ category }) {
     <path d="M5 3h3v3h2V3h3v3h2V3h3v6l-2 2v7h2v2H4v-2h2v-7L5 9Z" />
     <path d="M10 14h3v6h-3Z" fill="#334155" />
   </g>;
-  if (category === 'roshan' || category === 'tormentor') return <g fill="#d1a183" stroke="#7c4935" strokeWidth="1">
+  if (category === 'roshan') return <image href="/icons/roshan.png" x="1" y="1" width="20" height="20" />;
+  if (category === 'tormentor') return <g fill="#d1a183" stroke="#7c4935" strokeWidth="1">
     <path d="m5 8-3-6 7 4h4l7-4-3 6 1 6-4 6H8l-4-6Z" />
     <path d="m7 10 3 2m5-2-3 2" stroke="#fee2a1" strokeWidth="2" /><path d="m8 16 3-2 3 2" fill="none" />
   </g>;

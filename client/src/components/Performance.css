@@ -6,6 +6,7 @@
 .performance-coverage strong { color: #bfdbfe; }
 .performance-panel { min-width: 0; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .performance-panel > h2 { margin: 0 0 16px; color: #dbeafe; font-size: 1.1rem; font-weight: 700; }
+.performance-comparison-count { display: inline-block; margin-left: 8px; font-size: .85rem; font-weight: 400; color: var(--muted-text); }
 .performance-message, .performance-note { color: var(--muted-text); font-size: .85rem; line-height: 1.6; }
 .performance-message { padding: 12px 0; margin: 0; }
 .performance-note { margin: 10px 0 0; }
@@ -23,7 +24,23 @@
 .performance-table th:first-child, .performance-table td:first-child { text-align: left; }
 .performance-table--center-stats th:not(:first-child), .performance-table--center-stats td:not(:first-child) { text-align: center; }
 .performance-table--center-stats th:not(:first-child) .detail-sort-button { justify-content: center; }
+.performance-table--center-stats th:first-child .detail-sort-button { justify-content: flex-start; }
 .performance-percentile span { font-weight: 700; }
+.performance-table-percentile { display: block; margin-top: 5px; font-size: .68rem; white-space: normal; }
+.performance-record-team { display: block; margin-top: 5px; color: var(--muted-text, #94a3b8); font-size: .75rem; white-space: normal; }
+.expanded-performance .performance-controls { margin-bottom: 8px; }
+.expanded-performance .performance-controls select, .expanded-performance .performance-controls input {
+  min-height: 38px; padding: 8px 10px; border: 1px solid #334155; border-radius: 6px; background: #020617; color: #e2e8f0;
+}
+.expanded-performance .performance-subtabs { margin: 12px 0; }
+.expanded-performance .performance-table th, .expanded-performance .detail-sort-button { white-space: normal; }
+.expanded-performance .performance-table td:first-child { white-space: normal; overflow-wrap: anywhere; min-width: 100px; max-width: 320px; }
+.content .expanded-performance .performance-table { border: 0 !important; border-radius: 0 !important; }
+.content .expanded-performance .performance-table tbody tr:last-child td { border-bottom: 0; }
+.expanded-performance .performance-table th { background: #17243a; color: #cbd5e1; }
+.expanded-performance .performance-more { display: block; margin: 12px auto 0; }
+.performance-item-label { display: inline-flex; align-items: center; gap: 10px; }
+.performance-item-label img { width: 42px; height: 30px; object-fit: contain; flex-shrink: 0; }
 .performance-table th.performance-cell-center, .performance-table td.performance-cell-center { text-align: center; }
 .performance-table th.performance-cell-left, .performance-table td.performance-cell-left { text-align: left; }
 .performance-table th.performance-cell-left .detail-sort-button { justify-content: flex-start; }
@@ -32,6 +49,18 @@
 .content :is(.player-detail-page, .team-detail-page) .performance-panel .performance-table tbody tr:last-child td { border-bottom: 0; }
 .performance-sample { color: #94a3b8; font-size: .68rem; }
 .performance-table th button { font-size: .78rem; }
+.league-standout-performance .performance-table { table-layout: fixed; }
+.league-standout-performance th:nth-child(1) { width: 45%; }
+.league-standout-performance th:nth-child(2) { width: 25%; }
+.league-standout-performance th:nth-child(3), .league-standout-performance th:nth-child(4) { width: 15%; }
+.expanded-performance .league-standout-performance .performance-table td { min-width: 0; max-width: none; white-space: normal; overflow-wrap: anywhere; }
+.league-standout-performance td > a { max-width: 100%; }
+.league-standout-performance td:nth-child(2) a > span > span { min-width: 0; }
+@media(max-width:700px) {
+  .league-standout-performance th:nth-child(1), .league-standout-performance th:nth-child(2) { width: 30%; }
+  .league-standout-performance th:nth-child(3), .league-standout-performance th:nth-child(4) { width: 20%; }
+  .league-standout-performance .performance-table th, .league-standout-performance .performance-table td { padding: 10px 6px; }
+}
 .performance-breakdowns .performance-table th, .performance-breakdowns .performance-table td { padding: 10px 8px; }
 .performance-breakdowns .performance-table th, .performance-breakdowns .detail-sort-button { white-space: normal; }
 .performance-breakdowns .performance-table td:first-child { white-space: normal; overflow-wrap: anywhere; }
@@ -65,6 +94,8 @@
 .performance-events time { color: #9db4d2; min-width: 43px; font-variant-numeric: tabular-nums; }
 .performance-events small { color: var(--muted-text); }
 .match-flow-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: 18px; align-items: start; min-width: 0; }
+.match-flow-layout .performance-chart-readout { justify-content: center; align-items: center; gap: 12px 28px; margin: 16px 0; font-size: clamp(1rem, 2vw, 1.25rem); text-align: center; }
+.match-flow-layout .performance-chart-readout > * { white-space: nowrap; }
 .match-flow-event-label { display: inline-flex; align-items: center; gap: 8px; }
 .match-flow-events .performance-events { max-height: 480px; }
 .match-flow-events .performance-events li { display: grid; grid-template-columns: 43px minmax(0,1fr); gap: 4px 10px; padding: 10px 8px; align-items: start; }
@@ -150,10 +181,16 @@
 .match-overview-team .winner-badge, .match-overview-team .loser-badge { padding: 0; border-radius: 0; background: none; letter-spacing: .1em; text-transform: uppercase; }
 .match-overview-team .winner-badge { color: #6ee7b7; }
 .match-overview-team .loser-badge { color: #94a3b8; }
-.match-overview-team small { color: #a5b7ce; font-size: .75rem; font-weight: 400; }
+.match-overview-team small { color: #a5b7ce; font-size: .95rem; font-weight: 500; }
 .match-scoreboard-team { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .match-scoreboard-team h2 { margin: 0; font-size: 1.1rem; }
 .match-scoreboard-team a { color: inherit; }
+.match-scoreboard .performance-table { table-layout: fixed; min-width: 900px; }
+.match-scoreboard .performance-table th:first-child { width: 30%; }
+.match-scoreboard .performance-table th:nth-child(2) { width: 8%; }
+.match-scoreboard .performance-table th:last-child { width: 10%; }
+.match-scoreboard .performance-table th, .match-scoreboard .detail-sort-button { white-space: normal; }
+.match-scoreboard .performance-table td:first-child { white-space: normal; overflow-wrap: anywhere; }
 .match-overview-draft { width: min(100%,300px); }
 .match-overview-draft .league-match-draft th, .match-overview-draft .league-match-draft td { padding: 4px 10px; text-align: center; vertical-align: middle; }
 .draft-context-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }

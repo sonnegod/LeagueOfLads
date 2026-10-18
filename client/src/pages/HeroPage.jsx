@@ -4,6 +4,7 @@ import HeroStatsTable from "../components/HeroStatsTable";
 import HeroDisplay from '../components/HeroDisplay';
 import { HeroBreakdownTable } from '../components/DetailSummaryTables';
 import './DetailPages.css';
+const HeroPerformance = React.lazy(() => import('../components/HeroPerformance'));
 
 
 export default function HeroPage() {
@@ -47,12 +48,16 @@ export default function HeroPage() {
         {/* Tabs */}
         <div className="ui-tabs">
           <button className="ui-tab" aria-pressed={activeTab === 'heroMatches'} onClick={() => setActiveTab('heroMatches')} style={activeTab === 'heroMatches' ? activeTabStyleDark : tabStyleDark}>Recent Matches</button>
+          <button className="ui-tab" aria-pressed={activeTab === 'performance'} onClick={() => setActiveTab('performance')}>Performance</button>
           <button className="ui-tab" aria-pressed={activeTab === 'players'} onClick={() => setActiveTab('players')} style={activeTab === 'players' ? activeTabStyleDark : tabStyleDark}>Players</button>
           <button className="ui-tab" aria-pressed={activeTab === 'teams'} onClick={() => setActiveTab('teams')} style={activeTab === 'teams' ? activeTabStyleDark : tabStyleDark}>Teams</button>
           <button className="ui-tab" aria-pressed={activeTab === 'leagues'} onClick={() => setActiveTab('leagues')} style={activeTab === 'leagues' ? activeTabStyleDark : tabStyleDark}>Leagues</button>
         </div>
 
         {/* Tab Content */}
+        {activeTab === 'performance' && <React.Suspense fallback={<p role="status">Loading performance…</p>}>
+          <HeroPerformance key={hero_id} heroId={hero_id} />
+        </React.Suspense>}
         {activeTab === 'heroMatches' && <HeroStatsTable data={hero} />}
         
         {activeTab === 'players' && <HeroBreakdownTable rows={heroPlayerStats} type="players" />}
