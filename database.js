@@ -10,6 +10,7 @@ import AdjustedPlayersStore from './config/adjustedPlayersStore.js';
 import SeasonStore from './config/seasonStore.js';
 import { getLeaguePlayerRecords } from './config/leaguePlayerRecords.js';
 import { getPlayerTeammates } from './config/playerTeammates.js';
+import { getHeadToHeadMatches } from './config/playerHeadToHead.js';
 import { getUnmatchedMatchTeams } from './config/unmatchedMatchTeams.js';
 import { getLeagueSeries } from './config/leagueSeries.js';
 import PlayerAwardsStore from './config/playerAwards.js';
@@ -693,30 +694,7 @@ class DBInstance {
     getAwardsCatalog() { return this.playerAwards.catalog(); }
 
     getHeadToHeadMatches(p1Id, p2Id) {
-        return this.queryDatabase(`
-            SELECT 
-                ml.DatePlayed,
-                ml.MatchId,
-                mp1.PlayerId as P1Id,
-                ti1.TeamName as P1Team,
-                mp2.PlayerId as P2Id,
-                ti2.TeamName as P2Team,
-                mp1.Winner as P1Won,
-                (mp1.Kills || '/' || mp1.Deaths || '/' || mp1.Assists) as P1KDA,
-                (mp2.Kills || '/' || mp2.Deaths || '/' || mp2.Assists) as P2KDA
-            FROM MatchPlayer mp1
-            JOIN MatchPlayer mp2 ON mp1.MatchId = mp2.MatchId
-            JOIN MatchLeague ml on mp1.MatchId = ml.MatchId
-            -- Get Team Names for the match
-            JOIN MatchTeamPlayer mtp1 ON mtp1.MatchId = mp1.MatchId AND mtp1.PlayerId = mp1.PlayerId
-            JOIN MatchTeamPlayer mtp2 ON mtp2.MatchId = mp2.MatchId AND mtp2.PlayerId = mp2.PlayerId
-            JOIN TeamInfo ti1 on mtp1.TeamId = ti1.TeamId
-            JOIN TeamInfo ti2 on mtp2.TeamId = ti2.TeamId
-            WHERE mp1.PlayerId = ? 
-              AND mp2.PlayerId = ?
-              AND mtp1.TeamId != mtp2.TeamId -- Ensure they were on opposite teams
-            ORDER BY ml.DatePlayed DESC,ml.MatchId DESC
-        `, [p1Id, p2Id]);
+        return getHeadToHeadMatches(this.db,p1Id,p2Id);
     }
 
     getPlayerHeroesByAccountId(playerId){

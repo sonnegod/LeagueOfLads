@@ -4,6 +4,12 @@ import Select from 'react-select'; // Ensure this is installed: npm install reac
 import { trackSiteEvent } from '../utils/siteAnalytics';
 import { Trophy, Swords, Crosshair, Coins, User } from 'lucide-react';
 
+const matchDate=value=>{
+  if(!value)return 'Unknown';
+  const date=new Date(value);
+  return Number.isNaN(date.getTime())?'Unknown':date.toLocaleDateString();
+};
+
 const HeadToHead = () => {
   const [players, setPlayers] = useState([]);
   const [p1Id, setP1Id] = useState('');
@@ -103,7 +109,7 @@ const HeadToHead = () => {
             <tbody className="divide-y divide-slate-800">
               {data.history.matches.map((m, i) => (
                 <tr key={i} className="hover:bg-slate-800/50 transition">
-                  <td className="p-3">{new Date(m.DateCreated).toLocaleDateString()}</td>
+                  <td className="p-3">{matchDate(m.DatePlayed)}</td>
                   <td className="p-3"><Link to={`/match/${m.MatchId}`}>{m.MatchId}</Link></td>
                   <td className="p-3 text-white">
                     <span className="text-blue-400">{m.P1Team}</span> vs <span className="text-red-400">{m.P2Team}</span>
