@@ -5,8 +5,41 @@ import AdjustedPlayersStore from '../config/adjustedPlayersStore.js';
 import SeasonStore from '../config/seasonStore.js';
 import PlayerAwardsStore from '../config/playerAwards.js';
 import { CHAMPIONSHIP_ROSTER_PLAYERS_SQL } from '../config/championshipRoster.js';
+import { ScheduleStore } from '../betting/scheduleStore.js';
+import { currentSeasonRoster } from '../betting/rosterMembership.js';
 
 const screenshot = `data:image/png;base64,${Buffer.from('89504e470d0a1a0a', 'hex').toString('base64')}`;
+
+for (const confirmBeforeStart of [false,true]) test(`TBD confirmation ${confirmBeforeStart?'before':'after'} league start preserves original submissions and freezes actual player MMR`,()=>{
+  const db=database();try {
+    const store=new SeasonStore(db),season=store.create('Pending roster season');
+    store.saveSignup(season.SeasonId,'Signups','Register your team');store.setSignupStatus(season.SeasonId,true);
+    const submit=(name,first)=>store.saveTeam(season.SeasonId,first,{teamName:name,players:Array.from({length:5},(_,i)=>({
+      playerId:first+i,playerName:`Player ${first+i}`,mmr:6000,dotaProfileUrl:`https://www.dotabuff.com/players/${first+i}`,screenshot,
+    }))});
+    const a=submit('A',1),b=submit('B',6);
+    store.setSignupStatus(season.SeasonId,false);
+    db.prepare('UPDATE SeasonTeamPlayers SET PlayerId=1 WHERE TeamSubmissionId=? AND Slot=0').run(b.TeamSubmissionId);
+    const schedules=new ScheduleStore(db),at=new Date(Date.now()-1000);
+    schedules.setPendingSlot(season.SeasonId,{teamKey:b.TeamSubmissionId,slot:0,estimatedMMR:7000,expectedPlayerId:1},'50',at);
+    assert.equal(store.teams(season.SeasonId).find(t=>t.TeamSubmissionId===b.TeamSubmissionId).AverageMMR,6200);
+    db.exec("INSERT INTO PlayerInfo VALUES(11,'Actual fifth player')");
+    if(confirmBeforeStart)schedules.confirmPendingSlot(season.SeasonId,{teamKey:b.TeamSubmissionId,slot:0,playerId:11,mmr:6900},'50',new Date(at.getTime()+500));
+    store.addGroup(season.SeasonId,'A');store.randomize(season.SeasonId);
+    store.start(season.SeasonId,12345);
+    assert.equal(store.rosters.forSubmission(b.TeamSubmissionId).players.length,confirmBeforeStart?5:4);
+    assert.deepEqual(store.rosters.forSubmission(b.TeamSubmissionId).pendingSlots,confirmBeforeStart?[]:[{Slot:0}]);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM SignupMMRs').get().n,confirmBeforeStart?10:9);
+    assert.equal(db.prepare('SELECT PlayerId FROM SeasonTeamPlayers WHERE TeamSubmissionId=? AND Slot=0').get(b.TeamSubmissionId).PlayerId,1);
+    const later=new Date(Date.now()+1000); // SeasonStore's effective start uses the real clock.
+    if(!confirmBeforeStart)schedules.confirmPendingSlot(season.SeasonId,{teamKey:b.TeamSubmissionId,slot:0,playerId:11,mmr:6900},'50',later);
+    assert.equal(store.rosters.forSubmission(b.TeamSubmissionId).players.length,5);
+    assert.equal(db.prepare('SELECT SignupMMR FROM SignupMMRs WHERE TeamSubmissionId=? AND PlayerId=11').get(b.TeamSubmissionId).SignupMMR,6900);
+    assert.equal(currentSeasonRoster(db,season.SeasonId,'active').filter(p=>p.PlayerId===1).length,1);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM SeasonRosterChanges').get().n,0);
+    assert.ok(store.rosters.forSubmission(a.TeamSubmissionId).players.some(p=>p.PlayerId===1));
+  }finally{db.close();}
+});
 
 function database() {
   const db = new Database(':memory:');

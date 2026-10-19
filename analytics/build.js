@@ -4,6 +4,7 @@ import { METRICS } from './store.js';
 import { publishLeagueHighlights } from './highlights.js';
 import { bracketSeriesFormats } from './seriesStories.js';
 import { createWarehouseFeatures, warehouseMatchTime, summarizeWarehouseFeatures, WAREHOUSE_FACT_TABLES } from './warehouseFeatures.js';
+import { applySignupSlotOverrides, pendingSlotOverrides } from '../config/pendingRosterSlots.js';
 
 function hasTable(db, name) {
   return Boolean(db?.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
@@ -228,6 +229,7 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
         const teamMap = new Map();
         const rosters = new Map();
         const playerTeams = new Map();
+        const slotOverrides = season.Preview ? [] : pendingSlotOverrides(league, season.SeasonId);
         const history = !season.Preview && hasTable(league,'TeamRosterMembershipHistory') ? league.prepare(`SELECT h.* FROM TeamRosterMembershipHistory h
           JOIN SeasonTeams t ON t.TeamSubmissionId=h.TeamSubmissionId WHERE t.SeasonId=? ORDER BY h.EffectiveFromUtc,h.MembershipId`).all(season.SeasonId) : [];
         const submittedTeams = season.Preview ? previewTeams(league, season.ExternalLeagueId) : league.prepare(`SELECT TeamSubmissionId, TeamName, GroupId, ExternalTeamId, IsManual,
@@ -250,8 +252,15 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
           const declared = !season.Preview && rosterTables ? league.prepare(`SELECT PlayerId, Slot FROM TeamRosterPlayers
             WHERE TeamSubmissionId = ? ORDER BY Slot`).all(team.TeamSubmissionId) : [];
           const finalized = declared.length > 0 || history.some(h=>h.TeamSubmissionId===team.TeamSubmissionId);
-          const players = season.Preview ? [] : finalized ? declared : league.prepare(`SELECT PlayerId, Slot FROM SeasonTeamPlayers
+          const rawPlayers = season.Preview ? [] : finalized ? declared : league.prepare(`SELECT PlayerId, Slot FROM SeasonTeamPlayers
             WHERE TeamSubmissionId = ? ORDER BY Slot`).all(team.TeamSubmissionId);
+          const teamOverrides = slotOverrides.filter(p=>p.TeamSubmissionId===team.TeamSubmissionId);
+          const pending = teamOverrides.filter(p=>p.ConfirmedPlayerId==null);
+          const players = finalized ? rawPlayers.filter(p=>!pending.some(s=>s.Slot===p.Slot))
+            : applySignupSlotOverrides(rawPlayers.map(p=>({...p,TeamSubmissionId:team.TeamSubmissionId})),teamOverrides);
+          for(const p of pending) analytics.prepare('INSERT INTO PrivatePendingRosterSlots VALUES(?,?,?,?)')
+            .run(runId,team.TeamSubmissionId,p.Slot,p.EstimatedMMR);
+          if(pending.length)flag('team',team.TeamSubmissionId,'provisional_roster');
           const period = finalized ? league.prepare('SELECT EffectiveFrom, EffectiveTo, FromEstimated FROM TeamRosterPeriods WHERE TeamSubmissionId = ?')
             .get(team.TeamSubmissionId) : null;
           const roster = { finalized, from: utc(period?.EffectiveFrom), to: utc(period?.EffectiveTo),
@@ -264,7 +273,7 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
           if (!season.Preview && ['active', 'ended'].includes(season.Status) && (!finalized || !roster.from || roster.estimated)) {
             flag('team', team.TeamSubmissionId, 'unresolved_roster_period');
           }
-          let mmrTotal = 0; let mmrSamples = 0;
+          let mmrTotal = pending.reduce((sum,p)=>sum+p.EstimatedMMR,0); let mmrSamples = pending.length;
           for (const player of players) {
             if (playerTeams.has(player.PlayerId) && playerTeams.get(player.PlayerId) !== team.TeamSubmissionId) {
               roster.conflicts.add(player.PlayerId);
@@ -281,10 +290,11 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
               WHERE TeamSubmissionId = ? AND PlayerId = ?`).get(team.TeamSubmissionId, player.PlayerId) : null;
             const submitted = !finalized && hasSubmittedMMRs ? league.prepare(`SELECT MMR FROM SeasonTeamPlayers
               WHERE TeamSubmissionId = ? AND PlayerId = ?`).get(team.TeamSubmissionId, player.PlayerId) : null;
-            const candidateMMR = validNumber(frozen?.MMR ?? submitted?.MMR);
+            const confirmed = teamOverrides.find(p=>p.ConfirmedPlayerId===player.PlayerId);
+            const candidateMMR = validNumber(frozen?.MMR ?? confirmed?.ConfirmedMMR ?? submitted?.MMR);
             const mmr = candidateMMR > 0 ? candidateMMR : null;
             addRosterInput.run(runId, team.TeamSubmissionId, player.PlayerId, mmr,
-              frozen ? 'finalized_signup' : submitted ? 'submission' : 'unavailable');
+              frozen ? 'finalized_signup' : confirmed ? 'pending_slot_confirmation' : submitted ? 'submission' : 'unavailable');
             if (mmr !== null) { mmrSamples += 1; mmrTotal += mmr; }
           }
           const historical=new Map(roster.intervals.filter(h=>!players.some(p=>p.PlayerId===h.PlayerId)).map(h=>[h.PlayerId,h]));
@@ -296,9 +306,9 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
           const candidateManualMMR = validNumber(team.ManualAverageMMR);
           const manualMMR = candidateManualMMR > 0 ? candidateManualMMR : null;
           const quality = team.IsManual ? manualMMR === null ? 'missing_manual_mmr' : 'manual_input'
-            : mmrSamples === 5 && players.length === 5 ? 'ready' : 'missing_roster_inputs';
+            : mmrSamples === 5 && players.length + pending.length === 5 ? pending.length ? 'provisional_roster' : 'ready' : 'missing_roster_inputs';
           addTeamFeatures.run(runId, team.TeamSubmissionId, season.SeasonId,
-            team.IsManual ? manualMMR : quality === 'ready' ? mmrTotal / mmrSamples : null, mmrSamples, 1, quality);
+            team.IsManual ? manualMMR : ['ready','provisional_roster'].includes(quality) ? mmrTotal / mmrSamples : null, mmrSamples, 1, quality);
         }
         for (const [teamId, roster] of rosters) if (roster.conflicts.size) {
           analytics.prepare(`UPDATE PrivateTeamFeatures SET QualityStatus = 'conflicting_roster'
@@ -478,7 +488,7 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
       for (const { RunId } of old) {
         for (const table of [...WAREHOUSE_FACT_TABLES, 'SourceSnapshots', 'DataQualityIssues', 'SeasonFacts', 'TeamFacts', 'PlayerFacts',
           'RosterMembership', 'RosterMembershipIntervals', 'MatchFacts', 'PlayerTeamSeasonStats', 'PlayerMetricStats', 'TeamSeasonStats', 'PrivatePlayerFeatures',
-          'PrivateRosterInputs', 'PrivateTeamFeatures', 'HeroFacts', 'ChampionFacts', 'GroupFacts', 'SeriesFacts']) {
+          'PrivateRosterInputs', 'PrivateTeamFeatures', 'PrivatePendingRosterSlots', 'HeroFacts', 'ChampionFacts', 'GroupFacts', 'SeriesFacts']) {
           analytics.prepare(`DELETE FROM ${table} WHERE RunId = ?`).run(RunId);
         }
       }

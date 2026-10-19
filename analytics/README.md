@@ -472,3 +472,11 @@ isolation. See `AnalyticsOverhaul.md` for the full plan. Event-triggered refresh
 models/markets/wallets are implemented separately in Betting. Eligible validated
 markets publish automatically; unsupported formats and insufficient signup-era
 history hold prices. Further private-model calibration remains a later phase.
+
+Version 8 adds `PrivatePendingRosterSlots` for admin-declared Player TBD slots.
+It retains the private estimated MMR alongside its team and slot, with no fake
+player identity. `PrivateTeamFeatures` includes that estimate in the five-slot
+average and labels the roster `provisional_roster`. Confirmed player membership
+remains separate. Public projections show only the pending count; estimates do
+not enter browser responses. Confirming a slot uses its actual player/MMR and
+effective membership, without rewriting the original signup submission.

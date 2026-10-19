@@ -6,6 +6,7 @@ import { normalizeLeagueRules } from '../config/leagueRules.js';
 import {plannedGames,plannedGameCounts,gameCountsChanged} from './seasonFormat.js';
 import {localBettingTestMode} from './localTestPolicy.js';
 import { currentSeasonRoster, conflictingRosterPlayers } from './rosterMembership.js';
+import { currentPendingSlots } from '../config/pendingRosterSlots.js';
 import { MODEL_VERSION,METRICS,metricLabel,seededRandom,validateBaseline,validateLineupModel,validateStatDistributions,seriesForecast,statForecast,leaderForecast,simulateSeason,seasonWinsForecast } from './models.js';
 
 const allVoid = (book,market,reason) => book.void(market.MarketId,reason);
@@ -26,7 +27,8 @@ function setupMatchesSource(league,setup) {
   const rules=live||league.prepare('SELECT * FROM SeasonLeagueRules WHERE SeasonId=?').get(setup.SeasonId);
   const roster=currentSeasonRoster(league,setup.SeasonId,season.Status);
   return JSON.stringify(teams)===JSON.stringify(expected.teams)&&JSON.stringify(normalizeLeagueRules(rules))===JSON.stringify(normalizeLeagueRules(expected.rules))
-    &&JSON.stringify(roster)===JSON.stringify(expected.roster);
+    &&JSON.stringify(roster)===JSON.stringify(expected.roster)
+    &&JSON.stringify(currentPendingSlots(league,setup.SeasonId))===JSON.stringify(expected.pendingSlots||[]);
 }
 function regularDataReady(league,inputs,setup,events,{checkMembership=true}={}) {
   if(setup?.RegularSeasonComplete&&Date.parse(setup.UpdatedAtUtc)>Date.parse(inputs.asOf))return false;
@@ -81,6 +83,11 @@ export function seasonGuard(league,analyticsPath,seasonId,market,now=new Date(),
   if(read(`rosterConflicts:${seasonId}`,()=>conflictingRosterPlayers(currentSeasonRoster(league,seasonId,seasonState.Status)).length)) {
     return 'Resolve conflicting roster memberships before betting';
   }
+  const currentRoster=read(`roster:${seasonId}`,()=>currentSeasonRoster(league,seasonId,seasonState.Status));
+  if(market.MarketType==='player_leader'&&read(`pendingSlots:${seasonId}`,()=>currentPendingSlots(league,seasonId)).length)
+    return 'Player-leader markets open after every roster is confirmed';
+  if(market.MarketType==='season_player'&&!currentRoster.some(p=>p.PlayerId===market.PlayerId&&p.TeamSubmissionId===market.TeamKey))
+    return 'This player is not confirmed on that roster';
   if(table('BettingRefreshState')) {
     const refresh=read('refresh',()=>league.prepare('SELECT RequestedRevision,CompletedRevision FROM BettingRefreshState WHERE Id=1').get());
     if(refresh.RequestedRevision>refresh.CompletedRevision)return 'Updated markets are being prepared';
@@ -358,15 +365,18 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
           &&now.getTime()-Date.parse(inputs.asOf)<48*3600000;
         issues.push('local_test_only');
       }
+      const seasonRoster=currentSeasonRoster(league,season.SeasonId,season.Status);
       const existing=book.db.prepare("SELECT * FROM BettingMarkets WHERE SeasonId=? AND Status IN ('open','held','locked')").all(season.SeasonId);
       for(const m of existing) {
         const event=m.EventId&&events.find(e=>e.EventId===m.EventId);
         const started=event&&fixtureGuard(league,event.EventId,m,now,book.env)==='The fixture has already started';
         const closed=m.Status==='locked'||Date.parse(m.CloseAtUtc)<=now.getTime()||started
           ||!m.EventId&&inputs.games.some(g=>g.Stage==='regular')||event&&(event.StartedAtUtc||event.Status==='started'||event.Status==='completed');
-        const held=!sourceReady||!validation.validated||event?.Status==='needs_review'||event?.Stage==='tiebreaker';
+        const pendingLeader=m.MarketType==='player_leader'&&inputs.pendingSlots.length>0;
+        const absentPlayer=m.MarketType==='season_player'&&!seasonRoster.some(p=>p.PlayerId===m.PlayerId&&p.TeamSubmissionId===m.TeamKey);
+        const held=pendingLeader||absentPlayer||!sourceReady||!validation.validated||event?.Status==='needs_review'||event?.Stage==='tiebreaker';
         book.db.prepare('UPDATE BettingMarkets SET Status=?,HoldReason=? WHERE MarketId=?').run(closed?'locked':held?'held':m.Status,
-          held?'source_or_model_not_ready':null,m.MarketId);
+          pendingLeader?'pending_roster_slots':absentPlayer?'player_not_rostered':held?'source_or_model_not_ready':null,m.MarketId);
       }
       if(!sourceReady||!validation.validated){if(!sourceReady)issues.push('league_source_not_ready');if(!validation.validated)issues.push(validation.reason);continue;}
       const consumed={inputs,events,setup};
@@ -451,7 +461,7 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
         }
         for(const [stat,scope] of [['kills','total'],['kills','average'],['gpm','average'],['xpm','average']]) {
           if(!validation.statDistributions[stat]?.validated)continue;
-          const prediction=roster.length===inputs.teams.length*5?leaderForecast(inputs,roster,stat,scope,plannedGameCounts(setup),random,simulations):null;
+          const prediction=!inputs.pendingSlots.length&&roster.length===inputs.teams.length*5?leaderForecast(inputs,roster,stat,scope,plannedGameCounts(setup),random,simulations):null;
           if(prediction)publish({...def,type:'player_leader',stat,scope,title:`Regular-season leader — ${metricLabel(stat)} ${scope}`},prediction,first.ScheduledStartUtc);
         }
         const simulated=simulateSeason(inputs,setup,random,simulations);forecasts.push({seasonSimulation:simulated});

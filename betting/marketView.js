@@ -17,7 +17,7 @@ export function groupTeamMarkets(markets,teams,groupNames={}) {
     if(!placement&&!selection&&!wins)continue;
     if(!groups.has(team.GroupId))groups.set(team.GroupId,{groupId:team.GroupId,
       name:groupNames[team.GroupId]||(team.GroupId==null?'Unassigned':`Group ${team.GroupId}`),teams:[]});
-    groups.get(team.GroupId).teams.push({teamKey:team.TeamSubmissionId,teamId:team.ExternalTeamId,name:team.TeamName,
+    groups.get(team.GroupId).teams.push({teamKey:team.TeamSubmissionId,teamId:team.ExternalTeamId,name:team.TeamName,pendingPlayers:team.PendingPlayers||0,
       champion:selection?{market:identity(champion),selection}:null,
       wins:wins||null,
       placement:placement?placement.selections.map(s=>({key:s.key,market:identity(placement),selection:s})):[]});

@@ -79,6 +79,7 @@ test('Betting and league Analytics require the site role while league admins ret
   const f = engineFixture();
   const audits = []; let refreshes = 0;
   f.schedules.audit = (type, message) => audits.push({ type, message, actor: getAuditActor() });
+  f.league.exec('CREATE TABLE PlayerInfo(PlayerId INTEGER PRIMARY KEY,PlayerName TEXT);INSERT INTO PlayerInfo SELECT DISTINCT PlayerId,\'Player \'||PlayerId FROM SeasonTeamPlayers');
   const betting = createBettingRoutes({ ...f, analyticsPath: ':memory:', refresh: () => refreshes++ });
   const analytics = createAnalyticsRoutes({ getPaths: () => ({ analytics: 'missing-site-management-test.db' }) });
   const app = express(); app.use(express.json());
@@ -115,8 +116,15 @@ test('Betting and league Analytics require the site role while league admins ret
     assert.equal((await request('/api/site-management/league-analytics/highlights/settings', 'league-admin', 'PATCH', { paused: true })).status, 403);
     assert.equal((await request('/api/admin/rosters/status')).status, 401);
     const roster = await request('/api/admin/rosters/status', 'league-admin'); assert.equal(roster.status, 200);
-    const data = await roster.json(); assert.deepEqual(Object.keys(data).sort(), ['season', 'teams']);
+    const data = await roster.json(); assert.deepEqual(Object.keys(data).sort(), ['rosterSlots', 'season', 'teams']);
     assert.equal(data.season.seasonId, 1); assert.equal(data.teams.length, 2);
+    assert.equal(data.rosterSlots.length, 10);
+    const candidates = await request('/api/admin/rosters/players?search=Player', 'league-admin');
+    assert.equal(candidates.status,200);assert.equal((await candidates.json()).players.length,10);
+    assert.equal((await request('/api/admin/rosters/seasons/1/pending-slots', null, 'POST', {})).status,401);
+    assert.equal((await request('/api/admin/rosters/seasons/1/pending-slots', 'owner', 'POST', {})).status,403);
+    assert.equal((await request('/api/admin/rosters/seasons/1/pending-slots', 'league-admin', 'POST', {})).status,400);
+    assert.equal((await request('/api/admin/rosters/seasons/1/pending-slots/confirm', 'league-admin', 'POST', {})).status,400);
     assert.equal((await request('/api/admin/rosters/seasons/1/roster-changes', 'league-admin', 'POST', {})).status, 400);
     assert.equal((await request('/api/admin/rosters/refresh', 'league-admin', 'POST', {})).status, 404);
     assert.equal((await request('/api/admin/betting/status', 'league-admin')).status, 404);

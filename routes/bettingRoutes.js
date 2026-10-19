@@ -11,6 +11,7 @@ import {rebuildPreseasonPreview} from '../betting/previewRefresh.js';
 import {groupPlayerMarkets,groupTeamMarkets} from '../betting/marketView.js';
 import {readFixtureMarketPage,readScheduledPlayers,marketBettors} from '../betting/fixtureMarketView.js';
 import { currentSeasonRoster, conflictingRosterPlayers } from '../betting/rosterMembership.js';
+import { currentPendingSlots } from '../config/pendingRosterSlots.js';
 
 const positive=value=>/^\d+$/.test(String(value))&&Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):null;
 export function bettingActor(req) {
@@ -189,6 +190,7 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
       WHERE ParseStatus='needs_review' AND SeasonId=? ORDER BY LastSeenAtUtc DESC LIMIT 50`).all(sid);
     return res.json({localTesting:book.localTesting,season:season?{seasonId:sid,name:season.LeagueName,status:season.Status,leagueId:season.ExternalLeagueId}:null,
       rosterConflicts:season?conflictingRosterPlayers(currentSeasonRoster(league,sid,season.Status)):[],
+      pendingRosterSlots:season?currentPendingSlots(league,sid).length:0,
       seasons:league.prepare('SELECT SeasonId,LeagueName,Status FROM LeagueSeasons ORDER BY ExternalLeagueId DESC NULLS LAST,SeasonId DESC LIMIT 30').all().map(s=>({seasonId:s.SeasonId,name:s.LeagueName,status:s.Status})),
       setup:setup?{revision:setup.Revision,gamesPerTeam:setup.RegularGamesPerTeam,gamesByTeam:JSON.parse(setup.SetupJson).gamesByTeam||null,finalizedAt:setup.FinalizedAtUtc,completion:setup.Completion,regularSeasonComplete:!!setup.RegularSeasonComplete}:null,
       teams:sid?schedules.teams(sid).map(t=>({teamKey:t.TeamSubmissionId,name:t.TeamName,teamId:t.ExternalTeamId})):[],
@@ -217,7 +219,25 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
     const season=sid?league.prepare('SELECT SeasonId,LeagueName,Status FROM LeagueSeasons WHERE SeasonId=?').get(sid):null;
     res.set('Cache-Control','no-store');
     return res.json({season:season?{seasonId:season.SeasonId,name:season.LeagueName,status:season.Status}:null,
-      teams:sid?schedules.teams(sid).map(t=>({teamKey:t.TeamSubmissionId,name:t.TeamName,teamId:t.ExternalTeamId})):[]});
+      teams:sid?schedules.teams(sid).map(t=>({teamKey:t.TeamSubmissionId,name:t.TeamName,teamId:t.ExternalTeamId})):[],
+      rosterSlots:sid?schedules.rosterSlots(sid):[]});
+  }));
+  rosterRoutes.get('/players',endpoint((req,res)=>{
+    const search=String(req.query.search||'').trim();if(search.length>100)fail('Search is too long');
+    if(!search)return res.json({players:[]});
+    const pattern=`%${search.replace(/[!%_]/g,'!$&')}%`;
+    return res.json({players:league.prepare(`SELECT PlayerId,CAST(PlayerName AS TEXT) AS PlayerName FROM PlayerInfo
+      WHERE PlayerId>0 AND (CAST(PlayerName AS TEXT) LIKE ? ESCAPE '!' OR CAST(PlayerId AS TEXT) LIKE ? ESCAPE '!')
+      ORDER BY PlayerName COLLATE NOCASE,PlayerId LIMIT 50`).all(pattern,pattern)});
+  }));
+  rosterRoutes.post('/seasons/:seasonId/pending-slots',endpoint((req,res)=>{
+    const sid=positive(req.params.seasonId);if(!sid)fail('Invalid season');
+    return res.json(schedules.setPendingSlot(sid,req.body||{},bettingActor(req)));
+  }));
+  rosterRoutes.post('/seasons/:seasonId/pending-slots/confirm',endpoint((req,res)=>{
+    const sid=positive(req.params.seasonId);if(!sid)fail('Invalid season');const body={...req.body};
+    if(body.localTime){const parsed=parseScheduleTime(body.localTime,new Date().toISOString(),60,{allowPast:true});if(parsed.error)fail('Effective time needs correction');body.effectiveAtUtc=parsed.scheduledStartUtc;}
+    return res.json(schedules.confirmPendingSlot(sid,body,bettingActor(req)));
   }));
   const changeRoster=endpoint((req,res)=>{
     const sid=positive(req.params.seasonId);if(!sid)fail('Invalid season');let body={...req.body};

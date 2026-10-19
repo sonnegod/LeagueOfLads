@@ -9,6 +9,38 @@ import { ScheduleStore } from '../betting/scheduleStore.js';
 
 const at = new Date('2026-10-13T12:00:00.000Z');
 
+test('TBD slots remove placeholder membership, privately price five slots, and confirm without a permanent replacement',()=>{
+  const f=fixture();try {
+    f.league.exec(`UPDATE LeagueSeasons SET Status='active' WHERE SeasonId=3;
+      DELETE FROM MatchLeague WHERE LeagueId=100; UPDATE TeamRosterPeriods SET EffectiveTo=NULL;
+      ALTER TABLE TeamRosterPlayers ADD COLUMN FinalizedAt TEXT;
+      ALTER TABLE SeasonTeamPlayers ADD COLUMN MMR INTEGER DEFAULT 6000;
+      CREATE TABLE SignupMMRs(SeasonId INTEGER,TeamSubmissionId INTEGER,PlayerId INTEGER,SignupMMR INTEGER,PRIMARY KEY(TeamSubmissionId,PlayerId));
+      INSERT INTO SignupMMRs SELECT 3,TeamSubmissionId,PlayerId,6000 FROM SeasonTeamPlayers;
+      UPDATE TeamRosterPlayers SET PlayerId=1 WHERE TeamSubmissionId=12 AND Slot=0;
+      UPDATE SeasonTeamPlayers SET PlayerId=1 WHERE TeamSubmissionId=12 AND Slot=0;`);
+    const schedules=new ScheduleStore(f.league);
+    schedules.setPendingSlot(3,{teamKey:12,slot:0,estimatedMMR:7000,expectedPlayerId:1},'50',new Date(at.getTime()-1000));
+    buildAnalytics({...f,now:at});
+    let inputs=readSeasonBettingInputs(f.analytics,3,at);
+    assert.equal(inputs.roster.filter(p=>p.PlayerId===1).length,1);
+    assert.equal(inputs.roster.length,9);
+    assert.deepEqual(inputs.pendingSlots,[{TeamSubmissionId:12,Slot:0,EstimatedMMR:7000}]);
+    assert.equal(inputs.teams.find(t=>t.TeamSubmissionId===12).AverageSignupMMR,6200);
+    assert.equal(inputs.teams.find(t=>t.TeamSubmissionId===12).SignupQuality,'provisional_roster');
+    assert.equal(inputs.teams.find(t=>t.TeamSubmissionId===11).SignupQuality,'ready');
+    assert.doesNotMatch(JSON.stringify(safeAnalyticsStatus(f.analytics,at)),/EstimatedMMR|7000/);
+    assert.equal(f.league.prepare('SELECT PlayerId FROM SeasonTeamPlayers WHERE TeamSubmissionId=12 AND Slot=0').get().PlayerId,1);
+    schedules.confirmPendingSlot(3,{teamKey:12,slot:0,playerId:11,mmr:6900},'50',at);
+    buildAnalytics({...f,now:at});inputs=readSeasonBettingInputs(f.analytics,3,at);
+    assert.equal(inputs.pendingSlots.length,0);assert.equal(inputs.roster.length,10);
+    assert.equal(inputs.teams.find(t=>t.TeamSubmissionId===12).AverageSignupMMR,6180);
+    assert.equal(inputs.teams.find(t=>t.TeamSubmissionId===12).SignupQuality,'ready');
+    assert.equal(inputs.roster.find(p=>p.PlayerId===11).SignupMMR,6900);
+    assert.equal(f.league.prepare('SELECT COUNT(*) n FROM SeasonRosterChanges').get().n,0);
+  }finally{f.close();}
+});
+
 test('effective roster replacements retain earlier membership and classify later appearances against the new roster',()=>{
   const f=fixture();try {
     f.league.exec("ALTER TABLE TeamRosterPlayers ADD COLUMN FinalizedAt TEXT;UPDATE LeagueSeasons SET Status='active' WHERE SeasonId=3;UPDATE TeamRosterPeriods SET EffectiveTo=NULL;");

@@ -210,7 +210,7 @@ test('version 6 migrates additively, failed builds roll back features, correctio
     old.exec(readFileSync(new URL('../scripts/db/analytics.schema.sql', import.meta.url), 'utf8'));
     old.exec("INSERT INTO AnalyticsMigrations VALUES(6,'2026-10-01T00:00:00Z');UPDATE HighlightSettings SET Paused=1 WHERE Id=1");
     migrateAnalytics(old);
-    assert.equal(old.prepare('SELECT MAX(Version) v FROM AnalyticsMigrations').get().v, 7);
+    assert.equal(old.prepare('SELECT MAX(Version) v FROM AnalyticsMigrations').get().v, 8);
     assert.equal(old.prepare('SELECT Paused FROM HighlightSettings WHERE Id=1').get().Paused, 1);
   } finally { old.close(); }
   const f = fixture(); try {

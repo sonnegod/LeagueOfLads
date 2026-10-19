@@ -492,6 +492,36 @@ mobile browser checks placed both player and champion tickets, verified paging,
 and found no JavaScript exceptions or viewport overflow. These measurements do
 not represent the full application on the production 1 GB host.
 
+### Pending preseason roster spots
+
+Admin → League → Roster Changes is also available after signups close. An admin
+can mark an empty slot or a duplicated cross-team placeholder as **Player TBD**,
+with an estimated whole-number MMR above 5,500. Confirmed players must use the
+normal roster-change process. TBD declarations and estimate changes are limited
+to before the season's first regular kickoff or imported match.
+
+`SeasonPendingRosterSlots` in LadsData stores these slot overrides and later
+confirmations. Original submissions remain intact. Active rosters, Analytics and
+Betting exclude the placeholder identity from that team. Analytics v8 privately
+includes the estimated MMR in the five-slot team average; the missing historical
+player contribution is neutral. No player record, stats or prop is invented.
+Team odds display **Provisional roster** without exposing the estimate. Confirmed
+player props and team futures may publish through the existing source, model,
+schedule and setup checks. League-wide player-leader markets remain held until
+all pending slots are confirmed. Unresolved duplicate memberships still block.
+
+Confirm the actual player using the searchable picker, their MMR, and optionally
+an effective New York time (default now). This fills a declared vacancy, creates
+effective roster membership, and preserves accepted tickets and odds. It does
+not create a permanent-replacement refund. New quotes refresh; existing market
+lines remain fixed. Ordinary confirmed-player replacements retain their refund
+policy. Existing finalized setup is updated automatically, and refresh is queued.
+If no setup exists, finalize it from Site Management → Betting after groups and
+qualification rules are ready. Preseason previews must be rebuilt separately.
+
+The source slot table initializes on server/worker startup; the next Analytics
+build migrates v8 and rebuilds the facts. No manual database edits are required.
+
 Remaining work includes real prospective calibration, uncertainty estimates,
 additional explicitly defined competition formats and production Discord/job/
 resource verification. Tiebreaker-dependent futures hold while advancement rules

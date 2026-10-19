@@ -44,7 +44,8 @@ export function TeamOddsGroups({groups,...actions}) {
     <h2>{group.name}</h2><p className="historical-team-wins-help">Season wins counts regular-season games. A BO2 split gives each team one win.</p><div className="historical-betting-fixtures"><table className="sportsbook-table historical-team-table">
       <colgroup><col style={{width:'28%'}} />{columns.map(c=><col key={c.key} style={{width:c.key==='wins'?'28%':'11%'}} />)}</colgroup>
       <thead><tr><th scope="col">Team</th>{columns.map(c=><th key={c.key} scope="col">{c.label}</th>)}</tr></thead><tbody>
-        {group.teams.map(team=><tr key={team.teamKey||team.teamId}><th scope="row">{team.teamId?<Link to={`/team/${team.teamId}`} title={team.name}>{team.name}</Link>:team.name}</th>
+        {group.teams.map(team=><tr key={team.teamKey||team.teamId}><th scope="row">{team.teamId?<Link to={`/team/${team.teamId}`} title={team.name}>{team.name}</Link>:team.name}
+          {team.pendingPlayers>0&&<small className="sportsbook-notice" style={{display:'block'}} title="Team odds include an estimated contribution for each pending roster spot">Provisional roster · {team.pendingPlayers} Player TBD</small>}</th>
           {columns.map(column=>{
             if(column.key==='wins')return <td key="wins" className="historical-team-wins"><PlayerMarketPrices market={team.wins} {...actions}/></td>;
             const offer=column.key==='champion'?team.champion:team.placement.find(p=>p.key===column.key);

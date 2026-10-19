@@ -21,11 +21,15 @@ export function readSeasonBettingInputs(db, seasonId, now = new Date()) {
         IsStale: !Number.isFinite(Date.parse(source.LastSuccessAtUtc)) || Date.parse(source.LastSuccessAtUtc)>now.getTime() || now.getTime() - Date.parse(source.LastSuccessAtUtc)
           >= ANALYTICS_DEFAULTS.sourceStaleHours * 3600000,
       }));
+    const pendingSlots = db.prepare(`SELECT p.TeamSubmissionId,p.Slot,p.EstimatedMMR FROM PrivatePendingRosterSlots p
+      JOIN TeamFacts t ON t.RunId=p.RunId AND t.TeamSubmissionId=p.TeamSubmissionId
+      WHERE p.RunId=? AND t.SeasonId=? ORDER BY p.TeamSubmissionId,p.Slot`).all(run.RunId,seasonId);
     const teams = db.prepare(`SELECT t.TeamSubmissionId, t.TeamId, t.TeamName, t.GroupId, t.IsManual,
       f.AverageSignupMMR, f.RosterSamples, f.QualityStatus AS SignupQuality
       FROM TeamFacts t LEFT JOIN PrivateTeamFeatures f
       ON f.RunId = t.RunId AND f.TeamSubmissionId = t.TeamSubmissionId
-      WHERE t.RunId = ? AND t.SeasonId = ? ORDER BY t.TeamSubmissionId`).all(run.RunId, seasonId);
+      WHERE t.RunId = ? AND t.SeasonId = ? ORDER BY t.TeamSubmissionId`).all(run.RunId, seasonId)
+      .map(t=>({...t,PendingPlayers:pendingSlots.filter(p=>p.TeamSubmissionId===t.TeamSubmissionId).length}));
     const roster = db.prepare(`SELECT r.TeamSubmissionId, r.PlayerId, p.PlayerName, r.Slot,
       r.EffectiveFromUtc, r.EffectiveToUtc, r.FromEstimated, r.MembershipSource,
       i.SignupMMR, i.InputSource AS MMRSource
@@ -80,7 +84,7 @@ export function readSeasonBettingInputs(db, seasonId, now = new Date()) {
       .all(run.RunId,run.RunId);
     if (games.length>10000 || appearances.length>100000 || history.length>10000 || metricHistory.length>100000 || strengthHistory.length>100000) throw new Error('Betting input batch exceeds configured bounds');
     return { contractVersion: 1, analyticsRunId: run.RunId, asOf: run.AsOfUtc,
-      buildVersion: run.Version, season, sources, teams, roster, playerStats, teamStats, privatePlayerFeatures,
+      buildVersion: run.Version, season, sources, teams, roster, pendingSlots, playerStats, teamStats, privatePlayerFeatures,
       games, appearances, history, metricHistory, historyTeams, strengthHistory, historyRosters,
       rosterIntervals:db.prepare(`SELECT r.* FROM RosterMembershipIntervals r JOIN TeamFacts t ON t.RunId=r.RunId AND t.TeamSubmissionId=r.TeamSubmissionId
         WHERE r.RunId=? AND t.SeasonId=? ORDER BY r.TeamSubmissionId,r.PlayerId,r.EffectiveFromUtc`).all(run.RunId,seasonId) };

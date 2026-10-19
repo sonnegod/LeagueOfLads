@@ -61,7 +61,7 @@ export default function AdminPage() {
       const status = data.season?.Status || null;
       setSeasonStatus(status);
       setSeasonId(data.season?.SeasonId || null);
-      if (status !== 'active') setActiveLeagueTab('overview');
+      if (status !== 'active') setActiveLeagueTab(current => status === 'signup_closed' && current === 'rosterChanges' ? current : 'overview');
     }).catch(() => {});
     return () => { active = false; };
   }, [refreshKey]);
@@ -95,7 +95,8 @@ export default function AdminPage() {
       {activeTab === "league" && <div className="ui-tabs" style={editorTabBarStyle}>
         {[
           ["overview", "Overview"],
-          ...(seasonStatus === 'active' ? [["rosterChanges", "Roster Changes"], ["schedule", "Schedule"], ["highlights", "Highlights"], ["editor", "Editor"], ["playoffs", "Playoffs"],
+          ...(['signup_closed','active'].includes(seasonStatus) ? [["rosterChanges", "Roster Changes"]] : []),
+          ...(seasonStatus === 'active' ? [["schedule", "Schedule"], ["highlights", "Highlights"], ["editor", "Editor"], ["playoffs", "Playoffs"],
             ["settings", "Settings"]] : []),
         ].map(([key, label]) => <button key={key} type="button" className="ui-tab"
           aria-pressed={activeLeagueTab === key}

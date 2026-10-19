@@ -273,7 +273,7 @@ export function readHistoricalPreview(path,{scope='preseason',preseasonGroup='al
           if(!grouped.has(team.GroupId))grouped.set(team.GroupId,{groupId:team.GroupId,name:groupNames[team.GroupId]||`Group ${team.GroupId??'unassigned'}`,teams:[]});
           const signupTeam=report.previewKind==='signup'?report.rosterTeams.find(t=>t.teamId===team.TeamId):null;
           grouped.get(team.GroupId).teams.push({teamKey:team.TeamId,teamId:report.previewKind==='signup'?signupTeam?.externalTeamId||null:team.TeamId,
-            name:team.TeamName,championOdds:championPrices.get(`team:${team.TeamId}`)??null,placement,wins});
+            name:team.TeamName,pendingPlayers:signupTeam?.pendingPlayers||0,championOdds:championPrices.get(`team:${team.TeamId}`)??null,placement,wins});
         }
         teamGroups.push(...[...grouped.values()].sort((a,b)=>Number(a.groupId)-Number(b.groupId)).map(g=>({...g,
           teams:g.teams.sort((a,b)=>a.name.localeCompare(b.name,'en',{sensitivity:'base'})||a.teamId-b.teamId)})));

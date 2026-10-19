@@ -64,8 +64,11 @@ export function buildSignupPreseasonPreview({ inputs, history, historyReports = 
   if (inputs.games.some(g => g.Stage === 'regular')) throw new Error('Preseason preview requires a season without regular-season games');
   if (inputs.teams.length < 2 || inputs.teams.some(t => !t.GroupId)) throw new Error('Assign every team to a group');
   const roster = inputs.roster;
-  if (new Set(roster.map(p => p.PlayerId)).size !== roster.length || inputs.teams.some(t => roster.filter(p => p.TeamSubmissionId === t.TeamSubmissionId).length !== 5))
-    throw new Error('Each team needs five distinct players with no duplicate team memberships');
+  const pendingSlots=inputs.pendingSlots||[];
+  if (new Set(roster.map(p => p.PlayerId)).size !== roster.length || inputs.teams.some(t => {
+    const players=roster.filter(p=>p.TeamSubmissionId===t.TeamSubmissionId),pending=pendingSlots.filter(p=>p.TeamSubmissionId===t.TeamSubmissionId);
+    return players.length+pending.length!==5||new Set([...players,...pending].map(p=>p.Slot)).size!==5;
+  })) throw new Error('Each team needs five confirmed or explicit TBD slots and distinct players with no duplicate team memberships');
   const gameCounts = Object.fromEntries(inputs.teams.map(t => [t.TeamSubmissionId,
     2 * (inputs.teams.filter(other => other.GroupId === t.GroupId).length - 1)]));
   if (Object.values(gameCounts).some(n => n < 5 || n > 100)) throw new Error('BO2 groups require 4–51 teams');
@@ -99,9 +102,9 @@ export function buildSignupPreseasonPreview({ inputs, history, historyReports = 
     }
   }
   for (const [stat, aggregation] of [['kills', 'total'], ['kills', 'average'], ['gpm', 'average'], ['xpm', 'average']]) {
-    const prediction = leaderForecast(priceInputs, roster, stat, aggregation, gameCounts, random, simulations);
+    const prediction = pendingSlots.length?null:leaderForecast(priceInputs, roster, stat, aggregation, gameCounts, random, simulations);
     if (prediction) add({ type: 'player_leader', stat, aggregation, title: `Regular-season leader — ${stat} ${aggregation}` }, prediction);
-    else held.push({ scope: 'preseason', stat, reason: 'leader_field_has_missing_history_or_conflicting_players' });
+    else held.push({ scope: 'preseason', stat, reason: pendingSlots.length?'pending_roster_slots':'leader_field_has_missing_history_or_conflicting_players' });
   }
   const simulated = simulateSeason(priceInputs, { RegularGamesPerTeam: gameCounts }, random, simulations, { includeMatchups: true });
   if(simulated)for(const team of teams) {
@@ -137,8 +140,9 @@ export function buildSignupPreseasonPreview({ inputs, history, historyReports = 
     modelVersion: PRESEASON_MODEL_VERSION, inputDigest, simulations,
     preseasonMarkets: markets.length, seriesMarkets: 0, preseasonStatus: 'candidate_signup_rosters', pricingStatus: 'illustration_only',
     rosterSource: 'website_signups', neutralTeamPriors: neutral, conflictingPlayers: [], fixtures: [],
-    warnings: ['candidate_model_not_validated_for_live_betting', 'legacy_training_membership_unknown', ...(neutral ? ['team_prior_missing'] : [])],
+    warnings: ['candidate_model_not_validated_for_live_betting', 'legacy_training_membership_unknown', ...(neutral ? ['team_prior_missing'] : []), ...(pendingSlots.length?['provisional_rosters']:[])],
     rosterTeams: teams.map(t => ({ teamId: t.TeamId, externalTeamId: t.ActualTeamId, teamName: t.TeamName,
-      regularGames: gameCounts[t.TeamId], players: roster.filter(p => p.TeamSubmissionId === t.TeamId).map(p => ({ playerId: p.PlayerId, name: p.PlayerName })) })),
+      regularGames: gameCounts[t.TeamId], pendingPlayers:pendingSlots.filter(p=>p.TeamSubmissionId===t.TeamId).length,
+      players: roster.filter(p => p.TeamSubmissionId === t.TeamId).map(p => ({ playerId: p.PlayerId, name: p.PlayerName })) })),
     held, markets, privateInputs, matchupSimulation, generatedAt: asOf };
 }

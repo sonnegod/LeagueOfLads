@@ -60,7 +60,8 @@ export default function BettingAdminPanel({refreshKey}) {
       {data.seasons.map(s=><option key={s.seasonId} value={s.seasonId}>{s.name}</option>)}</select></label>}
     {error&&<p role="alert" className="sportsbook-error">{error}</p>}{message&&<p role="status">{message}</p>}
     {data?.rosterConflicts?.length>0&&['signup_closed','active'].includes(data.season?.status)&&<p className="sportsbook-notice" role="status">Players on multiple teams: {data.rosterConflicts.join(', ')}.
-      {' '}You can finalize setup and refresh Analytics. Season betting remains on hold until the placeholders are replaced with unique players. Finalize setup again after changing the roster.</p>}
+      {' '}Use Admin → League → Roster Changes to mark a duplicated placeholder as Player TBD with an estimated MMR, or confirm the real player. Unresolved duplicate memberships still hold season betting.</p>}
+    {data?.pendingRosterSlots>0&&<p className="sportsbook-notice">{data.pendingRosterSlots} Player TBD {data.pendingRosterSlots===1?'slot':'slots'}. Team odds use provisional rosters. Player-leader markets remain held until every slot is confirmed.</p>}
     {!data?<p>Loading betting administration…</p>:!sid?<p>Create a season to begin scheduling.</p>:<>
       {data.legacyIssues?.length>0&&<p role="alert">Legacy tickets needing source-data repair: {data.legacyIssues.map(t=>`#${t.LegacyTicketId}`).join(', ')}. Their original records and balances are preserved.</p>}
       <section className="betting-admin-widget"><h3>Betting setup · {data.season.name}</h3><p className="admin-help">Use Finalize setup once rosters, groups and qualification rules are ready. This saves the setup used to price preseason bets; markets also need a scheduled first kickoff and enough verified history.</p>

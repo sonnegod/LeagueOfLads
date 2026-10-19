@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { parseScheduleMessage, PARSER_VERSION } from './scheduleParser.js';
-import { currentSeasonRoster } from './rosterMembership.js';
+import { currentSeasonRoster, conflictingRosterPlayers } from './rosterMembership.js';
+import { ensurePendingRosterSchema, currentPendingSlots } from '../config/pendingRosterSlots.js';
 
 export const digest = value => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 export function fail(message, status = 400, code = 'INVALID_REQUEST') { const error = new Error(message); error.status = status; error.code = code; throw error; }
@@ -11,6 +12,7 @@ const utc = value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\
 export class ScheduleStore {
   constructor(db, { audit = () => {}, changed = () => {} } = {}) {
     this.db = db; this.audit = audit; this.changed = changed;
+    ensurePendingRosterSchema(db);
     db.exec(readFileSync(new URL('../scripts/db/schedules.schema.sql', import.meta.url), 'utf8'));
     const refreshColumns=db.pragma('table_info(BettingRefreshState)').map(c=>c.name);
     for(const [name,type] of Object.entries({LastAttemptAtUtc:'TEXT',LastCompletedAtUtc:'TEXT',ConsecutiveFailures:'INTEGER NOT NULL DEFAULT 0',LastErrorCode:'TEXT',NextRetryAtUtc:'TEXT'}))
@@ -32,7 +34,9 @@ export class ScheduleStore {
     }
   }
   teams(seasonId) {
-    const rows=this.db.prepare('SELECT TeamSubmissionId, TeamName, ExternalTeamId, GroupId, IsManual FROM SeasonTeams WHERE SeasonId = ? ORDER BY TeamSubmissionId').all(seasonId);
+    const pending=currentPendingSlots(this.db,seasonId);
+    const rows=this.db.prepare('SELECT TeamSubmissionId, TeamName, ExternalTeamId, GroupId, IsManual FROM SeasonTeams WHERE SeasonId = ? ORDER BY TeamSubmissionId').all(seasonId)
+      .map(t=>({...t,PendingPlayers:pending.filter(p=>p.TeamSubmissionId===t.TeamSubmissionId).length}));
     const season=this.db.prepare('SELECT Status,ExternalLeagueId FROM LeagueSeasons WHERE SeasonId=?').get(seasonId);
     if(['active','ended'].includes(season?.Status)&&this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='LeagueRosterEntries'").get()) {
       return rows.map(t=>({...t,GroupId:this.db.prepare('SELECT GroupId FROM LeagueRosterEntries WHERE LeagueId=? AND (TeamSubmissionId=? OR TeamId=?) ORDER BY EntryId LIMIT 1')
@@ -153,6 +157,76 @@ export class ScheduleStore {
     })();
   }
   setup(seasonId) { return this.db.prepare('SELECT * FROM SeasonBettingSetup WHERE SeasonId = ?').get(seasonId) || null; }
+  rosterSlots(seasonId) {
+    const season=this.db.prepare('SELECT Status FROM LeagueSeasons WHERE SeasonId=?').get(seasonId);
+    if(!season)return [];
+    const roster=currentSeasonRoster(this.db,seasonId,season.Status), pending=currentPendingSlots(this.db,seasonId);
+    return this.teams(seasonId).flatMap(team=>Array.from({length:5},(_,slot)=>{
+      const player=roster.find(p=>p.TeamSubmissionId===team.TeamSubmissionId&&p.Slot===slot);
+      const tbd=pending.find(p=>p.TeamSubmissionId===team.TeamSubmissionId&&p.Slot===slot);
+      return {teamKey:team.TeamSubmissionId,slot,playerId:player?.PlayerId??null,
+        name:player?this.db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId=?').get(player.PlayerId)?.PlayerName:null,
+        pending:!!tbd,estimatedMMR:tbd?.EstimatedMMR??null};
+    }));
+  }
+  setPendingSlot(seasonId,{teamKey,slot,estimatedMMR,expectedPlayerId=null},actor=null,now=new Date()) {
+    teamKey=id(teamKey);slot=Number(slot);estimatedMMR=Number(estimatedMMR);
+    if(!teamKey||!Number.isInteger(slot)||slot<0||slot>4||!Number.isSafeInteger(estimatedMMR)||estimatedMMR<=5500)
+      fail('Choose a team, slot, and estimated MMR above 5,500');
+    const result=this.db.transaction(()=>{
+      const season=this.db.prepare('SELECT * FROM LeagueSeasons WHERE SeasonId=?').get(seasonId);
+      if(!['active','signup_closed'].includes(season?.Status)||!this.teams(seasonId).some(t=>t.TeamSubmissionId===teamKey))fail('Choose a team in the current closed-signup or active season',409);
+      if(this.list(seasonId).some(e=>e.Stage==='regular'&&!['cancelled','forfeit','replaced'].includes(e.Status)
+        &&(e.StartedAtUtc||['started','completed'].includes(e.Status)||Date.parse(e.ScheduledStartUtc)<=now.getTime()))
+        ||this.db.prepare('SELECT 1 FROM MatchLeague WHERE LeagueId=? LIMIT 1').get(season.ExternalLeagueId))
+        fail('Declare pending slots before the season begins; use roster changes for confirmed players afterward',409);
+      const previous=this.db.prepare('SELECT * FROM SeasonPendingRosterSlots WHERE TeamSubmissionId=? AND Slot=?').get(teamKey,slot);
+      if(previous?.ConfirmedPlayerId)fail('This slot is already confirmed; use roster changes',409);
+      const roster=currentSeasonRoster(this.db,seasonId,season.Status);
+      const player=roster.find(p=>p.TeamSubmissionId===teamKey&&p.Slot===slot);
+      if((player?.PlayerId??null)!==(expectedPlayerId==null?null:id(expectedPlayerId)))fail('The roster changed; refresh before editing this slot',409);
+      if(player&&!conflictingRosterPlayers(roster).includes(player.PlayerId))fail('This is a confirmed player. Only an empty slot or duplicated placeholder can be marked TBD',409);
+      this.db.prepare(`INSERT INTO SeasonPendingRosterSlots
+        (TeamSubmissionId,Slot,EstimatedMMR,PlaceholderPlayerId,CreatedAtUtc,UpdatedAtUtc,ActorId) VALUES(?,?,?,?,?,?,?)
+        ON CONFLICT(TeamSubmissionId,Slot) DO UPDATE SET EstimatedMMR=excluded.EstimatedMMR,UpdatedAtUtc=excluded.UpdatedAtUtc,ActorId=excluded.ActorId`)
+        .run(teamKey,slot,estimatedMMR,player?.PlayerId??null,now.toISOString(),now.toISOString(),actor==null?null:String(actor));
+      if(player&&season.Status==='active') {
+        this.db.prepare('DELETE FROM TeamRosterPlayers WHERE TeamSubmissionId=? AND Slot=?').run(teamKey,slot);
+        this.db.prepare('DELETE FROM TeamRosterMembershipHistory WHERE TeamSubmissionId=? AND PlayerId=? AND Slot=?').run(teamKey,player.PlayerId,slot);
+      }
+      this.audit('Player TBD Declared',`Season ${seasonId}, team ${teamKey}, slot ${slot+1}: Player TBD, estimated MMR ${estimatedMMR}${player?`, removed placeholder ${player.PlayerId}`:''}`);
+      const setup=this.setup(seasonId);
+      if(setup)this.finalizeSetup(seasonId,JSON.parse(setup.SetupJson).gamesByTeam?'group_round_robin':setup.RegularGamesPerTeam,actor,now);
+      return {saved:true};
+    })();this.changed(seasonId);return result;
+  }
+  confirmPendingSlot(seasonId,{teamKey,slot,playerId,mmr,effectiveAtUtc=null},actor=null,now=new Date()) {
+    teamKey=id(teamKey);playerId=id(playerId);slot=Number(slot);mmr=Number(mmr);
+    const at=effectiveAtUtc==null?now.toISOString():utc(effectiveAtUtc);
+    if(!teamKey||!playerId||!Number.isInteger(slot)||slot<0||slot>4||!Number.isSafeInteger(mmr)||mmr<=5500||!at||Date.parse(at)>now.getTime())
+      fail('Choose a pending slot, real player, MMR above 5,500, and valid effective time');
+    const result=this.db.transaction(()=>{
+      const season=this.db.prepare('SELECT Status FROM LeagueSeasons WHERE SeasonId=?').get(seasonId);
+      if(!['active','signup_closed'].includes(season?.Status)||!this.teams(seasonId).some(t=>t.TeamSubmissionId===teamKey))fail('Season is not open for roster confirmation',409);
+      const pending=this.db.prepare('SELECT * FROM SeasonPendingRosterSlots WHERE TeamSubmissionId=? AND Slot=? AND ConfirmedPlayerId IS NULL').get(teamKey,slot);
+      if(!pending)fail('Pending slot not found',404);
+      if(Date.parse(at)<Date.parse(pending.CreatedAtUtc))fail('Effective time must be on or after the slot was marked TBD');
+      if(!this.db.prepare('SELECT 1 FROM PlayerInfo WHERE PlayerId=?').get(playerId))fail('Select an existing player account',404);
+      if(currentSeasonRoster(this.db,seasonId,season.Status).some(p=>p.PlayerId===playerId))fail('Player is already on a roster in this season',409);
+      this.db.prepare(`UPDATE SeasonPendingRosterSlots SET ConfirmedPlayerId=?,ConfirmedMMR=?,ConfirmedAtUtc=?,UpdatedAtUtc=?,ActorId=?
+        WHERE TeamSubmissionId=? AND Slot=?`).run(playerId,mmr,at,now.toISOString(),actor==null?null:String(actor),teamKey,slot);
+      if(season.Status==='active') {
+        this.db.prepare('INSERT INTO TeamRosterPlayers (TeamSubmissionId,PlayerId,Slot,FinalizedAt) VALUES(?,?,?,?)').run(teamKey,playerId,slot,at);
+        this.db.prepare('INSERT INTO TeamRosterMembershipHistory (TeamSubmissionId,PlayerId,Slot,EffectiveFromUtc,FromEstimated) VALUES(?,?,?,?,0)').run(teamKey,playerId,slot,at);
+        if(this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='SignupMMRs'").get())
+          this.db.prepare('INSERT OR IGNORE INTO SignupMMRs (SeasonId,TeamSubmissionId,PlayerId,SignupMMR) VALUES(?,?,?,?)').run(seasonId,teamKey,playerId,mmr);
+      }
+      this.audit('Player TBD Confirmed',`Season ${seasonId}, team ${teamKey}, slot ${slot+1}: confirmed player ${playerId}, MMR ${mmr}, effective ${at}`);
+      const setup=this.setup(seasonId);
+      if(setup)this.finalizeSetup(seasonId,JSON.parse(setup.SetupJson).gamesByTeam?'group_round_robin':setup.RegularGamesPerTeam,actor,now);
+      return {saved:true};
+    })();this.changed(seasonId);return result;
+  }
   finalizeSetup(seasonId, gamesPerTeam, actor = null, now = new Date()) {
     const roundRobin=gamesPerTeam==='group_round_robin';
     let games = roundRobin?null:id(gamesPerTeam); if (!roundRobin&&(!games || games < 5 || games > 100)) fail('Regular-season games per team must be between 5 and 100');
@@ -163,10 +237,13 @@ export class ScheduleStore {
       const gamesByTeam=roundRobin?Object.fromEntries(teams.map(t=>[t.TeamSubmissionId,2*(teams.filter(other=>other.GroupId===t.GroupId).length-1)])):null;
       if(roundRobin){games=Math.max(...Object.values(gamesByTeam));if(Object.values(gamesByTeam).some(n=>n<5||n>100))fail('Each BO2 group needs between 4 and 51 teams for season markets');}
       const roster = currentSeasonRoster(this.db, seasonId, season.Status);
+      const pendingSlots = currentPendingSlots(this.db, seasonId);
       if (teams.some(t => {
         const players = roster.filter(p => p.TeamSubmissionId === t.TeamSubmissionId);
-        if (t.IsManual && !players.length) return false;
-        return players.length !== 5 || new Set(players.map(p => p.PlayerId)).size !== 5;
+        const pending = pendingSlots.filter(p => p.TeamSubmissionId === t.TeamSubmissionId);
+        if (t.IsManual && !players.length && !pending.length) return false;
+        return players.length + pending.length !== 5 || new Set(players.map(p => p.PlayerId)).size !== players.length
+          || new Set([...players,...pending].map(p=>p.Slot)).size !== 5;
       })) fail('Every team needs five distinct players within its own roster');
       const liveRules=season.ExternalLeagueId&&this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='LeagueRules'").get()
         ?this.db.prepare('SELECT * FROM LeagueRules WHERE LeagueId=?').get(season.ExternalLeagueId):null;
@@ -174,7 +251,7 @@ export class ScheduleStore {
       if (!rules) fail('Save league qualification rules first');
       const previous = this.setup(seasonId);
       const snapshot = JSON.stringify({ teams: teams.map(({ TeamSubmissionId, GroupId }) => ({ TeamSubmissionId, GroupId })), roster, rules,
-        ...(roundRobin?{gamesByTeam}: {}) });
+        ...(pendingSlots.length?{pendingSlots}:{}), ...(roundRobin?{gamesByTeam}: {}) });
       if(previous?.SetupJson===snapshot&&previous.RegularGamesPerTeam===games)return previous;
       this.db.prepare(`INSERT INTO SeasonBettingSetup VALUES (?,?,?, ?,?,'normal',0,?) ON CONFLICT(SeasonId) DO UPDATE SET
         Revision=excluded.Revision,RegularGamesPerTeam=excluded.RegularGamesPerTeam,FinalizedAtUtc=excluded.FinalizedAtUtc,

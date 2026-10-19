@@ -1,6 +1,9 @@
+import { ensurePendingRosterSchema, pendingSlotOverrides } from './pendingRosterSlots.js';
+
 export default class TeamRosterStore {
   constructor(db) {
     this.db = db;
+    ensurePendingRosterSchema(db);
     db.exec(`CREATE TABLE IF NOT EXISTS TeamRosterPlayers (
       TeamSubmissionId INTEGER NOT NULL REFERENCES SeasonTeams(TeamSubmissionId),
       PlayerId INTEGER NOT NULL REFERENCES PlayerInfo(PlayerId),
@@ -27,7 +30,13 @@ export default class TeamRosterStore {
       SELECT t.TeamSubmissionId, p.PlayerId, p.Slot, ?
       FROM SeasonTeams t
       JOIN LeagueSeasons s ON s.SeasonId = t.SeasonId
-      JOIN SeasonTeamPlayers p ON p.TeamSubmissionId = t.TeamSubmissionId
+      JOIN (
+        SELECT p.TeamSubmissionId,p.PlayerId,p.Slot FROM SeasonTeamPlayers p
+        WHERE NOT EXISTS (SELECT 1 FROM SeasonPendingRosterSlots s
+          WHERE s.TeamSubmissionId=p.TeamSubmissionId AND s.Slot=p.Slot)
+        UNION ALL SELECT TeamSubmissionId,ConfirmedPlayerId,Slot FROM SeasonPendingRosterSlots
+          WHERE ConfirmedPlayerId IS NOT NULL
+      ) p ON p.TeamSubmissionId = t.TeamSubmissionId
       WHERE s.Status IN ('active', 'ended') AND t.IsManual = 0
         AND (? IS NULL OR s.SeasonId = ?)
         ${hasHistory?'AND NOT EXISTS (SELECT 1 FROM TeamRosterMembershipHistory h WHERE h.TeamSubmissionId=t.TeamSubmissionId)':''}
@@ -82,7 +91,9 @@ export default class TeamRosterStore {
     const players = this.db.prepare(`SELECT r.PlayerId, p.PlayerName, r.Slot
       FROM TeamRosterPlayers r JOIN PlayerInfo p ON p.PlayerId = r.PlayerId
       WHERE r.TeamSubmissionId = ? ORDER BY r.Slot`).all(teamSubmissionId);
-    return { ...team, Source: 'signup', players };
+    const pendingSlots = pendingSlotOverrides(this.db, team.SeasonId)
+      .filter(p=>p.TeamSubmissionId===team.TeamSubmissionId && p.ConfirmedPlayerId==null).map(p=>({Slot:p.Slot}));
+    return { ...team, Source: 'signup', players, pendingSlots };
   }
 
   forTeam(teamId, leagueId = 'all') {

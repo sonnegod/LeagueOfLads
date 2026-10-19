@@ -6,6 +6,7 @@ import SeasonScheduleStore from './seasonScheduleStore.js';
 import { backfillLegacyChampions } from './legacyLeagueChampions.js';
 import { ensureChampionshipRosterSchema, hasSignupRoster, CHAMPIONSHIP_ROSTER_PLAYERS_SQL } from './championshipRoster.js';
 import { screenshotMimeFromBytes } from '../shared/screenshotFormat.js';
+import { applySignupSlotOverrides, pendingSlotOverrides } from './pendingRosterSlots.js';
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -261,6 +262,18 @@ export default class SeasonStore {
             WHERE p.TeamSubmissionId = t.TeamSubmissionId) END AS AverageMMR
       FROM SeasonTeams t LEFT JOIN PlayerInfo captain ON captain.PlayerId = t.CaptainId
       WHERE t.SeasonId = ? ORDER BY t.SubmittedAt, t.TeamSubmissionId`).all(seasonId);
+    const overrides = pendingSlotOverrides(this.db, seasonId);
+    for (const row of rows) {
+      const slots = overrides.filter(p=>p.TeamSubmissionId===row.TeamSubmissionId);
+      row.PendingPlayers = slots.filter(p=>p.ConfirmedPlayerId==null).length;
+      if (slots.length && !row.IsManual) {
+        const submitted = this.db.prepare('SELECT TeamSubmissionId, PlayerId, Slot, MMR FROM SeasonTeamPlayers WHERE TeamSubmissionId=?').all(row.TeamSubmissionId);
+        const members = applySignupSlotOverrides(submitted, slots);
+        const mmrs = members.map(p=>slots.find(s=>s.ConfirmedPlayerId===p.PlayerId)?.ConfirmedMMR ?? p.MMR);
+        mmrs.push(...slots.filter(p=>p.ConfirmedPlayerId==null).map(p=>p.EstimatedMMR));
+        row.AverageMMR = mmrs.length===5 && mmrs.every(Number.isFinite) ? Math.round(mmrs.reduce((s,n)=>s+n,0)/5*100)/100 : null;
+      }
+    }
     if (includePlayers) {
       const query = this.db.prepare(`SELECT p.PlayerId, CAST(i.PlayerName AS TEXT) AS PlayerName,
         p.Slot, p.MMR, p.DotaProfileUrl, p.ScreenshotMime,
@@ -633,8 +646,14 @@ export default class SeasonStore {
       });
       const snapshot = this.db.prepare(`INSERT INTO SignupMMRs
         (SeasonId, TeamSubmissionId, PlayerId, SignupMMR) VALUES (?, ?, ?, ?)`);
+      const overrides = pendingSlotOverrides(this.db, seasonId);
       for (const team of teams) if (!team.IsManual) {
-        for (const player of team.players) snapshot.run(seasonId, team.TeamSubmissionId, player.PlayerId, player.MMR);
+        const members = applySignupSlotOverrides(team.players.map(p=>({...p,TeamSubmissionId:team.TeamSubmissionId})),
+          overrides.filter(p=>p.TeamSubmissionId===team.TeamSubmissionId));
+        for (const player of members) {
+          const confirmed = overrides.find(p=>p.TeamSubmissionId===team.TeamSubmissionId&&p.ConfirmedPlayerId===player.PlayerId);
+          snapshot.run(seasonId, team.TeamSubmissionId, player.PlayerId, confirmed?.ConfirmedMMR ?? player.MMR);
+        }
       }
       const rules = this.getRules(seasonId);
       this.db.prepare(`INSERT INTO LeagueRules

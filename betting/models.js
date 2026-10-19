@@ -4,7 +4,7 @@ import { generatePlayoffBracket } from '../client/src/utils/playoffBracket.js';
 import {activeLineup,lineupPrior,resultAvailableAt} from './rosterStrength.js';
 import {plannedGameCounts} from './seasonFormat.js';
 
-export const MODEL_VERSION = 'league-lineup-v4';
+export const MODEL_VERSION = 'league-lineup-v5';
 export const METRICS = Object.freeze({ kills:'Kills',deaths:'Deaths',assists:'Assists',last_hits:'LastHits',
   hero_damage:'HeroDamage',tower_damage:'TowerDamage',healing:'Healing',gpm:'GPM',xpm:'XPM' });
 export const metricLabel = key => ({ last_hits:'Last hits',hero_damage:'Hero damage',tower_damage:'Tower damage',gpm:'GPM',xpm:'XPM' })[key] || key[0].toUpperCase()+key.slice(1);
@@ -27,7 +27,7 @@ export function teamProbability(inputs,a,b) {
     const mmrPrior=(inputs.modelMode==='roster'||inputs.modelMode?.startsWith('lineup'))&&Number.isFinite(team?.AverageSignupMMR)&&mmrs.length
       ? Math.max(.1,Math.min(.9,1/(1+Math.exp(-(team.AverageSignupMMR-mean(mmrs))/1000)))) : .5;
     const strength=inputs.modelMode?.startsWith('lineup')?lineupPrior({mmrPrior,
-      lineup:activeLineup(inputs.rosterIntervals?.length?inputs.rosterIntervals:inputs.roster,teamKey,inputs.asOf),
+      lineup:activeLineup(inputs.rosterIntervals?.length?inputs.rosterIntervals:inputs.roster,teamKey,inputs.asOf,inputs.pendingSlots),
       history:inputs.strengthHistory||[],seasonId:inputs.season.SeasonId,at:inputs.asOf,
       publicFeatures:inputs.modelMode==='lineup_public'?inputs.publicFeatureHistory||[]:[]}):null;
     const value=strength?.ready?strength.probability:mmrPrior;
