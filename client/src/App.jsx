@@ -21,6 +21,8 @@ import RecentsPage from "./pages/RecentsPage";
 import RequestPage from "./pages/RequestPage";
 import SeriesPage from "./pages/SeriesPage";
 import BettingPage from "./pages/BettingPage";
+import BettingFixturePage from './pages/BettingFixturePage';
+import {SeasonBettingLayout} from './context/SeasonBetSlipContext';
 import HeadToHeadPage from "./pages/HeadToHeadPage";
 const DraftGodPage = lazy(() => import('./pages/DraftGod'));
 import LiveMatchesPage from "./pages/LiveMatchesPage";
@@ -54,7 +56,10 @@ export default function App() {
         <Route path="/awards" element={<AwardsPage />} />
         <Route path="/request" element={<RequestPage />} />
         <Route path="/series/:seriesId" element={<SeriesPage />} />
-        <Route path="/betting" element={<BettingPage />} />
+        <Route element={<SeasonBettingLayout />}>
+          <Route path="/betting" element={<BettingPage />} />
+          <Route path="/bet/matchup/:eventId" element={<BettingFixturePage />} />
+        </Route>
         <Route path="/draftgod" element={<Suspense fallback={<p>Loading Draft God…</p>}><DraftGodPage /></Suspense>} />
         <Route path="/live" element={<LiveMatchesPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />

@@ -234,6 +234,26 @@ CREATE TABLE Logins (
     LastLoginDate DATETIME NOT NULL
 );
 
+-- table: SourceLoadRuns
+-- Ingestion provenance is additive; the jobs create these tables/indexes on
+-- existing databases without modifying old match dates or inventing load times.
+CREATE TABLE IF NOT EXISTS SourceLoadRuns (
+    SourceRunId INTEGER PRIMARY KEY AUTOINCREMENT,
+    SourceName TEXT NOT NULL,
+    StartedAtUtc TEXT NOT NULL,
+    FinishedAtUtc TEXT,
+    Status TEXT NOT NULL CHECK (Status IN ('running', 'complete', 'partial', 'failed')),
+    RecordsSeen INTEGER NOT NULL DEFAULT 0,
+    FailedItems INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_SourceLoadRuns_Source ON SourceLoadRuns(SourceName, SourceRunId DESC);
+-- table: MatchSourceDetails
+CREATE TABLE IF NOT EXISTS MatchSourceDetails (
+    MatchId INTEGER PRIMARY KEY,
+    StartedAtUtc TEXT NOT NULL,
+    ObservedAtUtc TEXT NOT NULL,
+    Source TEXT NOT NULL
+);
 -- table: MatchLeague
 CREATE TABLE MatchLeague (MatchId INTEGER PRIMARY KEY NOT NULL, LeagueId INTEGER REFERENCES LeagueInfo (LeagueId) NOT NULL, DatePlayed DATETIME);
 

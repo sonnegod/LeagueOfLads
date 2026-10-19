@@ -71,4 +71,3 @@ test('orphan cleanup preserves valid duplicates, live observations and parent se
     assert.equal('MatchIngestionState' in cleanupOrphanMatchRecords(db),false);
   } finally { db.close(); }
 });
-

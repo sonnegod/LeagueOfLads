@@ -21,6 +21,7 @@ export default class TeamRosterStore {
   }
 
   finalize(seasonId = null, effectiveFrom = null) {
+    const hasHistory=this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='TeamRosterMembershipHistory'").get();
     const result = this.db.prepare(`INSERT INTO TeamRosterPlayers
       (TeamSubmissionId, PlayerId, Slot, FinalizedAt)
       SELECT t.TeamSubmissionId, p.PlayerId, p.Slot, ?
@@ -29,6 +30,7 @@ export default class TeamRosterStore {
       JOIN SeasonTeamPlayers p ON p.TeamSubmissionId = t.TeamSubmissionId
       WHERE s.Status IN ('active', 'ended') AND t.IsManual = 0
         AND (? IS NULL OR s.SeasonId = ?)
+        ${hasHistory?'AND NOT EXISTS (SELECT 1 FROM TeamRosterMembershipHistory h WHERE h.TeamSubmissionId=t.TeamSubmissionId)':''}
         AND NOT EXISTS (SELECT 1 FROM TeamRosterPlayers r
           WHERE r.TeamSubmissionId = t.TeamSubmissionId)`)
       .run(new Date().toISOString(), seasonId, seasonId);
@@ -102,7 +104,24 @@ export default class TeamRosterStore {
       WHERE t.ExternalTeamId = ? AND s.Status IN ('active', 'ended')
         AND (? = 'all' OR s.ExternalLeagueId = ?)`)
       .all(teamId, leagueId, leagueId);
-    const declared = submissions.map(team => this.forSubmission(team.TeamSubmissionId));
+    const hasHistory=this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='TeamRosterMembershipHistory'").get();
+    const declared = submissions.flatMap(team => {
+      const members=hasHistory?this.db.prepare(`SELECT h.*,p.PlayerName FROM TeamRosterMembershipHistory h
+        JOIN PlayerInfo p ON p.PlayerId=h.PlayerId WHERE h.TeamSubmissionId=? ORDER BY h.EffectiveFromUtc,h.Slot`).all(team.TeamSubmissionId):[];
+      const current=this.forSubmission(team.TeamSubmissionId)||(members.length?this.db.prepare(`SELECT t.TeamSubmissionId,t.ExternalTeamId AS TeamId,
+        s.ExternalLeagueId AS LeagueId,s.LeagueName,t.TeamName,p.EffectiveFrom,p.EffectiveTo,p.FromEstimated
+        FROM SeasonTeams t JOIN LeagueSeasons s ON s.SeasonId=t.SeasonId JOIN TeamRosterPeriods p ON p.TeamSubmissionId=t.TeamSubmissionId
+        WHERE t.TeamSubmissionId=?`).get(team.TeamSubmissionId):null);if(!current)return [];
+      if(!members.length)return [current];
+      const bounds=[...new Set(members.flatMap(m=>[m.EffectiveFromUtc,m.EffectiveToUtc].filter(Boolean)))].sort();
+      return bounds.flatMap((from,index)=>{
+        const active=members.filter(m=>m.EffectiveFromUtc<=from&&(!m.EffectiveToUtc||m.EffectiveToUtc>from));
+        if(!active.length)return [];
+        return [{...current,EffectiveFrom:from,EffectiveTo:bounds[index+1]||current.EffectiveTo,
+          FromEstimated:active.some(m=>m.FromEstimated)?1:0,
+          players:active.sort((a,b)=>a.Slot-b.Slot).map(m=>({PlayerId:m.PlayerId,PlayerName:m.PlayerName,Slot:m.Slot}))}];
+      });
+    });
     const declaredLeagues = new Set(declared.map(roster => roster.LeagueId));
     const observed = this.matchLineupHistory(teamId, leagueId)
       .filter(lineup => !declaredLeagues.has(lineup.LeagueId));

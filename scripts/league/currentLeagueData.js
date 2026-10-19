@@ -1,5 +1,6 @@
 import db from '../../database.js';
 import apiURL from '../../apiURL.js';
+import { startSourceLoad, finishSourceLoad, recordMatchStart } from '../../analytics/sourceMetadata.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
@@ -14,9 +15,18 @@ async function runRecentMatches() {
     console.log("Beginning load of new matches");
     const result = await checkMatches(leagueId);
     console.log(`Completed pulling recent matchs for League ${leagueId}, ${result.totalNewMatches} new matches.`);
+    return result.totalNewMatches;
 }
 
-runRecentMatches();
+const sourceRunId = startSourceLoad(db.db, 'match_history');
+try {
+  const records = await runRecentMatches();
+  finishSourceLoad(db.db, sourceRunId, { records: records || 0 });
+} catch {
+  finishSourceLoad(db.db, sourceRunId, { failed: true, failures: 1 });
+  console.error('Current league match load failed; source freshness was not advanced.');
+  process.exitCode = 1;
+}
 
 async function checkMatches(leagueId) {
   console.log('Obatining League data for .'+leagueId);
@@ -38,9 +48,13 @@ async function checkMatches(leagueId) {
 
     try {
       const response = await fetch(url.toString(), { method: 'GET' });
+      if (!response.ok) throw new Error('Steam match history request failed');
       const data = await response.json();
 
-      if (!data.result || !data.result.matches || data.result.matches.length === 0) {
+      if (!data.result || data.result.status !== 1 || !Array.isArray(data.result.matches)) {
+        throw new Error('Invalid Steam match history response');
+      }
+      if (data.result.matches.length === 0) {
         console.log('No more matches found.');
         break; // no more matches
       }
@@ -59,10 +73,7 @@ async function checkMatches(leagueId) {
       startAtMatchId = lastMatchId - 1;
 
       console.log(`Fetched ${newMatches.length} new matches, total new so far: ${allNewMatches.length}`);
-    } catch (error) {
-      console.error('Error fetching matches:', error);
-      break;
-    }
+    } catch (error) { throw error; }
   }
 
   console.log(`${allNewMatches.length} new Matches to parse from Dota`);
@@ -76,18 +87,18 @@ async function checkMatches(leagueId) {
       dire_team_id: match.dire_team_id
     }));
 
-    let yesterdaysDate = new Date();
-    yesterdaysDate.setDate(yesterdaysDate.getDate() - 1);
-    yesterdaysDate = yesterdaysDate.toISOString().split('T')[0];
-
     const matchLeagueIds = allNewMatches.map(match => ({
       match_id: match.match_id,
       league_id: leagueId,
-      date_played: yesterdaysDate
+      date_played: match.start_time > 0 ? new Date(match.start_time * 1000).toISOString() : null
     }));
 
-    db.insertMatches(teamMatchData);
-    db.insertMatchLeague(matchLeagueIds);
+    db.db.transaction(() => {
+      if (db.insertMatches(teamMatchData) !== 1 || db.insertMatchLeague(matchLeagueIds) !== 1) {
+        throw new Error('Could not persist match history');
+      }
+      for (const match of allNewMatches) recordMatchStart(db.db, match.match_id, match.start_time, 'steam_history');
+    })();
 
     // Prepare list of match IDs for detail fetching
     const matchDetailIds = allNewMatches.map(match => ({ match_id: match.match_id }));

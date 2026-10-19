@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -27,17 +31,22 @@ jobs:
             # Validate the runtime before installing native SQLite/client dependencies
             node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (!((major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major > 22)) { console.error("Node 20.19+ or 22.12+ is required; Node 22.12+ is recommended."); process.exit(1); }'
             
-            # Refresh item metadata; source failures retain the last valid catalog
+            # Install server dependencies and refresh the item catalog before building.
+            npm install
             node scripts/assets/refreshDotaItems.js
 
-            # Build the Client
+            # Build before changing the published client.
             cd client
             npm install
             npm run build
-            sudo cp -r dist/* /var/www/leagueoflads/
             
-            # Back up and migrate the EDW before restarting the server
             cd ..
-            npm install
+            # Back up before migrations. Initialize roster history before Analytics
+            # reads it; Betting owns market creation and settlement.
+            bash scripts/db/backupDatabases.sh
             node scripts/db/migrateWarehouse.js db/LadsData.db --apply
+            node scripts/betting/run.js --init-only
+            node scripts/analytics/build.js
+            node scripts/betting/run.js
+            sudo cp -r client/dist/* /var/www/leagueoflads/
             pm2 restart all

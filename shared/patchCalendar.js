@@ -19,4 +19,3 @@ export function patchReportingStart(sourceTimestamp) {
   }
   return new Date(instant).toISOString();
 }
-

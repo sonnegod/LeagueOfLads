@@ -1,147 +1,38 @@
-import { Client, GatewayIntentBits } from 'discord.js';
-import db from '../database.js';
-import dotenv from 'dotenv';
+import 'dotenv/config';
+import Database from 'better-sqlite3';
+import {Client,GatewayIntentBits} from 'discord.js';
+import {spawn} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import {analyticsPaths} from '../analytics/config.js';
+import {ScheduleStore} from '../betting/scheduleStore.js';
+import {markBettingDirty} from '../betting/refreshQueue.js';
+import {pollSchedules} from './schedulePoller.js';
 
-dotenv.config();
+// This polling worker reads scheduling posts and never sends messages.
+const channelId=process.env.DISCORD_SCHEDULE_CHANNEL_ID||'626493827544514580';
+let db,client;
+try {
+  db=new Database(analyticsPaths().league,{fileMustExist:true});db.pragma('busy_timeout=5000');
+  const store=new ScheduleStore(db,{changed:()=>markBettingDirty(db)});
+  const season=db.prepare("SELECT SeasonId,CreatedAt FROM LeagueSeasons WHERE Status IN ('signup_closed','active') ORDER BY SeasonId DESC LIMIT 1").get();
+  if(season) {
+    if(!process.env.DISCORD_TOKEN)throw Object.assign(new Error('Discord token is missing'),{code:'DISCORD_TOKEN_MISSING'});
+    client=new Client({intents:[GatewayIntentBits.Guilds,GatewayIntentBits.GuildMessages,GatewayIntentBits.MessageContent]});
+    await client.login(process.env.DISCORD_TOKEN);
+    const channel=await client.channels.fetch(channelId);if(!channel?.messages)throw Object.assign(new Error('Scheduling channel is unavailable'),{code:'DISCORD_CHANNEL_UNAVAILABLE'});
+    console.log(JSON.stringify(await pollSchedules({store,channel,channelId,season})));
+  }else console.log('No season is accepting schedules.');
+}catch(error){console.error('Scheduling load failed:',error.code||'discord_poll_failed');process.exitCode=1;}
+finally{client?.destroy();}
 
-// --- Configuration ---
-const TOKEN = process.env.DISCORD_TOKEN; // **IMPORTANT: Use an environment variable**
-const TARGET_CHANNEL_ID = '626493827544514580'; // Replace with your games channel ID
-
-// Initialize Discord Client
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
-});
-
-/**
- * Parses a single Discord message to extract match data.
- * * ASSUMED MESSAGE FORMAT: "Team Alpha vs Team Beta on 2025-12-15 19:00 EST"
- * @param {string} content The message content string
- * @returns {object|null} An object with { team1, team2, date } or null if parsing fails.
-*/
-function parseMatchMessage(message) {
-    // 1. Extract Team Names from Mentions (Most reliable way)
-    const mentionedRoles = message.mentions.roles;
-
-    if (mentionedRoles.size < 2) {
-        return null; // Not enough teams mentioned
-    }
-    const rolesArray = Array.from(mentionedRoles.values());
-    const team1Name = rolesArray[0].name; 
-    const team2Name = rolesArray[1].name;
-
-
-    // 2. Locate the Month/Day component in the entire message content
-    // We look for any pattern like "12/8" or "1/15" anywhere in the message.
-    // (\d{1,2}\/\d{1,2}) captures the month/day (e.g., 12/8)
-    const dateRegex = /(\d{1,2}\/\d{1,2})/i;
-    const dateMatch = message.content.match(dateRegex);
-
-    if (!dateMatch) {
-        console.warn("[PARSING WARNING] Failed to find a Month/Day pattern (e.g., 12/8).");
-        return null;
-    }
-
-    const monthDay = dateMatch[1]; // e.g., 12/8
-
-    // 3. Construct a full date string and format it to YYYY-MM-DD
-    // We must append the current year to the month/day for valid parsing.
-    const currentYear = new Date().getFullYear();
-    
-    // NOTE: This uses the current year. If the match date is 1/1 and it's currently 12/31, 
-    // it will incorrectly assign the current year. Robust systems check if the month is
-    // less than the current month and increment the year if needed.
-    const fullDateString = `${monthDay}/${currentYear}`; 
-
-    // Create a temporary Date object
-    let matchDate = new Date(fullDateString);
-
-    if (isNaN(matchDate.getTime())) {
-        console.warn(`[PARSING WARNING] Invalid date generated from: ${fullDateString}`);
-        return null;
-    }
-
-    // Format to YYYY-MM-DD (Date-only string)
-    // Using UTC date components ensures it's consistently YYYY-MM-DD regardless of server time,
-    // though this only holds true if the Date object was created without a specific time zone.
-    const finalDate = [
-        matchDate.getFullYear(),
-        String(matchDate.getMonth() + 1).padStart(2, '0'), // Month is 0-indexed
-        String(matchDate.getDate()).padStart(2, '0')
-    ].join('-');
-    
-    return {
-        team1: team1Name,
-        team2: team2Name,
-        date: finalDate // e.g., "2025-12-08"
-    };
-}
-
-/**
- * Connects to Discord, fetches messages, parses data, and logs the output.
- */
-async function fetchAndLogMatchups() {
-    console.log(`\n--- [Scheduler] Starting Discord fetch at ${new Date().toLocaleTimeString()} ---`);
-
-    try {
-        const channel = await client.channels.fetch(TARGET_CHANNEL_ID);
-        if (!channel) {
-            console.error(`[Discord ERROR] Channel with ID ${TARGET_CHANNEL_ID} not found.`);
-            return;
-        }
-
-        // Fetch up to the last 10 messages
-        const messages = await channel.messages.fetch({ limit: 10 });
-        const parsedMatchups = [];
-
-        messages.forEach(message => {
-
-            const matchup = parseMatchMessage(message);
-
-            if (matchup) {
-                console.log(`[PARSED] ✅ Success: ${message.content}`);
-                parsedMatchups.push(matchup);
-            } else {
-                console.log(`[PARSED] ❌ Failed to parse: ${message.content.substring(0, 50)}...`);
-            }
-        });
-
-        console.log('\n=======================================');
-        console.log('Final Parsed Matchups Array:');
-        db.insertScheduledSeries(parsedMatchups);
-        console.log('=======================================\n');
-
-    } catch (error) {
-        console.error('[CRITICAL ERROR] Failed to fetch data:', error.message);
-    }
-}
-
-/**
- * Starts the main process and cron job.
- */
-async function start() {
-    try {
-        // 1. Log in to Discord
-        await client.login(TOKEN);
-        console.log(`[Discord] Logged in successfully as ${client.user.tag}!`);
-
-        // 2. Run the initial fetch immediately
-        await fetchAndLogMatchups();
-
-
-        if (client) client.destroy();
-        process.exit(1);
-    } catch (err) {
-        console.error('Fatal Initialization Error:', err.message);
-        // Clean up client before exiting
-        if (client) client.destroy();
-        process.exit(1);
-    }
-}
-
-// Start the application
-start();
+// A partial import or failed previous refresh must not depend on seeing another
+// new Discord post. Persisted dirty revisions also resume after an API restart.
+try {
+  const state=db?.prepare('SELECT RequestedRevision,CompletedRevision FROM BettingRefreshState WHERE Id=1').get();
+  db?.close();db=null;
+  if(state?.RequestedRevision>state?.CompletedRevision) {
+    const code=await new Promise(resolve=>{const child=spawn(process.execPath,[fileURLToPath(new URL('../scripts/betting/run.js',import.meta.url)),'--refresh-analytics'],
+      {windowsHide:true,stdio:'inherit'});child.once('error',()=>resolve(1));child.once('close',resolve);});
+    if(code!==0)process.exitCode=1;
+  }
+}catch{db?.close();console.error('Scheduling refresh failed');process.exitCode=1;}

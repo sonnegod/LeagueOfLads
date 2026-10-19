@@ -40,4 +40,3 @@ export function cleanupOrphanMatchRecords(db) {
       WHERE parent.MatchId=${table}.MatchId)`).run().changes,
   ]))).immediate();
 }
-

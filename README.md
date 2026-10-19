@@ -69,6 +69,26 @@ estimated from the first recorded league match where available. The team page's
 expandable roster history also groups observed match lineups for leagues without
 declared signup rosters; those observations do not change stand-in classification.
 
+## Analytics
+
+Build the private derived database with `npm run analytics:build` and inspect its
+safe status with `npm run analytics:status`. Admin → League → Overview includes
+an Analytics status card with automatic highlight previews and hide/edit/pause
+controls. Builds publish league highlights and daily/weekly recaps; the homepage
+shows the public feed when signup-era content exists. Deployment and the nightly league wrapper run the
+build automatically, including between active leagues. See
+[analytics/README.md](analytics/README.md) for source freshness, signup-era scope,
+private inputs, deployment, and automatic highlights.
+
+## Betting
+
+The replacement sportsbook is available at `/betting`, with setup and schedules
+under **Admin → League → Betting**. Run `npm run betting:init`, then
+`npm run betting:refresh` and `npm run betting:status`. Migrations are additive;
+old tickets and wallets remain in a separate legacy account. Eligible models
+publish automatically; insufficient signup-era history or stale sources hold
+new prices. See [betting/README.md](betting/README.md) for setup, market types,
+verified result links, deployment, and Discord scheduling.
 ## Suggested regular season matchups
 
 Once a league starts, admins can open **Admin > League > Schedule** to set the first

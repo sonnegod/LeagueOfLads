@@ -14,6 +14,9 @@ import DraftGodStore from '../config/draftGodStore.js';
 import { createDraftGodRouter } from './draftGodRoutes.js';
 import { isDraftGodOwner } from '../middleware/checkDraftGod.js';
 import { publicSeasonRoutes, adminSeasonRoutes } from './seasonRoutes.js';
+import { createAnalyticsRoutes } from './analyticsRoutes.js';
+import { createBettingRoutes } from './bettingRoutes.js';
+import { createBettingRuntime, mutationRefresh } from '../betting/runtime.js';
 import { classifyStandings, DEFAULT_LEAGUE_RULES } from '../config/leagueRules.js';
 import {
   getAppLiveMatchesPayload,
@@ -29,6 +32,13 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
+const bettingRuntime = createBettingRuntime(db.db, dbBet.db, (type, message) => db.recordAdminAudit(type, message));
+const { publicRoutes: publicBettingRoutes, adminRoutes: adminBettingRoutes } = createBettingRoutes({
+  ...bettingRuntime, league: db.db, playerName: id => db.getPlayerInfo(id)?.[0]?.PlayerName || `Player ${id}`,
+});
+const { adminRoutes: adminAnalyticsRoutes, publicRoutes: publicAnalyticsRoutes } = createAnalyticsRoutes({
+  audit: (type, message) => db.recordAdminAudit(type, message),
+});
 router.use(createWarehouseReportingRouter(db.db));
 router.use(createPlayerAwardsRouter(playerId => db.getPlayerAwards(playerId), () => db.getAwardsCatalog()));
 router.use('/site-analytics', createSiteAnalyticsRouter({
@@ -194,10 +204,15 @@ router.get('/rules', (req, res) => {
 });
 
 router.use(publicSeasonRoutes);
+router.use('/analytics', publicAnalyticsRoutes);
+router.use('/betting', publicBettingRoutes);
 router.use('/site-management', siteManagementRoutes);
 
 router.use('/admin', checkAdmin);
+router.use('/admin', mutationRefresh);
+router.use('/admin/betting', adminBettingRoutes);
 router.use('/admin/seasons', adminSeasonRoutes);
+router.use('/admin/analytics', adminAnalyticsRoutes);
 
 router.get('/admin/auditLog', (req, res) => {
   const beforeId = req.query.before === undefined ? null : Number(req.query.before);
@@ -2298,100 +2313,12 @@ router.get('/currentLeaderboard', async (req, res) => {
   }
 });
 
-router.get('/markets', async (req, res) => {
-    const activeMarkets = dbBet.getActiveMarkets(); 
-
-    const activeMarketsWithOptions = await Promise.all(
-      activeMarkets.map(async(market) => {
-        const options = dbBet.getOptions(market.id)
-        const pools = dbBet.getPools(market.id);
-        return {
-          ...market,
-          options,
-          pools
-        }
-      })
-    )
-    res.status(200).json(activeMarketsWithOptions);
-})
-
-router.get('/bettingLeaderboard', async (req, res) => {
-    const leaderboard = dbBet.getPlayerLeaderboard(); 
-
-    const leaderboardWithNames = await Promise.all(
-      leaderboard.map(async(row) => {
-        const player = db.getPlayerInfo(row.user_id)
-        const name = player[0].PlayerName
-        return {
-          ...row,
-          name
-        }
-      })
-    )
-    res.status(200).json(leaderboardWithNames);
-})
-
-router.get('/wallet/:userId', async (req, res) => {
-    const { userId } = req.params;
-
-    if (!userId) {
-          return res.status(400).json({ success: false, message: "User ID is required." });
-      }
-      
-      // Assume getWalletBalance queries the UserWallets table
-      const walletData = dbBet.getWalletBalance(userId); 
-
-      if (walletData) {
-          return res.status(200).json(walletData);
-      } else {
-          // This should rarely happen if login is handled correctly, but good to guard against.
-          return res.status(404).json({ success: false, message: "Wallet not found. User may not exist." });
-      }
-})
-
-router.get('/bets/:userId', async (req, res) => {
-    const { userId } = req.params;
-
-    if (!userId) {
-          return res.status(400).json({ success: false, message: "User ID is required." });
-      }
-      
-      // Assume getWalletBalance queries the UserWallets table
-      const betData = dbBet.getBets(userId); 
-
-      if (betData) {
-          return res.status(200).json(betData);
-      } else {
-          // This should rarely happen if login is handled correctly, but good to guard against.
-          return res.status(404).json({ success: false, message: "Bets not found." });
-      }
-})
+// Retired routes cannot offer stale legacy prices or account balances.
+router.get(['/markets','/bettingLeaderboard','/wallet/:userId','/bets/:userId'], (req,res) =>
+  res.status(410).json({ error: 'The betting format has changed. Reload Betting to use season accounts and tickets.' }));
 
 router.post('/parlay', async (req, res) => {
-    const { user, totalWager, betLegs } = req.body;
-
-    
-    // 1. Basic Input Validation
-    if (!user || !totalWager || totalWager <= 0 || !betLegs || betLegs.length === 0) {
-        return res.status(400).json({ success: false, message: "Invalid bet payload: Missing user, wager, or legs." });
-    }
-    
-    // 2. Execute the Core Transaction Logic
-    // This function will handle all database reads, writes, and validation inside a single transaction.
-    const result = dbBet.placeParlayBet(user.accountId, totalWager, betLegs);
-
-    if (result.success) {
-        // HTTP 201 Created is appropriate for a new ticket
-        return res.status(201).json({ 
-            success: true, 
-            ticketId: result.ticketId, 
-            message: "Bet placed successfully.",
-            finalOdds: result.finalOdds,
-        });
-    } else {
-        // If the transaction failed due to validation (e.g., wallet insufficient, market locked)
-        return res.status(400).json({ success: false, message: result.message });
-    }
+    return res.status(410).json({ error: 'The betting format has changed. Reload Betting to use the new ticket slip.' });
 });
 
 export default router;

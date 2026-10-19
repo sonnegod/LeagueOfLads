@@ -17,6 +17,9 @@ import AdminRequestsPanel from "../components/AdminRequestsPanel";
 import RulesAdminPanel from "../components/RulesAdminPanel";
 import AdminAuditLogPanel from "../components/AdminAuditLogPanel";
 import AdjustedPlayersPanel from "../components/AdjustedPlayersPanel";
+import AnalyticsStatusPanel from "../components/AnalyticsStatusPanel";
+import BettingAdminPanel from "../components/BettingAdminPanel";
+import RosterChangesPanel from "../components/RosterChangesPanel";
 import PastChampionsPanel from "../components/PastChampionsPanel";
 import RecordManagementPanel from "../components/RecordManagementPanel";
 
@@ -93,7 +96,8 @@ export default function AdminPage() {
       {activeTab === "league" && <div className="ui-tabs" style={editorTabBarStyle}>
         {[
           ["overview", "Overview"],
-          ...(seasonStatus === 'active' ? [["schedule", "Schedule"], ["editor", "Editor"], ["playoffs", "Playoffs"],
+          ["betting", "Betting"],
+          ...(seasonStatus === 'active' ? [["rosterChanges", "Roster Changes"], ["editor", "Editor"], ["playoffs", "Playoffs"],
             ["settings", "Settings"]] : []),
         ].map(([key, label]) => <button key={key} type="button" className="ui-tab"
           aria-pressed={activeLeagueTab === key}
@@ -188,12 +192,15 @@ export default function AdminPage() {
               onOpenMatchChanges={() => { setActiveLeagueTab('editor'); setActiveEditorTab('matches'); }}
               onOpenGroupSetup={() => setActiveLeagueTab('settings')} />}
             <SeasonAdminPanel onChanged={triggerRefresh} />
+            <AnalyticsStatusPanel refreshKey={refreshKey} />
           </div>}
         {activeTab === "league" && activeLeagueTab === "settings" &&
           <div style={pageContainer}>
             <LeagueSetupTable refreshKey={refreshKey} onUpdated={triggerRefresh} />
             <LeagueRulesCard refreshKey={refreshKey} />
           </div>}
+        {activeTab === "league" && activeLeagueTab === "betting" && <div style={pageContainer}><BettingAdminPanel refreshKey={refreshKey} /></div>}
+        {activeTab === "league" && activeLeagueTab === "rosterChanges" && <div style={pageContainer}><RosterChangesPanel refreshKey={refreshKey} onChanged={triggerRefresh} /></div>}
         {activeTab === "admin" && activeAdminTab === "adminManagement" && <AdminManagementPanel />}
         {activeTab === "admin" && activeAdminTab === "requests" && <AdminRequestsPanel />}
         {activeTab === "admin" && activeAdminTab === "rules" && <RulesAdminPanel />}

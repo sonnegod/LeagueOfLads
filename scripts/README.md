@@ -7,6 +7,33 @@ app entrypoints and shared modules.
 - `public/`: public match-data generation jobs used by `generatePublicMatchData.sh`
 - `legacy/`: one-off historical league utilities
 - `assets/`: asset download/build helpers
+- `analytics/`: private derived-data builds and verified inactive-league source checks
+- `betting/`: additive initialization, private forecasting, market publication, and settlement
+
+Betting setup: `npm run betting:init`, `npm run betting:refresh`, then
+`npm run betting:status`. The deploy/nightly workflows run Analytics then Betting;
+admin changes queue a separate debounced worker. See
+[betting/README.md](../betting/README.md) for explicit actual-series links,
+validation holds, season wallets, and Discord/locking cron configuration.
+Read-only checks: `npm run betting:validate -- --season-id 3` reports model/source
+readiness; `npm run betting:benchmark -- --season-id 3 --concurrency 5 --requests 100`
+probes local market GET requests. Supply `--base-url` to target the deployment
+host and monitor its RAM/CPU separately. Empty-season results do not establish
+production player capacity.
+Global worker runs persist pending revisions before work and report elapsed
+time, peak process RSS and heap usage. Failed API refreshes retry with bounded
+backoff; Admin Betting shows pending/retry/exhaustion status. Nightly and public
+source wrappers attempt the derived refresh after partial ingestion while still
+returning a failed cron result. For isolated wrapper tests, shell environment
+overrides `LEAGUE_OF_LADS_ROOT` and `LEAGUE_OF_LADS_NODE` redirect their project
+root and Node executable; production defaults remain `/root/LeagueOfLads` and
+`/usr/bin/node`.
+
+Analytics is created/migrated automatically by `node scripts/analytics/build.js`.
+Use `--init-only` for schema creation or `--status` for a read-only status check.
+The deploy workflow builds before PM2 restarts, and `nightlyRun.sh` builds even
+without an active league. Source ingestion adds freshness/timestamp records
+automatically on its next run. Details are in [analytics/README.md](../analytics/README.md).
 
 ## Scheduled database backups
 
