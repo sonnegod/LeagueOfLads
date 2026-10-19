@@ -26,6 +26,8 @@ export default function LeaguePage({
   const leagueId = leagueIdOverride || routeLeagueId;
   const [data, setLeague] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [activeTab, setActiveTab] = useState("home");
   const [expandedHeroes, setExpandedHeroes] = useState({});
   const [stageInfo, setStageInfo] = useState(null);
@@ -33,24 +35,34 @@ export default function LeaguePage({
   const defaultedLeagueRef = useRef(null);
   
   useEffect(() => {
+    const controller = new AbortController();
     async function fetchLeague() {
       setLoading(true);
+      setError('');
       try {
-        const res = await fetch(`/api/leagues/${leagueId}`);
+        const res = await fetch(`/api/leagues/${leagueId}`, { signal: controller.signal });
+        if (!res.ok) throw new Error(res.status === 404 ? 'League not found.'
+          : 'Unable to load this league. Please try again.');
         const data = await res.json();
+        if (controller.signal.aborted) return;
 
         setLeague(data);
         if (Number(data.league?.[0]?.Active) !== 1) {
           setActiveTab(current => current === 'schedule' ? 'home' : current);
         }
       } catch (err) {
-        console.error(err);
+        if (!controller.signal.aborted) {
+          console.error(err);
+          setLeague(null);
+          setError(err.message || 'Unable to load this league. Please try again.');
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     fetchLeague();
-  }, [leagueId]);
+    return () => controller.abort();
+  }, [leagueId, loadAttempt]);
 
   useEffect(() => {
     defaultedLeagueRef.current = null;
@@ -90,8 +102,10 @@ export default function LeaguePage({
     setExpandedHeroes(prev => ({ ...prev, [heroId]: !prev[heroId] }));
   }
 
-  if (loading || !data) return <div>Loading league...</div>;
-  if (!data.league?.length) return <div>League not found.</div>;
+  if (loading) return <div>Loading league...</div>;
+  if (error) return <div role="alert"><p>{error}</p>
+    <button type="button" onClick={() => setLoadAttempt(attempt => attempt + 1)}>Retry</button></div>;
+  if (!data?.league?.length) return <div>League not found.</div>;
 
   const { league, matchesWithPlayers, players, heroesWithPlayers, teams } = data;
 

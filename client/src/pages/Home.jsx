@@ -60,11 +60,10 @@ export default function Home() {
 
   return <div className={`ui-page home-page${activeSection === 'content' ? ' home-page-content' : ''}${showChampion ? ' home-page-champion' : ''}`}>
     <div className="home-toolbar">
-    <header className="home-page-heading">
-      {activeSection === 'league' && <p className="home-eyebrow">Around the league</p>}
-      <h1>League of Lads</h1>
+    {activeSection === 'content' && <header className="home-page-heading">
+      <p className="home-eyebrow">Around the League of Lads</p>
       <p>Game results, player highlights, and recaps from around the league.</p>
-    </header>
+    </header>}
     <div className="ui-tabs home-primary-tabs" role="tablist" aria-label="Homepage sections" onKeyDown={navigateTabs}>
       {[['league', 'League Info'], ['content', 'Content']].map(([section, label]) =>
         <button key={section} id={`home-${section}-tab`} type="button" role="tab" className="ui-tab"

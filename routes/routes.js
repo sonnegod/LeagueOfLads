@@ -2225,6 +2225,7 @@ router.get('/leagues/:leagueId', async (req, res) => {
 
   try {
     const league = await db.getLeagueData(leagueId);
+    if (!league.length) return res.status(404).json({ error: 'League Data not found' });
     const players = await db.getLeaguePlayerData(leagueId);
     const teams = await db.getLeagueTeams(leagueId);
     const hasGroups = db.getLeagueLeaderboard(leagueId).length > 0;
@@ -2251,8 +2252,6 @@ router.get('/leagues/:leagueId', async (req, res) => {
       })
     );
 
-    if (!league.length) return res.status(404).json({ error: 'League Data not found' });
-
     res.json({
       league,
       hasGroups,
@@ -2264,6 +2263,7 @@ router.get('/leagues/:leagueId', async (req, res) => {
     });
 
   } catch (err) {
+    console.error(`Failed to load league ${leagueId}:`, err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
