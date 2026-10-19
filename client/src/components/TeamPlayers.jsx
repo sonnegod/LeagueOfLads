@@ -64,7 +64,8 @@ export default function TeamPlayers({ teamId, leagueId }) {
                 }}
               >
                 <td style={tdStyle}>
-                  <Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link>
+                  <Link to={`/player/${p.PlayerId}`} target="_blank" rel="noopener noreferrer"
+                    onClick={event => event.stopPropagation()}>{p.PlayerName}</Link>
                   {p.StandInGames > 0 && <small className="team-standin-label">
                     {p.StandInGames} stand-in {p.StandInGames === 1 ? 'game' : 'games'}
                   </small>}

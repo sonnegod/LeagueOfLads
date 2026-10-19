@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import LeagueRulesCard from './LeagueRulesCard';
 import LeagueEndPanel from './LeagueEndPanel';
 import { prepareScreenshot, readScreenshot } from '../utils/screenshotUpload';
@@ -9,6 +10,56 @@ async function request(url, options) {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Request failed');
   return data;
+}
+
+const mmr = value => value == null ? '—' : Number(value).toLocaleString('en-US', { maximumFractionDigits: 0 });
+
+function TeamPlayersList({ players }) {
+  return <div className="season-compact-roster">
+    <div className="season-compact-roster-heading"><span>Player</span><span>MMR</span></div>
+    <ul>{players.map(player => <li key={player.Slot}>
+      {player.PlayerId ? <Link to={`/player/${player.PlayerId}`} draggable={false} title={player.PlayerName}>
+        {player.PlayerName || `Player ${player.PlayerId}`}</Link> : <span className="season-pending-player">{player.PlayerName || 'Player TBD'}</span>}
+      <span title={player.Pending ? 'Estimated MMR for the pending player' : undefined}>{mmr(player.MMR)}{player.Pending ? ' est.' : ''}</span>
+    </li>)}</ul>
+  </div>;
+}
+
+function GroupTeamCard({ team, seasonId, groups, busy, revealView, expanded, onExpand, move, onDragStart, onDragEnd }) {
+  const [roster, setRoster] = useState(null);
+  useEffect(() => {
+    if (!expanded || revealView || team.IsManual) return undefined;
+    const controller = new AbortController();
+    setRoster({ loading: true });
+    request(`/api/admin/seasons/${seasonId}/teams/${team.TeamSubmissionId}/players`, { signal: controller.signal, cache: 'no-store' })
+      .then(result => { if (!controller.signal.aborted) setRoster({ players: result.players }); })
+      .catch(error => { if (!controller.signal.aborted) setRoster({ error: error.message }); });
+    return () => controller.abort();
+  }, [expanded, revealView, seasonId, team.TeamSubmissionId, team.UpdatedAt, team.IsManual]);
+  return <div className="season-drag-team" draggable={!revealView && !busy}
+    onDragStart={event => {
+      if (event.target.closest('button,select,a')) { event.preventDefault(); return; }
+      onDragStart(event);
+    }} onDragEnd={onDragEnd}>
+    <div className="season-drag-team-heading"><strong title={team.TeamName}>{team.TeamName}</strong>
+      {!revealView && <small>{mmr(team.AverageMMR)} MMR</small>}</div>
+    {!revealView && <>
+      <div className="season-group-card-actions">
+        <select aria-label={`Group for ${team.TeamName}`} value={team.GroupId ?? ''} disabled={busy}
+          onChange={event => move(team.TeamSubmissionId, event.target.value ? Number(event.target.value) : null)}>
+          <option value="">Unassigned</option>
+          {groups.map(group => <option key={group.GroupId} value={group.GroupId}>{group.GroupName}</option>)}
+        </select>
+        {team.IsManual ? <small>Manual team</small> : <button type="button" aria-expanded={expanded}
+          aria-label={`${expanded ? 'Hide' : 'Show'} players for ${team.TeamName}`}
+          onClick={() => onExpand(team.TeamSubmissionId)}>{expanded ? 'Hide players' : 'Players'} <span aria-hidden="true">{expanded ? '▴' : '▾'}</span></button>}
+      </div>
+      {expanded && !team.IsManual && <div className="season-group-card-roster">
+        {!roster || roster.loading ? <small role="status">Loading players…</small> : roster.error ? <small className="season-error" role="alert">{roster.error}</small>
+          : roster.players.length ? <TeamPlayersList players={roster.players} /> : <small>No signup players recorded.</small>}
+      </div>}
+    </>}
+  </div>;
 }
 
 function ScreenshotThumbnail({ src, playerName }) {
@@ -70,10 +121,12 @@ function SubmissionCard({ team, seasonId, onChanged }) {
     setPlayers(current => current.map((player, slot) => slot === index ? { ...player, ...patch } : player));
   }
 
-  return <details className="season-team-card"
-    onToggle={event => { if (event.currentTarget.open) setHasExpanded(true); }}>
-    <summary><strong>{team.TeamName}</strong><span>{Number(team.AverageMMR).toFixed(0)} average MMR</span>
+  return <details className="season-team-card">
+    <summary><strong title={team.TeamName}>{team.TeamName}</strong><span>{mmr(team.AverageMMR)} average MMR</span>
       <span>{team.IsManual ? 'Manual team' : `Captain: ${team.CaptainName || team.CaptainId}`}</span></summary>
+    {!team.IsManual && <TeamPlayersList players={team.players || []} />}
+    <details className="season-submission-editor" onToggle={event => { if (event.currentTarget.open) setHasExpanded(true); }}>
+    <summary>Edit submission</summary>
     <form onSubmit={save} className="season-team-edit">
       <label>Team name<input maxLength="60" required value={name} onChange={event => setName(event.target.value)} /></label>
       {team.IsManual ? <label>Average MMR<input type="number" min="1" step="1" required value={average}
@@ -102,6 +155,7 @@ function SubmissionCard({ team, seasonId, onChanged }) {
       <div className="season-actions"><button className="ui-button-primary" type="submit" disabled={busy}>Save changes</button>
         <button className="ui-button-danger" type="button" disabled={busy} onClick={remove}>Remove team</button></div>
     </form>
+    </details>
   </details>;
 }
 
@@ -113,6 +167,7 @@ function GroupsPanel({ season, teams, groups, spread, refresh, run, busy }) {
   const [dragged, setDragged] = useState(null);
   const [refreshError, setRefreshError] = useState(false);
   const [liveGroups, setLiveGroups] = useState(null);
+  const [expandedTeams, setExpandedTeams] = useState([]);
   const refreshSerial = useRef(0);
   const refreshInFlight = useRef(false);
   const seasonId = season.SeasonId;
@@ -190,16 +245,20 @@ function GroupsPanel({ season, teams, groups, spread, refresh, run, busy }) {
 
   const unassigned = visibleTeams.filter(team => !team.GroupId);
   const columns = [
-    ...(!revealView || unassigned.length ? [{ GroupId: null, GroupName: 'Unassigned', teams: unassigned, AverageMMR: null }] : []),
+    ...(unassigned.length || !visibleGroups.length ? [{ GroupId: null, GroupName: 'Unassigned', teams: unassigned, AverageMMR: null }] : []),
     ...visibleGroups,
   ];
   return <section className={`season-groups${revealView ? ' season-groups-reveal' : ''}`}>
     <div className="season-groups-toolbar">
       <h3>Groups</h3>
+      <div className="season-actions">
+      {!revealView && <a className="season-submissions-export" href={`/api/admin/seasons/${seasonId}/submissions.csv`}
+        download={`season-${seasonId}-submissions.csv`}>Export CSV</a>}
       <button type="button" aria-pressed={revealView} disabled={Boolean(dragged)}
         onClick={() => setRevealView(current => !current)}>
         {revealView ? 'Back to group editing' : 'Reveal view'}
       </button>
+      </div>
     </div>
     {!revealView && <>
       <p>Create the group structure, then randomize 100 assignments. One of the 10 lowest-spread assignments is chosen at random.</p>
@@ -218,9 +277,13 @@ function GroupsPanel({ season, teams, groups, spread, refresh, run, busy }) {
     <small role="status">{refreshError ? 'Automatic updates failed. Use Refresh to retry.'
       : 'Group changes from other admins appear automatically.'}</small>
     {visibleSpread !== null && <p><strong>Spread: {Number(visibleSpread).toFixed(0)} MMR</strong></p>}
+    {!unassigned.length && visibleGroups.length > 0 && <div className="season-unassigned-drop"
+      onDragOver={event => event.preventDefault()} onDrop={event => drop(event, null)}>
+      <strong>Unassigned (0)</strong><span>Drop a team here to unassign it</span>
+    </div>}
     </>}
     <div className="season-group-grid">{columns.map(group => <div key={group.GroupId ?? 'none'}
-      className="season-group-column" onDragOver={revealView ? undefined : event => event.preventDefault()}
+      className={`season-group-column${group.GroupId == null ? ' season-unassigned-column' : ''}`} onDragOver={revealView ? undefined : event => event.preventDefault()}
       onDrop={revealView ? undefined : event => drop(event, group.GroupId)}>
       <div className="season-group-heading"><h4>{group.GroupName}</h4>
         {!revealView && group.GroupId && <button type="button" disabled={busy} onClick={() => {
@@ -237,19 +300,14 @@ function GroupsPanel({ season, teams, groups, spread, refresh, run, busy }) {
           }
         }}>Remove</button>}</div>
       {!revealView && group.GroupId && <small>Average {group.AverageMMR === null ? '—' : Number(group.AverageMMR).toFixed(0)} MMR</small>}
-      {group.teams.map(team => <div key={team.TeamSubmissionId} className="season-drag-team" draggable={!revealView}
+      <div className="season-group-teams">
+      {group.teams.map(team => <GroupTeamCard key={team.TeamSubmissionId} team={team} seasonId={seasonId}
+        groups={visibleGroups} busy={busy} revealView={revealView} expanded={expandedTeams.includes(team.TeamSubmissionId)}
+        onExpand={teamId => setExpandedTeams(current => current.includes(teamId) ? current.filter(id => id !== teamId) : [...current, teamId])}
+        move={move}
         onDragStart={event => { event.dataTransfer.setData('text/plain', String(team.TeamSubmissionId)); setDragged(team.TeamSubmissionId); }}
-        onDragEnd={() => setDragged(null)}>
-        <strong>{team.TeamName}</strong>
-        {!revealView && <>
-          <small>{Number(team.AverageMMR).toFixed(0)} MMR</small>
-          <select aria-label={`Group for ${team.TeamName}`} value={team.GroupId ?? ''}
-          onChange={event => move(team.TeamSubmissionId, event.target.value ? Number(event.target.value) : null)}>
-          <option value="">Unassigned</option>
-          {visibleGroups.map(choice => <option key={choice.GroupId} value={choice.GroupId}>{choice.GroupName}</option>)}
-        </select>
-        </>}
-      </div>)}
+        onDragEnd={() => setDragged(null)} />)}
+      </div>
     </div>)}</div>
   </section>;
 }
@@ -349,7 +407,7 @@ export default function SeasonAdminPanel({ onChanged }) {
           }
         }}>End signups</button>
       </div>}
-      {['signup_open', 'signup_closed'].includes(season.Status) && <section className="season-submissions">
+      {season.Status === 'signup_open' && <section className="season-submissions">
         <div className="season-submissions-heading">
           <h3>Team submissions ({data.teams.length})</h3>
           <a className="season-submissions-export" href={`/api/admin/seasons/${sid}/submissions.csv`}

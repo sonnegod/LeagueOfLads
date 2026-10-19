@@ -242,9 +242,9 @@ export default function CurrentLeagueSeries({ leagueId }) {
                         <th scope="row">
                           {team.TeamId == null
                             ? (team.TeamSubmissionId
-                              ? <Link to={`/team/roster/${team.TeamSubmissionId}`}>{team.TeamName}</Link>
+                              ? <Link to={`/team/roster/${team.TeamSubmissionId}`} target="_blank" rel="noopener noreferrer">{team.TeamName}</Link>
                               : team.TeamName)
-                            : <Link to={`/team/${team.TeamId}`}>{team.TeamName}</Link>}
+                            : <Link to={`/team/${team.TeamId}`} target="_blank" rel="noopener noreferrer">{team.TeamName}</Link>}
                         </th>
                         <td>{team.Wins}</td>
                         <td>{team.Losses}</td>

@@ -296,6 +296,24 @@ export default class SeasonStore {
     return team;
   }
 
+  groupTeamPlayers(seasonId, teamId) {
+    const season = this.get(seasonId);
+    const team = this.getTeam(teamId);
+    if (!['signup_open', 'signup_closed'].includes(season?.Status) || !team || team.SeasonId !== seasonId) {
+      fail('Team submission is unavailable', 404);
+    }
+    const players = new Map((team.players || []).map(p => [p.Slot,
+      { PlayerId: p.PlayerId, PlayerName: p.PlayerName, Slot: p.Slot, MMR: p.MMR, Pending: false }]));
+    for (const slot of pendingSlotOverrides(this.db, seasonId).filter(p => p.TeamSubmissionId === teamId)) {
+      const confirmed = slot.ConfirmedPlayerId != null;
+      const player = confirmed ? this.db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId=?').get(slot.ConfirmedPlayerId) : null;
+      players.set(slot.Slot, { PlayerId: confirmed ? slot.ConfirmedPlayerId : null,
+        PlayerName: confirmed ? player?.PlayerName || `Player ${slot.ConfirmedPlayerId}` : 'Player TBD',
+        Slot: slot.Slot, MMR: confirmed ? slot.ConfirmedMMR : slot.EstimatedMMR, Pending: !confirmed });
+    }
+    return [...players.values()].sort((a, b) => a.Slot - b.Slot);
+  }
+
   screenshot(teamId, playerId) {
     return this.db.prepare(`SELECT p.ScreenshotMime, p.ScreenshotData
       FROM SeasonTeamPlayers p WHERE p.TeamSubmissionId = ? AND p.PlayerId = ?`)

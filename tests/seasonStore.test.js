@@ -23,8 +23,14 @@ for (const confirmBeforeStart of [false,true]) test(`TBD confirmation ${confirmB
     const schedules=new ScheduleStore(db),at=new Date(Date.now()-1000);
     schedules.setPendingSlot(season.SeasonId,{teamKey:b.TeamSubmissionId,slot:0,estimatedMMR:7000,expectedPlayerId:1},'50',at);
     assert.equal(store.teams(season.SeasonId).find(t=>t.TeamSubmissionId===b.TeamSubmissionId).AverageMMR,6200);
+    const boardPlayers=store.groupTeamPlayers(season.SeasonId,b.TeamSubmissionId);
+    assert.equal(boardPlayers.length,5);
+    assert.deepEqual(boardPlayers[0],{PlayerId:null,PlayerName:'Player TBD',Slot:0,MMR:7000,Pending:true});
+    assert.equal(boardPlayers.some(p=>p.PlayerId===1),false,'group cards do not show the old placeholder identity');
     db.exec("INSERT INTO PlayerInfo VALUES(11,'Actual fifth player')");
     if(confirmBeforeStart)schedules.confirmPendingSlot(season.SeasonId,{teamKey:b.TeamSubmissionId,slot:0,playerId:11,mmr:6900},'50',new Date(at.getTime()+500));
+    if(confirmBeforeStart)assert.deepEqual(store.groupTeamPlayers(season.SeasonId,b.TeamSubmissionId)[0],
+      {PlayerId:11,PlayerName:'Actual fifth player',Slot:0,MMR:6900,Pending:false});
     store.addGroup(season.SeasonId,'A');store.randomize(season.SeasonId);
     store.start(season.SeasonId,12345);
     assert.equal(store.rosters.forSubmission(b.TeamSubmissionId).players.length,confirmBeforeStart?5:4);
@@ -38,6 +44,28 @@ for (const confirmBeforeStart of [false,true]) test(`TBD confirmation ${confirmB
     assert.equal(currentSeasonRoster(db,season.SeasonId,'active').filter(p=>p.PlayerId===1).length,1);
     assert.equal(db.prepare('SELECT COUNT(*) n FROM SeasonRosterChanges').get().n,0);
     assert.ok(store.rosters.forSubmission(a.TeamSubmissionId).players.some(p=>p.PlayerId===1));
+  }finally{db.close();}
+});
+
+test('compact group rosters return only player names and signup MMRs within the requested season',()=>{
+  const db=database();try {
+    const store=new SeasonStore(db),season=store.create('Group board season');
+    store.saveSignup(season.SeasonId,'Signups','Register your team');store.setSignupStatus(season.SeasonId,true);
+    const team=store.saveTeam(season.SeasonId,1,{teamName:'Team A',players:Array.from({length:5},(_,i)=>({
+      playerId:i+1,playerName:`Player ${i+1}`,mmr:6000+i*100,dotaProfileUrl:`https://www.dotabuff.com/players/${i+1}`,screenshot,
+    }))});
+    store.setSignupStatus(season.SeasonId,false);
+    const players=store.groupTeamPlayers(season.SeasonId,team.TeamSubmissionId);
+    assert.deepEqual(players.map(p=>p.MMR),[6000,6100,6200,6300,6400]);
+    assert.deepEqual(Object.keys(players[0]).sort(),['MMR','Pending','PlayerId','PlayerName','Slot']);
+    db.prepare('UPDATE PlayerInfo SET PlayerName=? WHERE PlayerId=1').run('Updated name');
+    assert.equal(store.groupTeamPlayers(season.SeasonId,team.TeamSubmissionId)[0].PlayerName,'Updated name');
+    assert.throws(()=>store.groupTeamPlayers(season.SeasonId+1,team.TeamSubmissionId),/unavailable/);
+    assert.throws(()=>store.groupTeamPlayers(season.SeasonId,999999),/unavailable/);
+    const manual=store.addManualTeam(season.SeasonId,'Manual team',6500);
+    assert.deepEqual(store.groupTeamPlayers(season.SeasonId,manual.TeamSubmissionId),[]);
+    db.prepare("UPDATE LeagueSeasons SET Status='ended' WHERE SeasonId=?").run(season.SeasonId);
+    assert.throws(()=>store.groupTeamPlayers(season.SeasonId,team.TeamSubmissionId),/unavailable/);
   }finally{db.close();}
 });
 

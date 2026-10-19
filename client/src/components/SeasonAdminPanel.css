@@ -18,10 +18,17 @@
   border: 1px solid var(--border, #555); border-radius: 8px; background: var(--surface, #111);
   color: var(--text, #eee); font-weight: 600; text-decoration: none; }
 .season-submissions-export:hover { border-color: var(--primary, #646cff); color: var(--text, #eee); }
-.season-team-list { display: grid; gap: 0.6rem; }
-.season-team-card { border: 1px solid var(--border, #555); border-radius: 9px; padding: 0.6rem 0.9rem; }
-.season-team-card summary { display: flex; flex-wrap: wrap; gap: 1rem; cursor: pointer; }
-.season-team-card summary strong { min-width: 180px; }
+.season-team-list { display: grid; gap: 0.4rem; }
+.season-team-card { min-width: 0; border: 1px solid var(--border, #555); border-radius: 7px; padding: 0.35rem 0.65rem; }
+.season-team-card > summary { display: grid; grid-template-columns: 12px minmax(0,1fr) auto minmax(120px,.65fr); align-items: center; gap: 0.6rem; min-height: 30px; cursor: pointer; list-style: none; font-size: .8rem; }
+.season-team-card > summary::-webkit-details-marker { display: none; }
+.season-team-card > summary::before { content: '▸'; color: var(--muted-text, #aaa); }
+.season-team-card[open] > summary::before { content: '▾'; }
+.season-team-card > summary strong, .season-team-card > summary > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.season-team-card > summary > span { color: var(--muted-text, #aaa); font-size: .75rem; }
+.season-team-card > .season-compact-roster { max-width: 460px; margin: .5rem 0; }
+.season-submission-editor { margin-top: .5rem; border-top: 1px solid var(--border, #555); padding-top: .5rem; }
+.season-submission-editor > summary { cursor: pointer; font-size: .78rem; color: var(--primary, #93c5fd); }
 .season-team-edit { display: grid; gap: 0.8rem; padding-top: 1rem; }
 .season-team-edit fieldset { border: 1px solid var(--border, #555); border-radius: 7px; }
 .season-team-player-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.7rem; }
@@ -34,10 +41,37 @@
 .season-groups-reveal .season-group-column { border-style: solid; }
 .season-groups-reveal .season-drag-team { cursor: default; }
 .season-group-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
-.season-group-column { display: grid; align-content: start; gap: 0.55rem; min-height: 180px;
+.season-group-column { display: grid; align-content: start; gap: 0.4rem; min-height: 90px;
   padding: 0.75rem; border: 1px dashed var(--border, #555); border-radius: 9px; }
-.season-group-heading { display: flex; justify-content: space-between; gap: 0.5rem; }
-.season-group-heading h4 { margin: 0; }
-.season-drag-team { display: grid; gap: 0.3rem; padding: 0.65rem; border: 1px solid var(--border, #555);
+.season-group-teams { display: grid; align-items: start; gap: .4rem; min-width: 0; }
+.season-unassigned-column:only-child .season-group-teams { grid-template-columns: repeat(auto-fit,minmax(min(100%,220px),1fr)); }
+.season-unassigned-drop { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; padding: .5rem .75rem; border: 1px dashed var(--border, #555); border-radius: 7px; font-size: .75rem; }
+.season-unassigned-drop > span { color: var(--muted-text, #aaa); }
+.season-group-heading { display: flex; align-items: center; gap: 0.35rem; }
+.season-group-heading h4 { margin: 0; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.season-group-heading > button { min-height: 26px; padding: .2rem .4rem; font-size: .68rem; }
+.season-drag-team { display: grid; gap: 0.35rem; padding: 0.45rem 0.55rem; min-width: 0; border: 1px solid var(--border, #555);
   border-radius: 7px; background: var(--surface, #111); cursor: grab; }
 .season-drag-team small { color: var(--muted-text, #aaa); }
+.season-drag-team-heading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-width: 0; }
+.season-drag-team-heading > strong { min-width: 0; font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.season-drag-team-heading > small { flex: none; font-size: .7rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.season-group-card-actions { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: .4rem; }
+.season-group-card-actions > :is(select,button) { min-height: 28px; padding: .2rem .35rem; font-size: .7rem; }
+.season-group-card-actions > select { width: 100%; }
+.season-group-card-actions > button { white-space: nowrap; }
+.season-group-card-actions > small { font-size: .7rem; }
+.season-group-card-roster { border-top: 1px solid var(--border, #555); padding-top: .35rem; cursor: default; }
+.season-group-card-roster > small { font-size: .72rem; }
+.season-compact-roster-heading, .season-compact-roster li { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: .5rem; }
+.season-compact-roster-heading { color: var(--muted-text, #aaa); font-size: .62rem; padding-bottom: .2rem; }
+.season-compact-roster ul { list-style: none; margin: 0; padding: 0; }
+.season-compact-roster li { min-height: 22px; font-size: .75rem; }
+.season-compact-roster li > a, .season-compact-roster li > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.season-compact-roster li > span:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.season-compact-roster .season-pending-player { color: #fcd34d; }
+@media(max-width:600px) {
+  .season-team-card > summary { grid-template-columns: 12px minmax(0,1fr) auto; gap: .35rem; }
+  .season-team-card > summary > span:last-child { grid-column: 2/-1; }
+  .season-group-grid { grid-template-columns: minmax(0,1fr); }
+}

@@ -11,7 +11,7 @@ export default function TeamRoster({ roster, leagueId }) {
     </div>
     <RosterDates roster={roster} />
     <ul className="team-active-roster-players">{roster.players.map(player => <li key={player.PlayerId}>
-      <Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link>
+      <Link to={`/player/${player.PlayerId}`} target="_blank" rel="noopener noreferrer">{player.PlayerName}</Link>
       <DotabuffLink playerId={player.PlayerId} name={player.PlayerName} />
     </li>)}{roster.pendingSlots?.map(p=><li key={`pending:${p.Slot}`}><span title="This roster spot has not been confirmed">Player TBD</span></li>)}</ul>
     <TeamRosterHistory roster={roster} leagueId={leagueId} />

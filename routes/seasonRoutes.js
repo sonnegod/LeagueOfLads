@@ -198,6 +198,14 @@ for (const [action, open] of [['open', true], ['close', false]]) {
   });
 }
 
+adminSeasonRoutes.get('/:seasonId/teams/:teamId/players', (req, res) => {
+  const seasonId = id(req.params.seasonId), teamId = id(req.params.teamId);
+  if (!seasonId || !teamId) return res.status(400).json({ error: 'Invalid submission' });
+  try {
+    return res.set('Cache-Control', 'private, no-store').json({ players: db.seasons.groupTeamPlayers(seasonId, teamId) });
+  } catch (error) { return respond(res, error); }
+});
+
 adminSeasonRoutes.patch('/:seasonId/teams/:teamId', (req, res) => {
   const seasonId = id(req.params.seasonId);
   const teamId = id(req.params.teamId);

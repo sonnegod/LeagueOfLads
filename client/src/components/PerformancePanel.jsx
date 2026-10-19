@@ -70,22 +70,14 @@ function PlayerPerformance({ data }) {
         axisLabel="Recorded games, oldest to newest" formatTime={n => fmt(n, 0)} showLegend={false} showScrubber={false} />
       <p className="performance-note">Up to 30 enriched games. Changing heroes and patches can affect these values.</p>
     </Panel>
-    <Panel title="Hero breakdown"><ReportTable centerStats rows={data.byHero} columns={columns} /></Panel>
-    <div className="performance-columns performance-breakdowns">
-      <Panel title="By patch"><ReportTable centerStats rows={data.byPatch} columns={[
-        { key: 'name', label: 'Patch', render: row => row.name }, { key: 'games', label: 'Games' }, ...metricColumns(['lh10', 'damagePerMinute', 'wards10', 'dewards10'], { showSamples: false }),
-      ]} /></Panel>
-      <Panel title="By team"><ReportTable centerStats rows={data.byTeam} columns={[
-        { key: 'name', label: 'Team', render: row => row.key ? <Link to={`/team/${row.key}`}>{row.name}</Link> : row.name },
-        { key: 'games', label: 'Games' }, ...metricColumns(['damageShare', 'wards10', 'dewards10'], { showSamples: false }),
-      ]} /></Panel>
-    </div>
+    <Panel title="Hero breakdown"><ExpandablePlayerTable rows={data.byHero} columns={columns} /></Panel>
+    <PlayerBreakdowns data={data} />
     <Panel title="Notable performances">{data.notable.map(group => <details key={group.key} className="performance-expand">
       <summary>{labels[group.key]}</summary>{group.games.length ? <ul className="performance-examples">{group.games.map(game => <li key={game.matchId}>
         <Link to={`/match/${game.matchId}`}>Match {game.matchId}</Link> · {game.heroName} · <strong>{fmt(game.value)}</strong>
       </li>)}</ul> : <p className="performance-message">No eligible games.</p>}
     </details>)}</Panel>
-    <Panel title="Recent game details"><ReportTable centerStats rows={data.recent} rowKey="matchId" initialSort="matchId" columns={[
+    <Panel title="Recent game details"><ExpandablePlayerTable rows={data.recent} rowKey="matchId" initialSort="matchId" columns={[
       { key: 'matchId', label: 'Match', render: row => <Link to={`/match/${row.matchId}`}>{row.matchId}</Link> },
       { key: 'HeroName', label: 'Hero', render: row => <HeroDisplay heroId={row.HeroId} heroName={row.HeroName} /> },
       { key: 'teamName', label: 'Team', render: row => row.teamId ? <Link to={`/team/${row.teamId}`}>{row.teamName}</Link> : row.teamName },
@@ -93,6 +85,39 @@ function PlayerPerformance({ data }) {
       ...['lh10', 'gold10', 'damagePerMinute', 'wards10', 'dewards10'].map(key => ({ key, label: labels[key] })),
     ]} /></Panel>
   </>;
+}
+
+function ExpandablePlayerTable({ rows, ...props }) {
+  const [expanded, setExpanded] = useState(false);
+  return <>
+    <ReportTable centerStats rows={rows} limit={expanded ? Infinity : 10} {...props} />
+    {rows.length > 10 && <button type="button" className="performance-breakdown-more" aria-expanded={expanded}
+      onClick={() => setExpanded(value => !value)}>{expanded ? 'View less' : 'View more'}</button>}
+  </>;
+}
+
+function PlayerBreakdowns({ data }) {
+  const [expanded, setExpanded] = useState(false);
+  const patches = [...data.byPatch].sort((a, b) => {
+    if (a.key == null || b.key == null) return a.key == null && b.key == null ? 0 : a.key == null ? 1 : -1;
+    return String(b.key).localeCompare(String(a.key), 'en', { numeric: true });
+  });
+  const teams = [...data.byTeam].sort((a, b) => b.games - a.games);
+  const hasMore = patches.length > 10 || teams.length > 10;
+  return <div className="performance-breakdown-block">
+    <div className="performance-columns performance-breakdowns">
+      <Panel title="By patch"><ReportTable centerStats rows={expanded ? patches : patches.slice(0, 10)} initialSort="name" columns={[
+        { key: 'name', label: 'Patch', value: row => row.key == null ? null : row.name, render: row => row.name },
+        { key: 'games', label: 'Games' }, ...metricColumns(['lh10', 'damagePerMinute', 'wards10', 'dewards10'], { showSamples: false }),
+      ]} /></Panel>
+      <Panel title="By team"><ReportTable centerStats rows={expanded ? teams : teams.slice(0, 10)} columns={[
+        { key: 'name', label: 'Team', render: row => row.key ? <Link to={`/team/${row.key}`}>{row.name}</Link> : row.name },
+        { key: 'games', label: 'Games' }, ...metricColumns(['damageShare', 'wards10', 'dewards10'], { showSamples: false }),
+      ]} /></Panel>
+    </div>
+    {hasMore && <button type="button" className="performance-breakdown-more" aria-expanded={expanded}
+      onClick={() => setExpanded(value => !value)}>{expanded ? 'View less' : 'View more'}</button>}
+  </div>;
 }
 
 function TeamPerformance({ data }) {
