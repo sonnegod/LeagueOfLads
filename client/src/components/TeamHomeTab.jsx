@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
 import HeroDisplay from "./HeroDisplay";
+import DotabuffLink from './DotabuffLink';
 
 const PLAYER_LEADER_MIN_GAMES = 5;
 
 export default function TeamHomeTab({
   teamId,
+  roster = null,
   matches = [],
   heroes = [],
   players = []
@@ -20,6 +22,8 @@ export default function TeamHomeTab({
   const bestWinRateHeroes = getBestWinRateHeroes(teamHeroes);
   const recentMatches = teamMatches.slice(0, 6);
 
+  if (!teamId) return <RosterCard roster={roster} />;
+
   return (
     <div className="detail-home" style={homeStyle}>
       <div className="detail-metric-grid" style={metricGridStyle}>
@@ -30,6 +34,7 @@ export default function TeamHomeTab({
       </div>
 
       <div className="detail-feature-grid" style={featureGridStyle}>
+        <RosterCard roster={roster} />
         <FeatureCard title="KDA Leaders">
           {topKdaPlayers.length > 0 ? (
             <div style={leaderListStyle}>
@@ -93,6 +98,17 @@ export default function TeamHomeTab({
       </section>
     </div>
   );
+}
+
+function RosterCard({ roster }) {
+  return <FeatureCard title="Roster">
+    {roster ?
+      <ul className="team-home-roster-players">{roster.players.map(player => <li key={player.PlayerId}>
+        <Link to={`/player/${player.PlayerId}`} target="_blank" rel="noopener noreferrer">{player.PlayerName}</Link>
+        <DotabuffLink playerId={player.PlayerId} name={player.PlayerName} />
+      </li>)}{roster.pendingSlots?.map(slot => <li key={`pending:${slot.Slot}`}><span>Player TBD</span></li>)}</ul>
+      : <EmptyState>No roster recorded yet.</EmptyState>}
+  </FeatureCard>;
 }
 
 function TeamResult({ match, side }) {

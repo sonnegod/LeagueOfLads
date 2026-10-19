@@ -1,222 +1,139 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
+import {Link} from 'react-router-dom';
 import './LeagueSetupTable.css';
 
-async function request(url, options) {
-  const response = await fetch(url, options);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Request failed');
+async function request(options={}) {
+  const response=await fetch('/api/admin/leagueSetup',{cache:'no-store',...options});
+  const data=await response.json();
+  if(!response.ok)throw Object.assign(new Error(data.error||'Could not load league groups'),{status:response.status});
   return data;
 }
+const teamKey=team=>team.EntryId!=null?`entry:${team.EntryId}`:`team:${team.TeamId}`;
+function beginDraft(board) {
+  return {leagueId:board.league.LeagueId,leagueName:board.league.LeagueName,revision:board.revision,
+    groups:board.groups.map(g=>({id:g.GroupId,name:g.GroupName})),
+    teams:[...board.groups.flatMap(g=>g.teams.map(t=>({key:teamKey(t),name:t.TeamName,teamId:t.TeamId??null,
+      groupId:g.GroupId,submissionId:t.TeamSubmissionId,editable:t.EntryId!=null&&t.TeamId==null}))),
+      ...board.availableTeams.map(t=>({key:teamKey(t),name:t.TeamName||`Team ${t.TeamId}`,teamId:t.TeamId,groupId:null,editable:false}))]};
+}
+const payload=draft=>({leagueId:draft.leagueId,revision:draft.revision,
+  groups:draft.groups.map(({id,name})=>({id,name})),teams:draft.teams.map(({key,name,teamId,groupId})=>({key,name,teamId,groupId}))});
 
-export default function LeagueSetupTable({ refreshKey, onUpdated }) {
-  const [league, setLeague] = useState(null);
-  const [groups, setGroups] = useState([]);
-  const [availableTeams, setAvailableTeams] = useState([]);
-  const [newGroupName, setNewGroupName] = useState('');
-  const [groupNames, setGroupNames] = useState({});
-  const [teamNames, setTeamNames] = useState({});
-  const [newTeamNames, setNewTeamNames] = useState({});
-  const [linkChoices, setLinkChoices] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(null);
-  const [message, setMessage] = useState('');
-  const loadedLeagueId = useRef(null);
-
-  const load = useCallback(async () => {
-    const data = await request('/api/admin/leagueSetup');
-    const loadedGroups = data.groups || [];
-    const leagueChanged = loadedLeagueId.current !== (data.league?.LeagueId ?? null);
-    loadedLeagueId.current = data.league?.LeagueId ?? null;
-    setLeague(data.league);
-    setGroups(loadedGroups);
-    setAvailableTeams(data.availableTeams || []);
-    setGroupNames((current) => Object.fromEntries(loadedGroups.map((group) => [
-      group.GroupId, leagueChanged ? group.GroupName : (current[group.GroupId] ?? group.GroupName),
-    ])));
-    setTeamNames((current) => Object.fromEntries(loadedGroups.flatMap((group) =>
-      group.teams.filter((team) => team.EntryId != null).map((team) => [
-        team.EntryId, leagueChanged ? team.TeamName : (current[team.EntryId] ?? team.TeamName),
-      ]))));
-    if (leagueChanged) {
-      setNewGroupName('');
-      setNewTeamNames({});
-      setLinkChoices({});
-    }
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    load().catch((err) => { if (active) setMessage(err.message); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [load, refreshKey]);
-
-  const run = async (key, action, successMessage) => {
-    setSaving(key);
-    setMessage('');
+export default function LeagueSetupTable({refreshKey,onUpdated}) {
+  const [snapshot,setSnapshot]=useState(null),[draft,setDraft]=useState(null),[newGroupName,setNewGroupName]=useState('');
+  const [newTeamNames,setNewTeamNames]=useState({}),[dragged,setDragged]=useState(null);
+  const [loadError,setLoadError]=useState(''),[saveError,setSaveError]=useState(''),[message,setMessage]=useState(''),[saving,setSaving]=useState(false);
+  const mounted=useRef(false),pending=useRef(null),serial=useRef(0),savingRef=useRef(false),initialDraft=useRef('');
+  const load=useCallback(async()=>{
+    if(pending.current||savingRef.current)return;
+    const controller=new AbortController(),version=++serial.current;pending.current=controller;
     try {
-      await action();
-      await load();
-      setMessage(successMessage);
-      onUpdated?.();
-    } catch (err) {
-      setMessage(err.message);
-    } finally {
-      setSaving(null);
-    }
+      const result=await request({signal:controller.signal});
+      if(mounted.current&&version===serial.current){setSnapshot(result);setLoadError('');}
+    }catch(error){if(mounted.current&&!controller.signal.aborted)setLoadError(error.message);}
+    finally{if(pending.current===controller)pending.current=null;}
+  },[]);
+  useEffect(()=>{
+    mounted.current=true;load();
+    const refresh=()=>{if(document.visibilityState==='visible')load();};
+    const timer=setInterval(refresh,1000);document.addEventListener('visibilitychange',refresh);
+    return()=>{mounted.current=false;pending.current?.abort();pending.current=null;
+      clearInterval(timer);document.removeEventListener('visibilitychange',refresh);};
+  },[load,refreshKey]);
+
+  const editing=Boolean(draft),board=draft||(snapshot?.league?beginDraft(snapshot):null);
+  const conflict=editing&&snapshot?.revision!==draft.revision;
+  const changed=editing&&JSON.stringify(payload(draft))!==initialDraft.current;
+  const blocker=editing&&(draft.groups.some(g=>!g.name.trim())?'Every group needs a name.':
+    draft.teams.some(t=>(t.key.startsWith('entry:')||t.key.startsWith('new-team:'))&&t.groupId===null)?'Assign every signup or named team to a group before saving.':'');
+  const canEdit=editing&&!saving;
+  const updateTeam=(key,patch)=>setDraft(current=>({...current,teams:current.teams.map(t=>t.key===key?{...t,...patch}:t)}));
+  const move=(key,groupId)=>{
+    if(!canEdit)return;
+    setDraft(current=>{const team=current.teams.find(t=>t.key===key);return team?{...current,
+      teams:[...current.teams.filter(t=>t.key!==key),{...team,groupId}]}:current;});setDragged(null);
   };
-
-  const addGroup = (event) => {
-    event.preventDefault();
-    const groupName = newGroupName.trim();
-    if (!groupName) { setMessage('Enter a group name.'); return; }
-    run('group:new', async () => {
-      await request('/api/admin/leagueSetup/groups', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ groupName }),
-      });
-      setNewGroupName('');
-    }, `${groupName} added.`);
-  };
-
-  const renameGroup = (group) => {
-    const groupName = (groupNames[group.GroupId] || '').trim();
-    if (!groupName) { setMessage('Group name cannot be empty.'); return; }
-    run(`group:${group.GroupId}`, () => request(`/api/admin/leagueSetup/groups/${group.GroupId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupName }),
-    }), 'Group name saved.');
-  };
-
-  const addTeam = (event, group) => {
-    event.preventDefault();
-    const displayName = (newTeamNames[group.GroupId] || '').trim();
-    if (!displayName) { setMessage('Enter a team name.'); return; }
-    run(`team:new:${group.GroupId}`, async () => {
-      await request('/api/admin/leagueRosterEntries', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ groupId: group.GroupId, displayName }),
-      });
-      setNewTeamNames((current) => ({ ...current, [group.GroupId]: '' }));
-    }, `${displayName} added to ${group.GroupName}.`);
-  };
-
-  const renameTeam = (team) => {
-    const displayName = (teamNames[team.EntryId] || '').trim();
-    if (!displayName) { setMessage('Team name cannot be empty.'); return; }
-    run(`team:${team.EntryId}`, () => request(`/api/admin/leagueRosterEntries/${team.EntryId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ displayName }),
-    }), 'Team name saved.');
-  };
-
-  const removeTeam = (team) => run(`team:${team.EntryId}`,
-    () => request(`/api/admin/leagueRosterEntries/${team.EntryId}`, { method: 'DELETE' }),
-    `${team.TeamName} removed.`);
-
-  const linkTeam = (team) => {
-    const teamId = Number(linkChoices[team.EntryId]);
-    if (!Number.isSafeInteger(teamId) || teamId <= 0) {
-      setMessage('Choose a team ID to link.');
-      return;
-    }
-    run(`team:link:${team.EntryId}`, () => request(`/api/admin/leagueRosterEntries/${team.EntryId}/link`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teamId }),
-    }), `${team.TeamName} linked to TeamId ${teamId}.`);
-  };
-
-  const rowCount = Math.max(1, ...groups.map((group) => group.teams.length + 1));
-
-  return <section className="league-setup-widget">
-    <h2>Initial group setup</h2>
-    <p>Add groups and team names before Dota TeamIds are available.</p>
-    {message && <p role="status" className="league-setup-message">{message}</p>}
-    {loading ? <p>Loading groups...</p> : <div className="league-setup-scroll">
-      <table className="league-setup-table" style={{ minWidth: `${Math.max(360, groups.length * 320)}px` }}>
-        <thead>
-          <tr><th colSpan={Math.max(groups.length, 1)} className="league-setup-add-heading">
-            <form onSubmit={addGroup} className="league-setup-add-group">
-              <label htmlFor="league-setup-new-group">Add group</label>
-              <input id="league-setup-new-group" type="text" maxLength="60" placeholder="Group name"
-                value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)}
-                disabled={!league || saving !== null} />
-              <button className="ui-button-primary" type="submit" disabled={!league || saving !== null || !newGroupName.trim()}>
-                {saving === 'group:new' ? 'Adding...' : 'Add group'}
-              </button>
-            </form>
-            {!league && <small>Add an active league first.</small>}
-          </th></tr>
-          {groups.length > 0 && <tr>{groups.map((group) => {
-            const draft = groupNames[group.GroupId] ?? group.GroupName;
-            return <th key={group.GroupId} scope="col" className="league-setup-group-heading">
-              <div className="league-setup-group-title">
-                <input aria-label={`Name for group ${group.GroupId}`} type="text" maxLength="60"
-                  value={draft} onChange={(event) => setGroupNames((current) => ({
-                    ...current, [group.GroupId]: event.target.value,
-                  }))} />
-                <button className="ui-button-primary" type="button" disabled={saving !== null || draft.trim() === group.GroupName}
-                  onClick={() => renameGroup(group)}>Save</button>
-              </div>
-              <small>Group {group.GroupId}</small>
-            </th>;
-          })}</tr>}
-        </thead>
-        <tbody>{groups.length === 0
-          ? <tr><td className="league-setup-empty">Add a group to start the leaderboard.</td></tr>
-          : Array.from({ length: rowCount }, (_, rowIndex) => <tr key={rowIndex}>
-            {groups.map((group) => {
-              const team = group.teams[rowIndex];
-              if (team) return <td key={group.GroupId}>
-                {team.EntryId != null && team.TeamId == null ? <div className="league-setup-team-row">
-                  <input aria-label={`Name for team ${team.EntryId}`} type="text" maxLength="60"
-                    value={teamNames[team.EntryId] ?? team.TeamName}
-                    onChange={(event) => setTeamNames((current) => ({
-                      ...current, [team.EntryId]: event.target.value,
-                    }))} />
-                  <div className="league-setup-row-actions">
-                    <button className="ui-button-primary" type="button" disabled={saving !== null ||
-                      (teamNames[team.EntryId] ?? team.TeamName).trim() === team.TeamName}
-                      onClick={() => renameTeam(team)}>Save</button>
-                    <button className="ui-button-danger" type="button" disabled={saving !== null} onClick={() => removeTeam(team)}>Remove</button>
-                  </div>
-                  <small>Awaiting TeamId</small>
-                  {availableTeams.length > 0 && <div className="league-setup-link-row">
-                    <select aria-label={`Team ID for ${team.TeamName}`}
-                      value={linkChoices[team.EntryId] || ''}
-                      onChange={(event) => setLinkChoices((current) => ({
-                        ...current, [team.EntryId]: event.target.value,
-                      }))}>
-                      <option value="">Choose unassigned played team</option>
-                      {availableTeams.map((candidate) => <option key={candidate.TeamId} value={candidate.TeamId}>
-                        {candidate.TeamName || 'Unknown name'} (ID {candidate.TeamId})
-                      </option>)}
-                    </select>
-                    <button className="ui-button-primary" type="button" disabled={saving !== null || !linkChoices[team.EntryId]}
-                      onClick={() => linkTeam(team)}>Link</button>
-                  </div>}
-                </div> : <div className="league-setup-linked-team">
-                  <strong>{team.TeamName}</strong>
-                  <small>{team.Wins}-{team.Losses} | TeamId {team.TeamId}</small>
-                </div>}
-              </td>;
-              if (rowIndex === group.teams.length) return <td key={group.GroupId}>
-                <form className="league-setup-new-team" onSubmit={(event) => addTeam(event, group)}>
-                  <input aria-label={`Add team to ${group.GroupName}`} type="text" maxLength="60"
-                    placeholder="Add team name" value={newTeamNames[group.GroupId] || ''}
-                    onChange={(event) => setNewTeamNames((current) => ({
-                      ...current, [group.GroupId]: event.target.value,
-                    }))} />
-                  <button className="ui-button-primary" type="submit" disabled={saving !== null || !(newTeamNames[group.GroupId] || '').trim()}>
-                    {saving === `team:new:${group.GroupId}` ? 'Adding...' : 'Add team'}
-                  </button>
-                </form>
-              </td>;
-              return <td key={group.GroupId} />;
-            })}
-          </tr>)}</tbody>
-      </table>
-    </div>}
+  const drop=(event,groupId)=>{event.preventDefault();const key=dragged||event.dataTransfer.getData('text/plain');if(key)move(key,groupId);};
+  const cancel=()=>{setDraft(null);setNewGroupName('');setNewTeamNames({});setSaveError('');setDragged(null);};
+  async function save() {
+    if(!draft||saving||conflict||blocker||!changed)return;
+    savingRef.current=true;setSaving(true);setSaveError('');serial.current++;pending.current?.abort();pending.current=null;
+    try {
+      const result=await request({method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload(draft))});
+      if(!mounted.current)return;
+      setSnapshot(result);cancel();setMessage('Group setup saved.');onUpdated?.();
+    }catch(error){if(mounted.current){setSaveError(error.message);if(error.status===409){savingRef.current=false;await load();}}}
+    finally{savingRef.current=false;if(mounted.current)setSaving(false);}
+  }
+  const claimedIds=new Set(board?.teams.filter(t=>t.editable&&t.teamId!==null).map(t=>t.teamId));
+  const visibleTeams=board?.teams.filter(t=>!(t.key.startsWith('team:')&&t.groupId===null&&claimedIds.has(t.teamId)))||[];
+  const unassigned=visibleTeams.filter(t=>t.groupId===null);
+  const columns=board?[...(unassigned.length||!board.groups.length?[{id:null,name:'Unassigned'}]:[]),...board.groups]:[];
+  return <section className="league-setup-widget" aria-label="League group setup">
+    <div className="league-setup-heading"><div><h2>Initial group setup</h2>
+      <p>{board?.leagueName||'League groups'} · {editing?'Editing draft':'Locked'}</p></div>
+      <div className="league-setup-actions">{editing?<>
+        <button type="button" className="ui-button-primary" disabled={saving||conflict||Boolean(blocker)||!changed} onClick={save}>{saving?'Saving…':'Save groups'}</button>
+        <button type="button" disabled={saving} onClick={cancel}>Cancel</button>
+      </>:<button type="button" disabled={!snapshot?.league} onClick={()=>{
+        const next=beginDraft(snapshot);initialDraft.current=JSON.stringify(payload(next));setDraft(next);setMessage('');setSaveError('');
+      }}>Edit groups</button>}</div>
+    </div>
+    {loadError&&<p className="league-setup-error" role="alert">{loadError} <button type="button" onClick={load}>Retry</button></p>}
+    {saveError&&<p className="league-setup-error" role="alert">{saveError}</p>}
+    {conflict&&<p className="league-setup-conflict" role="alert">Another admin or league update changed the saved groups. Your draft is still here. Cancel editing to load the latest version.</p>}
+    {message&&<p className="league-setup-message" role="status">{message}</p>}
+    {!snapshot?<p>Loading groups…</p>:!snapshot.league&&!editing?<p>No active league.</p>:<>
+      <p className="league-setup-hint">{editing?'Drag teams between groups, or use their group dropdown. Changes apply when you save.':'Click Edit groups to make changes. Saved changes from other admins appear automatically.'}</p>
+      {editing&&<form className="league-setup-add-group" onSubmit={event=>{
+        event.preventDefault();const name=newGroupName.trim();if(!name)return;
+        setDraft(current=>({...current,groups:[...current.groups,{id:`new-group:${crypto.randomUUID()}`,name}]}));setNewGroupName('');
+      }}><label htmlFor="league-setup-new-group">Add group</label>
+        <input id="league-setup-new-group" required maxLength={60} value={newGroupName} placeholder="Group name" disabled={saving} onChange={event=>setNewGroupName(event.target.value)} />
+        <button type="submit" disabled={saving||!newGroupName.trim()}>Add group</button>
+      </form>}
+      {blocker&&<p className="league-setup-hint" role="status">{blocker}</p>}
+      {editing&&!unassigned.length&&board.groups.length>0&&<div className="league-setup-unassigned-drop"
+        onDragOver={event=>{if(canEdit)event.preventDefault();}} onDrop={event=>drop(event,null)}>Unassigned (0) · Drop a team here to unassign it</div>}
+      <div className="league-setup-board">{columns.map(group=><section key={group.id??'unassigned'} className={`league-setup-column${group.id===null?' is-unassigned':''}`}
+        onDragOver={event=>{if(canEdit)event.preventDefault();}} onDrop={event=>drop(event,group.id)}>
+        <div className="league-setup-column-heading">{editing&&group.id!==null?<input aria-label={`Name for group ${group.id}`} maxLength={60}
+          value={group.name} disabled={saving} onChange={event=>setDraft(current=>({...current,groups:current.groups.map(g=>g.id===group.id?{...g,name:event.target.value}:g)}))} />
+          :<h3>{group.name}</h3>}<small>{visibleTeams.filter(t=>t.groupId===group.id).length} teams</small>
+          {editing&&typeof group.id==='string'&&!visibleTeams.some(t=>t.groupId===group.id)&&<button type="button" disabled={saving}
+            onClick={()=>setDraft(current=>({...current,groups:current.groups.filter(g=>g.id!==group.id)}))}>Remove</button>}
+        </div>
+        <div className="league-setup-team-list">{visibleTeams.filter(t=>t.groupId===group.id).map(team=>{
+          const candidates=(snapshot?.availableTeams||[]).filter(t=>t.TeamId===team.teamId||!claimedIds.has(t.TeamId));
+          const href=team.teamId?`/team/${team.teamId}`:team.submissionId?`/team/roster/${team.submissionId}`:null;
+          return <div key={team.key} className="league-setup-team-card" draggable={canEdit} onDragStart={event=>{
+            if(!canEdit||event.target.closest('input,select,button,a,summary')){event.preventDefault();return;}
+            event.dataTransfer.setData('text/plain',team.key);setDragged(team.key);
+          }} onDragEnd={()=>setDragged(null)}>
+            <strong title={team.name}>{href?<Link to={href} target="_blank" rel="noopener noreferrer" draggable={false}>{team.name}</Link>:team.name}</strong>
+            <small>{team.teamId?`Team ID ${team.teamId}`:'Awaiting Team ID'}</small>
+            {editing&&<select aria-label={`Group for ${team.name}`} value={team.groupId??''} disabled={saving} onChange={event=>{
+              move(team.key,event.target.value?board.groups.find(g=>String(g.id)===event.target.value).id:null);
+            }}><option value="">Unassigned</option>{board.groups.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select>}
+            {editing&&team.editable&&<details className="league-setup-team-details"><summary>Edit team</summary>
+              <label>Team name<input maxLength={60} value={team.name} disabled={saving} onChange={event=>updateTeam(team.key,{name:event.target.value})} /></label>
+              {candidates.length>0&&<label>Link played team ID<select value={team.teamId??''} disabled={saving}
+                onChange={event=>updateTeam(team.key,{teamId:event.target.value?Number(event.target.value):null})}>
+                <option value="">Awaiting Team ID</option>{candidates.map(t=><option key={t.TeamId} value={t.TeamId}>{t.TeamName||'Unknown team'} ({t.TeamId})</option>)}
+              </select></label>}
+              <button type="button" className="ui-button-danger" disabled={saving}
+                onClick={()=>setDraft(current=>({...current,teams:current.teams.filter(t=>t.key!==team.key)}))}>Remove team</button>
+            </details>}
+          </div>;
+        })}</div>
+        {editing&&group.id!==null&&<form className="league-setup-new-team" onSubmit={event=>{
+          event.preventDefault();const name=(newTeamNames[group.id]||'').trim();if(!name)return;
+          setDraft(current=>({...current,teams:[...current.teams,{key:`new-team:${crypto.randomUUID()}`,name,teamId:null,groupId:group.id,editable:true}]}));
+          setNewTeamNames(current=>({...current,[group.id]:''}));
+        }}><input aria-label={`Add team to ${group.name}`} placeholder="Add team name" maxLength={60} required disabled={saving}
+          value={newTeamNames[group.id]||''} onChange={event=>setNewTeamNames(current=>({...current,[group.id]:event.target.value}))} />
+          <button type="submit" disabled={saving||!(newTeamNames[group.id]||'').trim()}>Add team</button></form>}
+      </section>)}</div>
+    </>}
   </section>;
 }

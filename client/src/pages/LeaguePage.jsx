@@ -11,6 +11,7 @@ import LeagueHomeTab from "../components/LeagueHomeTab";
 import LeagueHighlightsFeed from "../components/LeagueHighlightsFeed";
 import LeagueSeriesTab from "../components/LeagueSeriesTab";
 import LeagueScheduleTab from "../components/LeagueScheduleTab";
+import LeagueTeamsTab from "../components/LeagueTeamsTab";
 import './LeaguePage.css';
 const LeaguePerformance = React.lazy(() => import('../components/LeaguePerformance'));
 
@@ -200,25 +201,7 @@ export default function LeaguePage({
 
       {/* Teams Tab */}
       {activeTab === "teams" && (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>TeamName</th>
-              <th style={thStyle}>Games Played</th>
-              <th style={thStyle}>Win Percentage</th>
-            </tr>
-          </thead>
-          <tbody>
-            {teams.map(t => (
-              <React.Fragment key={t.EntryId != null ? `entry:${t.EntryId}` : `team:${t.TeamId}`}>
-                <tr>
-                  <td style={tdStyle}>{leagueTeamLink(t) ? <Link to={leagueTeamLink(t)}>{t.TeamName}</Link> : t.TeamName}</td>
-                  <td style={tdStyle}>{t.GamesPlayed}</td>
-                  <td style={tdStyle}>{t.WinPercentage == null ? '—' : `${t.WinPercentage}%`}</td>
-                </tr>
-              </React.Fragment>))}
-          </tbody>
-        </table>
+        <LeagueTeamsTab key={leagueId} leagueId={leagueId} />
       )}
 
       {/* Series Tab */}

@@ -108,6 +108,57 @@ export default class TeamRosterStore {
     return team ? this.forSubmission(team.TeamSubmissionId) : null;
   }
 
+  latestMatchLineup(teamId, leagueId = 'all') {
+    // Match IDs retain chronological order even when legacy dates are unknown.
+    // Repeated membership rows must not count as additional players.
+    const match = this.db.prepare(`SELECT mtp.MatchId, ml.LeagueId, ml.DatePlayed, li.LeagueName
+      FROM MatchTeamPlayer mtp
+      JOIN MatchTeam mt ON mt.MatchId = mtp.MatchId AND mtp.TeamId IN (mt.TeamRad, mt.TeamDire)
+      JOIN MatchLeague ml ON ml.MatchId = mtp.MatchId
+      LEFT JOIN LeagueInfo li ON li.LeagueId = ml.LeagueId
+      WHERE mtp.TeamId = ? AND mtp.PlayerId > 0 AND (? = 'all' OR ml.LeagueId = ?)
+        AND EXISTS (SELECT 1 FROM MatchPlayer mp WHERE mp.MatchId = mtp.MatchId AND mp.PlayerId = mtp.PlayerId)
+      GROUP BY mtp.MatchId, ml.LeagueId
+      HAVING COUNT(DISTINCT mtp.PlayerId) = 5
+      ORDER BY mtp.MatchId DESC, ml.LeagueId DESC LIMIT 1`).get(teamId, leagueId, leagueId);
+    if (!match) return null;
+    const players = this.db.prepare(`SELECT DISTINCT mtp.PlayerId,
+        COALESCE(CAST(pi.PlayerName AS TEXT), 'Player ' || mtp.PlayerId) AS PlayerName
+      FROM MatchTeamPlayer mtp LEFT JOIN PlayerInfo pi ON pi.PlayerId = mtp.PlayerId
+      WHERE mtp.MatchId = ? AND mtp.TeamId = ? AND mtp.PlayerId > 0
+        AND EXISTS (SELECT 1 FROM MatchPlayer mp WHERE mp.MatchId = mtp.MatchId AND mp.PlayerId = mtp.PlayerId)
+      ORDER BY mtp.PlayerId`).all(match.MatchId, teamId);
+    return { ...match, TeamId: Number(teamId), Source: 'match_lineup', players };
+  }
+
+  forLeague(leagueId, { groups, teams }) {
+    const key = team => team.EntryId != null ? `entry:${team.EntryId}` : `team:${team.TeamId}`;
+    const records = new Map(teams.map(team => [key(team), team]));
+    const assigned = new Set();
+    const card = team => {
+      assigned.add(key(team));
+      const declared = team.TeamSubmissionId != null ? this.forSubmission(team.TeamSubmissionId)
+        : team.TeamId > 0 ? this.forTeam(team.TeamId, leagueId) : null;
+      const roster = Number(declared?.LeagueId) === Number(leagueId) ? declared : null;
+      const lineup = roster || (team.TeamId > 0 ? this.latestMatchLineup(team.TeamId, leagueId) : null);
+      return {
+        EntryId: team.EntryId ?? null, TeamId: team.TeamId > 0 ? team.TeamId : null,
+        TeamSubmissionId: roster?.TeamSubmissionId ?? null, HasRoster: Boolean(roster),
+        TeamName: String(team.TeamName ?? ''),
+        GamesPlayed: records.get(key(team))?.GamesPlayed ?? 0,
+        WinPercentage: records.get(key(team))?.WinPercentage ?? null,
+        players: (lineup?.players || []).map(player => ({ PlayerId: player.PlayerId, PlayerName: String(player.PlayerName ?? `Player ${player.PlayerId}`) })),
+        pendingSlots: (roster?.pendingSlots || []).map(slot => ({ Slot: slot.Slot })),
+      };
+    };
+    const byName = (a,b) => a.TeamName.localeCompare(b.TeamName, undefined, { numeric: true, sensitivity: 'base' });
+    const result = groups.map(group => ({ GroupId: group.GroupId, GroupName: group.GroupName,
+      teams: group.teams.map(card).sort(byName) }));
+    const otherTeams = teams.filter(team => !assigned.has(key(team))).map(card).sort(byName);
+    if (otherTeams.length) result.push({ GroupId: null, GroupName: groups.length ? 'Other teams' : 'Teams', teams: otherTeams });
+    return result;
+  }
+
   historyForTeam(teamId, leagueId = 'all') {
     const submissions = this.db.prepare(`SELECT t.TeamSubmissionId FROM SeasonTeams t
       JOIN LeagueSeasons s ON s.SeasonId = t.SeasonId

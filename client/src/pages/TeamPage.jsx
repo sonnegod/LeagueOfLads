@@ -6,7 +6,6 @@ import LeagueFilter from '../components/LeagueFilter';
 import HeroDisplay from '../components/HeroDisplay';
 import TeamHomeTab from '../components/TeamHomeTab';
 import TeamDrafts from '../components/TeamDrafts';
-import TeamRoster from '../components/TeamRoster';
 import TeamRosterHistory from '../components/TeamRosterHistory';
 import DotabuffLink from '../components/DotabuffLink';
 import './DetailPages.css';
@@ -19,6 +18,7 @@ export default function TeamPage() {
   const teamId = routeTeamId || resolvedTeamId;
   const [teamName, setTeamName] = useState('');
   const [roster, setRoster] = useState(null);
+  const [latestLineup, setLatestLineup] = useState(null);
   const [error, setError] = useState('');
   const [matches, setMatches] = useState([]);
   const [heroes, setHeroes] = useState([]); // New: hero stats
@@ -60,6 +60,7 @@ export default function TeamPage() {
           if (controller.signal.aborted) return;
           setResolvedTeamId(null);
           setRoster(signupRoster);
+          setLatestLineup(null);
           setTeamName(signupRoster.TeamName);
           setMatches([]);
           setTeamLeagues([]);
@@ -80,6 +81,7 @@ export default function TeamPage() {
           || String(signupRoster.LeagueId) === String(selectedLeague)) ? signupRoster : data.roster;
         setResolvedTeamId(effectiveTeamId);
         setRoster(selectedRoster);
+        setLatestLineup(data.latestLineup || null);
         setTeamName(selectedRoster?.TeamName || data.teamName[0]?.TeamName || `Team ${effectiveTeamId}`);
         setMatches(data.teamMatches);
         setTeamLeagues(data.teamLeagues);
@@ -114,8 +116,7 @@ export default function TeamPage() {
         <h1>{teamName}</h1>
         <DotabuffLink teamId={teamId} name={teamName} />
       </div>
-      <TeamRoster roster={roster} leagueId={selectedLeague} />
-      {!roster && teamId && <TeamRosterHistory roster={{ TeamId: teamId }} leagueId={selectedLeague} />}
+      {(roster || teamId) && <TeamRosterHistory roster={roster || { TeamId: teamId }} leagueId={selectedLeague} />}
       {!teamId && <p>No matches recorded yet.</p>}
 
       {teamId && (activeTab === 'home' || activeTab === 'recent' || activeTab === 'players' || activeTab === 'heroes' || activeTab === 'drafts') && (
@@ -144,9 +145,10 @@ export default function TeamPage() {
       {teamId && activeTab === 'performance' && <Suspense fallback={<p role="status">Loading performance…</p>}>
         <PerformancePanel key={`${teamId}:${selectedLeague}`} type="team" id={teamId} leagueId={selectedLeague} seasons={teamLeagues} onLeagueChange={setSelectedLeague} />
       </Suspense>}
-      {teamId && activeTab === 'home' && (
+      {(teamId || roster) && activeTab === 'home' && (
         <TeamHomeTab
           teamId={teamId}
+          roster={roster || latestLineup}
           matches={matches}
           heroes={heroes}
           players={players}

@@ -1,0 +1,16 @@
+.league-roster-groups {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:1.25rem;align-items:start;}
+.league-roster-group {min-width:0;}
+.league-roster-group > h2 {margin:0 0 .75rem;padding:0 .25rem;font-size:1.1rem;}
+.league-roster-cards {display:grid;gap:.65rem;}
+.league-roster-card {min-width:0;overflow:hidden;border:1px solid var(--border,#334155);border-radius:9px;background:var(--surface,#0f172a);}
+.league-roster-card > header {display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.65rem .8rem;border-bottom:1px solid var(--border,#334155);background:var(--surface-raised,#18253b);}
+.league-roster-card h3 {min-width:0;margin:0;font-size:.92rem;font-weight:700;overflow-wrap:anywhere;}
+.league-roster-header-meta {display:flex;align-items:center;gap:.65rem;flex-shrink:0;margin-left:auto;}
+.league-roster-record {display:grid;gap:.15rem;text-align:right;white-space:nowrap;font-size:.73rem;color:var(--muted-text,#94a3b8);font-variant-numeric:tabular-nums;}
+.league-roster-card > ul {list-style:none;margin:0;padding:.6rem .8rem;display:grid;gap:.35rem;}
+.league-roster-card li {min-width:0;display:flex;align-items:center;justify-content:space-between;gap:.75rem;min-height:23px;font-size:.85rem;}
+.league-roster-card li > a:not(.dotabuff-link) {min-width:0;overflow-wrap:anywhere;}
+.league-roster-card .dotabuff-link {display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:0;}
+.league-roster-card .dotabuff-icon {display:block;width:18px;height:18px;object-fit:contain;}
+.league-roster-empty {margin:0;padding:.8rem;font-size:.8rem;color:var(--muted-text,#94a3b8);}
+@media(max-width:600px){.league-roster-groups{grid-template-columns:minmax(0,1fr);gap:1rem;}}

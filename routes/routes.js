@@ -27,6 +27,7 @@ import {
 import { getAppStandingsPayload } from './utility/standingsResponses.js';
 import { createPlayerAwardsRouter } from './playerAwardsRoutes.js';
 import { createWarehouseReportingRouter } from './warehouseReportingRoutes.js';
+import { createLeagueGroupBoardRouter } from './leagueGroupBoardRoutes.js';
 import { createPlayerLoginRouter } from './playerLoginRoutes.js';
 
 import dotenv from 'dotenv';
@@ -212,6 +213,10 @@ router.use('/site-management', createSiteManagementRouter({ bettingRoutes: admin
 
 router.use('/admin', checkAdmin);
 router.use('/admin', mutationRefresh);
+router.use('/admin', createLeagueGroupBoardRouter({db:db.db,
+  getActiveLeague:()=>db.getActiveLeague()?.[0],getGroups:id=>db.getLeagueSetup(id),
+  getAvailableTeams:id=>db.getLeagueMatchTeams(id),rebuild:id=>db.rebuildLeagueGroupStandings(id),
+  audit:(type,message)=>db.recordAdminAudit(type,message)}));
 router.use('/admin/rosters', rosterRoutes);
 router.use('/admin/seasons', adminSeasonRoutes);
 router.use('/admin/analytics', highlightRoutes);
@@ -810,16 +815,6 @@ router.get('/admin/standingsGroups', checkAdmin, (req, res) => {
     [leagueId]
   );
   return res.json({ groups });
-});
-
-router.get('/admin/leagueSetup', checkAdmin, (req, res) => {
-  const league = db.getActiveLeague()?.[0];
-  if (!league) return res.json({ league: null, groups: [], availableTeams: [] });
-  return res.json({
-    league,
-    groups: db.getLeagueSetup(league.LeagueId),
-    availableTeams: db.getLeagueMatchTeams(league.LeagueId),
-  });
 });
 
 router.post('/admin/leagueSetup/groups', checkAdmin, (req, res) => {
@@ -2065,13 +2060,15 @@ router.get('/teams/:teamId', async (req, res) => {
     const teamHeroes = await db.getTeamHeroData(teamId, leagueId);
 
     if (!teamMatches) return res.status(404).json({ error: 'Team not found' });
+    const roster = db.seasons.rosters.forTeam(Number(teamId), leagueId || 'all');
     
     res.json({
       teamName,
       teamMatches,
       teamLeagues,
       teamHeroes,
-      roster: db.seasons.rosters.forTeam(Number(teamId), leagueId || 'all')
+      roster,
+      latestLineup: roster ? null : db.seasons.rosters.latestMatchLineup(Number(teamId), leagueId || 'all')
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -2199,6 +2196,21 @@ router.get('/leagues', async (req, res) => {
 
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/leagues/:leagueId/teamRosters', (req, res) => {
+  const leagueId = positiveInteger(req.params.leagueId);
+  if (!leagueId) return res.status(400).json({ error: 'Invalid league' });
+  try {
+    const result = db.db.transaction(() => {
+      if (!db.getLeagueData(leagueId).length) return null;
+      return db.seasons.rosters.forLeague(leagueId, { groups: db.getLeagueSetup(leagueId), teams: db.getLeagueTeams(leagueId) });
+    })();
+    if (!result) return res.status(404).json({ error: 'League not found' });
+    return res.json({ groups: result });
+  } catch (error) {
+    return res.status(500).json({ error: 'Could not load league rosters' });
   }
 });
 

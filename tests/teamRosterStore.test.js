@@ -132,6 +132,75 @@ test('roster periods preserve exact new start dates and backfill older dates as 
   } finally { db.close(); }
 });
 
+test('the overview fallback uses the latest complete five-player match and respects the season filter', () => {
+  const db = fixture();
+  try {
+    const store = new TeamRosterStore(db);
+    db.exec("INSERT INTO LeagueInfo VALUES (400, 'Earlier'), (500, 'Later')");
+    for (const [matchId, leagueId, players, recordedTeam] of [
+      [10,400,[1,2,3,4,5],444], [11,400,[1,2,3,4,6],444],
+      [12,500,[6,7,8,9,10],444], [13,500,[1,2,3,4],444],
+      [14,500,[1,2,3,4,5,6],444], [15,500,[1,2,3,4,5],999],
+    ]) {
+      db.prepare('INSERT INTO MatchTeam VALUES (?, ?, 222)').run(matchId,recordedTeam);
+      db.prepare('INSERT INTO MatchLeague VALUES (?, ?, ?)').run(matchId,leagueId,matchId===10?'2026-10-01':null);
+      for (const playerId of players) {
+        db.prepare('INSERT INTO MatchTeamPlayer VALUES (?, ?, 444)').run(matchId,playerId);
+        db.prepare('INSERT INTO MatchPlayer VALUES (?, ?)').run(matchId,playerId);
+      }
+    }
+    // Membership duplicates and stale rows without a corresponding player record do not change the five.
+    db.exec('INSERT INTO MatchTeamPlayer VALUES (12,6,444),(12,11,444); INSERT INTO MatchPlayer VALUES (12,6)');
+    db.prepare('UPDATE PlayerInfo SET PlayerName=? WHERE PlayerId=6').run(Buffer.from('Player six'));
+    const latest=store.latestMatchLineup(444);
+    assert.equal(latest.MatchId,12);
+    assert.equal(latest.Source,'match_lineup');
+    assert.equal(latest.LeagueName,'Later');
+    assert.deepEqual(latest.players.map(p=>p.PlayerId),[6,7,8,9,10]);
+    assert.equal(latest.players[0].PlayerName,'Player six');
+    assert.equal(store.latestMatchLineup(444,400).MatchId,11);
+    assert.deepEqual(store.latestMatchLineup(444,400).players.map(p=>p.PlayerId),[1,2,3,4,6]);
+    assert.equal(store.latestMatchLineup(444,600),null);
+    assert.equal(store.latestMatchLineup(777),null);
+    assert.equal(store.forTeam(444),null,'an observed lineup is not stored as an active signup roster');
+  } finally { db.close(); }
+});
+
+test('league cards group signup and legacy rosters without exposing signup MMR or unrelated-season players', () => {
+  const db = fixture();
+  try {
+    const store = new TeamRosterStore(db);
+    db.exec(`INSERT INTO MatchTeam VALUES (10,444,222),(20,444,222);
+      INSERT INTO MatchLeague VALUES (10,100,'2026-01-01'),(20,200,'2026-02-01');
+      DELETE FROM TeamRosterPlayers WHERE TeamSubmissionId=1 AND Slot=4;
+      INSERT INTO SeasonPendingRosterSlots(TeamSubmissionId,Slot,EstimatedMMR,CreatedAtUtc,UpdatedAtUtc)
+        VALUES(1,4,6500,'2026-01-01','2026-01-01')`);
+    for (const [matchId, ids] of [[10,[1,2,3,4,5]],[20,[6,7,8,9,10]]]) {
+      for (const playerId of ids) {
+        db.prepare('INSERT INTO MatchTeamPlayer VALUES (?,?,444)').run(matchId,playerId);
+        db.prepare('INSERT INTO MatchPlayer VALUES (?,?)').run(matchId,playerId);
+      }
+    }
+    const signup={EntryId:1,TeamSubmissionId:1,TeamId:null,TeamName:'Zulu signup',MMR:7000};
+    const legacy={TeamId:444,TeamName:'Alpha legacy'};
+    const other={TeamId:555,TeamName:'Unassigned'};
+    const result=store.forLeague(100,{groups:[{GroupId:1,GroupName:'Romeo',teams:[signup,legacy]},
+      {GroupId:2,GroupName:'Juliet',teams:[]}],teams:[signup,{...legacy,GamesPlayed:10,WinPercentage:60},other]});
+    assert.deepEqual(result.map(g=>g.GroupName),['Romeo','Juliet','Other teams']);
+    assert.deepEqual(result[0].teams.map(t=>t.TeamName),['Alpha legacy','Zulu signup']);
+    assert.deepEqual(result[0].teams[0].players.map(p=>p.PlayerId),[1,2,3,4,5],'use the selected season, not the later match');
+    assert.equal(result[0].teams[0].GamesPlayed,10);assert.equal(result[0].teams[0].WinPercentage,60);
+    const card=result[0].teams[1];assert.equal(card.TeamSubmissionId,1);assert.equal(card.HasRoster,true);
+    assert.equal(card.TeamId,null);assert.deepEqual(card.players.map(p=>p.PlayerId),[1,2,3,4]);
+    assert.equal(card.GamesPlayed,0);assert.equal(card.WinPercentage,null);
+    assert.deepEqual(card.pendingSlots,[{Slot:4}]);
+    assert.deepEqual(result[2].teams[0].players,[]);
+    assert.equal(JSON.stringify(result).includes('MMR'),false);
+    assert.equal(store.forLeague(100,{groups:[],teams:[legacy]})[0].GroupName,'Teams');
+    assert.deepEqual(store.forLeague(100,{groups:[],teams:[]}),[]);
+  } finally { db.close(); }
+});
+
 test('legacy history groups each player once per season across stand-in lineups', () => {
   const db = fixture();
   try {
