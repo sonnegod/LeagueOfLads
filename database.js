@@ -8,6 +8,7 @@ import AdminAuditStore from './config/adminAuditStore.js';
 import AdjustedPlayersStore from './config/adjustedPlayersStore.js';
 import SeasonStore from './config/seasonStore.js';
 import { getLeaguePlayerRecords } from './config/leaguePlayerRecords.js';
+import { getLeagueRegisteredTeams, includeRegisteredTeams, includeRegisteredPlayers, saveRegisteredLeagueTeam } from './config/leagueParticipants.js';
 import { getPlayerTeammates } from './config/playerTeammates.js';
 import { getHeadToHeadMatches } from './config/playerHeadToHead.js';
 import { getUnmatchedMatchTeams } from './config/unmatchedMatchTeams.js';
@@ -2580,7 +2581,25 @@ class DBInstance {
     }
 
     getLeaguePlayerData(leagueId){
-        return getLeaguePlayerRecords(this.db, leagueId);
+        return includeRegisteredPlayers(this.db, leagueId, getLeaguePlayerRecords(this.db, leagueId), this.getLeagueTeams(leagueId));
+    }
+
+    getLeagueTeams(leagueId){
+        return includeRegisteredTeams(this.getAllTeams(leagueId), getLeagueRegisteredTeams(this.db, leagueId));
+    }
+
+    adminSaveRegisteredTeam(leagueId, values){
+        return saveRegisteredLeagueTeam(this.db, leagueId, values, {
+            rebuild: id => this.rebuildLeagueGroupStandings(id),
+            audit: (type, message) => this.recordAdminAudit(type, message),
+        });
+    }
+
+    adminEditableTeams(){
+        const leagueId = this.getActiveLeague()?.[0]?.LeagueId;
+        if (!leagueId) return [];
+        const teams = this.adminCurrentTeams(leagueId);
+        return includeRegisteredTeams(teams, getLeagueRegisteredTeams(this.db, leagueId));
     }
 
     getLeagueMatchesData(leagueId){

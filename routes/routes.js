@@ -792,7 +792,7 @@ router.post('/admin/replaceMatchTeamId', checkAdmin, (req, res) => {
 router.get('/admin/currentLeagueTeams', checkAdmin, (req, res) => {
   try {
 
-    const result = db.adminCurrentTeams();
+    const result = db.adminEditableTeams();
 
       res.json({ result });
     } catch (err) {
@@ -966,6 +966,22 @@ router.post('/admin/leagueRosterEntries/:entryId/link', checkAdmin, (req, res) =
 
 router.post('/admin/leagueTeam', checkAdmin, (req, res) => {
   const leagueId = db.getActiveLeague()?.[0]?.LeagueId;
+  if (req.body?.entryId != null) {
+    if (!leagueId) return res.status(400).json({ error: 'No active league' });
+    const entryId = Number(req.body.entryId);
+    if (!Number.isSafeInteger(entryId) || entryId <= 0) return res.status(400).json({ error: 'Invalid team entry' });
+    try {
+      db.adminSaveRegisteredTeam(leagueId, { entryId,
+        teamId: req.body.teamId == null || req.body.teamId === '' ? null : Number(req.body.teamId),
+        teamName: String(req.body.teamName || '').trim(), groupId: Number(req.body.groupId) });
+      return res.json({ success: true });
+    } catch (err) {
+      if (err.status) return res.status(err.status).json({ error: err.message });
+      if (err.code?.startsWith('SQLITE_CONSTRAINT')) return res.status(409).json({ error: 'That team name or ID is already assigned' });
+      console.error(err);
+      return res.status(500).json({ error: 'Failed to save team' });
+    }
+  }
   const teamId = Number(req.body?.teamId);
   const originalTeamId = req.body?.originalTeamId == null
     ? teamId : Number(req.body.originalTeamId);
@@ -2210,7 +2226,7 @@ router.get('/leagues/:leagueId', async (req, res) => {
   try {
     const league = await db.getLeagueData(leagueId);
     const players = await db.getLeaguePlayerData(leagueId);
-    const teams = await db.getAllTeams(leagueId);
+    const teams = await db.getLeagueTeams(leagueId);
     const hasGroups = db.getLeagueLeaderboard(leagueId).length > 0;
     const matches = await db.getLeagueMatchesData(leagueId);
     const series = await db.getLeagueSeries(leagueId);

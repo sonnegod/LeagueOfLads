@@ -198,7 +198,7 @@ function EmptyState({ children }) {
 }
 
 function getTopTeams(teams) {
-  return [...teams].sort((a, b) => {
+  return teams.filter(team => team.GamesPlayed > 0).sort((a, b) => {
     const winDiff = toNumber(b.WinPercentage) - toNumber(a.WinPercentage);
     if (winDiff !== 0) return winDiff;
     return toNumber(b.GamesPlayed) - toNumber(a.GamesPlayed);

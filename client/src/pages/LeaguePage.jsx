@@ -1,6 +1,7 @@
 // src/pages/LeaguePage.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
+import { leagueTeamLink } from '../utils/leagueTeamLink';
 import CurrentLeagueSeries from "../components/CurrentLeagueSeries";
 import CurrentLeaderboardTable from "../components/CurrentLeaderboardTable";
 import TieBreakerView from "../components/TieBreakerView";
@@ -195,11 +196,11 @@ export default function LeaguePage({
           </thead>
           <tbody>
             {teams.map(t => (
-              <React.Fragment key={t.TeamId}>
+              <React.Fragment key={t.EntryId != null ? `entry:${t.EntryId}` : `team:${t.TeamId}`}>
                 <tr>
-                  <td style={tdStyle}><Link to={`/team/${t.TeamId}`}>{t.TeamName}</Link></td>
+                  <td style={tdStyle}>{leagueTeamLink(t) ? <Link to={leagueTeamLink(t)}>{t.TeamName}</Link> : t.TeamName}</td>
                   <td style={tdStyle}>{t.GamesPlayed}</td>
-                  <td style={tdStyle}>{t.WinPercentage}%</td>
+                  <td style={tdStyle}>{t.WinPercentage == null ? '—' : `${t.WinPercentage}%`}</td>
                 </tr>
               </React.Fragment>))}
           </tbody>
@@ -227,18 +228,18 @@ export default function LeaguePage({
           </thead>
           <tbody>
             {players.map(player => (
-              <React.Fragment key={`${player.PlayerId}:${player.TeamId}`}>
+              <React.Fragment key={`${player.PlayerId}:${player.EntryId != null ? `entry:${player.EntryId}` : `team:${player.TeamId}`}`}>
                 <tr>
                   <td style={tdStyle}>
                     <Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link><br />
-                    <small><Link to={`/team/${player.TeamId}`}>{player.TeamName}</Link></small>
+                    <small>{leagueTeamLink(player) ? <Link to={leagueTeamLink(player)}>{player.TeamName}</Link> : player.TeamName}</small>
                   </td>
                   <td style={tdStyle}>{player.GamesPlayed}</td>
-                  <td style={tdStyle}>{player.WinPercentage?.toFixed(2)}%</td>
-                  <td style={tdStyle}>{player.AvgKills?.toFixed(1)}/{player.AvgDeaths?.toFixed(1)}/{player.AvgAssists?.toFixed(1)}</td>
-                  <td style={tdStyle}>{player.AvgLastHits?.toFixed(2)}</td>
-                  <td style={tdStyle}>{player.AvgGPM?.toFixed(2)}</td>
-                  <td style={tdStyle}>{player.AvgXPM?.toFixed(2)}</td>
+                  <td style={tdStyle}>{player.WinPercentage == null ? '—' : `${player.WinPercentage.toFixed(2)}%`}</td>
+                  <td style={tdStyle}>{player.GamesPlayed ? `${player.AvgKills?.toFixed(1)}/${player.AvgDeaths?.toFixed(1)}/${player.AvgAssists?.toFixed(1)}` : '—'}</td>
+                  <td style={tdStyle}>{player.AvgLastHits?.toFixed(2) ?? '—'}</td>
+                  <td style={tdStyle}>{player.AvgGPM?.toFixed(2) ?? '—'}</td>
+                  <td style={tdStyle}>{player.AvgXPM?.toFixed(2) ?? '—'}</td>
 
                 </tr>
               </React.Fragment>

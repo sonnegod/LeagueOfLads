@@ -20,8 +20,11 @@ export default function Home() {
     && Number.isSafeInteger(Number(requestedPreview)) && Number(requestedPreview) > 0 ? requestedPreview : null;
   const [home, setHome] = useState(null);
   const [error, setError] = useState('');
-  const [activeSection, setActiveSection] = useState('content');
+  const [activeSection, setActiveSection] = useState('league');
   const [showChampionDetails, setShowChampionDetails] = useState(false);
+  useEffect(() => {
+    if (previewLeague) setActiveSection('content');
+  }, [previewLeague]);
   useEffect(() => {
     let active = true;
     async function load() {
@@ -46,7 +49,7 @@ export default function Home() {
     if (focus) document.getElementById(`home-${section}-tab`)?.focus();
   }
   function navigateTabs(event) {
-    const sections = ['content', 'league'];
+    const sections = ['league', 'content'];
     let section;
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') section = sections[(sections.indexOf(activeSection) + 1) % 2];
     else if (event.key === 'Home') section = sections[0];
@@ -63,7 +66,7 @@ export default function Home() {
       <p>Game results, player highlights, and recaps from around the league.</p>
     </header>
     <div className="ui-tabs home-primary-tabs" role="tablist" aria-label="Homepage sections" onKeyDown={navigateTabs}>
-      {[['content', 'Content'], ['league', 'League Info']].map(([section, label]) =>
+      {[['league', 'League Info'], ['content', 'Content']].map(([section, label]) =>
         <button key={section} id={`home-${section}-tab`} type="button" role="tab" className="ui-tab"
           aria-selected={activeSection === section} aria-controls={`home-${section}-panel`}
           tabIndex={activeSection === section ? 0 : -1} onClick={() => selectSection(section)}>{label}</button>)}
