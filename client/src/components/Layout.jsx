@@ -5,9 +5,10 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Layout.css';
 import SiteAnalyticsTracker from './SiteAnalyticsTracker';
+import PlayerNameConfirmation from './PlayerNameConfirmation';
 
 export default function Layout() {
-  const { loading } = useAuth();
+  const { user, loading } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
 
@@ -31,6 +32,7 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <SiteAnalyticsTracker />
+      {user&&<PlayerNameConfirmation key={user.accountId} />}
       <Navbar
         mobileNavOpen={mobileNavOpen}
         onMenuToggle={() => setMobileNavOpen((open) => !open)}

@@ -1,0 +1,48 @@
+.season-account {min-width:0;}
+.season-account-heading {display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
+.season-account-heading h2 {font-size:1.1rem;font-weight:750;margin:0;}
+.season-account-heading p {font-size:.8rem;color:#94a3b8;margin:.4rem 0 0;}
+.season-account-heading>a {display:inline-flex;align-items:center;gap:.4rem;font-size:.8rem;}
+.season-account-toolbar {display:grid;grid-template-columns:minmax(0,max-content) minmax(0,1fr);align-items:center;gap:.4rem 1rem;margin:1.3rem 0;}
+.season-account-toolbar>label {display:contents;font-size:.75rem;}
+.season-account-toolbar select {grid-area:2/1;min-width:0;max-width:100%;width:100%;}
+.season-account-toolbar>a {grid-area:2/2;justify-self:end;font-size:.78rem;}
+.season-account-wallet {border:1px solid #334155;border-radius:12px;background:linear-gradient(110deg,#17243a,#0f172a);padding:1.4rem;display:flex;justify-content:space-between;align-items:center;gap:1.5rem;margin-bottom:1.4rem;}
+.season-account-wallet>div>span {display:block;font-size:.75rem;color:#94a3b8;}
+.season-account-wallet>div>strong {display:block;font-size:2.2rem;line-height:1.2;margin-top:.5rem;color:#86efac;font-variant-numeric:tabular-nums;}
+.season-account-wallet>p {font-size:.78rem;line-height:1.7;color:#94a3b8;max-width:340px;margin:0;}
+.season-account-ticket-heading {display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;}
+.season-account-ticket-heading h3 {font-size:1rem;font-weight:700;margin:0;}
+.season-account-ticket-heading>span {font-size:.73rem;color:#94a3b8;}
+.season-account-ticket-columns,.season-account-ticket>summary {display:grid;grid-template-columns:minmax(0,1fr) 100px 110px 110px;align-items:center;gap:1rem;padding:1rem;}
+.season-account-ticket-columns {font-size:.7rem;color:#94a3b8;padding-top:.4rem;padding-bottom:.65rem;}
+.season-account-ticket-columns>span:not(:first-child),.season-account-amount {text-align:center;}
+.season-account-ticket {border:1px solid #334155;border-radius:10px;background:#0f172a;margin-bottom:.65rem;overflow:hidden;}
+.season-account-ticket>summary {cursor:pointer;list-style:none;}
+.season-account-ticket>summary::-webkit-details-marker {display:none;}
+.season-account-ticket>summary:hover {background:#17243a80;}
+.season-account-ticket-title {display:grid;gap:.3rem;padding-left:1rem;position:relative;min-width:0;}
+.season-account-ticket-title::before {content:'▸';position:absolute;left:0;top:0;color:#94a3b8;}
+.season-account-ticket[open] .season-account-ticket-title::before {content:'▾';}
+.season-account-ticket-title>strong {font-size:.83rem;}
+.season-account-ticket-title>span {font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cbd5e1;}
+.season-account-ticket-title>small {font-size:.68rem;color:#94a3b8;}
+.season-account-amount {font-size:.85rem;font-variant-numeric:tabular-nums;}
+.season-account-amount>small {display:none;}
+.season-account-status {text-transform:capitalize;font-size:.72rem;font-weight:650;text-align:center;padding:.3rem .5rem;border-radius:5px;background:#1e293b;color:#cbd5e1;}
+.season-account-status.status-pending {color:#fcd34d;background:#713f1233;}
+.season-account-status.status-won {color:#86efac;background:#14532d55;}
+.season-account-status.status-lost {color:#fca5a5;background:#7f1d1d55;}
+.season-account-leg-scroll {overflow:auto;border-top:1px solid #334155;padding:.6rem 1rem;}
+.content .season-account-legs {width:100%;border:0!important;border-radius:0;border-collapse:collapse;}
+.content .season-account-legs :is(th,td) {border:0;border-bottom:1px solid #26364d;padding:.75rem;text-align:center;font-size:.75rem;}
+.content .season-account-legs tr>:first-child {padding-left:0;text-align:left;width:65%;}
+.content .season-account-legs tr>:last-child {padding-right:0;}
+.content .season-account-legs th {font-size:.68rem;color:#94a3b8;background:transparent;}
+.content .season-account-legs tr:last-child td {border-bottom:0;}
+.season-account-legs td strong,.season-account-legs td span,.season-account-legs td small {display:block;}
+.season-account-legs td span,.season-account-legs td small {color:#94a3b8;margin-top:.25rem;}
+.season-account-error {color:#fca5a5;font-size:.8rem;}
+.season-account-empty {padding:2rem;border:1px dashed #334155;border-radius:10px;color:#94a3b8;text-align:center;font-size:.85rem;line-height:1.6;}
+.season-account-empty h3 {color:#e2e8f0;margin:0 0 .5rem;font-size:1rem;}
+@media(max-width:700px){.season-account-wallet{align-items:start;flex-direction:column;gap:1rem;}.season-account-ticket-columns{display:none;}.season-account-ticket>summary{grid-template-columns:minmax(0,1fr) repeat(2,70px);gap:.65rem;padding:.85rem;}.season-account-ticket-title{grid-column:1/-1;}.season-account-amount{text-align:left;}.season-account-amount>small{display:block;color:#94a3b8;font-size:.68rem;margin-bottom:.2rem;}.season-account-toolbar{grid-template-columns:minmax(0,1fr) max-content;}.season-account-toolbar>a{grid-area:3/1/4/3;margin-top:.35rem;}.season-account-legs{min-width:440px;}}
