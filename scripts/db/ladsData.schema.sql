@@ -231,7 +231,10 @@ CREATE TABLE Logins (
     Username      CHAR     NOT NULL,
     SteamID       INTEGER  NOT NULL
                            UNIQUE,
-    LastLoginDate DATETIME NOT NULL
+    LastLoginDate DATETIME NOT NULL,
+    FirstLoginAtUtc TEXT,
+    NameConfirmedAtUtc TEXT,
+    NameConfirmationRequired INTEGER NOT NULL DEFAULT 0 CHECK (NameConfirmationRequired IN (0, 1))
 );
 
 -- table: SourceLoadRuns

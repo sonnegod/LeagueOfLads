@@ -8,6 +8,8 @@ import AdminAuditStore from './config/adminAuditStore.js';
 import AdjustedPlayersStore from './config/adjustedPlayersStore.js';
 import SeasonStore from './config/seasonStore.js';
 import { getLeaguePlayerRecords } from './config/leaguePlayerRecords.js';
+import { getPlayerDashboard, changePlayerDisplayName } from './config/playerDashboard.js';
+import { ensurePlayerLoginSchema, recordPlayerLogin, getPlayerLoginState } from './config/playerLogin.js';
 import { getLeagueRegisteredTeams, includeRegisteredTeams, includeRegisteredPlayers, saveRegisteredLeagueTeam } from './config/leagueParticipants.js';
 import { getPlayerTeammates } from './config/playerTeammates.js';
 import { getHeadToHeadMatches } from './config/playerHeadToHead.js';
@@ -32,6 +34,7 @@ class DBInstance {
             this.db = new Database(dbPath);
             configureWarehouseConnection(this.db);
             initializeWarehouse(this.db);
+            ensurePlayerLoginSchema(this.db);
             this.ensureAdminsSchema();
             this.auditLog = new AdminAuditStore(this.db);
             this.adjustedPlayers = new AdjustedPlayersStore(this.db);
@@ -529,6 +532,8 @@ class DBInstance {
             [userId]
         );
     }
+
+    getPlayerDashboard(accountId){ return getPlayerDashboard(this.db, accountId); }
 
     getMostRecentMatch() {
         const rows = this.queryDatabase(
@@ -2701,28 +2706,7 @@ class DBInstance {
     }
 
     changeName(accountId,newName){
-        const now = new Date();
-    
-        try {
-            const row = this.queryDatabase(
-                `SELECT LastDateChanged FROM PlayerInfo WHERE PlayerId = ?`,
-                [accountId]
-            );
-
-            const lastChanged = row[0].LastDateChanged ? new Date(row[0].LastDateChanged) : null;
-            lastChanged.setDate(lastChanged.getDate() + 30)
-
-            if (lastChanged && lastChanged > now) {
-                return { success: false, error: 'You can only change your name once every 30 days.' };
-            }
-
-            this.db.prepare('UPDATE PlayerInfo SET PlayerName = ?, LastDateChanged = ? WHERE PlayerId = ?')
-                .run(newName, now.toISOString(), accountId);
-
-            return { success: true, message: 'Name updated successfully!' };
-        } catch (err) {
-           return { success: false, error: err };
-        }
+        return changePlayerDisplayName(this.db, accountId, newName);
     }
 
     adminUpdateMatch(matchId, teamRad, teamDire, winnerId, originalTeamRad, originalTeamDire, leagueId = null){
@@ -3443,20 +3427,16 @@ class DBInstance {
 
     login(username, steamid, date){
         try {
-            const stmt = this.db.prepare(`INSERT OR REPLACE INTO Logins (Username, SteamID, LastLoginDate)
-                                          VALUES (@username, @steamId, @LastLoginDate)`);
-            stmt.run({
-                username: username,
-                steamId: this.steamId64ToAccountId(steamid),
-                LastLoginDate: date
-            });
-
-
+            recordPlayerLogin(this.db, this.steamId64ToAccountId(steamid), username, date);
             return 1;
         } catch (err) {
             console.log(err);
             return 2;
         }
+    }
+
+    getPlayerLoginState(accountId){
+        return getPlayerLoginState(this.db, accountId);
     }
     
     getLastMatchForLeague(leagueId){

@@ -27,6 +27,7 @@ import {
 import { getAppStandingsPayload } from './utility/standingsResponses.js';
 import { createPlayerAwardsRouter } from './playerAwardsRoutes.js';
 import { createWarehouseReportingRouter } from './warehouseReportingRoutes.js';
+import { createPlayerLoginRouter } from './playerLoginRoutes.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
@@ -40,6 +41,7 @@ const { adminRoutes: adminAnalyticsRoutes, publicRoutes: publicAnalyticsRoutes, 
   audit: (type, message) => db.recordAdminAudit(type, message),
 });
 router.use(createWarehouseReportingRouter(db.db));
+router.use(createPlayerLoginRouter(db.db, steamId => db.steamId64ToAccountId(steamId)));
 router.use(createPlayerAwardsRouter(playerId => db.getPlayerAwards(playerId), () => db.getAwardsCatalog()));
 router.use('/site-analytics', createSiteAnalyticsRouter({
   excluded: req => excludedVisitor(req) || Boolean(getAdminForSteamId(req.user?.id)),
@@ -130,9 +132,10 @@ router.get('/auth/user', (req, res) => {
     const admin = getAdminForSteamId(req.user.id);
 
     // You can customize what user info to send here
-    res.json({
+    res.set('Cache-Control', 'no-store').json({
       steamid: req.user.id,
       accountId,
+      ...db.getPlayerLoginState(accountId),
       personaname: req.user.displayName,
       avatar: req.user.photos[2]?.value || req.user.photos[0]?.value,
       profileurl: req.user._json?.profileurl || '',
@@ -162,21 +165,19 @@ router.post('/nameChange', (req, res) => {
     return res.status(401).json({ error: 'Not logged in' });
   }
 
-  const newName = req.body.newName;
-  if (!newName || !newName.trim()) {
+  const newName = req.body?.newName;
+  if (typeof newName !== 'string' || !newName.trim()) {
     return res.status(400).json({ error: 'Invalid name' });
   }
 
-   const userId = req.body.userId; // or steamId / accountId
    try {
-    // Call your DB function that handles validation & update
+    const userId = db.steamId64ToAccountId(req.user.id);
     const result = db.changeName(userId, newName);
     if (!result.success) {
-      // e.g., result.message could be "You must wait X days"
-      return res.status(400).json({ error: result.message });
+      return res.status(result.status || 400).json({ error: result.message, nextNameChangeAt: result.nextNameChangeAt });
     }
 
-    res.json({ success: true, message: 'Name updated successfully!' });
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -1900,29 +1901,10 @@ router.get('/player/:accountId', async (req, res) => {
 
 router.get('/playerDashboard/:accountId', async (req, res) => {
   const { accountId } = req.params;
+  if (!/^[1-9]\d*$/.test(accountId) || !Number.isSafeInteger(Number(accountId))) return res.status(400).json({ error: 'Invalid player account' });
   try {
-    const playerStats = await db.getPlayerByAccountId(accountId);
-    const playerHeroStats = await db.getPlayerHeroesByAccountId(accountId);
-    const playerTeamStats = await db.getPlayerDetails(accountId, null);
-    const currentLeagueId = await db.getCurrentLeague();
-    const getPlayerSeasonStats =  await db.getPlayerSeasonStatsByAccountId(accountId)
-    
-    const mostSuccessfulHero = await playerHeroStats.filter(hero => hero.GamesPlayed >= 5 && hero.WinPercentage >= 60).sort((a, b) => a.WinPercentage - b.WinPercentage).pop();
-    const mostSuccessfulTeam = await playerTeamStats.sort((a, b) => a.WinPercentage - b.WinPercentage).pop();
-    const recentLeagueStats = await playerStats.filter(stat => stat.LeagueId === currentLeagueId[0].LeagueId).slice(0, 5);
-    const currentSeasonMSH = await getPlayerSeasonStats.pop() || null
-
-    if (!playerStats || !playerHeroStats || !playerTeamStats) return res.status(404).json({ error: 'Player Data not found' });
-
-    res.json({
-      playerStats,
-      mostSuccessfulHero,
-      mostSuccessfulTeam,
-      recentLeagueStats,
-      playerTeamStats,
-      getPlayerSeasonStats,
-      currentSeasonMSH
-    });
+    res.set('Cache-Control', 'no-store');
+    res.json(db.getPlayerDashboard(Number(accountId)));
     } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }

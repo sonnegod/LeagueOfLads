@@ -1,6 +1,11 @@
 .sportsbook-heading,.sportsbook-toolbar,.sportsbook-filters,.sportsbook-market-meta,.sportsbook-paging {display:flex;flex-wrap:wrap;align-items:center;gap:1rem;justify-content:space-between;}
 .sportsbook-heading p {color:#94a3b8;margin:0;}.sportsbook-wallet {display:grid;text-align:right;}.sportsbook-wallet strong {font-size:1.7rem;color:#86efac;}.sportsbook-wallet span {font-size:.8rem;color:#94a3b8;}
 .sportsbook-toolbar {justify-content:flex-start;margin:1.2rem 0;}.sportsbook-page label {display:grid;gap:.4rem;font-size:.85rem;}.sportsbook-filters {align-items:end;justify-content:flex-start;margin-bottom:1rem;}.sportsbook-filters label:last-child {flex:1;min-width:180px;}
+.sportsbook-season-toolbar {display:grid;grid-template-columns:minmax(0,max-content) max-content;row-gap:.4rem;}
+.sportsbook-page .sportsbook-season-toolbar>label {display:contents;}
+.sportsbook-season-toolbar>label>span {grid-area:1 / 1;}
+.sportsbook-season-toolbar>label>select {grid-area:2 / 1;min-width:0;width:100%;}
+.sportsbook-season-toolbar>button {grid-area:2 / 2;align-self:center;}
 .sportsbook-layout {display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:1.5rem;align-items:start;}.sportsbook-markets {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:1rem;}
 .sportsbook-market,.sportsbook-slip,.betting-admin-widget {padding:1rem;border:1px solid #334155;border-radius:12px;background:#0f172a;min-width:0;}.sportsbook-market h2 {font-size:1.05rem;margin:.7rem 0;}.sportsbook-market-meta,.sportsbook-market small,.sportsbook-notice {color:#94a3b8;font-size:.75rem;}.sportsbook-market small {display:block;margin-top:.75rem;}
 .sportsbook-selections {display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.5rem;margin-top:.8rem;}.sportsbook-selections button {display:flex;justify-content:space-between;align-items:center;gap:.8rem;text-align:left;font-size:.82rem;padding:.7rem;}.sportsbook-selections button[aria-pressed=true] {background:#1d4ed8!important;border-color:#60a5fa!important;}.sportsbook-selections strong {color:#93c5fd;}
