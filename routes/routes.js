@@ -216,6 +216,13 @@ router.use('/admin', mutationRefresh);
 router.use('/admin', createLeagueGroupBoardRouter({db:db.db,
   getActiveLeague:()=>db.getActiveLeague()?.[0],getGroups:id=>db.getLeagueSetup(id),
   getAvailableTeams:id=>db.getLeagueMatchTeams(id),rebuild:id=>db.rebuildLeagueGroupStandings(id),
+  getUnregisteredTeams:id=>db.seasons.unregisteredTeams(id),
+  getRoster:(leagueId,team)=>{
+    const declared=team.TeamSubmissionId!=null?db.seasons.rosters.forSubmission(team.TeamSubmissionId)
+      :team.TeamId>0?db.seasons.rosters.forTeam(team.TeamId,leagueId):null;
+    if(Number(declared?.LeagueId)===Number(leagueId))return declared;
+    return team.TeamId>0?db.seasons.rosters.latestMatchLineup(team.TeamId,leagueId):null;
+  },
   audit:(type,message)=>db.recordAdminAudit(type,message)}));
 router.use('/admin/rosters', rosterRoutes);
 router.use('/admin/seasons', adminSeasonRoutes);

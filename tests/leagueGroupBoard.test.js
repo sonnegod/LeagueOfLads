@@ -46,14 +46,18 @@ function fixture() {
     UNION SELECT m.TeamDire FROM MatchTeam m JOIN MatchLeague l USING(MatchId) WHERE l.LeagueId=?)
     AND NOT EXISTS(SELECT 1 FROM LeagueGroups g WHERE g.LeagueId=? AND g.TeamId=t.TeamId)
     AND NOT EXISTS(SELECT 1 FROM LeagueRosterEntries e WHERE e.LeagueId=? AND e.TeamId=t.TeamId) ORDER BY t.TeamId`).all(leagueId,leagueId,leagueId,leagueId);
-  const readBoard=()=>{const league=getActiveLeague()||null;const board={league,groups:league?getGroups(league.LeagueId):[],availableTeams:league?getAvailableTeams(league.LeagueId):[]};
+  const getUnregisteredTeams=leagueId=>db.prepare(`SELECT t.TeamSubmissionId,t.TeamName,t.ExternalTeamId AS TeamId,1 AS HasRoster
+    FROM SeasonTeams t JOIN LeagueSeasons s ON s.SeasonId=t.SeasonId WHERE s.ExternalLeagueId=? AND s.Status='active' AND t.GroupId IS NULL
+      AND NOT EXISTS(SELECT 1 FROM LeagueRosterEntries e WHERE e.LeagueId=? AND e.TeamSubmissionId=t.TeamSubmissionId)`).all(leagueId,leagueId);
+  const readBoard=()=>{const league=getActiveLeague()||null;const board={league,groups:league?getGroups(league.LeagueId):[],availableTeams:league?getAvailableTeams(league.LeagueId):[],unregisteredTeams:league?getUnregisteredTeams(league.LeagueId):[]};
     return {...board,revision:leagueGroupBoardRevision(board)};};
   const options={readBoard,rebuild:()=>db.prepare('INSERT INTO Actions VALUES(?)').run('rebuild'),audit:(_type,message)=>db.prepare('INSERT INTO Actions VALUES(?)').run(message)};
-  return {db,readBoard,options,routerOptions:{db,getActiveLeague,getGroups,getAvailableTeams,rebuild:options.rebuild,audit:options.audit},close:()=>db.close()};
+  return {db,readBoard,options,routerOptions:{db,getActiveLeague,getGroups,getAvailableTeams,getUnregisteredTeams,rebuild:options.rebuild,audit:options.audit},close:()=>db.close()};
 }
 function draft(board) {return {leagueId:board.league.LeagueId,revision:board.revision,groups:board.groups.map(g=>({id:g.GroupId,name:g.GroupName})),
   teams:[...board.groups.flatMap(g=>g.teams.map(t=>({key:groupTeamKey(t),name:t.TeamName,teamId:t.TeamId??null,groupId:g.GroupId}))),
-    ...board.availableTeams.map(t=>({key:groupTeamKey(t),name:t.TeamName,teamId:t.TeamId,groupId:null}))]};}
+    ...board.availableTeams.map(t=>({key:groupTeamKey(t),name:t.TeamName,teamId:t.TeamId,groupId:null})),
+    ...(board.unregisteredTeams||[]).map(t=>({key:`submission:${t.TeamSubmissionId}`,name:t.TeamName,teamId:t.TeamId,groupId:null}))]};}
 const originalRows=db=>JSON.stringify(['MatchTeam','MatchLeague','SeasonTeamPlayers','TeamRosterPlayers'].map(t=>db.prepare(`SELECT * FROM ${t}`).all()));
 
 test('one save moves signup and legacy teams, synchronizes season groups and preserves raw matches and rosters',()=>{
@@ -94,6 +98,40 @@ test('group names can swap atomically without violating the season uniqueness co
     saveLeagueGroupBoard(f.db,input,f.options);
     assert.equal(f.db.prepare('SELECT GroupName FROM SeasonGroups WHERE GroupId=11').get().GroupName,'B');
     assert.equal(f.db.prepare('SELECT GroupName FROM SeasonGroups WHERE GroupId=12').get().GroupName,'A');
+  }finally{f.close();}
+});
+
+test('unregistered roster teams stay pending until a group save publishes and links their existing identity',()=>{
+  const f=fixture();try {
+    const old=draft(f.readBoard());
+    f.db.exec("INSERT INTO SeasonTeams VALUES(3,1,NULL,'New roster',NULL,'created'); INSERT INTO SeasonTeamPlayers VALUES(3,9,6000); INSERT INTO TeamRosterPlayers VALUES(3,9)");
+    assert.throws(()=>saveLeagueGroupBoard(f.db,old,f.options),e=>e.status===409,'newly created teams invalidate older drafts');
+    let input=draft(f.readBoard());input.groups[0].name='Renamed A';
+    saveLeagueGroupBoard(f.db,input,f.options);
+    assert.equal(f.readBoard().unregisteredTeams.length,1,'other group edits do not force all pending teams into groups');
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM LeagueRosterEntries WHERE TeamSubmissionId=3').get().n,0);
+    input=draft(f.readBoard());
+    Object.assign(input.teams.find(t=>t.key==='submission:3'),{groupId:2,teamId:400});
+    const original=originalRows(f.db);saveLeagueGroupBoard(f.db,input,f.options);
+    const entry=f.db.prepare('SELECT * FROM LeagueRosterEntries WHERE TeamSubmissionId=3').get();
+    assert.equal(entry.LeagueId,100);assert.equal(entry.GroupId,2);assert.equal(entry.TeamId,400);
+    assert.equal(f.db.prepare('SELECT GroupId FROM SeasonTeams WHERE TeamSubmissionId=3').get().GroupId,12);
+    assert.equal(f.db.prepare('SELECT ExternalTeamId FROM SeasonTeams WHERE TeamSubmissionId=3').get().ExternalTeamId,400);
+    assert.equal(f.db.prepare('SELECT GroupId FROM LeagueGroups WHERE LeagueId=100 AND TeamId=400').get().GroupId,2);
+    assert.equal(f.readBoard().unregisteredTeams.length,0);assert.equal(originalRows(f.db),original);
+  }finally{f.close();}
+});
+
+test('pending-team publication rolls back with a failed save and cannot claim an ID without a group',()=>{
+  const f=fixture();try {
+    f.db.exec("INSERT INTO SeasonTeams VALUES(3,1,NULL,'Pending',NULL,'created')");
+    let input=draft(f.readBoard());input.teams.find(t=>t.key==='submission:3').teamId=400;
+    assert.throws(()=>saveLeagueGroupBoard(f.db,input,f.options),/before linking/);
+    input=draft(f.readBoard());input.teams.find(t=>t.key==='submission:3').groupId=2;
+    assert.throws(()=>saveLeagueGroupBoard(f.db,input,{...f.options,audit:()=>{throw Error('Failed audit');}}),/Failed audit/);
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM LeagueRosterEntries WHERE TeamSubmissionId=3').get().n,0);
+    assert.equal(f.db.prepare('SELECT GroupId FROM SeasonTeams WHERE TeamSubmissionId=3').get().GroupId,null);
+    assert.equal(f.readBoard().unregisteredTeams.length,1);
   }finally{f.close();}
 });
 
@@ -154,5 +192,28 @@ test('the board API exposes live revisions and returns stale-save conflicts',asy
     const send=()=>fetch(url,{method:'PUT',headers:{'x-admin':'yes','Content-Type':'application/json'},body:JSON.stringify(input)});
     const saved=await send();assert.equal(saved.status,200);assert.equal((await saved.json()).groups[0].GroupName,'Saved group');
     assert.equal((await send()).status,409);
+  }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));f.close();}
+});
+
+test('player previews are admin-only, scoped to saved current teams, and contain names without MMRs or uploads',async()=>{
+  const f=fixture(),app=express(),calls=[];
+  f.db.exec("INSERT INTO SeasonTeams VALUES(3,1,NULL,'Unregistered',NULL,'created')");
+  app.use('/api/admin',(req,res,next)=>req.get('x-admin')==='yes'?next():res.status(403).end());
+  app.use('/api/admin',createLeagueGroupBoardRouter({...f.routerOptions,getRoster:(leagueId,team)=>{
+    calls.push([leagueId,team.TeamSubmissionId??team.TeamId]);
+    return {players:[{PlayerId:1,PlayerName:Buffer.from('Player One'),MMR:6500,ScreenshotData:'private'}],pendingSlots:[{Slot:4}]};
+  }}));
+  const server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});
+  const url=`http://127.0.0.1:${server.address().port}/api/admin/leagueSetup/players?team=`;
+  try {
+    assert.equal((await fetch(url+'entry:10')).status,403);
+    for(const key of ['entry:10','team:300','team:400','submission:3']) {
+      const response=await fetch(url+key,{headers:{'x-admin':'yes'}});assert.equal(response.status,200);
+      assert.match(response.headers.get('Cache-Control'),/no-store/);
+      assert.deepEqual(await response.json(),{players:[{PlayerId:1,PlayerName:'Player One'},{PlayerId:null,PlayerName:'Player TBD'}]});
+    }
+    assert.deepEqual(calls,[[100,1],[100,300],[100,400],[100,3]]);
+    for(const key of ['entry:90','submission:999','new-team:unsaved'])assert.equal((await fetch(url+key,{headers:{'x-admin':'yes'}})).status,404);
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM Actions').get().n,0,'viewing rosters does not save or audit group edits');
   }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));f.close();}
 });

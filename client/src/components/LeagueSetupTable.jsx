@@ -14,14 +14,33 @@ function beginDraft(board) {
     groups:board.groups.map(g=>({id:g.GroupId,name:g.GroupName})),
     teams:[...board.groups.flatMap(g=>g.teams.map(t=>({key:teamKey(t),name:t.TeamName,teamId:t.TeamId??null,
       groupId:g.GroupId,submissionId:t.TeamSubmissionId,editable:t.EntryId!=null&&t.TeamId==null}))),
-      ...board.availableTeams.map(t=>({key:teamKey(t),name:t.TeamName||`Team ${t.TeamId}`,teamId:t.TeamId,groupId:null,editable:false}))]};
+      ...board.availableTeams.map(t=>({key:teamKey(t),name:t.TeamName||`Team ${t.TeamId}`,teamId:t.TeamId,groupId:null,editable:false})),
+      ...(board.unregisteredTeams||[]).map(t=>({key:`submission:${t.TeamSubmissionId}`,name:t.TeamName,teamId:t.TeamId??null,
+        groupId:null,submissionId:t.HasRoster?t.TeamSubmissionId:null,editable:true,unregistered:true}))]};
 }
 const payload=draft=>({leagueId:draft.leagueId,revision:draft.revision,
   groups:draft.groups.map(({id,name})=>({id,name})),teams:draft.teams.map(({key,name,teamId,groupId})=>({key,name,teamId,groupId}))});
 
+function TeamPlayers({teamKey}) {
+  const [result,setResult]=useState(null),[attempt,setAttempt]=useState(0);
+  useEffect(()=>{
+    const controller=new AbortController();
+    fetch(`/api/admin/leagueSetup/players?team=${encodeURIComponent(teamKey)}`,{signal:controller.signal,cache:'no-store'})
+      .then(async response=>{const data=await response.json();if(!response.ok)throw Error(data.error||'Could not load players');return data.players;})
+      .then(players=>{if(!controller.signal.aborted)setResult({teamKey,attempt,players});})
+      .catch(error=>{if(!controller.signal.aborted)setResult({teamKey,attempt,error:error.message});});
+    return()=>controller.abort();
+  },[teamKey,attempt]);
+  if(result?.teamKey!==teamKey||result?.attempt!==attempt)return <small role="status">Loading players…</small>;
+  if(result.error)return <small role="alert">{result.error} <button type="button" onClick={()=>setAttempt(value=>value+1)}>Retry</button></small>;
+  return result.players.length?<ul className="league-setup-player-list">{result.players.map((player,index)=><li key={player.PlayerId??`pending:${index}`}>{player.PlayerName}</li>)}</ul>
+    :<small>No roster recorded.</small>;
+}
+
 export default function LeagueSetupTable({refreshKey,onUpdated}) {
   const [snapshot,setSnapshot]=useState(null),[draft,setDraft]=useState(null),[newGroupName,setNewGroupName]=useState('');
   const [newTeamNames,setNewTeamNames]=useState({}),[dragged,setDragged]=useState(null);
+  const [expandedTeams,setExpandedTeams]=useState({});
   const [loadError,setLoadError]=useState(''),[saveError,setSaveError]=useState(''),[message,setMessage]=useState(''),[saving,setSaving]=useState(false);
   const mounted=useRef(false),pending=useRef(null),serial=useRef(0),savingRef=useRef(false),initialDraft=useRef('');
   const load=useCallback(async()=>{
@@ -45,7 +64,8 @@ export default function LeagueSetupTable({refreshKey,onUpdated}) {
   const conflict=editing&&snapshot?.revision!==draft.revision;
   const changed=editing&&JSON.stringify(payload(draft))!==initialDraft.current;
   const blocker=editing&&(draft.groups.some(g=>!g.name.trim())?'Every group needs a name.':
-    draft.teams.some(t=>(t.key.startsWith('entry:')||t.key.startsWith('new-team:'))&&t.groupId===null)?'Assign every signup or named team to a group before saving.':'');
+    draft.teams.some(t=>(t.key.startsWith('entry:')||t.key.startsWith('new-team:'))&&t.groupId===null)?'Assign every signup or named team to a group before saving.':
+    draft.teams.some(t=>t.unregistered&&t.teamId!==null&&t.groupId===null)?'Assign an unregistered team to a group before linking a team ID.':'');
   const canEdit=editing&&!saving;
   const updateTeam=(key,patch)=>setDraft(current=>({...current,teams:current.teams.map(t=>t.key===key?{...t,...patch}:t)}));
   const move=(key,groupId)=>{
@@ -68,7 +88,7 @@ export default function LeagueSetupTable({refreshKey,onUpdated}) {
   const claimedIds=new Set(board?.teams.filter(t=>t.editable&&t.teamId!==null).map(t=>t.teamId));
   const visibleTeams=board?.teams.filter(t=>!(t.key.startsWith('team:')&&t.groupId===null&&claimedIds.has(t.teamId)))||[];
   const unassigned=visibleTeams.filter(t=>t.groupId===null);
-  const columns=board?[...(unassigned.length||!board.groups.length?[{id:null,name:'Unassigned'}]:[]),...board.groups]:[];
+  const columns=board?[...(unassigned.length||!board.groups.length?[{id:null,name:unassigned.some(t=>t.unregistered)?'Unassigned / unregistered':'Unassigned'}]:[]),...board.groups]:[];
   return <section className="league-setup-widget" aria-label="League group setup">
     <div className="league-setup-heading"><div><h2>Initial group setup</h2>
       <p>{board?.leagueName||'League groups'} · {editing?'Editing draft':'Locked'}</p></div>
@@ -106,12 +126,19 @@ export default function LeagueSetupTable({refreshKey,onUpdated}) {
         <div className="league-setup-team-list">{visibleTeams.filter(t=>t.groupId===group.id).map(team=>{
           const candidates=(snapshot?.availableTeams||[]).filter(t=>t.TeamId===team.teamId||!claimedIds.has(t.TeamId));
           const href=team.teamId?`/team/${team.teamId}`:team.submissionId?`/team/roster/${team.submissionId}`:null;
+          const rosterKey=`${board.leagueId}:${team.key}`,playersOpen=Boolean(expandedTeams[rosterKey]);
           return <div key={team.key} className="league-setup-team-card" draggable={canEdit} onDragStart={event=>{
             if(!canEdit||event.target.closest('input,select,button,a,summary')){event.preventDefault();return;}
             event.dataTransfer.setData('text/plain',team.key);setDragged(team.key);
           }} onDragEnd={()=>setDragged(null)}>
             <strong title={team.name}>{href?<Link to={href} target="_blank" rel="noopener noreferrer" draggable={false}>{team.name}</Link>:team.name}</strong>
-            <small>{team.teamId?`Team ID ${team.teamId}`:'Awaiting Team ID'}</small>
+            <small>{team.unregistered?'Awaiting group assignment':team.teamId?`Team ID ${team.teamId}`:'Awaiting Team ID'}</small>
+            {!team.key.startsWith('new-team:')&&<div className="league-setup-players">
+              <button type="button" className="league-setup-players-toggle" aria-expanded={playersOpen}
+                aria-label={`${playersOpen?'Hide':'Show'} players for ${team.name}`}
+                onClick={()=>setExpandedTeams(current=>({...current,[rosterKey]:!playersOpen}))}>Players <span aria-hidden="true">{playersOpen?'▴':'▾'}</span></button>
+              {playersOpen&&<TeamPlayers key={rosterKey} teamKey={team.key} />}
+            </div>}
             {editing&&<select aria-label={`Group for ${team.name}`} value={team.groupId??''} disabled={saving} onChange={event=>{
               move(team.key,event.target.value?board.groups.find(g=>String(g.id)===event.target.value).id:null);
             }}><option value="">Unassigned</option>{board.groups.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select>}
@@ -121,8 +148,8 @@ export default function LeagueSetupTable({refreshKey,onUpdated}) {
                 onChange={event=>updateTeam(team.key,{teamId:event.target.value?Number(event.target.value):null})}>
                 <option value="">Awaiting Team ID</option>{candidates.map(t=><option key={t.TeamId} value={t.TeamId}>{t.TeamName||'Unknown team'} ({t.TeamId})</option>)}
               </select></label>}
-              <button type="button" className="ui-button-danger" disabled={saving}
-                onClick={()=>setDraft(current=>({...current,teams:current.teams.filter(t=>t.key!==team.key)}))}>Remove team</button>
+              {!team.unregistered&&<button type="button" className="ui-button-danger" disabled={saving}
+                onClick={()=>setDraft(current=>({...current,teams:current.teams.filter(t=>t.key!==team.key)}))}>Remove team</button>}
             </details>}
           </div>;
         })}</div>

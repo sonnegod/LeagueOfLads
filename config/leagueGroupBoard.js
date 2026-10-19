@@ -11,7 +11,9 @@ export function leagueGroupBoardRevision(board) {
     key:groupTeamKey(t),name:t.TeamName,teamId:t.TeamId,submission:t.TeamSubmissionId??null,
   })).sort((a,b)=>a.key.localeCompare(b.key))})).sort((a,b)=>a.id-b.id);
   const available=board.availableTeams.map(t=>({id:t.TeamId,name:t.TeamName})).sort((a,b)=>a.id-b.id);
-  return createHash('sha256').update(JSON.stringify({leagueId:board.league?.LeagueId??null,groups,available})).digest('hex');
+  const unregistered=(board.unregisteredTeams||[]).map(t=>({id:t.TeamSubmissionId,name:t.TeamName,teamId:t.TeamId}))
+    .sort((a,b)=>a.id-b.id);
+  return createHash('sha256').update(JSON.stringify({leagueId:board.league?.LeagueId??null,groups,available,unregistered})).digest('hex');
 }
 
 export function saveLeagueGroupBoard(db,input,{readBoard,rebuild,audit}) {
@@ -34,6 +36,7 @@ export function saveLeagueGroupBoard(db,input,{readBoard,rebuild,audit}) {
     if([...existingGroups.keys()].some(id=>!groups.has(id)))fail('Existing groups must remain in the setup');
     const originalTeams=new Map(before.groups.flatMap(g=>g.teams.map(t=>[groupTeamKey(t),{...t,GroupId:g.GroupId}])));
     for(const team of before.availableTeams)originalTeams.set(groupTeamKey(team),{...team,GroupId:null});
+    for(const team of before.unregisteredTeams||[])originalTeams.set(`submission:${team.TeamSubmissionId}`,{...team,GroupId:null,Unregistered:true});
     const availableIds=new Set(before.availableTeams.map(t=>t.TeamId));
     const selected=new Map(),teamIds=new Set(),namesByGroup=new Set();
     for(const team of input.teams) {
@@ -47,6 +50,7 @@ export function saveLeagueGroupBoard(db,input,{readBoard,rebuild,audit}) {
       if(teamId!==null&&teamId!==original?.TeamId&&!availableIds.has(teamId))fail('A selected team ID is no longer available',409);
       const registered=original?.EntryId!=null||newTeam;
       if(registered&&team.groupId===null)fail('Assign every signup or named team to a group before saving');
+      if(original?.Unregistered&&team.groupId===null&&teamId!==null)fail('Assign an unregistered team to a group before linking a team ID');
       if(team.groupId!==null) {
         const key=`${team.groupId}:${name.toLocaleLowerCase('en-US')}`;
         if(namesByGroup.has(key))fail('A group cannot contain the same team name twice');
@@ -90,7 +94,22 @@ export function saveLeagueGroupBoard(db,input,{readBoard,rebuild,audit}) {
     const nextSort=groupId=>{const order=(orders.get(groupId)||0)+1;orders.set(groupId,order);return order;};
     for(const team of selected.values()) {
       const groupId=team.groupId===null?null:groups.get(team.groupId).publicId;
-      if(team.original?.EntryId!=null) {
+      if(team.original?.Unregistered) {
+        if(!season)fail('The signup season is no longer active',409);
+        if(groupId===null) {
+          db.prepare('UPDATE SeasonTeams SET TeamName=?,UpdatedAt=? WHERE SeasonId=? AND TeamSubmissionId=?')
+            .run(team.name,new Date().toISOString(),season.SeasonId,team.original.TeamSubmissionId);
+        }else {
+          const seasonGroup=db.prepare('SELECT GroupId FROM SeasonGroups WHERE SeasonId=? ORDER BY SortOrder,GroupId')
+            .all(season.SeasonId)[groupId-1];
+          if(!seasonGroup)fail('This group has no matching season group',409);
+          db.prepare('UPDATE SeasonTeams SET GroupId=? WHERE SeasonId=? AND TeamSubmissionId=?')
+            .run(seasonGroup.GroupId,season.SeasonId,team.original.TeamSubmissionId);
+          const added=db.prepare(`INSERT INTO LeagueRosterEntries(LeagueId,GroupId,DisplayName,SortOrder,TeamSubmissionId)
+            VALUES(?,?,?,?,?)`).run(leagueId,groupId,team.name,nextSort(groupId),team.original.TeamSubmissionId);
+          saveRegisteredLeagueTeam(db,leagueId,{entryId:Number(added.lastInsertRowid),teamId:team.teamId,teamName:team.name,groupId},{rebuild:()=>{},audit:()=>{}});
+        }
+      }else if(team.original?.EntryId!=null) {
         saveRegisteredLeagueTeam(db,leagueId,{entryId:team.original.EntryId,teamId:team.teamId,teamName:team.name,groupId},{rebuild:()=>{},audit:()=>{}});
         db.prepare('UPDATE LeagueRosterEntries SET SortOrder=? WHERE EntryId=?').run(nextSort(groupId),team.original.EntryId);
       }else if(team.newTeam) {

@@ -145,11 +145,11 @@ function SubmissionCard({ team, seasonId, onChanged }) {
             <label>Replace screenshot<input type="file" accept="image/jpeg,image/png,image/webp"
               onChange={event => setFiles(current => ({ ...current, [player.Slot]: event.target.files?.[0] }))} /></label>
           </div>
-          {hasExpanded && <ScreenshotThumbnail
+          {hasExpanded && Boolean(player.HasScreenshot) && <ScreenshotThumbnail
             src={`/api/admin/seasons/${seasonId}/teams/${team.TeamSubmissionId}/screenshots/${player.PlayerId}`}
             playerName={player.PlayerName || `Player ${index + 1}`} />}
-          <a href={`/api/admin/seasons/${seasonId}/teams/${team.TeamSubmissionId}/screenshots/${player.PlayerId}`}
-            target="_blank" rel="noreferrer">View screenshot</a>
+          {player.HasScreenshot ? <a href={`/api/admin/seasons/${seasonId}/teams/${team.TeamSubmissionId}/screenshots/${player.PlayerId}`}
+            target="_blank" rel="noreferrer">View screenshot</a> : <small>No screenshot provided.</small>}
         </fieldset>)}
       {error && <p role="alert" className="season-error">{error}</p>}
       <div className="season-actions"><button className="ui-button-primary" type="submit" disabled={busy}>Save changes</button>

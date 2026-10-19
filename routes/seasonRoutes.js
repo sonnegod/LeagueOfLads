@@ -214,6 +214,20 @@ adminSeasonRoutes.patch('/:seasonId/teams/:teamId', (req, res) => {
   catch (error) { return respond(res, error); }
 });
 
+adminSeasonRoutes.get('/players', (req, res) => {
+  const search = req.query.search ?? '';
+  if (typeof search !== 'string' || search.length > 120) return res.status(400).json({ error: 'Invalid search' });
+  try { return res.set('Cache-Control', 'private, no-store').json({ players: db.seasons.searchPlayers(search.trim()) }); }
+  catch (error) { return respond(res, error); }
+});
+
+adminSeasonRoutes.post('/:seasonId/rosterTeams', (req, res) => {
+  const seasonId = id(req.params.seasonId);
+  if (!seasonId) return res.status(400).json({ error: 'Invalid season' });
+  try { return res.status(201).json({ team: db.seasons.addRosterTeam(seasonId, req.body || {}) }); }
+  catch (error) { return respond(res, error); }
+});
+
 adminSeasonRoutes.post('/:seasonId/manualTeams', (req, res) => {
   const seasonId = id(req.params.seasonId);
   const teamName = text(req.body?.teamName, 60);

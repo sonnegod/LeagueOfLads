@@ -277,7 +277,7 @@ export default class SeasonStore {
     if (includePlayers) {
       const query = this.db.prepare(`SELECT p.PlayerId, CAST(i.PlayerName AS TEXT) AS PlayerName,
         p.Slot, p.MMR, p.DotaProfileUrl, p.ScreenshotMime,
-        1 AS HasScreenshot FROM SeasonTeamPlayers p
+        (LENGTH(p.ScreenshotData) > 0) AS HasScreenshot FROM SeasonTeamPlayers p
         JOIN PlayerInfo i ON i.PlayerId = p.PlayerId
         WHERE p.TeamSubmissionId = ? ORDER BY p.Slot`);
       for (const row of rows) row.players = row.IsManual ? [] : query.all(row.TeamSubmissionId);
@@ -290,7 +290,7 @@ export default class SeasonStore {
     if (!team) return null;
     if (includePlayers) team.players = this.db.prepare(`SELECT p.PlayerId,
       CAST(i.PlayerName AS TEXT) AS PlayerName, p.Slot, p.MMR, p.DotaProfileUrl,
-      p.ScreenshotMime, 1 AS HasScreenshot FROM SeasonTeamPlayers p
+      p.ScreenshotMime, (LENGTH(p.ScreenshotData) > 0) AS HasScreenshot FROM SeasonTeamPlayers p
       JOIN PlayerInfo i ON i.PlayerId = p.PlayerId
       WHERE p.TeamSubmissionId = ? ORDER BY p.Slot`).all(teamId);
     return team;
@@ -316,7 +316,7 @@ export default class SeasonStore {
 
   screenshot(teamId, playerId) {
     return this.db.prepare(`SELECT p.ScreenshotMime, p.ScreenshotData
-      FROM SeasonTeamPlayers p WHERE p.TeamSubmissionId = ? AND p.PlayerId = ?`)
+      FROM SeasonTeamPlayers p WHERE p.TeamSubmissionId = ? AND p.PlayerId = ? AND LENGTH(p.ScreenshotData) > 0`)
       .get(teamId, playerId) || null;
   }
 
@@ -443,8 +443,9 @@ export default class SeasonStore {
         const screenshot = player.screenshot
           ? this.decodeScreenshot(player.screenshot)
           : stagedScreenshots?.get(index) || (oldPlayer ? this.screenshot(teamId, playerId) : null);
-        if (!screenshot) fail('Each player needs an MMR screenshot');
-        return { playerId, slot: index, mmr, profileUrl, screenshot, record };
+        if (!screenshot && !admin) fail('Each player needs an MMR screenshot');
+        return { playerId, slot: index, mmr, profileUrl,
+          screenshot: screenshot || { ScreenshotMime: '', ScreenshotData: Buffer.alloc(0) }, record };
       });
       if (!admin && !ids.has(captainId)) fail('The captain must be one of the five players');
       const timestamp = now();
@@ -476,6 +477,67 @@ export default class SeasonStore {
     const mime = screenshotMimeFromBytes(data);
     if (!mime) fail('Screenshot contents are not a supported JPEG, PNG, or WebP image. Save the image as JPEG or PNG and try again.');
     return { ScreenshotMime: mime, ScreenshotData: data };
+  }
+
+  addRosterTeam(seasonId, input) {
+    return this.db.transaction(() => {
+      const season = this.get(seasonId);
+      if (!season || !['signup_closed', 'active'].includes(season.Status)) fail('Add teams after signups close and before the league ends', 409);
+      const name = typeof input.teamName === 'string' ? input.teamName.trim() : '';
+      if (!name || name.length > 60) fail('Team name must be 1–60 characters');
+      if (this.db.prepare('SELECT 1 FROM SeasonTeams WHERE SeasonId=? AND TeamName=? COLLATE NOCASE').get(seasonId, name))
+        fail('A team with this name already exists in this season', 409);
+      if (!Array.isArray(input.players) || input.players.length !== 5) fail('A team needs exactly five players');
+      const captainSlot = input.captainSlot ?? 0;
+      if (!Number.isInteger(captainSlot) || captainSlot < 0 || captainSlot > 4) fail('Choose a captain from the five players');
+      const ids = new Set();
+      const players = input.players.map((player, slot) => {
+        const playerId = Number(player?.playerId);
+        if (!Number.isSafeInteger(playerId) || playerId <= 0 || ids.has(playerId)) fail('Choose five different valid player account IDs');
+        ids.add(playerId);
+        const existing = this.db.prepare('SELECT PlayerId FROM PlayerInfo WHERE PlayerId=?').get(playerId);
+        if (!existing) {
+          const playerName = typeof player.playerName === 'string' ? player.playerName.trim() : '';
+          if (!playerName || playerName.length > 40) fail('New players need a name of 1–40 characters');
+          this.db.prepare('INSERT INTO PlayerInfo(PlayerId,PlayerName) VALUES(?,?)').run(playerId, playerName);
+        }
+        const adjusted = this.db.prepare('SELECT AdjustedMMR FROM AdjustedPlayers WHERE PlayerId=?').get(playerId);
+        const mmr = adjusted?.AdjustedMMR ?? Number(player.mmr);
+        if (!Number.isSafeInteger(mmr) || mmr <= 5500) fail('Each player MMR must be a whole number greater than 5,500');
+        // An empty blob represents an omitted optional image in the existing NOT NULL upload columns.
+        const screenshot = player.screenshot ? this.decodeScreenshot(player.screenshot)
+          : { ScreenshotMime: '', ScreenshotData: Buffer.alloc(0) };
+        return { playerId, slot, mmr, screenshot, profileUrl: `https://www.dotabuff.com/esports/players/${playerId}` };
+      });
+      const timestamp = now();
+      const teamId = Number(this.db.prepare(`INSERT INTO SeasonTeams(SeasonId,CaptainId,TeamName,SubmittedAt,UpdatedAt)
+        VALUES(?,?,?,?,?)`).run(seasonId, players[captainSlot].playerId, name, timestamp, timestamp).lastInsertRowid);
+      const insert = this.db.prepare(`INSERT INTO SeasonTeamPlayers(TeamSubmissionId,PlayerId,Slot,MMR,DotaProfileUrl,ScreenshotMime,ScreenshotData)
+        VALUES(?,?,?,?,?,?,?)`);
+      for (const player of players) insert.run(teamId, player.playerId, player.slot, player.mmr, player.profileUrl,
+        player.screenshot.ScreenshotMime, player.screenshot.ScreenshotData);
+      if (season.Status === 'active') {
+        const snapshot = this.db.prepare('INSERT INTO SignupMMRs(SeasonId,TeamSubmissionId,PlayerId,SignupMMR) VALUES(?,?,?,?)');
+        for (const player of players) snapshot.run(seasonId, teamId, player.playerId, player.mmr);
+        this.rosters.finalize(seasonId, timestamp);
+        if (this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='TeamRosterMembershipHistory'").get()) {
+          const history = this.db.prepare(`INSERT INTO TeamRosterMembershipHistory
+            (TeamSubmissionId,PlayerId,Slot,EffectiveFromUtc,FromEstimated) VALUES(?,?,?,?,0)`);
+          for (const player of players) history.run(teamId, player.playerId, player.slot, timestamp);
+        }
+      }
+      this.audit('Roster Team Added', `Added ${name} (submission ${teamId}) with five players to season ${seasonId}; awaiting group assignment`);
+      return this.getTeam(teamId);
+    }).immediate();
+  }
+
+  unregisteredTeams(leagueId) {
+    return this.db.prepare(`SELECT t.TeamSubmissionId,t.TeamName,t.ExternalTeamId AS TeamId,
+        EXISTS(SELECT 1 FROM TeamRosterPlayers r WHERE r.TeamSubmissionId=t.TeamSubmissionId) AS HasRoster
+      FROM SeasonTeams t JOIN LeagueSeasons s ON s.SeasonId=t.SeasonId
+      WHERE s.ExternalLeagueId=? AND s.Status='active' AND t.GroupId IS NULL
+        AND NOT EXISTS(SELECT 1 FROM LeagueRosterEntries e WHERE e.LeagueId=? AND e.TeamSubmissionId=t.TeamSubmissionId)
+      ORDER BY t.TeamName COLLATE NOCASE,t.TeamSubmissionId`).all(leagueId, leagueId);
   }
 
   addManualTeam(seasonId, teamName, averageMMR) {

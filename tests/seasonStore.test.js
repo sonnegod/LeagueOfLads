@@ -10,6 +10,62 @@ import { currentSeasonRoster } from '../betting/rosterMembership.js';
 
 const screenshot = `data:image/png;base64,${Buffer.from('89504e470d0a1a0a', 'hex').toString('base64')}`;
 
+const rosterInput = (name, first=1) => ({teamName:name,captainSlot:2,players:Array.from({length:5},(_,i)=>({
+  playerId:first+i,playerName:`Player ${first+i}`,mmr:6000+i*100,
+}))});
+
+test('admins create complete teams after signup with optional images, frozen MMRs, and unassigned active roster history',()=>{
+  const db=database();try {
+    const audit=[],store=new SeasonStore(db,(...entry)=>audit.push(entry)),season=store.create('Late teams');
+    store.saveSignup(season.SeasonId,'Signup','Register');store.setSignupStatus(season.SeasonId,true);
+    assert.throws(()=>store.addRosterTeam(season.SeasonId,rosterInput('Too early')),/after signups close/);
+    assert.throws(()=>store.saveTeam(season.SeasonId,1,rosterInput('Public still needs images')),/profile URL|screenshot/);
+    store.setSignupStatus(season.SeasonId,false);
+    db.exec("INSERT INTO PlayerInfo VALUES(1,'Existing name'); INSERT INTO AdjustedPlayers(PlayerId,AdjustedMMR,CreatedAt,UpdatedAt) VALUES(1,6900,'2026-01-01','2026-01-01')");
+    const first=store.addRosterTeam(season.SeasonId,rosterInput('First team'));
+    assert.equal(first.GroupId,null);assert.equal(first.CaptainId,3);assert.equal(first.IsManual,0);
+    assert.equal(first.players[0].PlayerName,'Existing name');assert.equal(first.players[0].MMR,6900);
+    assert.equal(first.players[0].DotaProfileUrl,'https://www.dotabuff.com/esports/players/1');
+    assert.ok(first.players.every(p=>p.HasScreenshot===0));assert.equal(store.screenshot(first.TeamSubmissionId,1),null);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM SignupMMRs').get().n,0);
+    const group=store.addGroup(season.SeasonId,'A');store.assignTeam(season.SeasonId,first.TeamSubmissionId,group.GroupId);
+    store.start(season.SeasonId,12345);
+    new ScheduleStore(db);
+    const before=JSON.stringify(store.rosters.forSubmission(first.TeamSubmissionId));
+    const input=rosterInput('Late team',6);input.players[0].screenshot=screenshot;
+    const late=store.addRosterTeam(season.SeasonId,input);
+    assert.equal(late.GroupId,null);assert.equal(late.ExternalTeamId,null);
+    assert.equal(late.players[0].HasScreenshot,1);assert.equal(late.players[1].HasScreenshot,0);
+    assert.equal(store.screenshot(late.TeamSubmissionId,6).ScreenshotMime,'image/png');
+    assert.equal(store.rosters.forSubmission(late.TeamSubmissionId).players.length,5);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM SignupMMRs WHERE TeamSubmissionId=?').get(late.TeamSubmissionId).n,5);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM TeamRosterMembershipHistory WHERE TeamSubmissionId=?').get(late.TeamSubmissionId).n,5);
+    assert.deepEqual(store.unregisteredTeams(12345).map(t=>t.TeamSubmissionId),[late.TeamSubmissionId]);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM LeagueRosterEntries WHERE TeamSubmissionId=?').get(late.TeamSubmissionId).n,0);
+    assert.equal(JSON.stringify(store.rosters.forSubmission(first.TeamSubmissionId)),before);
+    assert.equal(currentSeasonRoster(db,season.SeasonId,'active').length,10);
+    new SeasonStore(db);assert.equal(store.rosters.forSubmission(late.TeamSubmissionId).players.length,5);
+    assert.equal(audit.filter(([type])=>type==='Roster Team Added').length,2);
+  }finally{db.close();}
+});
+
+test('invalid admin teams and failed audits roll back player, roster and team writes',()=>{
+  const db=database();try {
+    const store=new SeasonStore(db),season=store.create('Validation');
+    store.saveSignup(season.SeasonId,'Signup','Register');store.setSignupStatus(season.SeasonId,true);store.setSignupStatus(season.SeasonId,false);
+    for(const mutate of [i=>{i.players.pop();},i=>{i.players[4].playerId=1;},i=>{i.players[4].mmr=5500;},
+      i=>{i.players[4].playerName='';},i=>{i.captainSlot=6;},i=>{i.players[4].screenshot='data:image/png;base64,YmFk';}]) {
+      const input=rosterInput('Invalid');mutate(input);assert.throws(()=>store.addRosterTeam(season.SeasonId,input));
+      assert.equal(db.prepare('SELECT COUNT(*) n FROM PlayerInfo').get().n,0);
+      assert.equal(db.prepare('SELECT COUNT(*) n FROM SeasonTeams').get().n,0);
+    }
+    store.audit=()=>{throw Error('Audit failure');};assert.throws(()=>store.addRosterTeam(season.SeasonId,rosterInput('Rollback')),/Audit failure/);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM SeasonTeamPlayers').get().n,0);assert.equal(db.prepare('SELECT COUNT(*) n FROM PlayerInfo').get().n,0);
+    store.audit=()=>{};store.addRosterTeam(season.SeasonId,rosterInput('Existing'));
+    assert.throws(()=>store.addRosterTeam(season.SeasonId,rosterInput('EXISTING',6)),/already exists/);
+  }finally{db.close();}
+});
+
 for (const confirmBeforeStart of [false,true]) test(`TBD confirmation ${confirmBeforeStart?'before':'after'} league start preserves original submissions and freezes actual player MMR`,()=>{
   const db=database();try {
     const store=new SeasonStore(db),season=store.create('Pending roster season');
