@@ -134,6 +134,9 @@ export default function SignupPage() {
         const mb = bytes => (bytes / (1024 * 1024)).toFixed(1);
         setScreenshotNotes(current => current.map((value, slot) => slot === index
           ? `Optimized from ${mb(prepared.originalBytes)} MB to ${mb(prepared.file.size)} MB. Check that the MMR is readable below.` : value));
+      } else if (prepared.converted) {
+        setScreenshotNotes(current => current.map((value, slot) => slot === index
+          ? 'Converted to JPEG for upload. Check that the MMR is readable below.' : value));
       }
     } catch (uploadError) {
       if (screenshotRequests.current[index] !== request) return;

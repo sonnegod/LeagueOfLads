@@ -1,3 +1,5 @@
+import { screenshotMimeFromBytes } from '../../../shared/screenshotFormat.js';
+
 export const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 const SCREENSHOT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const OUTPUT_EDGE_SIZES = [3200, 2800, 2400, 2000, 1600];
@@ -15,12 +17,15 @@ export function screenshotValidationError(file) {
 }
 
 async function loadImage(file) {
-  if (typeof createImageBitmap === 'function') return createImageBitmap(file);
+  if (typeof createImageBitmap === 'function') {
+    try { return await createImageBitmap(file); }
+    catch { /* Some browser decoders support more images through the img element. */ }
+  }
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const image = new Image();
     image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
-    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not open screenshot image.')); };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not open screenshot image. Save it as JPEG or PNG and try again.')); };
     image.src = url;
   });
 }
@@ -34,13 +39,19 @@ function jpegBlob(canvas, quality) {
 
 export async function prepareScreenshot(file) {
   if (!file) throw new Error('Add an MMR screenshot.');
-  if (!SCREENSHOT_TYPES.has(file.type)) {
-    throw new Error('Screenshot must be a JPEG, PNG, or WebP image.');
-  }
   if (!Number.isFinite(file.size) || file.size <= 0) {
     throw new Error('Screenshot file is empty or invalid.');
   }
-  if (file.size <= MAX_SCREENSHOT_BYTES) return { file, compressed: false };
+  const mime = screenshotMimeFromBytes(new Uint8Array(await file.slice(0, 12).arrayBuffer()));
+  if (!mime && !SCREENSHOT_TYPES.has(file.type)) {
+    throw new Error('Screenshot must be a JPEG, PNG, or WebP image.');
+  }
+  if (mime && file.type !== mime) {
+    const extension = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[mime];
+    const stem = file.name?.replace(/\.[^.]+$/, '') || 'mmr-screenshot';
+    file = new File([file], `${stem}.${extension}`, { type: mime, lastModified: file.lastModified });
+  }
+  if (mime && file.size <= MAX_SCREENSHOT_BYTES) return { file, compressed: false };
 
   let image;
   try {
@@ -70,7 +81,8 @@ export async function prepareScreenshot(file) {
           const optimized = new File([blob], `${stem}.jpg`, {
             type: 'image/jpeg', lastModified: file.lastModified || Date.now(),
           });
-          return { file: optimized, compressed: true, originalBytes: file.size };
+          return { file: optimized, compressed: file.size > MAX_SCREENSHOT_BYTES,
+            converted: !mime, originalBytes: file.size };
         }
       }
     }

@@ -89,6 +89,28 @@ old tickets and wallets remain in a separate legacy account. Eligible models
 publish automatically; insufficient signup-era history or stale sources hold
 new prices. See [betting/README.md](betting/README.md) for setup, market types,
 verified result links, deployment, and Discord scheduling.
+## Suggested regular season matchups
+
+Once a league starts, admins can open **Admin > League > Schedule** to set the first
+window's date and the pace of play. The default is **3 series per team every 2 weeks**;
+both counts are configurable. Save the pace, then randomize a single round robin
+within each group, or add and edit individual pairings and their window numbers.
+Leaving a team or opponent on Random selects an unused in-group pairing, favoring
+teams with fewer suggestions in that window. Re-randomizing asks for confirmation
+because it replaces the existing suggestions, including manual edits.
+
+This is a pacing guide. Teams may play off-schedule opponents, early, or late;
+suggestions do not restrict match ingestion or affect results and standings. Manual
+plans can exceed the series target; the editor shows advisory workload notes.
+Odd-sized groups have byes, and the final window may contain fewer series.
+Teams can find their assignments on the league page's **Schedule** tab and filter by
+group or team. The Schedule tab is shown only while the league is active.
+
+Server startup creates `SeasonScheduleSettings` and `SeasonMatchups` automatically
+inside `LadsData.db`. Suggestions use stable `LeagueRosterEntries.EntryId` values,
+so teams do not need a linked Dota Team ID before planning. No separate database
+upload, migration command, or scheduled job is required. Public schedule JSON is at
+`GET /api/leagues/:leagueId/schedule`; edits use the existing admin authorization.
 
 COMMANDS FOR THE SERVER
 ---

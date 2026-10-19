@@ -580,3 +580,37 @@ CREATE INDEX IF NOT EXISTS idx_Patches_Start ON Patches(StartsAt);
     SourceHash TEXT NOT NULL, GameplayData BLOB NOT NULL, CollectedAt TEXT NOT NULL);
 
 CREATE TABLE IF NOT EXISTS WarehouseMigrations (Version INTEGER PRIMARY KEY,AppliedAt TEXT NOT NULL);
+
+-- Stable leaderboard roster entries are also used by suggested matchups.
+CREATE TABLE IF NOT EXISTS LeagueRosterEntries (
+  EntryId INTEGER PRIMARY KEY AUTOINCREMENT,
+  LeagueId INTEGER NOT NULL,
+  GroupId INTEGER NOT NULL,
+  DisplayName TEXT NOT NULL,
+  TeamId INTEGER,
+  TeamSubmissionId INTEGER,
+  SortOrder INTEGER NOT NULL,
+  UNIQUE (LeagueId, TeamId)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_LeagueRosterEntries_LeagueGroupName
+  ON LeagueRosterEntries (LeagueId, GroupId, DisplayName COLLATE NOCASE);
+
+CREATE TABLE IF NOT EXISTS SeasonScheduleSettings (
+  SeasonId INTEGER PRIMARY KEY REFERENCES LeagueSeasons(SeasonId),
+  StartDate TEXT NOT NULL,
+  SeriesPerWindow INTEGER NOT NULL CHECK (SeriesPerWindow BETWEEN 1 AND 20),
+  WeeksPerWindow INTEGER NOT NULL CHECK (WeeksPerWindow BETWEEN 1 AND 12),
+  UpdatedAt TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS SeasonMatchups (
+  MatchupId INTEGER PRIMARY KEY AUTOINCREMENT,
+  SeasonId INTEGER NOT NULL REFERENCES LeagueSeasons(SeasonId),
+  GroupId INTEGER NOT NULL,
+  TeamAEntryId INTEGER NOT NULL REFERENCES LeagueRosterEntries(EntryId),
+  TeamBEntryId INTEGER NOT NULL REFERENCES LeagueRosterEntries(EntryId),
+  WindowNumber INTEGER NOT NULL CHECK (WindowNumber BETWEEN 1 AND 104),
+  CHECK (TeamAEntryId < TeamBEntryId),
+  UNIQUE (SeasonId, TeamAEntryId, TeamBEntryId)
+);
+CREATE INDEX IF NOT EXISTS idx_SeasonMatchups_Window
+  ON SeasonMatchups (SeasonId, WindowNumber, GroupId);

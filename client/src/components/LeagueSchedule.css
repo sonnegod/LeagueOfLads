@@ -1,0 +1,20 @@
+.league-schedule { display: grid; gap: 1rem; min-width: 0; }
+.league-schedule h2, .league-schedule h3, .league-schedule p { margin: 0; }
+.schedule-card, .schedule-window { display: grid; gap: 0.85rem; padding: 1rem;
+  background: var(--surface, #121315); border: 1px solid var(--border, #334155); border-radius: 10px; min-width: 0; }
+.schedule-controls, .schedule-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; }
+.schedule-controls label { display: grid; gap: 0.35rem; flex: 1 1 160px; max-width: 320px; }
+.league-schedule input, .league-schedule select { box-sizing: border-box; width: 100%; min-width: 0;
+  padding: 0.55rem 0.7rem; color: var(--text, #eee); background: var(--surface, #111);
+  border: 1px solid var(--border, #555); border-radius: 6px; }
+.league-schedule button { padding: 0.55rem 0.8rem; cursor: pointer; }
+.league-schedule button:disabled { opacity: 0.5; cursor: default; }
+.schedule-note, .schedule-window header span { color: var(--muted-text, #aab2c0); line-height: 1.6; }
+.schedule-error { color: #f87171; }
+.schedule-notices { border-left: 3px solid #eab308; padding: 0.75rem 1rem; }
+.schedule-window header { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; justify-content: space-between; align-items: center; }
+.schedule-table-wrap { overflow-x: auto; }
+.schedule-window table { width: 100%; min-width: 440px; border-collapse: collapse; }
+.schedule-window th, .schedule-window td { padding: 0.7rem; text-align: left; border-bottom: 1px solid var(--border, #334155); }
+.schedule-window summary { cursor: pointer; color: var(--muted-text, #aab2c0); }
+.schedule-loads { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.6rem; padding-top: 0.75rem; }
