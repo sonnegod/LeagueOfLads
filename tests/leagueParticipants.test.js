@@ -11,7 +11,7 @@ function fixture() {
     CREATE TABLE SeasonGroups (GroupId INTEGER PRIMARY KEY, SeasonId INTEGER, GroupName TEXT, SortOrder INTEGER);
     CREATE TABLE SeasonTeams (TeamSubmissionId INTEGER PRIMARY KEY, SeasonId INTEGER, TeamName TEXT, ExternalTeamId INTEGER, GroupId INTEGER, UpdatedAt TEXT);
     CREATE TABLE TeamRosterPlayers (TeamSubmissionId INTEGER, PlayerId INTEGER, Slot INTEGER);
-    CREATE TABLE PlayerInfo (PlayerId INTEGER PRIMARY KEY, PlayerName TEXT);
+    CREATE TABLE PlayerInfo (PlayerId INTEGER PRIMARY KEY, PlayerName);
     CREATE TABLE GroupNames (LeagueId INTEGER, GroupId INTEGER, GroupName TEXT, PRIMARY KEY (LeagueId, GroupId));
     CREATE TABLE LeagueRosterEntries (EntryId INTEGER PRIMARY KEY, LeagueId INTEGER, TeamSubmissionId INTEGER,
       TeamId INTEGER, DisplayName TEXT, GroupId INTEGER NOT NULL, SortOrder INTEGER,
@@ -62,6 +62,42 @@ test('published signup teams and players appear before games with unknown stats 
     assert.equal(view(db, 300).teams.length, 0);
     assert.equal(view(db, 300).players.length, 0);
   } finally { db.close(); }
+});
+
+test('legacy numeric and binary player names are returned as text for both recorded and unplayed roster players', () => {
+  const db = fixture();
+  try {
+    db.prepare('UPDATE PlayerInfo SET PlayerName = ? WHERE PlayerId = 1').run(12345);
+    db.prepare('UPDATE PlayerInfo SET PlayerName = ? WHERE PlayerId = 2').run(Buffer.from('Ren\u00e9'));
+    db.prepare('UPDATE PlayerInfo SET PlayerName = ? WHERE PlayerId = 3').run(67890);
+    assert.equal(typeof db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId = 1').get().PlayerName, 'number');
+    assert.deepEqual(view(db).players.map(row => row.PlayerName).sort(), ['12345', '67890', 'Ren\u00e9']);
+    db.exec(`UPDATE LeagueRosterEntries SET TeamId = 50 WHERE EntryId = 10;
+      INSERT INTO TeamInfo VALUES (50, 'Alpha'), (60, 'Opposition');
+      INSERT INTO MatchTeam VALUES (1, 50, 60, 50);
+      INSERT INTO MatchLeague VALUES (1, 100);
+      INSERT INTO MatchTeamPlayer VALUES (1, 1, 50), (1, 2, 50);
+      INSERT INTO MatchPlayer VALUES (1, 1, 5, 2, 10, 100, 450, 550), (1, 2, 3, 1, 8, 90, 400, 500);`);
+    const { players } = view(db);
+    assert.equal(players.length, 3);
+    assert.equal(players.find(row => row.PlayerId === 1).PlayerName, '12345');
+    assert.equal(players.find(row => row.PlayerId === 2).PlayerName, 'Ren\u00e9');
+    assert.equal(players.find(row => row.PlayerId === 3).PlayerName, '67890');
+    assert.ok(players.every(row => typeof row.PlayerName === 'string'));
+    assert.equal(typeof db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId = 1').get().PlayerName, 'number');
+  } finally { db.close(); }
+});
+
+test('historical team names are normalized before sorting without changing the source records', () => {
+  const records = [
+    { TeamId: 1, TeamName: 123, GamesPlayed: 1 },
+    { TeamId: 2, TeamName: Buffer.from('Team Two'), GamesPlayed: 1 },
+    { TeamId: 3, TeamName: null, GamesPlayed: 1 },
+  ];
+  const teams = includeRegisteredTeams(records, []);
+  assert.deepEqual(teams.map(row => row.TeamName), ['', '123', 'Team Two']);
+  assert.equal(records[0].TeamName, 123);
+  assert.ok(Buffer.isBuffer(records[1].TeamName));
 });
 
 test('rename, regroup, and link before any game preserve signup identity and update both representations', () => {

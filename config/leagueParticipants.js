@@ -16,11 +16,13 @@ export function includeRegisteredTeams(records, registered) {
     ...registered.map(team => ({ GamesPlayed: 0, WinPercentage: null,
       ...byTeam.get(team.TeamId), ...team })),
     ...records.filter(row => !linkedIds.has(row.TeamId)),
-  ].sort((a, b) => b.GamesPlayed - a.GamesPlayed || a.TeamName.localeCompare(b.TeamName));
+  ].map(team => ({ ...team, TeamName: String(team.TeamName ?? '') }))
+    .sort((a, b) => b.GamesPlayed - a.GamesPlayed || a.TeamName.localeCompare(b.TeamName));
 }
 
 export function includeRegisteredPlayers(db, leagueId, records, teams) {
-  const result = records.map(row => ({ ...row }));
+  const result = records.map(row => ({ ...row,
+    PlayerName: String(row.PlayerName ?? ''), TeamName: String(row.TeamName ?? '') }));
   const byPlayerTeam = new Map(result.map(row => [`${row.PlayerId}:${row.TeamId}`, row]));
   const roster = db.prepare(`SELECT r.PlayerId, p.PlayerName, r.TeamSubmissionId
     FROM TeamRosterPlayers r JOIN PlayerInfo p ON p.PlayerId = r.PlayerId
@@ -36,7 +38,7 @@ export function includeRegisteredPlayers(db, leagueId, records, teams) {
     const identity = { TeamSubmissionId: team.TeamSubmissionId, EntryId: team.EntryId,
       HasRoster: team.HasRoster, TeamId: team.TeamId, TeamName: team.TeamName };
     if (played) Object.assign(played, identity);
-    else result.push({ ...player, ...identity, TeamGames: team.GamesPlayed, GamesPlayed: 0,
+    else result.push({ ...player, PlayerName: String(player.PlayerName ?? ''), ...identity, TeamGames: team.GamesPlayed, GamesPlayed: 0,
       WinPercentage: null, AvgKills: null, AvgDeaths: null, AvgAssists: null,
       AvgLastHits: null, AvgGPM: null, AvgXPM: null });
   }
