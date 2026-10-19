@@ -76,7 +76,7 @@ output is `db/Analytics-preview-19817.db`, separate from `Analytics.db`. The CLI
 refuses to write historical previews into the configured canonical Analytics
 file. You may specify another separate `--analytics-db` path for offline inspection.
 
-In Admin → League → Overview → Analytics, select **Preview: League Of Lads
+In Site Management → Analytics, select **Preview: League Of Lads
 Season 21** in the Dataset dropdown after building it. The status reader selects
 the corresponding preview file. SQLiteStudio can inspect its facts and summaries.
 
@@ -215,7 +215,7 @@ available objective data. Gold earned at checkpoints is cumulative earned gold,
 not net worth. Supporting details are an explicit public allowlist.
 
 Run `npm run analytics:build` to migrate and rebuild the normal signup-era dataset.
-Or use Admin → League → Betting → Refresh Analytics and Betting to run the complete
+Or use Site Management → Betting → Refresh Analytics and Betting to run the complete
 existing refresh pipeline. A signup-only season has no match features yet.
 For historical viewing, create an isolated preview, for example:
 
@@ -274,8 +274,8 @@ or revisions. Source corrections revise stories; invalid supporting records
 withdraw them. Withdrawn/hidden stories still consume their original daily slot.
 Filtered `--season-id` builds do not withdraw other seasons' publications.
 
-In Admin → League → Overview → Analytics, the selected dataset's **Automatic
-highlights** section shows published, candidate, or withdrawn stories, with
+In **Admin → League → Highlights**, available during an active league and hidden
+during signup/setup, **Automatic highlights** shows published, candidate, or withdrawn stories, with
 20-row pagination. Admins can hide/unhide stories, edit their title/body, restore
 generated text, or pause/resume new publication. Overrides survive rebuilds.
 If source facts change underneath edited text, the override remains stored but
@@ -346,16 +346,16 @@ The UI loads ten game results and twenty highlight rows at a time, up to fifty
 of each per view, without background polling. Admin moderation retains its
 story cards and controls.
 
-For a historical preview, rebuild and select it in Admin:
+For a historical preview, rebuild and select it in Site Management → Analytics:
 
 ```bash
 node scripts/analytics/build.js --preview-league 19817
 ```
 
 Preview story generation/publication stays inside `Analytics-preview-19817.db`
-and is inspectable in the admin panel/SQLiteStudio. For homepage layout testing,
-sign in as an admin and open `/?previewLeague=19817`, or choose this dataset in
-Admin and click **Preview on homepage**. The banner's **Exit preview** button
+and is inspectable in Site Management/SQLiteStudio. For homepage layout testing,
+sign in as a site manager and open `/?previewLeague=19817`, or choose this dataset in
+Site Management → Analytics and click **Preview on homepage**. The banner's **Exit preview** button
 restores the normal feed. This uses a protected, read-only endpoint with the same
 published/hidden/review filters and public story fields as the normal feed.
 The historical dashboard has a **Historical season** filter, populated from the
@@ -422,11 +422,13 @@ movement, market creation, accepted prices, and settlement in `Betting.db`.
 It must retain the consumed input snapshot and generation reference: Analytics
 keeps only two complete data generations and up to 100 run metadata records.
 
-`GET /api/admin/analytics/status` is mounted behind the existing admin guard.
+`GET /api/site-management/league-analytics/status` is restricted to site managers.
 It returns an explicit operational projection: last run,
 counts, source watermarks, and aggregated issue codes. It excludes feature values,
-raw rows, source paths, screenshots, and exception text. Admin → League → Overview
-shows this status and the highlight controls with a manual refresh. Highlight
+raw rows, source paths, screenshots, and exception text. Site Management → Analytics
+shows this status with a manual refresh. Highlight moderation remains in the
+league-admin Highlights tab through `/api/admin/analytics/highlights`; this limited
+router does not expose Analytics status, catalog or homepage preview endpoints. Highlight
 routes return only curated league content; the public route never reads private
 features. No homepage background polling is added for highlights.
 

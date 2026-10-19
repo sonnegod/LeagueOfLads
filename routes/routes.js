@@ -3,7 +3,7 @@ import passport from 'passport';
 
 import { checkAdmin, checkHeadAdmin, getAdminForSteamId } from '../middleware/checkAdmin.js';
 import { isSiteManagerSteamId } from '../middleware/checkSiteManager.js';
-import siteManagementRoutes from './siteManagementRoutes.js';
+import { createSiteManagementRouter } from './siteManagementRoutes.js';
 import { createSiteAnalyticsRouter } from './siteAnalyticsRoutes.js';
 import { excludedVisitor, createSiteSignupProgress } from '../config/siteAnalytics.js';
 
@@ -33,10 +33,10 @@ dotenv.config();
 
 const router = express.Router();
 const bettingRuntime = createBettingRuntime(db.db, dbBet.db, (type, message) => db.recordAdminAudit(type, message));
-const { publicRoutes: publicBettingRoutes, adminRoutes: adminBettingRoutes } = createBettingRoutes({
+const { publicRoutes: publicBettingRoutes, adminRoutes: adminBettingRoutes, rosterRoutes } = createBettingRoutes({
   ...bettingRuntime, league: db.db, playerName: id => db.getPlayerInfo(id)?.[0]?.PlayerName || `Player ${id}`,
 });
-const { adminRoutes: adminAnalyticsRoutes, publicRoutes: publicAnalyticsRoutes } = createAnalyticsRoutes({
+const { adminRoutes: adminAnalyticsRoutes, publicRoutes: publicAnalyticsRoutes, highlightRoutes } = createAnalyticsRoutes({
   audit: (type, message) => db.recordAdminAudit(type, message),
 });
 router.use(createWarehouseReportingRouter(db.db));
@@ -206,13 +206,14 @@ router.get('/rules', (req, res) => {
 router.use(publicSeasonRoutes);
 router.use('/analytics', publicAnalyticsRoutes);
 router.use('/betting', publicBettingRoutes);
-router.use('/site-management', siteManagementRoutes);
+router.use('/site-management', createSiteManagementRouter({ bettingRoutes: adminBettingRoutes,
+  leagueAnalyticsRoutes: adminAnalyticsRoutes, onMutation: mutationRefresh }));
 
 router.use('/admin', checkAdmin);
 router.use('/admin', mutationRefresh);
-router.use('/admin/betting', adminBettingRoutes);
+router.use('/admin/rosters', rosterRoutes);
 router.use('/admin/seasons', adminSeasonRoutes);
-router.use('/admin/analytics', adminAnalyticsRoutes);
+router.use('/admin/analytics', highlightRoutes);
 
 router.get('/admin/auditLog', (req, res) => {
   const beforeId = req.query.before === undefined ? null : Number(req.query.before);

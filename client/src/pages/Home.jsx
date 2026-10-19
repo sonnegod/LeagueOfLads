@@ -16,7 +16,7 @@ export default function Home() {
   const { user, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedPreview = searchParams.get('previewLeague');
-  const previewLeague = user?.isAdmin && /^\d+$/.test(requestedPreview || '')
+  const previewLeague = user?.isSiteManager && /^\d+$/.test(requestedPreview || '')
     && Number.isSafeInteger(Number(requestedPreview)) && Number(requestedPreview) > 0 ? requestedPreview : null;
   const [home, setHome] = useState(null);
   const [error, setError] = useState('');

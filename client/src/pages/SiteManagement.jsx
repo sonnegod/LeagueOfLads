@@ -1,7 +1,9 @@
 import { useEffect, useId, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { Activity, ClipboardCheck, Eye, Info, Repeat, ShieldCheck, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import AnalyticsStatusPanel from '../components/AnalyticsStatusPanel';
+import BettingAdminPanel from '../components/BettingAdminPanel';
 import './SiteManagement.css';
 
 const formatCount = value => value == null ? '\u2014' : Number(value).toLocaleString('en-US');
@@ -144,13 +146,16 @@ function AnalyticsDashboard({ data }) {
 
 export default function SiteManagement() {
   const { user, loading } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const tabs = [['traffic', 'Traffic'], ['analytics', 'Analytics'], ['betting', 'Betting']];
+  const activeTab = tabs.some(([key]) => key === params.get('tab')) ? params.get('tab') : 'traffic';
   const [days, setDays] = useState(7);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (loading || !user?.isSiteManager) return undefined;
+    if (loading || !user?.isSiteManager || activeTab !== 'traffic') return undefined;
     const controller = new AbortController();
     fetch(`/api/site-management/analytics?days=${days}`, { signal: controller.signal })
       .then(async response => {
@@ -161,25 +166,46 @@ export default function SiteManagement() {
       .then(data => { if (!controller.signal.aborted) { setResult({ days, data }); setError(null); } })
       .catch(cause => { if (!controller.signal.aborted) setError({ days, message: cause.message }); });
     return () => controller.abort();
-  }, [days, loading, user?.isSiteManager, attempt]);
+  }, [days, loading, user?.isSiteManager, attempt, activeTab]);
 
   if (loading) return <div className="ui-page">Checking site access...</div>;
   if (!user?.isSiteManager) return <Navigate to="/" replace />;
 
   const currentError = error?.days === days ? error.message : null;
   const data = result?.days === days ? result.data : null;
+  function selectTab(key, focus = false) {
+    const next = new URLSearchParams(params); next.set('tab', key); setParams(next);
+    if (focus) document.getElementById(`site-management-${key}-tab`)?.focus();
+  }
+  function navigateTabs(event) {
+    const index = tabs.findIndex(([key]) => key === activeTab);
+    const key = event.key === 'ArrowRight' ? tabs[(index + 1) % tabs.length][0]
+      : event.key === 'ArrowLeft' ? tabs[(index + tabs.length - 1) % tabs.length][0]
+      : event.key === 'Home' ? tabs[0][0] : event.key === 'End' ? tabs.at(-1)[0] : null;
+    if (key) { event.preventDefault(); selectTab(key, true); }
+  }
   return <div className="ui-page site-management-page">
     <header className="site-management-heading">
       <div><div className="site-management-title"><h1>Site Management</h1>
         <span className="site-manager-badge"><ShieldCheck size={14} aria-hidden="true" />Site manager</span></div>
-        <p>Traffic, engagement, and the health of League of Lads.</p></div>
-      <div className="ui-tabs site-analytics-range" role="group" aria-label="Analytics date range">
+        <p>Traffic, league analytics, highlights, and betting operations.</p></div>
+      {activeTab === 'traffic' && <div className="ui-tabs site-analytics-range" role="group" aria-label="Analytics date range">
         <button type="button" className="ui-tab" onClick={() => setAttempt(value => value + 1)}>Refresh</button>
         {[[1, 'Today'], [7, '7 days'], [30, '30 days']].map(([value, label]) =>
           <button key={value} type="button" className="ui-tab" aria-pressed={days === value}
             onClick={() => setDays(value)}>{label}</button>)}
-      </div>
+      </div>}
     </header>
+    <div className="ui-tabs" role="tablist" aria-label="Site management sections" onKeyDown={navigateTabs}>
+      {tabs.map(([key, label]) => <button key={key} type="button" className="ui-tab" role="tab"
+        id={`site-management-${key}-tab`} aria-selected={activeTab === key} aria-pressed={activeTab === key}
+        aria-controls={`site-management-${key}-panel`} tabIndex={activeTab === key ? 0 : -1}
+        onClick={() => selectTab(key)}>{label}</button>)}
+    </div>
+    <section id={`site-management-${activeTab}-panel`} role="tabpanel" aria-labelledby={`site-management-${activeTab}-tab`}>
+    {activeTab === 'analytics' && <AnalyticsStatusPanel />}
+    {activeTab === 'betting' && <BettingAdminPanel />}
+    {activeTab === 'traffic' && <>
     <div className="site-analytics-preview"><Info size={18} aria-hidden="true" />
       <p>{data ? <><strong>{data.collectionEnabled ? 'Live first-party analytics.' : 'Collection disabled in this environment.'}</strong>{' '}
         {data.startedAt ? `Data since ${new Date(data.startedAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}. ` : 'No activity recorded yet. '}
@@ -189,5 +215,7 @@ export default function SiteManagement() {
       <button type="button" onClick={() => setAttempt(value => value + 1)}>Retry</button>
     </div> : !data ? <div className="site-analytics-panel" role="status">Loading site analytics...</div>
       : <AnalyticsDashboard data={data} />}
+    </>}
+    </section>
   </div>;
 }

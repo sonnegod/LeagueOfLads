@@ -3,7 +3,18 @@
 The initial replacement sportsbook is implemented. Analytics supplies private
 facts and inputs; `Betting.db` owns forecasts, prices, accepted tickets, season
 wallets, and settlement. The public page is `/betting`; administration is under
-**Admin → League → Betting**. All amounts are site points.
+**Site Management → Betting**. Betting controls and odds previews require the
+site-manager role, independently of league-admin access. Site Management also has
+Traffic and Analytics tabs. All amounts are site points.
+
+Setup may be finalized with a temporary player registered on more than one team
+in the season, provided each individual team still has five distinct players.
+Analytics builds continue and flag ambiguous memberships; those appearances do
+not become eligible roster statistics. The Betting panel lists conflicting
+account IDs, and season betting remains held while the conflict exists (including
+existing open markets and new ticket acceptance). Replace the placeholder with
+a unique player, finalize setup again, then refresh Analytics and Betting.
+Preseason odds previews still require unambiguous rosters.
 Dashboard My Bets/Wallet also use season accounts. Retired betting endpoints
 return 410; the new history page retains access to older tickets.
 
@@ -55,7 +66,7 @@ league just to view preseason prices. With the current local SeasonId of 3:
 npm run betting:preview -- --season-id 3
 ```
 
-Open **Admin → League → Betting → Open preseason odds preview**, or
+Open **Site Management → Betting → Open preseason odds preview**, or
 `/betting?previewSeason=3`. Use **Rebuild preseason preview** on that page or in
 Betting administration after changing rosters, groups or rules. The calculation
 runs in a separate worker; the preview page reloads its prices on completion.
@@ -124,12 +135,12 @@ upper and four lower qualifiers per group produce a supported 4-upper/8-lower
 bracket. Five lower qualifiers per group produce an unsupported 4-upper/10-lower
 layout and hold champion markets until its routing is implemented.
 
-These previews are admin-only, contain no selectable real wagers, and expose no
+These previews are site-manager-only, contain no selectable real wagers, and expose no
 MMR values or raw source records to the browser. They do not
 override canonical signup-era scope or the temporal validation required before
 candidate models can price live markets. Existing live models are unchanged.
 
-The signup preview also has an admin-only **Matchup simulations** tab. Each
+The signup preview also has a site-manager-only **Matchup simulations** tab. Each
 within-group BO2 shows the model's single-game win chances and calculated score
 probabilities, alongside actual score counts from the saved season simulations.
 Diagnostics count the same random draws used for standings; collecting them does
@@ -258,6 +269,8 @@ records official/remake/abandoned match classifications, Discord team-role mappi
 unresolved scheduling posts, and verified legacy ticket outcomes. A replay must
 be linked to the same actual series before settlement. Raw Discord messages and
 private model inputs are never returned to the website.
+Roster administration uses the separate league-admin `/api/admin/rosters` routes,
+which expose season/team choices and roster changes without Betting controls.
 Use its season selector to verify older fixtures/results. Ended seasons permit
 edits to existing fixtures for late result links/corrections, but cannot open new
 markets or add new fixtures.

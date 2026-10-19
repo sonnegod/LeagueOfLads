@@ -2,13 +2,17 @@ import express from 'express';
 import { checkSiteManager } from '../middleware/checkSiteManager.js';
 import { analyticsEnabled, getSiteAnalyticsStore } from '../config/siteAnalytics.js';
 
-export function createSiteManagementRouter({ report = days => getSiteAnalyticsStore().report(days, analyticsEnabled()) } = {}) {
+export function createSiteManagementRouter({ report = days => getSiteAnalyticsStore().report(days, analyticsEnabled()),
+  bettingRoutes, leagueAnalyticsRoutes, onMutation = (req, res, next) => next() } = {}) {
   const router = express.Router();
   router.use(checkSiteManager);
   router.use((req, res, next) => {
     res.set('Cache-Control', 'private, no-store');
     next();
   });
+  router.use(onMutation);
+  if (bettingRoutes) router.use('/betting', bettingRoutes);
+  if (leagueAnalyticsRoutes) router.use('/league-analytics', leagueAnalyticsRoutes);
 
   router.get('/analytics', (req, res) => {
     const days = req.query.days === undefined ? '7' : req.query.days;

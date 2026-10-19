@@ -4,6 +4,10 @@ import express from 'express';
 import { isSiteManagerSteamId } from '../middleware/checkSiteManager.js';
 import { createSiteManagementRouter } from '../routes/siteManagementRoutes.js';
 import { SiteAnalyticsStore } from '../config/siteAnalyticsStore.js';
+import { getAuditActor } from '../config/adminAuditContext.js';
+import { createAnalyticsRoutes } from '../routes/analyticsRoutes.js';
+import { createBettingRoutes } from '../routes/bettingRoutes.js';
+import { engineFixture } from './helpers/bettingFixture.js';
 
 const steamId = accountId => (76561197960265728n + BigInt(accountId)).toString();
 
@@ -68,6 +72,68 @@ test('site-management API enforces its own role, independently of league admins 
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
     store.close();
+  }
+});
+
+test('Betting and league Analytics require the site role while league admins retain isolated roster access', async () => {
+  const f = engineFixture();
+  const audits = []; let refreshes = 0;
+  f.schedules.audit = (type, message) => audits.push({ type, message, actor: getAuditActor() });
+  const betting = createBettingRoutes({ ...f, analyticsPath: ':memory:', refresh: () => refreshes++ });
+  const analytics = createAnalyticsRoutes({ getPaths: () => ({ analytics: 'missing-site-management-test.db' }) });
+  const app = express(); app.use(express.json());
+  app.use((req, res, next) => {
+    const user = req.get('x-test-user'); req.isAuthenticated = () => Boolean(user);
+    if (user) req.user = { id: steamId(user === 'owner' ? 49219700 : 42), displayName: user === 'owner' ? 'Site Owner' : 'League Admin' };
+    if (user === 'league-admin') req.admin = { AdminPlayerId: 42, HeadAdmin: 1 };
+    next();
+  });
+  app.use('/api/site-management', createSiteManagementRouter({ bettingRoutes: betting.adminRoutes, leagueAnalyticsRoutes: analytics.adminRoutes }));
+  app.use('/api/admin/rosters', (req, res, next) => req.admin ? next() : res.sendStatus(req.user ? 403 : 401), betting.rosterRoutes);
+  app.use('/api/admin/analytics', (req, res, next) => req.admin ? next() : res.sendStatus(req.user ? 403 : 401), analytics.highlightRoutes);
+  app.use('/api/betting', betting.publicRoutes);
+  const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const request = (path, user, method = 'GET', body) => fetch(base + path, { method,
+    headers: { ...(user ? { 'x-test-user': user } : {}), 'Content-Type': 'application/json', Connection: 'close' },
+    ...(body ? { body: JSON.stringify(body) } : {}) });
+  try {
+    for (const path of ['/betting/status', '/league-analytics/status', '/league-analytics/highlights']) {
+      assert.equal((await request('/api/site-management' + path)).status, 401);
+      assert.equal((await request('/api/site-management' + path, 'league-admin')).status, 403);
+      const owner = await request('/api/site-management' + path, 'owner');
+      assert.equal(owner.status, 200); assert.match(owner.headers.get('cache-control'), /no-store/);
+    }
+    assert.equal((await request('/api/site-management/betting/refresh', 'league-admin', 'POST', {})).status, 403);
+    assert.equal(refreshes, 0);
+    assert.equal((await request('/api/site-management/betting/refresh', 'owner', 'POST', {})).status, 202);
+    assert.equal(refreshes, 1);
+    assert.equal((await request('/api/site-management/betting/seasons/1/aliases', 'owner', 'PUT', {
+      roleId: '123456789012345', teamKey: 11,
+    })).status, 200);
+    assert.equal(audits[0].actor.AdminPlayerId, '49219700'); assert.equal(audits[0].actor.AdminPlayerName, 'Site Owner');
+    assert.equal((await request('/api/site-management/league-analytics/highlights/settings', 'league-admin', 'PATCH', { paused: true })).status, 403);
+    assert.equal((await request('/api/admin/rosters/status')).status, 401);
+    const roster = await request('/api/admin/rosters/status', 'league-admin'); assert.equal(roster.status, 200);
+    const data = await roster.json(); assert.deepEqual(Object.keys(data).sort(), ['season', 'teams']);
+    assert.equal(data.season.seasonId, 1); assert.equal(data.teams.length, 2);
+    assert.equal((await request('/api/admin/rosters/seasons/1/roster-changes', 'league-admin', 'POST', {})).status, 400);
+    assert.equal((await request('/api/admin/rosters/refresh', 'league-admin', 'POST', {})).status, 404);
+    assert.equal((await request('/api/admin/betting/status', 'league-admin')).status, 404);
+    assert.equal((await request('/api/admin/analytics/status', 'league-admin')).status, 404);
+    assert.equal((await request('/api/admin/analytics/highlights', 'league-admin')).status, 200);
+    assert.equal((await request('/api/admin/analytics/highlights')).status, 401);
+    assert.equal((await request('/api/admin/analytics/dashboard/preview?previewLeague=100', 'league-admin')).status, 404);
+    assert.equal((await request('/api/betting/meta')).status, 200);
+    f.league.exec("UPDATE LeagueSeasons SET Status='signup_closed' WHERE SeasonId=1;UPDATE SeasonTeamPlayers SET PlayerId=1 WHERE TeamSubmissionId=12 AND Slot=0;");
+    const finalized = await request('/api/site-management/betting/seasons/1/setup', 'owner', 'POST', { gamesPerTeam: 6 });
+    assert.equal(finalized.status, 200); assert.equal((await finalized.json()).saved, true);
+    const status = await (await request('/api/site-management/betting/status', 'owner')).json();
+    assert.deepEqual(status.rosterConflicts, [1]);
+    assert.equal(JSON.parse(f.schedules.setup(1).SetupJson).roster.filter(p => p.PlayerId === 1).length, 2);
+    assert.equal(getAuditActor(), null);
+  } finally {
+    server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); f.close();
   }
 });
 

@@ -9,7 +9,7 @@ export default function RosterChangesPanel({refreshKey,onChanged}) {
   const [busy,setBusy]=useState(false);const [refresh,setRefresh]=useState(0);const [rosterChange,setRosterChange]=useState(initialChange);
   useEffect(()=>{
     const controller=new AbortController();
-    fetch('/api/admin/betting/status',{signal:controller.signal}).then(async response=>{
+    fetch('/api/admin/rosters/status',{signal:controller.signal}).then(async response=>{
       const payload=await response.json();if(!response.ok)throw new Error(payload.error||'Unable to load roster administration');return payload;
     }).then(payload=>{if(!controller.signal.aborted)setData(payload);}).catch(err=>{if(err.name!=='AbortError')setError(err.message);});
     return()=>controller.abort();
@@ -17,7 +17,7 @@ export default function RosterChangesPanel({refreshKey,onChanged}) {
   async function save(event) {
     event.preventDefault();setBusy(true);setError('');setMessage('');
     try {
-      const response=await fetch(`/api/admin/betting/seasons/${data.season.seasonId}/roster-changes`,{method:'POST',headers:{'Content-Type':'application/json'},
+      const response=await fetch(`/api/admin/rosters/seasons/${data.season.seasonId}/roster-changes`,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({...rosterChange,localTime:parserTime(rosterChange.localTime)})});
       const result=await response.json();if(!response.ok)throw new Error(result.error||'Unable to record roster change');
       setMessage('Roster change recorded. Markets and Analytics will refresh.');setRefresh(value=>value+1);onChanged?.();

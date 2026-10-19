@@ -58,7 +58,7 @@ export default function LeagueHighlightsFeed({ leagueId, previewLeague, period =
     if (leagueId) params.set('leagueId', leagueId);
     if (previewLeague) params.set('previewLeague', previewLeague);
     if (before) params.set('before', before);
-    const endpoint = previewLeague ? '/api/admin/analytics/highlights/preview' : '/api/analytics/highlights';
+    const endpoint = previewLeague ? '/api/site-management/league-analytics/highlights/preview' : '/api/analytics/highlights';
     fetch(`${endpoint}?${params}`, { signal: controller.signal, cache: previewLeague ? 'no-store' : 'default' })
       .then(async response => {
         const data = await response.json();

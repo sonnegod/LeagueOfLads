@@ -5,6 +5,7 @@ import { digest } from './scheduleStore.js';
 import { normalizeLeagueRules } from '../config/leagueRules.js';
 import {plannedGames,plannedGameCounts,gameCountsChanged} from './seasonFormat.js';
 import {localBettingTestMode} from './localTestPolicy.js';
+import { currentSeasonRoster, conflictingRosterPlayers } from './rosterMembership.js';
 import { MODEL_VERSION,METRICS,metricLabel,seededRandom,validateBaseline,validateLineupModel,validateStatDistributions,seriesForecast,statForecast,leaderForecast,simulateSeason,seasonWinsForecast } from './models.js';
 
 const allVoid = (book,market,reason) => book.void(market.MarketId,reason);
@@ -23,9 +24,7 @@ function setupMatchesSource(league,setup) {
         .get(season.ExternalLeagueId,t.TeamSubmissionId,t.ExternalTeamId)?.GroupId||null:t.GroupId}));
   const live=season.ExternalLeagueId&&hasTable(league,'LeagueRules')?league.prepare('SELECT * FROM LeagueRules WHERE LeagueId=?').get(season.ExternalLeagueId):null;
   const rules=live||league.prepare('SELECT * FROM SeasonLeagueRules WHERE SeasonId=?').get(setup.SeasonId);
-  const rosterTable=season.Status==='active'&&hasTable(league,'TeamRosterPlayers')?'TeamRosterPlayers':'SeasonTeamPlayers';
-  const roster=league.prepare(`SELECT p.TeamSubmissionId,p.PlayerId,p.Slot FROM ${rosterTable} p JOIN SeasonTeams t
-    ON t.TeamSubmissionId=p.TeamSubmissionId WHERE t.SeasonId=? ORDER BY p.TeamSubmissionId,p.Slot`).all(setup.SeasonId);
+  const roster=currentSeasonRoster(league,setup.SeasonId,season.Status);
   return JSON.stringify(teams)===JSON.stringify(expected.teams)&&JSON.stringify(normalizeLeagueRules(rules))===JSON.stringify(normalizeLeagueRules(expected.rules))
     &&JSON.stringify(roster)===JSON.stringify(expected.roster);
 }
@@ -79,6 +78,9 @@ export function seasonGuard(league,analyticsPath,seasonId,market,now=new Date(),
   const table=name=>read(`table:${name}`,()=>hasTable(league,name));
   const seasonState=read(`season:${seasonId}`,()=>league.prepare('SELECT Status FROM LeagueSeasons WHERE SeasonId=?').get(seasonId));
   if(!seasonState||!['active','signup_closed'].includes(seasonState.Status))return 'Betting is closed for this season';
+  if(read(`rosterConflicts:${seasonId}`,()=>conflictingRosterPlayers(currentSeasonRoster(league,seasonId,seasonState.Status)).length)) {
+    return 'Resolve conflicting roster memberships before betting';
+  }
   if(table('BettingRefreshState')) {
     const refresh=read('refresh',()=>league.prepare('SELECT RequestedRevision,CompletedRevision FROM BettingRefreshState WHERE Id=1').get());
     if(refresh.RequestedRevision>refresh.CompletedRevision)return 'Updated markets are being prepared';
@@ -316,6 +318,11 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
       book.registerSeason(season);
       const inputs=readSeasonBettingInputs(analytics,season.SeasonId,now);if(!inputs){if(['active','signup_closed'].includes(season.Status))issues.push('analytics_not_available');continue;}
       const setup=schedules.setup(season.SeasonId);const events=schedules.list(season.SeasonId,{includeLocalTests:localTesting});
+      if(['active','signup_closed'].includes(season.Status)
+        &&conflictingRosterPlayers(currentSeasonRoster(league,season.SeasonId,season.Status)).length) {
+        book.db.prepare("UPDATE BettingMarkets SET Status='held',HoldReason='conflicting_roster_memberships' WHERE SeasonId=? AND Status IN ('open','held')").run(season.SeasonId);
+        issues.push('conflicting_roster_memberships');continue;
+      }
       settled+=settleSeason(book,league,inputs,setup,events);
       if(!['active','signup_closed'].includes(season.Status)) {
         book.db.prepare("UPDATE BettingMarkets SET Status='held',HoldReason='season_not_open' WHERE SeasonId=? AND Status='open'").run(season.SeasonId);continue;

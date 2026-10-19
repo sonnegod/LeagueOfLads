@@ -11,6 +11,7 @@ import { contentWindow } from '../analytics/contentWindows.js';
 
 export function createAnalyticsRoutes({ getPaths = analyticsPaths, listLeagues = readLeagueCatalog, audit = () => {} } = {}) {
   const adminRoutes = express.Router();
+  const highlightRoutes = express.Router();
   const publicRoutes = express.Router();
   const cache = new Map();
   function dataset(req) {
@@ -46,7 +47,7 @@ export function createAnalyticsRoutes({ getPaths = analyticsPaths, listLeagues =
   const invalid = (res, error) => res.status(error.status ?? 400).json({ error: error.message });
 
   publicRoutes.get('/highlights', (req, res) => {
-    if (req.query.previewLeague !== undefined) return res.status(400).json({ error: 'Historical previews are available in Admin' });
+    if (req.query.previewLeague !== undefined) return res.status(400).json({ error: 'Historical previews are available in Site Management' });
     let options;
     try { options = pagination(req, false); }
     catch (error) { return invalid(res, error); }
@@ -64,7 +65,7 @@ export function createAnalyticsRoutes({ getPaths = analyticsPaths, listLeagues =
   });
   publicRoutes.get('/dashboard', (req, res) => {
     if (req.query.previewLeague !== undefined || req.query.period === 'historical') {
-      return res.status(400).json({ error: 'Historical previews are available in Admin' });
+      return res.status(400).json({ error: 'Historical previews are available in Site Management' });
     }
     let options;
     try { options = dashboardOptions(req); }
@@ -82,8 +83,10 @@ export function createAnalyticsRoutes({ getPaths = analyticsPaths, listLeagues =
     } catch { return res.status(503).json({ error: 'League results are temporarily unavailable' }); }
   });
 
-  // All admin routes are mounted behind the existing checkAdmin middleware.
+  // Operational routes require the site role. Highlight moderation is also
+  // mounted separately behind the league-admin guard.
   adminRoutes.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+  highlightRoutes.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   adminRoutes.get('/status', (req, res) => {
     let path;
     try { path = dataset(req); } catch (error) { return invalid(res, error); }
@@ -94,7 +97,7 @@ export function createAnalyticsRoutes({ getPaths = analyticsPaths, listLeagues =
     try { return res.json({ leagues: listLeagues(getPaths().league) }); }
     catch { return res.status(503).json({ error: 'League list is temporarily unavailable' }); }
   });
-  adminRoutes.get('/highlights', (req, res) => {
+  highlightRoutes.get('/highlights', (req, res) => {
     let path; let options;
     try { path = dataset(req); options = pagination(req, true); } catch (error) { return invalid(res, error); }
     try { return res.json(readHighlightFeed(path, options)); }
@@ -131,7 +134,7 @@ export function createAnalyticsRoutes({ getPaths = analyticsPaths, listLeagues =
       return res.status(503).json({ error: 'Could not update highlights; retry after the Analytics build finishes' });
     } finally { db?.close(); }
   }
-  adminRoutes.patch('/highlights/settings', (req, res) => {
+  highlightRoutes.patch('/highlights/settings', (req, res) => {
     if (typeof req.body?.paused !== 'boolean' || Object.keys(req.body).some(key => key !== 'paused')) {
       return res.status(400).json({ error: 'Provide a paused boolean' });
     }
@@ -143,7 +146,7 @@ export function createAnalyticsRoutes({ getPaths = analyticsPaths, listLeagues =
       return { paused: req.body.paused };
     });
   });
-  adminRoutes.patch('/highlights/:id', (req, res) => {
+  highlightRoutes.patch('/highlights/:id', (req, res) => {
     let id;
     try { id = positiveId(req.params.id, 'highlight'); if (!id) throw new Error('Invalid highlight'); }
     catch (error) { return invalid(res, error); }
@@ -162,5 +165,6 @@ export function createAnalyticsRoutes({ getPaths = analyticsPaths, listLeagues =
       return { highlight: highlightDTO(row, true) };
     });
   });
-  return { adminRoutes, publicRoutes };
+  adminRoutes.use(highlightRoutes);
+  return { adminRoutes, publicRoutes, highlightRoutes };
 }

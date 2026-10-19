@@ -10,6 +10,7 @@ import {signupPreviewPath} from '../betting/signupPreseasonPreview.js';
 import {rebuildPreseasonPreview} from '../betting/previewRefresh.js';
 import {groupPlayerMarkets,groupTeamMarkets} from '../betting/marketView.js';
 import {readFixtureMarketPage,readScheduledPlayers,marketBettors} from '../betting/fixtureMarketView.js';
+import { currentSeasonRoster, conflictingRosterPlayers } from '../betting/rosterMembership.js';
 
 const positive=value=>/^\d+$/.test(String(value))&&Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):null;
 export function bettingActor(req) {
@@ -21,7 +22,7 @@ const endpoint=fn=>(req,res)=>{const report=error=>{
   console.error('Betting request failed:',error.code||'internal');return res.status(500).json({error:'Betting request failed'});
 };try{const result=fn(req,res);return result?.then?result.catch(report):result;}catch(error){return report(error);}};
 export function createBettingRoutes({book,schedules,league,analyticsPath,playerName=id=>`Player ${id}`,refresh=queueBettingRefresh,rebuildPreview=rebuildPreseasonPreview}) {
-  const publicRoutes=express.Router();const adminRoutes=express.Router();const db=book.db;
+  const publicRoutes=express.Router();const adminRoutes=express.Router();const rosterRoutes=express.Router();const db=book.db;
   const readEndpoint=fn=>endpoint((req,res)=>db.transaction(()=>fn(req,res))());
   const seasonId=req=>{
     const id=positive(req.query.seasonId||req.body?.seasonId);if(id)return id;
@@ -187,6 +188,7 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
     const messages=league.prepare(`SELECT MessageId,ChannelId,AuthoredAtUtc,EditedAtUtc,ParseStatus,IssueCode,EventId,Deleted FROM ScheduleMessages
       WHERE ParseStatus='needs_review' AND SeasonId=? ORDER BY LastSeenAtUtc DESC LIMIT 50`).all(sid);
     return res.json({localTesting:book.localTesting,season:season?{seasonId:sid,name:season.LeagueName,status:season.Status,leagueId:season.ExternalLeagueId}:null,
+      rosterConflicts:season?conflictingRosterPlayers(currentSeasonRoster(league,sid,season.Status)):[],
       seasons:league.prepare('SELECT SeasonId,LeagueName,Status FROM LeagueSeasons ORDER BY ExternalLeagueId DESC NULLS LAST,SeasonId DESC LIMIT 30').all().map(s=>({seasonId:s.SeasonId,name:s.LeagueName,status:s.Status})),
       setup:setup?{revision:setup.Revision,gamesPerTeam:setup.RegularGamesPerTeam,gamesByTeam:JSON.parse(setup.SetupJson).gamesByTeam||null,finalizedAt:setup.FinalizedAtUtc,completion:setup.Completion,regularSeasonComplete:!!setup.RegularSeasonComplete}:null,
       teams:sid?schedules.teams(sid).map(t=>({teamKey:t.TeamSubmissionId,name:t.TeamName,teamId:t.ExternalTeamId})):[],
@@ -210,11 +212,20 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
   }));
   adminRoutes.put('/seasons/:seasonId/completion',endpoint((req,res)=>{const sid=positive(req.params.seasonId);if(!sid)fail('Invalid season');
     schedules.completion(sid,req.body||{},bettingActor(req));return res.json({saved:true});}));
-  adminRoutes.post('/seasons/:seasonId/roster-changes',endpoint((req,res)=>{
+  rosterRoutes.get('/status',endpoint((req,res)=>{
+    const sid=seasonId(req);
+    const season=sid?league.prepare('SELECT SeasonId,LeagueName,Status FROM LeagueSeasons WHERE SeasonId=?').get(sid):null;
+    res.set('Cache-Control','no-store');
+    return res.json({season:season?{seasonId:season.SeasonId,name:season.LeagueName,status:season.Status}:null,
+      teams:sid?schedules.teams(sid).map(t=>({teamKey:t.TeamSubmissionId,name:t.TeamName,teamId:t.ExternalTeamId})):[]});
+  }));
+  const changeRoster=endpoint((req,res)=>{
     const sid=positive(req.params.seasonId);if(!sid)fail('Invalid season');let body={...req.body};
     if(body.localTime){const parsed=parseScheduleTime(body.localTime,new Date().toISOString(),60,{allowPast:true});if(parsed.error)fail('Effective time needs correction');body.effectiveAtUtc=parsed.scheduledStartUtc;}
     return res.json(schedules.changeRoster(sid,body,bettingActor(req)));
-  }));
+  });
+  adminRoutes.post('/seasons/:seasonId/roster-changes',changeRoster);
+  rosterRoutes.post('/seasons/:seasonId/roster-changes',changeRoster);
   adminRoutes.post('/seasons/:seasonId/matches/classify',endpoint((req,res)=>{const sid=positive(req.params.seasonId);if(!sid)fail('Invalid season');
     return res.json(schedules.classifyMatch(sid,req.body||{},bettingActor(req)));}));
   adminRoutes.post('/seasons/:seasonId/events',endpoint((req,res)=>{
@@ -255,5 +266,5 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
     schedules.audit('Legacy Betting Resolved',`Resolved legacy market ${market}${voidAll?' with a refund':` using series ${seriesId}`}`);
     return res.json(result);
   }));
-  return {publicRoutes,adminRoutes};
+  return {publicRoutes,adminRoutes,rosterRoutes};
 }

@@ -44,7 +44,7 @@ export default function LeagueContentDashboard({ leagueId, previewLeague, emptyS
     if (leagueId) params.set('leagueId', leagueId);
     if (previewLeague) params.set('previewLeague', previewLeague);
     if (before) params.set('before', before);
-    const endpoint = previewLeague ? '/api/admin/analytics/dashboard/preview' : '/api/analytics/dashboard';
+    const endpoint = previewLeague ? '/api/site-management/league-analytics/dashboard/preview' : '/api/analytics/dashboard';
     fetch(`${endpoint}?${params}`, { signal: controller.signal, cache: previewLeague ? 'no-store' : 'default' })
       .then(async response => {
         const payload = await response.json();

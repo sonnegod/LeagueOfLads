@@ -4,7 +4,7 @@ import {lineupPrior,activeLineup} from '../betting/rosterStrength.js';
 import {teamProbability,validateLineupModel} from '../betting/models.js';
 import {plannedGames,gameCountsChanged} from '../betting/seasonFormat.js';
 import {preseasonFixture,engineFixture} from './helpers/bettingFixture.js';
-import {runBetting,settleOperationalChanges} from '../betting/engine.js';
+import {runBetting,settleOperationalChanges,seasonGuard} from '../betting/engine.js';
 import {readSeasonBettingInputs} from '../analytics/bettingInputs.js';
 const at='2026-10-13T12:00:00.000Z';
 function strengthInputs() {
@@ -96,5 +96,33 @@ test('unequal BO2 groups use their own game counts for lines, setup guards and r
     assert.equal(f.betting.prepare('SELECT AcceptedMicros FROM BettingTicketLegs WHERE TicketId=?').get(ticket.ticketId).AcceptedMicros,q.OfferedMicros);
     assert.equal(f.betting.prepare('SELECT Status FROM BettingMarkets WHERE MarketId=?').get(smaller.MarketId).Status,'open');
     assert.equal(f.book.wallet(2,'99').balance,10000);
+  }finally{f.close();}
+});
+
+test('setup accepts cross-team placeholders, holds betting immediately, and resumes after a unique replacement',()=>{
+  const f=preseasonFixture([4]);try {
+    runBetting({...f,seasonId:2,now:new Date(at),simulations:50});
+    const market=f.betting.prepare("SELECT * FROM BettingMarkets WHERE SeasonId=2 AND Status='open' LIMIT 1").get();
+    assert.ok(market);
+    const original=f.schedules.setup(2);
+    f.league.exec('UPDATE SeasonTeamPlayers SET PlayerId=210 WHERE TeamSubmissionId=22 AND Slot=0');
+    const setup=f.schedules.finalizeSetup(2,'group_round_robin','1',new Date(at));
+    assert.equal(setup.Revision,original.Revision+1);
+    assert.equal(JSON.parse(setup.SetupJson).roster.filter(p=>p.PlayerId===210).length,2);
+    assert.equal(f.schedules.finalizeSetup(2,'group_round_robin','1',new Date(at)).Revision,setup.Revision);
+    assert.equal(seasonGuard(f.league,'not-read-with-conflicts.db',2,market,new Date(at)),
+      'Resolve conflicting roster memberships before betting');
+    const held=runBetting({...f,seasonId:2,now:new Date(at),simulations:50});
+    assert.ok(held.issues.includes('conflicting_roster_memberships'));
+    assert.equal(f.betting.prepare("SELECT COUNT(*) n FROM BettingMarkets WHERE SeasonId=2 AND Status='open'").get().n,0);
+    assert.equal(f.betting.prepare('SELECT HoldReason FROM BettingMarkets WHERE MarketId=?').get(market.MarketId).HoldReason,'conflicting_roster_memberships');
+    f.league.exec('UPDATE SeasonTeamPlayers SET PlayerId=210 WHERE TeamSubmissionId=21 AND Slot=1');
+    assert.throws(()=>f.schedules.finalizeSetup(2,6,'1',new Date(at)),/five distinct players within its own roster/);
+    f.league.exec(`UPDATE SeasonTeamPlayers SET PlayerId=211 WHERE TeamSubmissionId=21 AND Slot=1;
+      UPDATE SeasonTeamPlayers SET PlayerId=220 WHERE TeamSubmissionId=22 AND Slot=0;`);
+    f.schedules.finalizeSetup(2,'group_round_robin','1',new Date(at));
+    const resumed=runBetting({...f,seasonId:2,now:new Date(at),simulations:50});
+    assert.equal(resumed.issues.includes('conflicting_roster_memberships'),false);
+    assert.ok(f.betting.prepare("SELECT 1 FROM BettingMarkets WHERE SeasonId=2 AND Status='open' LIMIT 1").get());
   }finally{f.close();}
 });

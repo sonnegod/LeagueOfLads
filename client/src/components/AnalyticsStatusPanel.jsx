@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import HighlightsAdminPanel from './HighlightsAdminPanel';
+import { Link } from 'react-router-dom';
 
 function date(value) {
   return value ? new Date(value).toLocaleString() : 'Not recorded';
@@ -13,7 +13,7 @@ export default function AnalyticsStatusPanel({ refreshKey }) {
   const [previewLeague, setPreviewLeague] = useState('');
   useEffect(() => {
     const controller = new AbortController();
-    fetch('/api/admin/analytics/leagues', { signal: controller.signal })
+    fetch('/api/site-management/league-analytics/leagues', { signal: controller.signal })
       .then(response => response.ok ? response.json() : Promise.reject(new Error('Could not load league list')))
       .then(data => { if (!controller.signal.aborted) setLeagues(data.leagues); })
       .catch(err => { if (err.name !== 'AbortError') setError(err.message); });
@@ -21,7 +21,7 @@ export default function AnalyticsStatusPanel({ refreshKey }) {
   }, [refreshKey]);
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/admin/analytics/status${previewLeague ? `?previewLeague=${previewLeague}` : ''}`,
+    fetch(`/api/site-management/league-analytics/status${previewLeague ? `?previewLeague=${previewLeague}` : ''}`,
       { signal: controller.signal, cache: 'no-store' })
       .then(async response => {
         const data = await response.json();
@@ -45,7 +45,8 @@ export default function AnalyticsStatusPanel({ refreshKey }) {
       </option>)}
     </select></label>
     {previewLeague ? <p className="admin-help">Historical preview for testing, separate from live betting. Roster membership is unclassified. Live refreshes do not rebuild this preview.</p>
-      : <p className="admin-help">To rebuild these summaries after a data correction, use League → Betting → Refresh Analytics and Betting. New match data must first arrive through the scheduled import jobs.</p>}
+      : <p className="admin-help">To rebuild these summaries after a data correction, open <Link to="/site-management?tab=betting">Site Management → Betting</Link> and use Refresh Analytics and Betting. New match data must first arrive through the scheduled import jobs.</p>}
+    {previewLeague && status?.available && <p><Link to={`/?previewLeague=${previewLeague}`} target="_blank" rel="noopener noreferrer">Preview on homepage</Link></p>}
     {error && <p role="alert">{error}</p>}
     {!status ? <p>Loading Analytics status...</p> : !status.available ? <p>
       {previewLeague ? 'This league preview has not been built yet.' : 'Analytics has not been initialized.'}
@@ -75,6 +76,5 @@ export default function AnalyticsStatusPanel({ refreshKey }) {
         <p role="alert">The latest build {status.latest.status === 'failed' ? 'failed' : 'was interrupted'}.
           {status.published ? ' The previous completed dataset remains available.' : ''}</p>}
     </>}
-    <HighlightsAdminPanel key={previewLeague || 'signup'} previewLeague={previewLeague} refreshKey={`${refreshKey}:${refresh}`} />
   </section>;
 }

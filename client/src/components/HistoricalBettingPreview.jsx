@@ -22,7 +22,7 @@ export default function HistoricalBettingPreview({leagueId,seasonId}) {
     const controller=new AbortController();setLoading(true);setError('');const params=new URLSearchParams(seasonId?{seasonId,scope}:{leagueId,scope});
     if(scope==='preseason'){params.set('preseasonGroup',preseasonGroup==='simulations'?'team':preseasonGroup);if(preseasonGroup==='player')params.set('groupPlayers','1');else params.set('groupTeams','1');}
     if(eventId&&scope==='series')params.set('eventId',eventId);if(before)params.set('before',before);if(search)params.set('search',search);
-    fetch(`/api/admin/betting/preview?${params}`,{signal:controller.signal}).then(async response=>{
+    fetch(`/api/site-management/betting/preview?${params}`,{signal:controller.signal}).then(async response=>{
       const value=await response.json();if(!response.ok)throw new Error(value.error||'Unable to load the historical preview');return value;
     }).then(setData).catch(err=>{if(err.name!=='AbortError')setError(err.message);}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
     return()=>controller.abort();
@@ -30,7 +30,7 @@ export default function HistoricalBettingPreview({leagueId,seasonId}) {
   async function rebuild() {
     setRebuilding(true);setError('');
     try {
-      const response=await fetch(`/api/admin/betting/seasons/${seasonId}/preview`,{method:'POST'});
+      const response=await fetch(`/api/site-management/betting/seasons/${seasonId}/preview`,{method:'POST'});
       const result=await response.json();if(!response.ok)throw new Error(result.error||'Could not rebuild the preview');
       setBefore(null);setPages([]);setRefresh(value=>value+1);
     }catch(error){setError(error.message);}finally{setRebuilding(false);}
@@ -41,7 +41,7 @@ export default function HistoricalBettingPreview({leagueId,seasonId}) {
   const teamView=scope==='preseason'&&preseasonGroup==='team';
   const simulationView=scope==='preseason'&&preseasonGroup==='simulations';
   return <div className="ui-page sportsbook-page historical-betting-preview"><header className="sportsbook-heading"><div>
-    <h1>{data?.leagueName||'Historical betting preview'}</h1><p>Admin preview · Read only · No points or live tickets</p></div>
+    <h1>{data?.leagueName||'Historical betting preview'}</h1><p>Site management preview · Read only · No points or live tickets</p></div>
     <div className="season-actions">{seasonId&&<button type="button" disabled={rebuilding} onClick={rebuild}>
       {rebuilding?'Rebuilding preview...':'Rebuild preseason preview'}</button>}<Link to="/betting">Exit preview</Link></div></header>
     {rebuilding&&<p role="status">Rebuilding odds from the saved rosters, groups and rules...</p>}

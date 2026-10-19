@@ -309,6 +309,20 @@ test('duplicate signup membership remains unresolved instead of making two actua
   } finally { f.close(); }
 });
 
+test('Analytics publishes five-player teams with a cross-team placeholder and keeps its membership unresolved', () => {
+  const f = fixture();
+  try {
+    f.league.exec(`UPDATE LeagueSeasons SET Status='signup_closed' WHERE SeasonId=3;
+      UPDATE SeasonTeamPlayers SET PlayerId=3 WHERE TeamSubmissionId=12 AND PlayerId=10;
+      UPDATE TeamRosterPlayers SET PlayerId=3 WHERE TeamSubmissionId=12 AND PlayerId=10;`);
+    const { runId } = buildAnalytics(f);
+    assert.equal(f.analytics.prepare('SELECT PublishedRunId FROM AnalyticsState').get().PublishedRunId,runId);
+    assert.ok(safeAnalyticsStatus(f.analytics, at).issues.some(issue=>issue.code==='ambiguous_player_roster'));
+    assert.equal(f.analytics.prepare("SELECT COUNT(*) n FROM PrivateTeamFeatures WHERE QualityStatus='conflicting_roster'").get().n,2);
+    assert.equal(f.analytics.prepare("SELECT COUNT(*) n FROM PlayerGameFacts WHERE PlayerId=3 AND Membership!='unknown'").get().n,0);
+  } finally { f.close(); }
+});
+
 test('an ended signup season can be selected while another season is active', () => {
   const f = fixture();
   try {

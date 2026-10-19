@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { parseScheduleMessage, PARSER_VERSION } from './scheduleParser.js';
+import { currentSeasonRoster } from './rosterMembership.js';
 
 export const digest = value => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 export function fail(message, status = 400, code = 'INVALID_REQUEST') { const error = new Error(message); error.status = status; error.code = code; throw error; }
@@ -161,11 +162,12 @@ export class ScheduleStore {
       const teams = this.teams(seasonId); if (teams.length < 2 || teams.some(t => !t.GroupId)) fail('Assign all teams to groups first');
       const gamesByTeam=roundRobin?Object.fromEntries(teams.map(t=>[t.TeamSubmissionId,2*(teams.filter(other=>other.GroupId===t.GroupId).length-1)])):null;
       if(roundRobin){games=Math.max(...Object.values(gamesByTeam));if(Object.values(gamesByTeam).some(n=>n<5||n>100))fail('Each BO2 group needs between 4 and 51 teams for season markets');}
-      const rosterTable=season.Status==='active'&&this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='TeamRosterPlayers'").get()?'TeamRosterPlayers':'SeasonTeamPlayers';
-      const roster = this.db.prepare(`SELECT p.TeamSubmissionId,p.PlayerId,p.Slot FROM ${rosterTable} p
-        JOIN SeasonTeams t ON t.TeamSubmissionId=p.TeamSubmissionId WHERE t.SeasonId=? ORDER BY p.TeamSubmissionId,p.Slot`).all(seasonId);
-      if (teams.some(t => {const n=roster.filter(p => p.TeamSubmissionId === t.TeamSubmissionId).length;return t.IsManual ? n!==0&&n!==5 : n!==5;})
-        || new Set(roster.map(p => p.PlayerId)).size !== roster.length) fail('Every team needs five distinct rostered players; resolve conflicting memberships first');
+      const roster = currentSeasonRoster(this.db, seasonId, season.Status);
+      if (teams.some(t => {
+        const players = roster.filter(p => p.TeamSubmissionId === t.TeamSubmissionId);
+        if (t.IsManual && !players.length) return false;
+        return players.length !== 5 || new Set(players.map(p => p.PlayerId)).size !== 5;
+      })) fail('Every team needs five distinct players within its own roster');
       const liveRules=season.ExternalLeagueId&&this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='LeagueRules'").get()
         ?this.db.prepare('SELECT * FROM LeagueRules WHERE LeagueId=?').get(season.ExternalLeagueId):null;
       const rules = liveRules||this.db.prepare('SELECT * FROM SeasonLeagueRules WHERE SeasonId=?').get(seasonId);
