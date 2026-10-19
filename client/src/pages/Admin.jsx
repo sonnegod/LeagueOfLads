@@ -97,7 +97,7 @@ export default function AdminPage() {
         {[
           ["overview", "Overview"],
           ["betting", "Betting"],
-          ...(seasonStatus === 'active' ? [["rosterChanges", "Roster Changes"], ["editor", "Editor"], ["playoffs", "Playoffs"],
+          ...(seasonStatus === 'active' ? [["rosterChanges", "Roster Changes"], ["schedule", "Schedule"], ["editor", "Editor"], ["playoffs", "Playoffs"],
             ["settings", "Settings"]] : []),
         ].map(([key, label]) => <button key={key} type="button" className="ui-tab"
           aria-pressed={activeLeagueTab === key}
