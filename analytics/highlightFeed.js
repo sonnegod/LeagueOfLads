@@ -3,7 +3,28 @@ import { existsSync } from 'node:fs';
 import { contentWindow } from './contentWindows.js';
 
 const metricLabels = { Kills: 'Kills', Assists: 'Assists', GPM: 'GPM', XPM: 'XPM', HeroDamage: 'Hero damage', TowerDamage: 'Tower damage', Healing: 'Healing',
-  Dewards: 'Wards destroyed', CampsStacked: 'Camps stacked', StunSeconds: 'Seconds of stuns', GoldDeficit: 'Gold deficit overcome' };
+  Dewards: 'Wards destroyed', CampsStacked: 'Camps stacked', StunSeconds: 'Seconds of stuns', GoldDeficit: 'Gold deficit overcome',
+  DamageShare: 'Team damage share', HealingShare: 'Team healing share', KillParticipation: 'Kill participation',
+  LastHitsAtCheckpoint: 'Last hits', Roshans: 'Roshan kills' };
+
+const clock = seconds => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+function supportingDetails(evidence) {
+  const details = [];
+  const numeric = (key, label, format = value => value.toLocaleString('en-US', { maximumFractionDigits: 1 })) => {
+    if (typeof evidence[key] === 'number' && Number.isFinite(evidence[key])) details.push({ label, value: format(evidence[key]) });
+  };
+  numeric('minute', 'Checkpoint', value => `${value} minutes`);
+  numeric('goldEarned', 'Cumulative gold earned');
+  numeric('purchaseSeconds', 'First recorded purchase', clock);
+  if (typeof evidence.itemName === 'string') details.push({ label: 'Item', value: evidence.itemName });
+  numeric('goldSamples', 'Recorded gold samples');
+  numeric('kills', 'Kills'); numeric('deaths', 'Deaths'); numeric('assists', 'Assists');
+  numeric('towersAfter', 'Towers in follow-up'); numeric('roshansAfter', 'Roshans in follow-up'); numeric('barracksAfter', 'Barracks in follow-up');
+  numeric('comparisonGames', 'Games compared');
+  if (typeof evidence.comparison === 'string' && evidence.comparison.startsWith('recorded_fight')) details.push({ label: 'Follow-up window', value: 'Up to 90 seconds, before the next recorded fight' });
+  if (evidence.comparison === 'single_game') details.push({ label: 'Scope', value: 'This game; not a cross-role or all-time ranking' });
+  return details;
+}
 
 function ready(db) {
   return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'HighlightEvents'").get());
@@ -14,17 +35,20 @@ function ready(db) {
 export function highlightDTO(row, admin = false) {
   const evidence = JSON.parse(row.EvidenceJson);
   const matchIds = Array.isArray(evidence.matchIds) ? evidence.matchIds.filter(Number.isSafeInteger) : [];
-  const value = typeof evidence.value === 'number' && Number.isFinite(evidence.value) ? evidence.value.toLocaleString('en-US') : null;
+  const value = typeof evidence.value === 'number' && Number.isFinite(evidence.value)
+    ? evidence.value.toLocaleString('en-US', { maximumFractionDigits: 1 }) : null;
   const metricLabel = Object.hasOwn(metricLabels, evidence.metric) ? metricLabels[evidence.metric] : null;
   const unit = ['GPM', 'XPM'].includes(evidence.metric) ? metricLabel : metricLabel?.toLowerCase();
   const scope = { regular: 'group stage', playoff: 'playoff', tiebreaker: 'tiebreaker' }[row.Stage] || 'league';
+  const percentage = ['DamageShare', 'HealingShare', 'KillParticipation'].includes(evidence.metric);
   const achievement = value && metricLabel
-    ? `${value} ${unit}${evidence.comparison === 'season_stage_through_match_id' ? ` — a new ${scope} high` : ''}` : null;
+    ? `${value}${percentage ? '%' : ''} ${unit}${evidence.metric === 'LastHitsAtCheckpoint' ? ` at ${evidence.minute} minutes` : ''}${evidence.comparison === 'season_stage_through_match_id' ? ` — a new ${scope} high` : ''}` : null;
   const payload = {
     id: row.HighlightId, seasonId: row.SeasonId, leagueId: row.LeagueId, leagueName: row.LeagueName,
     category: row.Category, period: row.Period, stage: row.Stage,
     title: row.TitleOverride ?? row.Title, body: row.BodyOverride ?? row.Body,
-    notification: row.TitleOverride ?? achievement ?? row.Title,
+    notification: row.TitleOverride ?? achievement ?? (typeof evidence.itemName === 'string' && Number.isFinite(evidence.purchaseSeconds)
+      ? `${evidence.itemName} at ${clock(evidence.purchaseSeconds)}` : row.Title),
     publishedAt: row.FirstPublishedAtUtc, updatedAt: row.UpdatedAtUtc, occurredAt: row.OccurredAtUtc,
     revision: row.Revision, matchIds: matchIds.slice(0, 5), supportingMatchCount: matchIds.length,
     playerId: Number.isSafeInteger(evidence.playerId) ? evidence.playerId : null,
@@ -32,11 +56,13 @@ export function highlightDTO(row, admin = false) {
     teamName: typeof evidence.teamName === 'string' ? evidence.teamName : evidence.teamId ? `Team ${evidence.teamId}` : null,
     teamId: Number.isSafeInteger(evidence.teamId) ? evidence.teamId : null,
     heroId: Number.isSafeInteger(evidence.heroId) ? evidence.heroId : null,
+    heroName: typeof evidence.heroName === 'string' ? evidence.heroName : null,
     seriesId: Number.isSafeInteger(evidence.seriesId) ? evidence.seriesId : null,
     membership: ['rostered', 'stand_in', 'unknown'].includes(evidence.membership) ? evidence.membership : null,
     weekStart: evidence.weekStart ?? null, weekEnd: evidence.weekEnd ?? null,
     day: evidence.day ?? null,
     excludesUndatedMatches: Boolean(evidence.excludesUndatedMatches),
+    details: supportingDetails(evidence),
     stat: metricLabel && typeof evidence.value === 'number' && Number.isFinite(evidence.value)
       ? { label: metricLabel, value: evidence.value }
       : row.Category === 'survival' ? { label: 'K/D/A', value: `${evidence.kills}/${evidence.deaths}/${evidence.assists}` }

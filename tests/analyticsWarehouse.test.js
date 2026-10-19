@@ -8,6 +8,8 @@ import { buildAnalytics } from '../analytics/build.js';
 import { readSeasonPerformanceInputs } from '../analytics/bettingInputs.js';
 import { warehouseMatchTime, WAREHOUSE_FACT_TABLES } from '../analytics/warehouseFeatures.js';
 import { highlightDTO } from '../analytics/highlightFeed.js';
+import { emitWarehouseHighlights } from '../analytics/warehouseHighlights.js';
+import { warehouseRecap } from '../analytics/warehouseRecap.js';
 
 const now = new Date('2026-10-18T12:00:00.000Z');
 function fixture() {
@@ -147,6 +149,59 @@ test('backfilled observations cannot enter an earlier pricing snapshot, nor can 
     assert.ok(f.analytics.prepare("SELECT 1 FROM DataQualityIssues WHERE Code='match_not_available_as_of'").get());
     f.league.prepare('UPDATE MatchTeam SET StartTimeUtc=? WHERE MatchId=102').run((now.getTime() - 1000) / 1000);
     assert.equal(f.analytics.prepare('SELECT COUNT(*) n FROM MatchFacts WHERE RunId=?').get(buildAnalytics(f).runId).n, 0);
+  } finally { f.close(); }
+});
+
+test('expanded stories use exact checkpoints, complete contribution denominators and positive first purchases', () => {
+  const f = fixture(); try {
+    f.league.exec(`UPDATE MatchPlayerTimeline SET LastHits=95 WHERE PlayerId=1 AND TimeSeconds=600;
+      UPDATE MatchPlayer SET HeroDamage=60000,Kills=20,Assists=0,Healing=15000 WHERE PlayerId=1;
+      UPDATE MatchPlayer SET Kills=0 WHERE PlayerId BETWEEN 2 AND 5;
+      UPDATE MatchPlayer SET Kills=NULL WHERE PlayerId=5 AND MatchId=101;
+      UPDATE MatchPlayerPurchases SET TimeSeconds=-1 WHERE PlayerId=1 AND MatchId=101 AND EventIndex=0;`);
+    const { runId } = buildAnalytics(f);
+    const stories = []; emitWarehouseHighlights(f.analytics, runId, story => stories.push(story));
+    const player = stories.filter(s => s.playerId === 1);
+    const farming = player.find(s => s.evidence.minute === 10);
+    assert.equal(farming.evidence.value, 95); assert.match(farming.body, /cumulative gold earned/);
+    assert.match(farming.body, /Stand-in appearance/);
+    assert.ok(player.some(s => s.evidence.metric === 'DamageShare' && s.evidence.matchIds[0] === 102));
+    assert.equal(player.some(s => s.evidence.metric === 'DamageShare' && s.evidence.matchIds[0] === 101), false);
+    assert.ok(player.some(s => s.evidence.metric === 'KillParticipation' && s.evidence.matchIds[0] === 102));
+    assert.equal(player.some(s => s.evidence.metric === 'KillParticipation' && s.evidence.matchIds[0] === 101), false);
+    assert.ok(player.some(s => s.evidence.metric === 'HealingShare'));
+    assert.equal(player.some(s => s.category === 'items' && s.evidence.matchIds[0] === 101), false);
+    assert.ok(player.some(s => s.category === 'items' && s.evidence.purchaseSeconds === 600));
+    const summary = warehouseRecap(f.analytics, runId, [101]);
+    assert.equal(summary.comeback.value, 12000); assert.equal(summary.support.value, 14);
+    const published = f.analytics.prepare('SELECT * FROM HighlightEvents WHERE FirstPublishedAtUtc IS NOT NULL').all();
+    assert.ok(published.filter(s => s.PlayerId !== null).length >= 2);
+    assert.ok(new Set(published.filter(s => s.PlayerId !== null).map(s => s.Category)).size >= 2);
+    assert.ok(published.filter(s => s.Period === 'daily').length <= 5);
+    const dto = highlightDTO({ ...published.find(s => s.PlayerId !== null), EvidenceJson: JSON.stringify({
+      ...farming.evidence, PrivatePlayerFeatures: 'secret', SignupMMR: 999999 }) });
+    assert.equal(dto.heroId, 1); assert.ok(dto.details.some(d => d.label === 'Checkpoint' && d.value === '10 minutes'));
+    assert.equal(JSON.stringify(dto).includes('secret'), false); assert.equal(JSON.stringify(dto).includes('999999'), false);
+    f.league.exec('UPDATE MatchPlayerTimeline SET LastHits=0 WHERE PlayerId=1 AND TimeSeconds=600');
+    buildAnalytics(f);
+    assert.equal(f.analytics.prepare("SELECT Status FROM HighlightEvents WHERE Fingerprint='edw:farming:1:101:1:10'").get().Status, 'withdrawn');
+  } finally { f.close(); }
+});
+
+test('clean fights need no objective follow-up and Roshan control only uses recorded objective coverage', () => {
+  const f = fixture(); try {
+    f.league.exec(`UPDATE MatchObjectives SET TimeSeconds=1800;
+      INSERT INTO MatchObjectives(MatchId,EventIndex,TimeSeconds,Type,TeamSide,SourceJson)
+      VALUES(101,10,2000,'CHAT_MESSAGE_ROSHAN_KILL',0,'{}'),(101,11,2100,'CHAT_MESSAGE_ROSHAN_KILL',0,'{}');`);
+    const { runId } = buildAnalytics(f);
+    const stories = []; emitWarehouseHighlights(f.analytics, runId, story => stories.push(story));
+    const fight = stories.find(s => s.category === 'teamfight');
+    assert.match(fight.title, /sweep the fight/); assert.match(fight.body, /No tower, barracks or Roshan/);
+    assert.equal(fight.evidence.kills, 5); assert.equal(fight.evidence.deaths, 0);
+    assert.equal(stories.find(s => s.category === 'objectives').evidence.value, 3);
+    assert.equal(stories.some(s => s.category === 'objectives' && s.evidence.matchIds[0] === 102), false);
+    const recap = f.analytics.prepare("SELECT Body FROM HighlightEvents WHERE Fingerprint='daily:1:2026-10-15'").get();
+    assert.match(recap.Body, /12,000-gold deficit/); assert.match(recap.Body, /14 enemy wards/);
   } finally { f.close(); }
 });
 

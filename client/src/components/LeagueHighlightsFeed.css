@@ -159,6 +159,7 @@
   .league-highlights-overview .dashboard-story-column { display: contents; }
 }
 .dashboard-dialog { width: min(1400px, calc(100vw - 3rem)); max-width: none; max-height: calc(100dvh - 3rem);
+  position: fixed; inset: 0; margin: auto; height: fit-content; overflow: auto; box-sizing: border-box;
   padding: 0; color: #e2e8f0; background: var(--surface, #0f172a); border: 1px solid #475569; border-radius: 14px; }
 .dashboard-dialog::backdrop { background: #020617bd; }
 .dashboard-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem;

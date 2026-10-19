@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardDialog from './DashboardDialog';
+import HeroDisplay from './HeroDisplay';
 import './LeagueHighlightsFeed.css';
 
 export function HighlightCard({ story, children }) {
@@ -8,16 +9,21 @@ export function HighlightCard({ story, children }) {
     <div className="highlight-card-meta">
       <span>{story.category === 'recap' ? `${story.period === 'weekly' ? 'Weekly' : 'Daily'} recap` : story.category}</span>
       <Link to={`/league/${story.leagueId}`}>{story.leagueName}</Link>
-      {story.publishedAt && <time dateTime={story.publishedAt}>
-        {new Date(story.publishedAt).toLocaleDateString()}
+      {(story.occurredAt || story.publishedAt) && <time dateTime={story.occurredAt || story.publishedAt}>
+        {story.occurredAt ? 'Played ' : 'Published '}{new Date(story.occurredAt || story.publishedAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
       </time>}
       {story.revision > 2 && <span>Updated</span>}
     </div>
     <h3>{story.title}</h3>
     <p>{story.body}</p>
+    {story.heroId && <HeroDisplay heroId={story.heroId} heroName={story.heroName} />}
+    {story.details?.length > 0 && <dl className="highlight-evidence">{story.details.map(detail => <div key={detail.label}>
+      <dt>{detail.label}</dt><dd>{detail.value}</dd>
+    </div>)}</dl>}
     <div className="highlight-card-links">
       {story.playerId && <Link to={`/player/${story.playerId}`}>Player profile</Link>}
       {story.teamId && <Link to={`/team/${story.teamId}`}>Team profile</Link>}
+      {story.seriesId && <Link to={`/series/${story.seriesId}`}>See the series</Link>}
       {story.matchIds.map(id => <Link key={id} to={`/match/${id}`}>Match {id}</Link>)}
       {story.supportingMatchCount > story.matchIds.length && <span>{story.supportingMatchCount} supporting games</span>}
     </div>
@@ -35,7 +41,7 @@ function Pages({ page, count, onChange, label }) {
 }
 
 export default function LeagueHighlightsFeed({ leagueId, previewLeague, period = 'all', showEmpty = false, emptyState,
-  seasonWatch, playerPageSize = 5, storyPageSize = 2 }) {
+  seasonWatch, resultsPanel, playerPageSize = 5, storyPageSize = 2 }) {
   const [stories, setStories] = useState([]);
   const [next, setNext] = useState(null);
   const [before, setBefore] = useState(null);
@@ -75,8 +81,28 @@ export default function LeagueHighlightsFeed({ leagueId, previewLeague, period =
   const storyPages = Math.max(1, Math.ceil(leagueStories.length / storyPageSize));
   const currentPlayerPage = Math.min(playerPage, playerPages - 1);
   const currentStoryPage = Math.min(storyPage, storyPages - 1);
-  return <section className={`league-highlights${seasonWatch ? ' league-highlights-overview' : ''}`} aria-label="Player highlights and recaps">
-    {(leagueStories.length > 0 || overview) && <div className={overview ? 'dashboard-story-column' : undefined}>
+  const importance = { champion: 10, reverse_sweep: 9, comeback: 8, teamfight: 7, hot_run: 6, streak: 5, recap: 4 };
+  const featured = [...(leagueStories.length ? leagueStories : playerStories)].sort((a, b) =>
+    (importance[b.category] || 1) - (importance[a.category] || 1)
+      || String(b.occurredAt || b.publishedAt).localeCompare(String(a.occurredAt || a.publishedAt)));
+  const featuredIndex = Math.min(storyPage, Math.max(0, featured.length - 1));
+  const lead = featured[featuredIndex];
+  return <section className={`league-highlights${seasonWatch ? ' league-highlights-overview' : ''}${resultsPanel ? ' activity-board' : ''}`} aria-label="Player highlights and recaps">
+    {resultsPanel && <div className="activity-topline">
+      <section className="activity-feature" aria-label="Featured headline">
+        <div className="highlight-heading"><span className="highlight-eyebrow">{lead ? lead.category === 'recap'
+          ? `${lead.period === 'weekly' ? 'Weekly' : 'Daily'} recap` : lead.category.replaceAll('_', ' ') : 'Around the league'}</span>
+          {lead && <span className="dashboard-caption">{lead.occurredAt ? new Date(lead.occurredAt).toLocaleDateString('en-US', {
+            timeZone: 'America/New_York', month: 'short', day: 'numeric' }) : 'Season story'}</span>}</div>
+        {lead ? <><h3><button type="button" className="dashboard-story-link" onClick={() => setSelectedStory(lead)}>{lead.title}</button></h3>
+          <p>{lead.body}</p><div className="activity-feature-footer">
+            <button type="button" className="dashboard-story-link" onClick={() => setSelectedStory(lead)}>Read story &amp; details →</button>
+            <Pages page={featuredIndex} count={featured.length} onChange={setStoryPage} label="Featured headlines" />
+          </div></> : <p className="dashboard-caption">{loading ? 'Loading headlines…' : 'Highlights will appear after league games are played.'}</p>}
+      </section>
+      {seasonWatch}
+    </div>}
+    {!resultsPanel && (leagueStories.length > 0 || overview) && <div className={overview ? 'dashboard-story-column' : undefined}>
     {seasonWatch}
     {(leagueStories.length > 0 || overview) && <section className="league-story-feed" aria-label="Stories around the league">
       <div className="highlight-heading"><h2>What’s happening</h2></div>
@@ -98,6 +124,7 @@ export default function LeagueHighlightsFeed({ leagueId, previewLeague, period =
       {overview && <Pages page={currentStoryPage} count={storyPages} onChange={setStoryPage} label="League story pages" />}
     </section>}
     </div>}
+    {resultsPanel}
     <section className={overview ? 'dashboard-player-panel' : 'league-player-feed'} aria-label="Player moments">
     <div className="highlight-heading"><h2>Player moments</h2>{overview && <span className="dashboard-caption">{playerStories.length} highlights</span>}</div>
     {playerStories.length > 0 && <div className="dashboard-table-scroll" role="region" aria-label="Player highlights table" tabIndex={0}>
@@ -108,7 +135,8 @@ export default function LeagueHighlightsFeed({ leagueId, previewLeague, period =
           <td className="player-moment-time">{story.occurredAt ? new Date(story.occurredAt).toLocaleString('en-US', {
             timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
           }) : 'Historical'}</td>
-          <td><Link to={`/player/${story.playerId}`}>{story.playerName}</Link>
+          <td><div className="moment-player-identity">{story.heroId && <HeroDisplay heroId={story.heroId} iconSize={30} showName={false} />}
+            <Link to={`/player/${story.playerId}`}>{story.playerName}</Link></div>
             {story.teamId && <small className="dashboard-roster-label"><Link to={`/team/${story.teamId}`}>{story.teamName}</Link></small>}
             {story.membership === 'stand_in' && <small className="dashboard-roster-label">Stand-in</small>}
             {story.membership === 'unknown' && <small className="dashboard-roster-label">Roster unknown</small>}</td>
@@ -134,7 +162,6 @@ export default function LeagueHighlightsFeed({ leagueId, previewLeague, period =
     {selectedStory && <DashboardDialog title={selectedStory.playerId ? `${selectedStory.playerName} — Player moment` : selectedStory.title}
       onClose={() => setSelectedStory(null)}>
       <HighlightCard story={selectedStory} />
-      {selectedStory.seriesId && <p><Link to={`/series/${selectedStory.seriesId}`}>See the series</Link></p>}
     </DashboardDialog>}
   </section>;
 }

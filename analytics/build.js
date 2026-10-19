@@ -395,8 +395,8 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
         const structure = hasTable(league, 'PlayoffBracket') ? league.prepare('SELECT PlayoffStructure FROM PlayoffBracket WHERE LeagueId = ?').get(season.ExternalLeagueId) : null;
         const formats = bracketSeriesFormats(structure?.PlayoffStructure);
         const seriesColumns = new Set(league.pragma('table_info(SeriesInfo)').map(c => c.name));
-        for (const series of league.prepare(`SELECT SeriesId, Team1, Team2, ${seriesColumns.has('BestOf') ? 'BestOf' : 'NULL AS BestOf'}
-          FROM SeriesInfo WHERE LeagueId = ? AND Stage = 'p'`).all(season.ExternalLeagueId)) {
+        for (const series of league.prepare(`SELECT SeriesId, Team1, Team2, Stage, ${seriesColumns.has('BestOf') ? 'BestOf' : 'NULL AS BestOf'}
+          FROM SeriesInfo WHERE LeagueId = ?`).all(season.ExternalLeagueId)) {
           if (!Number.isSafeInteger(series.Team1) || !Number.isSafeInteger(series.Team2)
             || series.Team1 <= 0 || series.Team2 <= 0 || series.Team1 === series.Team2) {
             flag('series', series.SeriesId, 'invalid_series_teams'); continue;
@@ -410,7 +410,7 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
             const c=hasTable(league,'OfficialMatchStatus')?league.prepare('SELECT Status,ReplacementMatchId FROM OfficialMatchStatus WHERE MatchId=?').get(link.MatchId):null;
             return c?.Status!=='abandoned'&&!(c?.Status==='superseded'&&sourceLinks.some(r=>r.MatchId===c.ReplacementMatchId));
           }).length;
-          if (!bestOf && analytics.prepare('SELECT 1 FROM MatchFacts WHERE RunId = ? AND SeriesId = ? LIMIT 1').get(runId, series.SeriesId)) {
+          if (series.Stage === 'p' && !bestOf && analytics.prepare('SELECT 1 FROM MatchFacts WHERE RunId = ? AND SeriesId = ? LIMIT 1').get(runId, series.SeriesId)) {
             flag('series', series.SeriesId, 'unverified_series_format');
           }
           analytics.prepare('INSERT INTO SeriesFacts VALUES (?, ?, ?, ?, ?, ?, ?, ?)')

@@ -197,10 +197,22 @@ settlement metrics, eligibility and accepted tickets are unchanged. New features
 must pass temporal model validation before a Betting model consumes them; unused
 feature bundles are not added to existing Betting input snapshots.
 
-Automatic league highlights now also recognize dewarding, stacking, stuns, recorded
-10k comebacks, and strong fights followed by objectives. They share existing daily
+Automatic league highlights also recognize dewarding, stacking, stuns, recorded
+10k comebacks, clean five-kill fights, strong fights followed by objectives,
+farming checkpoints, team contributions, early item purchases and Roshan control. They share existing daily
 quotas, moderation, correction/withdrawal and stand-in labeling. No public-match,
 signup MMR or other private pricing inputs enter the public templates.
+
+Initial editorial thresholds are 80 last hits at 10 minutes / 180 at 20;
+45% team hero damage with 30,000 damage, 60% team healing with 10,000 healing,
+or 90% kill participation with at least 20 team kills. Contribution denominators
+require all five players' relevant statistics. These are standout single-game
+moments, not role-adjusted rankings. Early purchases use first recorded purchase
+times after the horn: Blink by 12 minutes, BKB by 18, Battle Fury by 14,
+Radiance by 16, or Aghanim's Scepter by 15. They do not claim inventory completion
+or patch records. Roshan control requires at least three recorded kills with
+available objective data. Gold earned at checkpoints is cumulative earned gold,
+not net worth. Supporting details are an explicit public allowlist.
 
 Run `npm run analytics:build` to migrate and rebuild the normal signup-era dataset.
 Or use Admin → League → Betting → Refresh Analytics and Betting to run the complete
@@ -228,14 +240,16 @@ and streak endings, hero popularity/variety, and official champion game records.
 Season highs compare validated games in the same season/stage through a stated
 match ID, with at least five games and complete metric coverage. Stand-in
 performances are labeled; unknown membership is explicitly unclassified.
-Stories never imply pre-signup all-time records or infer gold-lead comebacks.
+Stories never imply pre-signup all-time records. Comebacks require observed
+gold timeline evidence rather than an inference from the final result.
 
 Daily recaps cover the previous completed calendar day in `America/New_York`.
 Weekly recaps cover Monday–Sunday and publish after that week closes. Both use
 verified match start times, not source upload times or legacy date-only fields.
 They summarize games, team win leaders, recorded total kills, and GPM/XPM average
 leaders where at least five valid appearances and complete metric coverage exist.
-Recaps cover all stages/appearances, including labeled stand-ins. Undated games
+Recaps cover all stages/appearances, including labeled stand-ins. Recorded 10k
+comebacks and standout dewarding also appear when available. Undated games
 are excluded and that limitation is stated. Empty periods produce no recap.
 The next successful build publishes the most recently completed day/week;
 older backfilled recaps remain inspectable candidates. It does not fill a feed
@@ -243,7 +257,11 @@ with historical daily recaps after a long outage.
 
 Up to five daily stories, including daily recaps, publish across all builds of a
 local calendar day. Weekly recaps are additional. A player can occupy at most
-one daily slot, a team at most two, and a category at most two. Single-game
+one daily slot, a team at most two, and a category at most two. Selection
+reserves room for two distinct player moments when eligible candidates
+are available, preferring different categories, within the same five-story budget.
+League stories retain their score ordering in the other slots; unused slots can
+be filled by either kind. Existing publications keep their slots across rebuilds. Single-game
 candidates have a 48-hour window from their first Analytics observation; older
 matches newly discovered by Analytics retain their actual played date (or an
 unverified-date label). No story is described as played overnight merely because
@@ -271,10 +289,13 @@ tab, with highlights/recaps, signup announcements, and offseason champions.
 **League Info** contains the active league or last champion's season; those
 league views load when that tab is opened. Content is a catch-up feed for league
 players: **Season watch** shows the current stage and up to three standout team
-runs, **What's happening** leads with published stage/series stories and recaps,
+runs, a featured headline leads with published stage/series stories and recaps,
 and **Player moments** is a notification table with when, player/team, achievement,
-and a match link. The desktop overview places team form and league stories beside
-the player table. Visible row counts respond to the remaining viewport height;
+and a match link. Hero icons identify single-game player moments. The desktop
+overview puts the featured story and compact season watch above a visible
+**On the scoreboard** series list and the player table. Expand a series for its
+individual games or open **All games** for the paginated result history.
+Visible row counts respond to the remaining viewport height;
 extra items use pages, and story details, champion player cards, and full game
 results open in accessible dialogs. Narrow screens stack the panels. Team form
 includes season and stage game W–L records and the latest linked series score.
@@ -302,11 +323,18 @@ or review-held hot-run stories; publication pause still allows fact snapshots
 to update, just as it does for game results.
 
 `GET /api/analytics/dashboard?period=overnight&leagueId=100&limit=10&before=123`
-returns a bounded, explicit results projection and whole-window counts from one
+returns a bounded, explicit results projection, up to ten recent series (or
+standalone games), and whole-window counts from one
 published generation. The period can be `overnight` or `week`; optional league,
 cursor, and limit parameters follow the highlight API's bounds. Dates must be
 verified for inclusion. Reads use only derived Analytics facts, are cached for
 15 seconds, and never read the warehouse or private features.
+
+Series scores include all their recorded games, even if only the latest game
+falls in the requested window. A regular-season BO2 is final only with both
+source-linked games imported, verified times and consistent teams. Playoff
+finals use the existing complete BO3/BO5 checks. Other scores say **Recorded
+score**. No inferred series format is written back to the source database.
 
 The highlight API is
 `GET /api/analytics/highlights?leagueId=100&limit=6&before=123` (filters/cursor
@@ -335,8 +363,8 @@ preview generation through a protected results endpoint. It includes undated
 results with an explicit date-unavailable label, rather than claiming they
 occurred in a recent window. The public endpoint rejects preview generations; preview content cannot enter
 the canonical homepage feed or be read by a non-admin through the preview route.
-Season 21's legacy matches lack verified timestamps, so they generate performance
-stories but no dated daily/weekly recaps.
+Legacy matches without verified timestamps generate performance stories but
+cannot enter dated daily/weekly recaps until their EDW start times are available.
 
 ### Added content tables
 
@@ -345,7 +373,7 @@ stories but no dated daily/weekly recaps.
 | `HeroFacts` | Hero names used by a fact generation's league templates. |
 | `ChampionFacts` | Official signup-season champion team, when set and aligned. |
 | `GroupFacts` | Names for the season's group alignments. |
-| `SeriesFacts` | Linked playoff series, authoritative format/round context, and source match count used to validate complete series stories. |
+| `SeriesFacts` | Linked league series, authoritative playoff format/round context, and source match count used to validate complete series stories and dashboard scores. |
 | `HighlightMatchHistory` | First Analytics observation of each season/match; prevents old candidates becoming new on every rerun. |
 | `HighlightEvents` | Generated stories, supporting evidence/comparison scope, fingerprints, revisions, publication state, and persistent admin overrides. |
 | `HighlightRevisions` | Durable generated, published, corrected, withdrawn, and moderated versions, including acting admin IDs. |

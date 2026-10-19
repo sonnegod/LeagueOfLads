@@ -2,11 +2,12 @@ import Database from 'better-sqlite3';
 import { existsSync } from 'node:fs';
 import { contentWindow } from './contentWindows.js';
 import { seasonWatch } from './stageStories.js';
+import { dashboardSeries } from './dashboardSeries.js';
 
 export function readLeagueDashboard(path, { leagueId = null, before = null, limit = 20,
   period = 'overnight', allowPreview = false, now = new Date() } = {}) {
   const window = contentWindow(period, now);
-  const empty = { available: false, window, asOf: null, leagueName: null, seasonWatch: null, results: [], nextBefore: null,
+  const empty = { available: false, window, asOf: null, leagueName: null, seasonWatch: null, series: [], results: [], nextBefore: null,
     summary: { games: 0, teams: 0, averageDurationSeconds: null, undatedGames: 0 } };
   if (!existsSync(path)) return empty;
   const db = new Database(path, { readonly: true, fileMustExist: true });
@@ -38,6 +39,7 @@ export function readLeagueDashboard(path, { leagueId = null, before = null, limi
         .all(...args, before, before, limit + 1);
       const watch = seasonWatch(db, run.RunId, leagueId);
       return { available: true, window, asOf: run.AsOfUtc, leagueName: seasons.length === 1 ? seasons[0].LeagueName : null,
+        series: dashboardSeries(db, run.RunId, leagueId, window),
         seasonWatch: watch ? { leagueId: watch.leagueId, leagueName: watch.leagueName, phase: watch.phase, stage: watch.stage,
           forms: watch.forms.map(f => ({ teamId: f.teamId, teamName: f.teamName, groupName: f.groupName,
             games: f.games, wins: f.wins, streak: f.streak, form: f.form, lastPlayedAt: f.lastPlayedAt,

@@ -13,6 +13,7 @@ import { runWithAuditActor } from '../config/adminAuditContext.js';
 import { readLeagueDashboard } from '../analytics/leagueDashboard.js';
 import { bracketSeriesFormats, verifiedSeriesOutcome } from '../analytics/seriesStories.js';
 import { seasonWatch } from '../analytics/stageStories.js';
+import { dashboardSeries } from '../analytics/dashboardSeries.js';
 
 const now = new Date('2026-10-13T12:00:00.000Z');
 const factTables = ['SeasonFacts', 'TeamFacts', 'PlayerFacts', 'HeroFacts', 'MatchFacts', 'TeamGameFacts', 'PlayerGameFacts', 'GroupFacts', 'SeriesFacts'];
@@ -263,6 +264,30 @@ test('dashboard windows emphasize completed results, paginate without duplicatio
     assert.equal(readLeagueDashboard(path, { now, period: 'historical' }).available, false);
     assert.equal(readLeagueDashboard(path, { now, period: 'historical', allowPreview: true }).summary.games, 12);
   } finally { db.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('scoreboard reads full series outside the window and only verifies complete, correctly paired results', () => {
+  const db = fixture();
+  try {
+    db.exec(`UPDATE MatchFacts SET SeriesId=900 WHERE MatchId IN (111,112);
+      INSERT INTO SeriesFacts VALUES(1,900,3,21,22,NULL,NULL,2);`);
+    const window = { from: '2026-10-13T00:00:00.000Z', to: now.toISOString() };
+    let item = dashboardSeries(db, 1, 100, window)[0];
+    assert.equal(item.seriesId, 900); assert.equal(item.complete, true);
+    assert.deepEqual(item.games.map(g => g.matchId), [111,112]);
+    assert.equal(item.team1.wins, 1); assert.equal(item.team2.wins, 1);
+    db.exec('UPDATE SeriesFacts SET SourceMatchCount=3');
+    assert.equal(dashboardSeries(db, 1, 100, window)[0].complete, false);
+    db.exec(`UPDATE MatchFacts SET SeriesId=900 WHERE MatchId=110;
+      UPDATE MatchFacts SET Stage='playoff' WHERE SeriesId=900;
+      UPDATE SeriesFacts SET BestOf=5;`);
+    assert.equal(dashboardSeries(db, 1, 100, window)[0].complete, false);
+    db.exec('UPDATE SeriesFacts SET BestOf=3');
+    item = dashboardSeries(db, 1, 100, window)[0];
+    assert.equal(item.complete, true); assert.equal(item.team1.wins, 2);
+    db.exec('UPDATE SeriesFacts SET Team2Id=999');
+    assert.equal(dashboardSeries(db, 1, 100, window).length, 0);
+  } finally { db.close(); }
 });
 
 test('season watch describes group form, honors hidden stories, and separates an ended season from a current run', () => {

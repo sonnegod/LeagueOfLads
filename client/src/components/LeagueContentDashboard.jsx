@@ -2,7 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import LeagueHighlightsFeed from './LeagueHighlightsFeed';
 import DashboardDialog from './DashboardDialog';
+import RecentSeriesPanel from './RecentSeriesPanel';
 import './LeagueHighlightsFeed.css';
+import './LeagueActivityBoard.css';
 
 const stageNames = { regular: 'Groups', tiebreaker: 'Tiebreakers', playoff: 'Playoffs', unknown: 'Unclassified' };
 const playedDate = value => value ? new Date(value).toLocaleString('en-US', {
@@ -59,7 +61,7 @@ export default function LeagueContentDashboard({ leagueId, previewLeague, emptyS
   function changePeriod(value) {
     setPeriod(value); setBefore(null); setData(null); setResults([]);
   }
-  const formsPerPage = space >= 780 ? 3 : space >= 570 ? 2 : 1;
+  const formsPerPage = 1;
   const forms = data?.seasonWatch?.forms || [];
   const formPages = Math.max(1, Math.ceil(forms.length / formsPerPage));
   const currentFormPage = Math.min(formPage, formPages - 1);
@@ -108,7 +110,9 @@ export default function LeagueContentDashboard({ leagueId, previewLeague, emptyS
     {error && <p role="alert">{error}</p>}
     <LeagueHighlightsFeed key={`${period}:${feedRefresh}`} leagueId={leagueId} previewLeague={previewLeague}
       period={period} showEmpty emptyState={emptyState} seasonWatch={watch}
-      playerPageSize={Math.max(1, Math.min(7, Math.floor((space - 180) / 92)))} storyPageSize={space >= 600 ? 2 : 1} />
+      resultsPanel={<RecentSeriesPanel key={period} series={data?.series} loading={loading} error={error}
+        pageSize={Math.max(1, Math.min(6, Math.floor((space - 345) / 80)))} onShowAll={() => setShowResults(true)} />}
+      playerPageSize={Math.max(1, Math.min(6, Math.floor((space - 345) / 90)))} storyPageSize={1} />
     {showResults && <DashboardDialog title="Game results" onClose={() => setShowResults(false)}>
     <section className="dashboard-results" aria-label="Game results">
       <div className="highlight-heading"><h2>Game results</h2>

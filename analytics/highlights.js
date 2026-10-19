@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { ANALYTICS_DEFAULTS } from './config.js';
 import { emitStageStories } from './stageStories.js';
 import { emitWarehouseHighlights } from './warehouseHighlights.js';
+import { warehouseRecap } from './warehouseRecap.js';
 
 const DAY = 86400000;
 const stageNames = { regular: 'regular season', tiebreaker: 'tiebreakers', playoff: 'playoffs', unknown: 'league' };
@@ -57,11 +58,12 @@ function makeCandidates(db, runId, now, emit) {
   const firstSeen = db.prepare('SELECT FirstSeenAtUtc FROM HighlightMatchHistory WHERE SeasonId = ? AND MatchId = ?');
   db.prepare(`INSERT OR IGNORE INTO HighlightMatchHistory
     SELECT SeasonId, MatchId, ? FROM MatchFacts WHERE RunId = ?`).run(at, runId);
-  const players = db.prepare(`SELECT p.*, n.PlayerName, t.TeamName, t.TeamId, o.TeamName AS OpponentName
+  const players = db.prepare(`SELECT p.*, n.PlayerName, t.TeamName, t.TeamId, o.TeamName AS OpponentName,h.HeroName
     FROM PlayerGameFacts p JOIN PlayerFacts n ON n.RunId = p.RunId AND n.PlayerId = p.PlayerId
     JOIN TeamFacts t ON t.RunId = p.RunId AND t.TeamSubmissionId = p.TeamSubmissionId
     JOIN TeamGameFacts g ON g.RunId = p.RunId AND g.MatchId = p.MatchId AND g.TeamSubmissionId = p.TeamSubmissionId
     JOIN TeamFacts o ON o.RunId = p.RunId AND o.TeamSubmissionId = g.OpponentSubmissionId
+    LEFT JOIN HeroFacts h ON h.RunId=p.RunId AND h.HeroId=p.HeroId
     WHERE p.RunId = ? AND p.MatchId = ? ORDER BY p.PlayerId`);
 
   for (const season of db.prepare('SELECT * FROM SeasonFacts WHERE RunId = ? ORDER BY SeasonId').all(runId)) {
@@ -104,7 +106,7 @@ function makeCandidates(db, runId, now, emit) {
             comparisonMatchIds: isRecord ? [...stageMatchIds.get(match.Stage)] : [],
             comparison: isRecord ? 'season_stage_through_match_id' : 'single_game', membership: player.Membership,
             playerId: player.PlayerId, teamId: player.TeamId, matchTimeKnown: Boolean(match.StartedAtUtc),
-            observedAt: match.SourceObservedAtUtc, playerName: player.PlayerName, teamName: player.TeamName,
+            observedAt: match.SourceObservedAtUtc, playerName: player.PlayerName, teamName: player.TeamName, heroId: player.HeroId, heroName: player.HeroName,
           }, (isRecord ? 2 : 1) + Math.min(maximum / threshold, 3), match.StartedAtUtc, eligible),
           fingerprint: `performance:${season.SeasonId}:${match.Stage}:${metric}:${match.MatchId}:${player.PlayerId}`,
           playerId: player.PlayerId, teamSubmissionId: player.TeamSubmissionId });
@@ -119,7 +121,8 @@ function makeCandidates(db, runId, now, emit) {
           `${player.PlayerName} finished ${player.Kills}/0/${player.Assists} for ${player.TeamName} against ${player.OpponentName}.`
           + membershipNote(player.Membership) + (!match.StartedAtUtc ? ' Match date is unverified.' : ''),
           { matchIds: [match.MatchId], kills: player.Kills, deaths: 0, assists: player.Assists,
-            playerId: player.PlayerId, teamId: player.TeamId, membership: player.Membership, comparison: 'single_game' },
+            playerId: player.PlayerId, playerName: player.PlayerName, heroId: player.HeroId, heroName: player.HeroName,
+            teamId: player.TeamId, teamName: player.TeamName, membership: player.Membership, comparison: 'single_game' },
           2 + Math.min((player.Kills + player.Assists) / 20, 3), match.StartedAtUtc, eligible),
         fingerprint: `survival:${season.SeasonId}:${match.MatchId}:${player.PlayerId}`,
         playerId: player.PlayerId, teamSubmissionId: player.TeamSubmissionId });
@@ -240,7 +243,8 @@ function makeCandidates(db, runId, now, emit) {
       const completeKills = stats.every(p => p.killSamples === p.games);
       const completeGpm = stats.every(p => p.gpmSamples === p.games);
       const completeXpm = stats.every(p => p.xpmSamples === p.games);
-      const evidence = { matchIds: summary.ids, ...(period === 'weekly' ? { weekStart: start, weekEnd: end } : { day: start }),
+      const expanded = warehouseRecap(db, runId, summary.ids);
+      const evidence = { matchIds: summary.ids, expanded, ...(period === 'weekly' ? { weekStart: start, weekEnd: end } : { day: start }),
         timezone: ANALYTICS_DEFAULTS.timezone,
         games: summary.ids.length, comparison: `dated_league_appearances_in_${period === 'weekly' ? 'week' : 'day'}`, standInAppearances: summary.standIns,
         unknownRosterAppearances: summary.unknown, excludesUndatedMatches: unknownTimes > 0,
@@ -252,6 +256,8 @@ function makeCandidates(db, runId, now, emit) {
         + (evidence.topKills ? ` ${topKills.playerName}: ${topKills.kills} total kills.` : '')
         + (evidence.topGpm ? ` ${gpm.playerName}: ${number(evidence.topGpm.value)} average GPM (${gpm.gpmSamples} games).` : '')
         + (evidence.topXpm ? ` ${xpm.playerName}: ${number(evidence.topXpm.value)} average XPM (${xpm.xpmSamples} games).` : '')
+        + (expanded.comeback ? ` ${expanded.comeback.teamName} won from a recorded ${number(expanded.comeback.value)}-gold deficit.` : '')
+        + (expanded.support ? ` ${expanded.support.playerName} destroyed ${expanded.support.value} enemy wards in one game.` : '')
         + ' Covers all stages and all appearances, including stand-ins.'
         + (summary.unknown ? ' Some roster statuses are unavailable.' : '')
         + (unknownTimes ? ' Matches with unverified dates are excluded.' : '');
@@ -346,17 +352,38 @@ export function publishLeagueHighlights(db, runId, now = new Date()) {
   };
   const cutoff = new Date(now.getTime() - 48 * 3600000).toISOString();
   const yesterday = new Date(Date.parse(`${day}T12:00:00Z`) - DAY).toISOString().slice(0, 10);
-  for (const row of db.prepare(`SELECT * FROM HighlightEvents WHERE GeneratedRunId = ? AND Status = 'candidate'
+  const candidateQuery = db.prepare(`SELECT * FROM HighlightEvents WHERE GeneratedRunId = ? AND Status = 'candidate'
     AND FirstPublishedAtUtc IS NULL AND Hidden = 0 AND Period = 'daily' AND EligibleAtUtc >= ?
-    ORDER BY Score DESC, OccurredAtUtc DESC, HighlightId DESC LIMIT 200`).all(runId, cutoff)) {
-    if (!remaining) break;
-    if (row.Category === 'recap' && JSON.parse(row.EvidenceJson).day !== yesterday) continue;
+    AND (PlayerId IS NOT NULL) = ? ORDER BY Score DESC, OccurredAtUtc DESC, HighlightId DESC LIMIT 100`);
+  const candidates = [...candidateQuery.all(runId, cutoff, 0), ...candidateQuery.all(runId, cutoff, 1)]
+    .sort((a, b) => b.Score - a.Score || String(b.OccurredAtUtc).localeCompare(String(a.OccurredAtUtc)) || b.HighlightId - a.HighlightId);
+  const publishCandidate = row => {
+    if (!remaining || subjectCounts.has(row.SubjectKey)) return false;
+    if (row.Category === 'recap' && JSON.parse(row.EvidenceJson).day !== yesterday) return false;
     if ((subjectCounts.get(row.SubjectKey) ?? 0) >= 1 || (categoryCounts.get(row.Category) ?? 0) >= 2
-      || (row.TeamSubmissionId && (teamCounts.get(row.TeamSubmissionId) ?? 0) >= 2)) continue;
+      || (row.TeamSubmissionId && (teamCounts.get(row.TeamSubmissionId) ?? 0) >= 2)) return false;
     publish(row); remaining--;
     subjectCounts.set(row.SubjectKey, 1); categoryCounts.set(row.Category, (categoryCounts.get(row.Category) ?? 0) + 1);
     if (row.TeamSubmissionId) teamCounts.set(row.TeamSubmissionId, (teamCounts.get(row.TeamSubmissionId) ?? 0) + 1);
+    return true;
+  };
+  // Keep room for two different player moments inside the existing five-story
+  // daily budget, so league milestones cannot crowd out every player highlight.
+  let playerSlots = Math.max(0, 2 - db.prepare(`SELECT COUNT(*) n FROM HighlightEvents
+    WHERE PublishedDayLocal=? AND Period='daily' AND PlayerId IS NOT NULL`).get(day).n);
+  let leagueSlots = Math.max(0, remaining - playerSlots);
+  for (const row of candidates.filter(row => row.PlayerId === null)) {
+    if (!leagueSlots || !remaining) break;
+    if (publishCandidate(row)) leagueSlots--;
   }
+  for (const preferDifferentCategory of [true, false]) {
+    for (const row of candidates.filter(row => row.PlayerId !== null)) {
+      if (!playerSlots || !remaining) break;
+      if (preferDifferentCategory && categoryCounts.has(row.Category)) continue;
+      if (publishCandidate(row)) playerSlots--;
+    }
+  }
+  for (const row of candidates) { if (!remaining) break; publishCandidate(row); }
   // Only the latest completed local week is newly published; historical backfill
   // recaps remain inspectable candidates instead of flooding the public feed.
   const lastWeek = new Date(Date.parse(`${localWeek(at)}T12:00:00Z`) - 7 * DAY).toISOString().slice(0, 10);
