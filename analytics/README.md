@@ -231,7 +231,7 @@ All new facts follow the existing atomic publication and two-generation retentio
 
 Every successful Analytics build generates and validates league-only stories,
 then publishes them in the same transaction as the fact generation. No separate
-command or manual migration is required. Existing nightly/deploy builds run this
+command or manual migration is required. Scheduled and admin-requested builds run this
 step automatically; a failed build preserves both the prior facts and stories.
 
 The first templates cover standout farming, experience, hero/tower damage,
@@ -434,8 +434,9 @@ features. No homepage background polling is added for highlights.
 
 ## Deployment and scheduled jobs
 
-Deployment runs `node scripts/analytics/build.js` before restarting PM2. The
-workflow now fails on a build error. The first build can report untracked sources;
+Deployments retain the existing Analytics publication and restart PM2 without
+running data builds. Scheduled jobs or admin refreshes create the next generation
+and apply Analytics schema migrations. The first build can report untracked sources;
 the next successful league/public jobs establish real freshness watermarks.
 Ingestion tables/indexes are additive and created by those jobs automatically.
 

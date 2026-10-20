@@ -8,6 +8,7 @@ import {localBettingTestMode} from './localTestPolicy.js';
 import { currentSeasonRoster, conflictingRosterPlayers } from './rosterMembership.js';
 import { currentPendingSlots } from '../config/pendingRosterSlots.js';
 import { HISTORICAL_PRICING_VERSION, historicalSourceFingerprint } from './historicalPricing.js';
+import { marketHasClosed } from './marketTiming.js';
 import { MODEL_VERSION,METRICS,metricLabel,seededRandom,validateBaseline,validateLineupModel,validateStatDistributions,seriesForecast,statForecast,leaderForecast,simulateSeason,seasonWinsForecast } from './models.js';
 
 const allVoid = (book,market,reason) => book.void(market.MarketId,reason);
@@ -71,6 +72,26 @@ export function fixtureGuard(league,eventId,market,now=new Date(),env=process.en
   return null;
 }
 
+function preseasonWindow(league,seasonId,now,env,events=null) {
+  const includeLocalTests=localBettingTestMode(env);
+  const regular=(events||league.prepare('SELECT * FROM ScheduledEvents WHERE SeasonId=?').all(seasonId))
+    .filter(e=>e.Stage==='regular'&&(includeLocalTests||!e.SourceMessageId?.startsWith('local-test:'))
+      &&!['cancelled','forfeit','replaced'].includes(e.Status));
+  const closed={closed:true,closeAt:null};
+  if(regular.some(e=>e.StartedAtUtc||['started','completed'].includes(e.Status)))return closed;
+  const leagueId=league.prepare('SELECT ExternalLeagueId FROM LeagueSeasons WHERE SeasonId=?').get(seasonId)?.ExternalLeagueId;
+  if(leagueId) {
+    // Actual play can precede the saved schedule or arrive without a fixture.
+    if(hasTable(league,'MatchLeague')&&league.prepare('SELECT 1 FROM MatchLeague WHERE LeagueId=? LIMIT 1').get(leagueId))return closed;
+    if(hasTable(league,'LiveMatchCurrentState')&&league.prepare('SELECT 1 FROM LiveMatchCurrentState WHERE LeagueId=? LIMIT 1').get(leagueId))return closed;
+    if(hasTable(league,'SeriesInfo')&&hasTable(league,'SeriesMatch')&&league.prepare(`SELECT 1 FROM SeriesInfo s JOIN SeriesMatch m ON m.SeriesId=s.SeriesId
+      WHERE s.LeagueId=? AND s.Stage='g' LIMIT 1`).get(leagueId))return closed;
+  }
+  const first=regular.sort((a,b)=>a.ScheduledStartUtc.localeCompare(b.ScheduledStartUtc))[0];
+  if(first&&fixtureGuard(league,first.EventId,{EventRevision:first.Revision},now,env))return closed;
+  return {closed:false,closeAt:first?.ScheduledStartUtc||null};
+}
+
 export function seasonGuard(league,analyticsPath,seasonId,market,now=new Date(),sourceState=null,env=process.env) {
   const marketRules=JSON.parse(market.RulesJson||'{}');
   const localMarket=marketRules.localTesting===true;
@@ -112,11 +133,8 @@ export function seasonGuard(league,analyticsPath,seasonId,market,now=new Date(),
     if(gameCountsChanged(setup,rules.regularGames,['season_player','season_team'].includes(market.MarketType)?market.TeamKey:null))return 'Season setup changed; markets are awaiting review';
     const player=market.PlayerId||(market.OutcomeKey?.startsWith('player:')?Number(market.OutcomeKey.slice(7)):null);
     if(player&&table('SeasonRosterChanges')&&read(`changed:${seasonId}`,()=>new Set(league.prepare("SELECT PlayerId FROM SeasonRosterChanges WHERE SeasonId=? AND Kind='permanent'").all(seasonId).map(r=>r.PlayerId))).has(player))return 'Roster change affects this selection';
-    const first=read(`first:${seasonId}`,()=>league.prepare("SELECT * FROM ScheduledEvents WHERE SeasonId=? AND Stage='regular' AND Status NOT IN ('cancelled','forfeit','replaced') AND (?=1 OR SourceMessageId IS NULL OR SourceMessageId NOT LIKE 'local-test:%') ORDER BY ScheduledStartUtc LIMIT 1").get(seasonId,Number(localMarket)));
-    if(!first||first.Status!=='scheduled'||first.StartedAtUtc||Date.parse(first.ScheduledStartUtc)<=now.getTime())return 'Preseason betting is closed';
-    if(read(`firstGuard:${seasonId}`,()=>fixtureGuard(league,first.EventId,{EventRevision:first.Revision},now,env)))return 'Preseason betting is closed';
-    if(table('SeriesInfo')&&table('SeriesMatch')&&read(`groupStarted:${seasonId}`,()=>league.prepare(`SELECT 1 FROM SeriesInfo s JOIN SeriesMatch m ON m.SeriesId=s.SeriesId
-      WHERE s.LeagueId=? AND s.Stage='g' LIMIT 1`).get(league.prepare('SELECT ExternalLeagueId FROM LeagueSeasons WHERE SeasonId=?').get(seasonId).ExternalLeagueId)))return 'Preseason betting is closed';
+    if(read(`preseason:${seasonId}:${Number(localMarket)}`,()=>preseasonWindow(league,seasonId,now,
+      localMarket?env:{...env,BETTING_LOCAL_TEST_MODE:'false'})).closed)return 'Preseason betting is closed';
   }
   // A grouped read contains hundreds of quotes. Share only the source watermark
   // within that request; schedule, setup and player guards still run per market.
@@ -390,20 +408,28 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
         issues.push('local_test_only');
       }
       const seasonRoster=currentSeasonRoster(league,season.SeasonId,season.Status);
+      const preseason=preseasonWindow(league,season.SeasonId,now,book.env,events);
       const existing=book.db.prepare("SELECT * FROM BettingMarkets WHERE SeasonId=? AND Status IN ('open','held','locked')").all(season.SeasonId);
       for(const m of existing) {
         const event=m.EventId&&events.find(e=>e.EventId===m.EventId);
         const started=event&&fixtureGuard(league,event.EventId,m,now,book.env)==='The fixture has already started';
-        const closed=m.Status==='locked'||Date.parse(m.CloseAtUtc)<=now.getTime()||started
-          ||!m.EventId&&inputs.games.some(g=>g.Stage==='regular')||event&&(event.StartedAtUtc||event.Status==='started'||event.Status==='completed');
+        const closed=m.Status==='locked'||marketHasClosed(m,now)||started
+          ||!m.EventId&&(preseason.closed||inputs.games.some(g=>g.Stage==='regular'))||event&&(event.StartedAtUtc||event.Status==='started'||event.Status==='completed');
         const pendingLeader=m.MarketType==='player_leader'&&inputs.pendingSlots.length>0;
         const absentPlayer=m.MarketType==='season_player'&&!seasonRoster.some(p=>p.PlayerId===m.PlayerId&&p.TeamSubmissionId===m.TeamKey);
         const held=pendingLeader||absentPlayer||!sourceReady||!validation.validated||event?.Status==='needs_review'||event?.Stage==='tiebreaker';
         book.db.prepare('UPDATE BettingMarkets SET Status=?,HoldReason=? WHERE MarketId=?').run(closed?'locked':held?'held':m.Status,
           pendingLeader?'pending_roster_slots':absentPlayer?'player_not_rostered':held?'source_or_model_not_ready':null,m.MarketId);
+        // Removing the kickoff can restore an earlier cached forecast. Closing
+        // metadata must still follow today's schedule without changing tickets.
+        if(!m.EventId&&!closed&&m.CloseAtUtc!==(preseason.closeAt??'')) {
+          book.db.prepare('UPDATE BettingMarkets SET CloseAtUtc=?,QuoteVersion=QuoteVersion+1,UpdatedAtUtc=? WHERE MarketId=?')
+            .run(preseason.closeAt??'',now.toISOString(),m.MarketId);
+          book.quoteHistory(m.MarketId);
+        }
       }
       if(!sourceReady||!validation.validated){if(!sourceReady)issues.push('league_source_not_ready');if(!validation.validated)issues.push(validation.reason);continue;}
-      const consumed={inputs,events,setup};
+      const consumed={inputs,events,setup,preseason};
       const inputHash=digest(consumed);const snapshot=book.db.prepare(`INSERT OR IGNORE INTO BettingInputSnapshots (SeasonId,AnalyticsRunId,AsOfUtc,Digest,InputJson,CreatedAtUtc)
         VALUES (?,?,?,?,?,?)`).run(season.SeasonId,inputs.analyticsRunId,inputs.asOf,inputHash,JSON.stringify(consumed),now.toISOString());
       void snapshot;
@@ -467,11 +493,9 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
           }
         }
       }
-      const first=events.filter(e=>e.Stage==='regular'&&!['cancelled','forfeit','replaced'].includes(e.Status)).sort((a,b)=>a.ScheduledStartUtc.localeCompare(b.ScheduledStartUtc))[0];
       const preseasonPriorReady=inputs.modelMode==='historical_roster'||inputs.modelMode!=='league'&&!inputs.teams.some(t=>!Number.isFinite(t.AverageSignupMMR));
-      if(setup&&!first)issues.push('preseason_kickoff_missing');
-      if(setup&&first&&!preseasonPriorReady)issues.push('preseason_roster_prior_not_validated');
-      if(preseasonPriorReady&&setup&&first&&first.Status==='scheduled'&&!first.StartedAtUtc&&Date.parse(first.ScheduledStartUtc)>now.getTime()
+      if(setup&&!preseasonPriorReady)issues.push('preseason_roster_prior_not_validated');
+      if(preseasonPriorReady&&setup&&!preseason.closed
         &&!inputs.games.some(g=>g.Stage==='regular')&&setup.Completion==='normal'&&setupMatchesSource(league,setup)) {
         const changedPlayers=hasTable(league,'SeasonRosterChanges')?league.prepare("SELECT DISTINCT PlayerId FROM SeasonRosterChanges WHERE SeasonId=? AND Kind='permanent'").all(season.SeasonId).map(r=>r.PlayerId):[];
         const roster=JSON.parse(setup.SetupJson).roster.filter(p=>!changedPlayers.includes(p.PlayerId)).map(p=>({...p,PlayerName:inputs.roster.find(r=>r.PlayerId===p.PlayerId)?.PlayerName||`Player ${p.PlayerId}`}));
@@ -485,12 +509,12 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
           if(!forecast)continue;
           publish({...def,type:'season_player',playerId:player.PlayerId,teamKey:player.TeamSubmissionId,regularGames:plannedGames(setup,player.TeamSubmissionId),stat,scope,line:forecast.line,
             title:`${player.PlayerName} — Regular-season ${metricLabel(stat)} ${scope}`},[{key:'over',label:`Over ${forecast.line}`,probability:forecast.over},
-              {key:'under',label:`Under ${forecast.line}`,probability:forecast.under}],first.ScheduledStartUtc);
+              {key:'under',label:`Under ${forecast.line}`,probability:forecast.under}],preseason.closeAt);
         }
         for(const [stat,scope] of [['kills','total'],['kills','average'],['gpm','average'],['xpm','average']]) {
           if(!validation.statDistributions[stat]?.validated)continue;
           const prediction=!inputs.pendingSlots.length&&roster.length===inputs.teams.length*5?leaderForecast(inputs,roster,stat,scope,plannedGameCounts(setup),random,simulations):null;
-          if(prediction)publish({...def,type:'player_leader',stat,scope,title:`Regular-season leader — ${metricLabel(stat)} ${scope}`},prediction,first.ScheduledStartUtc);
+          if(prediction)publish({...def,type:'player_leader',stat,scope,title:`Regular-season leader — ${metricLabel(stat)} ${scope}`},prediction,preseason.closeAt);
         }
         const simulated=simulateSeason(inputs,setup,random,simulations);forecasts.push({seasonSimulation:simulated});
         if(simulated)for(const team of inputs.teams) {
@@ -500,15 +524,15 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
           const forecast=seasonWinsForecast(simulated,team.TeamSubmissionId,previous?.Line??null);
           if(forecast)publish({...def,type:'season_team',teamKey:team.TeamSubmissionId,scope:'total',stat:'wins',line:forecast.line,regularGames:games,
             title:`${team.TeamName} — Regular-season wins`,rules:{...def.rules,winsPolicy:'official_played_regular_games_forfeit_refund'}},
-            [{key:'over',label:`Over ${forecast.line}`,probability:forecast.over},{key:'under',label:`Under ${forecast.line}`,probability:forecast.under}],first.ScheduledStartUtc);
+            [{key:'over',label:`Over ${forecast.line}`,probability:forecast.over},{key:'under',label:`Under ${forecast.line}`,probability:forecast.under}],preseason.closeAt);
         }
         if(simulated?.champion)publish({...def,type:'champion',title:'League champion',stage:'playoff'},inputs.teams.map(t=>({key:`team:${t.TeamSubmissionId}`,
-          label:t.TeamName,probability:simulated.champion[t.TeamSubmissionId]})),first.ScheduledStartUtc);
+          label:t.TeamName,probability:simulated.champion[t.TeamSubmissionId]})),preseason.closeAt);
         else issues.push('champion_format_not_supported');
         if(simulated?.placement)for(const team of inputs.teams) {
           const buckets=Object.entries(simulated.placement[team.TeamSubmissionId]).filter(([,p])=>p>0&&p<1);
           if(buckets.length>=2&&Math.abs(buckets.reduce((s,[,p])=>s+p,0)-1)<.000001)publish({...def,type:'placement',teamKey:team.TeamSubmissionId,
-            title:`${team.TeamName} — Postseason placement`},buckets.map(([key,probability])=>({key,label:key==='upper'?'Upper bracket':key==='lower'?'Lower bracket':'Eliminated',probability})),first.ScheduledStartUtc);
+            title:`${team.TeamName} — Postseason placement`},buckets.map(([key,probability])=>({key,label:key==='upper'?'Upper bracket':key==='lower'?'Lower bracket':'Eliminated',probability})),preseason.closeAt);
         }
       }
       book.db.transaction(()=>{

@@ -85,6 +85,7 @@ test('target season, unfinished/future/unobserved games, duplicate players and i
 test('cold-start production markets open from validated history, accept a ticket, and never use training records for settlement', async () => {
   const f = coldStart(), scratch = mkdtempSync(join(tmpdir(), 'lads-historical-'));
   try {
+    f.league.exec('DELETE FROM ScheduledEvents WHERE SeasonId=2');
     const result = runBetting({ ...f, now, seasonId: 2, simulations: 100, historicalInputBuilder: f.builder });
     assert.ok(result.marketsOpened > 100); assert.deepEqual(result.issues, []);
     assert.equal(f.betting.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name='BettingLocalTestMetadata'").get().n, 0);
@@ -93,6 +94,7 @@ test('cold-start production markets open from validated history, accept a ticket
     assert.equal(JSON.parse(forecast.ValidationJson).validated, true);
     const market = f.betting.prepare("SELECT * FROM BettingMarkets WHERE SeasonId=2 AND MarketType='season_player' LIMIT 1").get();
     assert.ok(market); assert.equal(JSON.parse(market.RulesJson).localTesting, undefined);
+    assert.equal(market.CloseAtUtc, '');
     assert.equal(JSON.parse(market.RulesJson).historicalPricing.version, 'historical-roster-v1');
     const path = join(scratch, 'Analytics.db'); await f.analytics.backup(path);
     f.book.eventGuard = (id, m) => fixtureGuard(f.league, id, m, now);

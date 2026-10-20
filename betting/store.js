@@ -6,6 +6,7 @@ import { importLegacyPending } from './legacy.js';
 import { toPointCents,exactPayoutCents } from '../client/src/utils/bettingPoints.js';
 import {localBettingTestMode} from './localTestPolicy.js';
 import {parlayConflict} from '../client/src/utils/bettingParlays.js';
+import {marketHasClosed} from './marketTiming.js';
 
 export function pointCents(value) {
   const cents=toPointCents(value);if(cents===null)fail('Enter points with at most two decimal places');return cents;
@@ -73,7 +74,9 @@ export class BettingStore {
     const quotes = this.db.prepare('SELECT SelectionId,OfferedMicros FROM BettingSelections WHERE MarketId=? ORDER BY SelectionId').all(marketId);
     this.db.prepare('INSERT OR IGNORE INTO BettingQuoteHistory VALUES (?,?,?,?)').run(marketId, market.QuoteVersion, JSON.stringify(quotes), this.now().toISOString());
   }
-  publish(definition, probabilities, forecastId, closeAt) {
+  publish(definition, probabilities, forecastId, closeTime=null) {
+    const closeAt=closeTime??'';
+    if((definition.eventId||closeAt)&&!Number.isFinite(Date.parse(closeAt)))fail('A scheduled market needs a valid close time');
     return this.db.transaction(() => {
       if(Boolean(definition.rules?.localTesting)!==this.localTesting)fail('Local test markets require a dedicated development test database',409);
       if (!probabilities.length || probabilities.some(p => !(p.probability > 0 && p.probability < 1))
@@ -85,7 +88,7 @@ export class BettingStore {
       const previous = this.db.prepare('SELECT * FROM BettingMarkets WHERE DefinitionKey=?').get(key);
       if(previous&&previous.Line!==(definition.line??null))fail('An existing market keeps its original line',409);
       if (previous && ['settled','void','locked'].includes(previous.Status)) return previous.MarketId;
-      if (Date.parse(closeAt) <= this.now().getTime()) return previous?.MarketId || null;
+      if (marketHasClosed({CloseAtUtc:closeAt},this.now())) return previous?.MarketId || null;
       const rules = { version: 1, participation: ['player_prop','season_player','player_leader'].includes(definition.type)
         ?definition.eventId?(definition.scope==='game'?'specified_game':'every_game'):'five_games_and_more_than_half':null,
         roster: definition.roster || [], setupRevision: definition.setupRevision || null, regularGames: definition.regularGames || null,
@@ -142,7 +145,7 @@ export class BettingStore {
       const accepted = [];
       for (const leg of legs) {
         const row = this.db.prepare(`SELECT s.*,m.* FROM BettingSelections s JOIN BettingMarkets m ON m.MarketId=s.MarketId WHERE s.SelectionId=?`).get(Number(leg.selectionId));
-        if (!row || !row.IsActive || row.SeasonId !== seasonId || row.Status !== 'open' || Date.parse(row.CloseAtUtc) <= this.now().getTime()) fail('A selected market is closed',409,'MARKET_CLOSED');
+        if (!row || !row.IsActive || row.SeasonId !== seasonId || row.Status !== 'open' || marketHasClosed(row,this.now())) fail('A selected market is closed',409,'MARKET_CLOSED');
         if(JSON.parse(row.RulesJson).localTesting&&!localBettingTestMode(this.env))fail('Local test markets are disabled',409,'MARKET_HELD');
         if (row.QuoteVersion !== Number(leg.quoteVersion)) fail('Odds changed. Review the refreshed quote before placing your bet.',409,'QUOTE_CHANGED');
         const guard = this.eventGuard(row.EventId, row);
@@ -158,7 +161,7 @@ export class BettingStore {
       }
       const odds = accepted.reduce((product,l)=>product*l.OfferedMicros/ODDS_SCALE,1);
       if (exactPayoutCents(cents,accepted.map(l=>({Result:'won',AcceptedMicros:l.OfferedMicros,Divisor:1})))===null)fail('Return is too large. Choose fewer selections.');
-      if(accepted.some(row=>Date.parse(row.CloseAtUtc)<=this.now().getTime()))fail('A selected market is closed',409,'MARKET_CLOSED');
+      if(accepted.some(row=>marketHasClosed(row,this.now())))fail('A selected market is closed',409,'MARKET_CLOSED');
       this.wallet(seasonId,userId);
       const debit = this.db.prepare('UPDATE BettingWallets SET BalanceCents=BalanceCents-? WHERE SeasonId=? AND UserId=? AND BalanceCents>=?')
         .run(cents,seasonId,userId,cents);

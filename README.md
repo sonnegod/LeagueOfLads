@@ -75,8 +75,9 @@ Build the private derived database with `npm run analytics:build` and inspect it
 safe status with `npm run analytics:status`. Admin → League → Overview includes
 an Analytics status card with automatic highlight previews and hide/edit/pause
 controls. Builds publish league highlights and daily/weekly recaps; the homepage
-shows the public feed when signup-era content exists. Deployment and the nightly league wrapper run the
-build automatically, including between active leagues. See
+shows the public feed when signup-era content exists. The nightly league wrapper
+builds automatically, including between active leagues; admin refreshes can build
+immediately. Deployments preserve the existing derived data. See
 [analytics/README.md](analytics/README.md) for source freshness, signup-era scope,
 private inputs, deployment, and automatic highlights.
 

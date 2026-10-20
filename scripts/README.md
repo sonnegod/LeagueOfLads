@@ -11,7 +11,7 @@ app entrypoints and shared modules.
 - `betting/`: additive initialization, private forecasting, market publication, and settlement
 
 Betting setup: `npm run betting:init`, `npm run betting:refresh`, then
-`npm run betting:status`. The deploy/nightly workflows run Analytics then Betting;
+`npm run betting:status`. The nightly and public-data jobs run Analytics then Betting;
 admin changes queue a separate debounced worker. See
 [betting/README.md](../betting/README.md) for explicit actual-series links,
 validation holds, season wallets, and Discord/locking cron configuration.
@@ -31,8 +31,11 @@ root and Node executable; production defaults remain `/root/LeagueOfLads` and
 
 Analytics is created/migrated automatically by `node scripts/analytics/build.js`.
 Use `--init-only` for schema creation or `--status` for a read-only status check.
-The deploy workflow builds before PM2 restarts, and `nightlyRun.sh` builds even
-without an active league. Source ingestion adds freshness/timestamp records
+Deployments install dependencies, build/publish the client, back up databases and
+restart PM2. Startup initializes additive source/Betting schemas; Analytics builds,
+pricing and item downloads are handled separately. `nightlyRun.sh` builds even
+without an active league, and admin controls can request an immediate refresh.
+Source ingestion adds freshness/timestamp records
 automatically on its next run. Details are in [analytics/README.md](../analytics/README.md).
 
 ## Scheduled database backups
@@ -112,9 +115,12 @@ the source snapshots and no OpenDota patch identifier in the expanded schema.
 ### Schema and deployment
 
 `config/warehouseSchema.js` applies versioned, repeatable migrations. Server startup
-ensures the schema and seeds the shared patch calendar; the deployment workflow runs
-the migration command before restarting PM2. This command makes a SQLite-safe backup
-under `backups/LadsData/` before the first migration and verifies protected data:
+ensures the schema and seeds the shared patch calendar. Deployments do not launch
+warehouse-wide data validation or protected-data fingerprint scans. Nightly ingestion
+and refresh jobs continue on their existing schedule.
+
+For manual maintenance, this command makes a SQLite-safe backup under
+`backups/LadsData/` before the first migration and verifies protected data:
 
 ```bash
 node scripts/db/migrateWarehouse.js db/LadsData.db
@@ -368,18 +374,19 @@ on Draft God. There is no additional schema migration for the views.
 
 ### Item catalog refresh
 
-Deployment runs `node scripts/assets/refreshDotaItems.js` before building the
-client. The same command can be run manually from the repository root. It fetches
+Run `node scripts/assets/refreshDotaItems.js` manually from the repository root
+when the item catalog needs an update, then rebuild the client. Deployments use
+the existing generated or bundled catalog without downloading it. The command fetches
 OpenDota's item constants with a 15-second timeout and an 8 MB response limit,
 then keeps only the frontend's item ID, key, display name and Steam image path.
 Unnamed internal entries are skipped. Malformed schemas, duplicate IDs, unsafe
 image paths and suspiciously small responses are rejected.
 
 The generated catalog is `client/src/data/dotaItems.generated.json`, ignored by
-Git so deployment refreshes do not block later pulls. Updates merge into the last
+Git so local catalog updates do not block later pulls. Updates merge into the last
 valid catalog, retaining retired items and refusing to remap an existing item's
 ID to a different key. A temporary file and atomic rename protect the last good
-file. A source or write failure logs a warning and lets deployment use the
+file. A source or write failure logs a warning and lets the next build use the
 existing catalog. If no usable bundled catalog exists, the command fails.
 
 Vite resolves `@dota-items` to the validated generated catalog, falling back to

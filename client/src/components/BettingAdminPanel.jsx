@@ -15,7 +15,6 @@ const issues={insufficient_temporal_samples:'More verified league history is nee
   insufficient_historical_samples:'Stored history does not yet have enough eligible matches for retrospective validation.',
   historical_pricing_validation_failed:'Historical pricing did not pass validation. Check the validation report.',
   historical_source_changed:'Historical imports changed during pricing. Refresh Analytics and Betting again.',
-  preseason_kickoff_missing:'Add the first regular-season fixture with a future kickoff to open preseason betting.',
   conflicting_roster_memberships:'Setup and Analytics are available; betting is held until each player belongs to one team in this season.',
   local_test_only:'Development test pricing is enabled; historical publication gates are bypassed only for this separate test Betting database.',
   league_source_not_ready:'Refresh the league sources before publishing new prices.',analytics_not_available:'Build Analytics for this season.',
@@ -68,7 +67,7 @@ export default function BettingAdminPanel({refreshKey}) {
     {data?.pendingRosterSlots>0&&<p className="sportsbook-notice">{data.pendingRosterSlots} Player TBD {data.pendingRosterSlots===1?'slot':'slots'}. Team odds use provisional rosters. Player-leader markets remain held until every slot is confirmed.</p>}
     {!data?<p>Loading betting administration…</p>:!sid?<p>Create a season to begin scheduling.</p>:<>
       {data.legacyIssues?.length>0&&<p role="alert">Legacy tickets needing source-data repair: {data.legacyIssues.map(t=>`#${t.LegacyTicketId}`).join(', ')}. Their original records and balances are preserved.</p>}
-      <section className="betting-admin-widget"><h3>Betting setup · {data.season.name}</h3><p className="admin-help">Use Finalize setup once rosters, groups and qualification rules are ready. This saves the setup used to price preseason bets; markets also need a scheduled first kickoff and enough verified history.</p>
+      <section className="betting-admin-widget"><h3>Betting setup · {data.season.name}</h3><p className="admin-help">Use Finalize setup once rosters, groups and qualification rules are ready. Preseason betting opens when setup and pricing are ready. A scheduled fixture is optional; markets close at the first known regular-season kickoff or when play begins.</p>
         {data.setup&&<p>Finalized {date(data.setup.finalizedAt)} NY · Revision {data.setup.revision}</p>}
         {data.refresh?.pending&&<p role="status">Updated markets are pending.
           {data.refresh.nextRetryAt?` Retrying ${date(data.refresh.nextRetryAt)} NY.`:data.refresh.error==='refresh_retry_exhausted'?' Automatic retries failed. Use Refresh Analytics and Betting to retry.':data.refresh.error?' The last refresh failed.':' A refresh is queued or running.'}</p>}

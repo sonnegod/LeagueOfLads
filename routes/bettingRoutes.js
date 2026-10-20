@@ -12,6 +12,7 @@ import {groupPlayerMarkets,groupTeamMarkets} from '../betting/marketView.js';
 import {readFixtureMarketPage,readScheduledPlayers,marketBettors} from '../betting/fixtureMarketView.js';
 import { currentSeasonRoster, conflictingRosterPlayers } from '../betting/rosterMembership.js';
 import { currentPendingSlots } from '../config/pendingRosterSlots.js';
+import { marketHasClosed } from '../betting/marketTiming.js';
 
 const positive=value=>/^\d+$/.test(String(value))&&Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):null;
 export function bettingActor(req) {
@@ -33,12 +34,12 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
   const self=req=>{const actor=bettingActor(req);if(!actor)fail('Sign in with Steam to access your betting account',401);return actor;};
   const offeredMarket=(m,sid,sourceState,changed,now)=>{
     const guard=fixtureGuard(league,m.EventId,m,now,book.env)||seasonGuard(league,analyticsPath,sid,m,now,sourceState,book.env);
-    const locked=Date.parse(m.CloseAtUtc)<=now.getTime();
+    const locked=marketHasClosed(m,now);
     const activity=m.EventId?marketBettors(db,m.MarketId):null;
     const selections=db.prepare('SELECT SelectionId,OutcomeKey,Label,OfferedMicros FROM BettingSelections WHERE MarketId=? AND IsActive=1 ORDER BY SelectionId').all(m.MarketId);
     return {marketId:m.MarketId,seasonId:m.SeasonId,eventId:m.EventId,type:m.MarketType,title:m.Title,stat:m.StatKey,scope:m.Scope,
       playerId:m.PlayerId,teamKey:m.TeamKey,line:m.Line,gameNumber:m.GameNumber,bestOf:m.BestOf,stage:m.Stage,
-      closeAt:m.CloseAtUtc,status:locked?'locked':guard?'held':m.Status,quoteVersion:m.QuoteVersion,bettorCount:activity?.total,
+      closeAt:m.CloseAtUtc||null,status:locked?'locked':guard?'held':m.Status,quoteVersion:m.QuoteVersion,bettorCount:activity?.total,
       notice:guard||(m.Status==='held'?'Market temporarily unavailable':null),selections:selections.map(s=>({selectionId:s.SelectionId,key:s.OutcomeKey,label:s.Label,odds:s.OfferedMicros/ODDS_SCALE,
         available:!s.OutcomeKey.startsWith('player:')||!changed.includes(Number(s.OutcomeKey.slice(7))),bettorCount:activity?.byOutcome[s.OutcomeKey]||0}))};
   };
@@ -135,7 +136,7 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
         FROM BettingSelections s JOIN BettingMarkets m ON m.MarketId=s.MarketId WHERE s.SelectionId=?`).get(id);
       if(!row)fail('Selection is unavailable',404);
       const guard=fixtureGuard(league,row.EventId,row,book.now(),book.env)||seasonGuard(league,analyticsPath,row.SeasonId,row,book.now(),null,book.env);
-      return {selectionId:id,odds:row.OfferedMicros/ODDS_SCALE,quoteVersion:row.QuoteVersion,status:!row.IsActive||guard?'held':Date.parse(row.CloseAtUtc)<=book.now().getTime()?'locked':row.Status};
+      return {selectionId:id,odds:row.OfferedMicros/ODDS_SCALE,quoteVersion:row.QuoteVersion,status:!row.IsActive||guard?'held':marketHasClosed(row,book.now())?'locked':row.Status};
     });return res.json({quotes});
   }));
   publicRoutes.get('/wallet',endpoint((req,res)=>{const actor=self(req);const sid=seasonId(req);if(!sid)fail('No season is available',404);register(sid);return res.json(book.wallet(sid,actor));}));

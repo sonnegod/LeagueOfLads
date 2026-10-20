@@ -247,13 +247,16 @@ development test mode does not make those validation results pass.
 ### Production setup
 
 1. Close signups; finalize team rosters, groups, and qualification rules.
-2. Add verified fixtures with both teams, stage, BO format, and New York kickoff.
-   Finalize the regular-season **individual game count per team**, not series
+2. Finalize the regular-season **individual game count per team**, not series
    count. The default **Use BO2 group round robin** calculates each team's game
    count from its group size, including unequal groups. Uncheck it for an
    explicitly supplied uniform count; nonstandard schedules do not enable the
-   standard bracket simulation. Preseason markets require a first verified
-   regular-season kickoff.
+   standard bracket simulation. Preseason betting opens once setup and pricing
+   are ready, even with no scheduled fixtures. Add verified fixtures with both
+   teams, stage, BO format, and New York kickoff when available. A first known
+   regular-season kickoff closes preseason betting automatically; live games,
+   started fixtures and imported results close it immediately even without a
+   schedule. Without a known kickoff, preseason quotes have no scheduled expiry.
 3. Refresh Analytics and Betting. Job status explains missing sources/history or
    unsupported formats. Eligible validated outputs publish automatically.
 4. After matches load, edit the fixture to link its **actual SeriesId**. This is
@@ -442,9 +445,10 @@ metadata rows; financial/provenance history persists.
 ## Deployment and workers
 
 The deploy workflow checks Node 20.19+ or 22.12+ (22.12+ recommended), installs dependencies/builds the client,
-backs up databases, initializes additive Betting/roster tables, and runs Analytics
-then Betting. It publishes the built client after these steps succeed, then
-restarts PM2. Deployments serialize instead of overlapping. No production deploy
+backs up databases, publishes the built client and restarts PM2. Startup initializes
+additive Betting/roster tables. Scheduled jobs and admin refreshes run Analytics
+and Betting separately; deployments keep existing forecasts and do not download
+the item catalog. Deployments serialize instead of overlapping. No production deploy
 was performed during local verification.
 
 Nightly ingestion refreshes Analytics/Betting even after an ingestion step fails;

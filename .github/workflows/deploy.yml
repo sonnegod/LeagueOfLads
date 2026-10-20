@@ -31,9 +31,8 @@ jobs:
             # Validate the runtime before installing native SQLite/client dependencies
             node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (!((major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major > 22)) { console.error("Node 20.19+ or 22.12+ is required; Node 22.12+ is recommended."); process.exit(1); }'
             
-            # Install server dependencies and refresh the item catalog before building.
+            # Install server dependencies.
             npm install
-            node scripts/assets/refreshDotaItems.js
 
             # Build before changing the published client.
             cd client
@@ -41,12 +40,8 @@ jobs:
             npm run build
             
             cd ..
-            # Back up before migrations. Initialize roster history before Analytics
-            # reads it; Betting owns market creation and settlement.
+            # Back up before restart-time schema initialization. Data builds and
+            # refreshes run through scheduled jobs and admin controls.
             bash scripts/db/backupDatabases.sh
-            node scripts/db/migrateWarehouse.js db/LadsData.db --apply
-            node scripts/betting/run.js --init-only
-            node scripts/analytics/build.js
-            node scripts/betting/run.js
             sudo cp -r client/dist/* /var/www/leagueoflads/
             pm2 restart all
