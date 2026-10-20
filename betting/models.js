@@ -21,7 +21,7 @@ export function teamProbability(inputs,a,b) {
   const prior=teamKey=> {
     const priorKey=`prior:${inputs.modelMode}:${teamKey}`;if(cache.has(priorKey))return cache.get(priorKey);
     const team=inputs.teams.find(t=>t.TeamSubmissionId===teamKey);
-    if(inputs.modelMode==='preseason_candidate'&&Number.isFinite(inputs.preseasonTeamPriors?.[teamKey])) {
+    if(['preseason_candidate','historical_roster'].includes(inputs.modelMode)&&Number.isFinite(inputs.preseasonTeamPriors?.[teamKey])) {
       const value=Math.max(.1,Math.min(.9,inputs.preseasonTeamPriors[teamKey]));cache.set(priorKey,value);return value;
     }
     const mmrPrior=(inputs.modelMode==='roster'||inputs.modelMode?.startsWith('lineup'))&&Number.isFinite(team?.AverageSignupMMR)&&mmrs.length
@@ -36,7 +36,7 @@ export function teamProbability(inputs,a,b) {
   const records = team => { const games=inputs.teamStats.filter(g=>g.TeamSubmissionId===team); const n=games.reduce((s,g)=>s+g.GamesPlayed,0);
     const wins=games.reduce((s,g)=>s+g.Wins,0); return (wins+16*prior(team))/(n+16); };
   // A richer prior is used only after that exact model passes temporal validation.
-  const result=log5(records(a),records(b));cache.set(key,result);return result;
+  const result=inputs.modelMode==='historical_roster'?log5(prior(a),prior(b)):log5(records(a),records(b));cache.set(key,result);return result;
 }
 
 export function validateLineupModel(inputs,{includePublic=false}={}) {
@@ -156,12 +156,15 @@ export function statSampler(inputs,playerId,stat,random) {
   if(!cache.has(stat)) {
     const pooled=[];const players=new Map();
     for(const game of inputs.metricHistory)if(Number.isFinite(game[column])) {
-      if(pooled.length<2000)pooled.push(game[column]);
+      if(inputs.modelMode==='historical_roster') {pooled.push(game[column]);if(pooled.length>2000)pooled.shift();}
+      else if(pooled.length<2000)pooled.push(game[column]);
       if(!players.has(game.PlayerId))players.set(game.PlayerId,[]);players.get(game.PlayerId).push(game[column]);
+      if(inputs.modelMode==='historical_roster'&&players.get(game.PlayerId).length>100)players.get(game.PlayerId).shift();
     }
     cache.set(stat,{pooled,players});
   }
   const {pooled,players}=cache.get(stat);const personal=players.get(playerId)||[];
+  if(inputs.modelMode==='historical_roster'&&(personal.length<5||pooled.length<50))return null;
   if(pooled.length<5) return null;
   const weight=personal.length/(personal.length+10);
   return () => { const source=personal.length&&random()<weight ? personal : pooled; return source[Math.floor(random()*source.length)]; };

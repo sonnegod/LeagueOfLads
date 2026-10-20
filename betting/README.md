@@ -50,9 +50,9 @@ node scripts/betting/run.js --refresh-analytics --season-id 3
 
 This selects an internal `SeasonId`, not a Dota league ID. An ended season can be
 settled/inspected but does not open new markets. Historical Analytics preview
-files are rejected as betting inputs. The current local test season has no
-canonical signup-era games: validation holds are expected until real eligible
-history is available. The automated tests use isolated synthetic fixtures;
+files are rejected as betting inputs. A new signup season can use the validated
+historical-roster model described below; it does not need to wait for new seasons
+of signup-era games. The automated tests use isolated synthetic fixtures;
 they never populate the live point accounts with fabricated markets.
 
 ## Admin setup and results
@@ -138,7 +138,8 @@ layout and hold champion markets until its routing is implemented.
 These previews are site-manager-only, contain no selectable real wagers, and expose no
 MMR values or raw source records to the browser. They do not
 override canonical signup-era scope or the temporal validation required before
-candidate models can price live markets. Existing live models are unchanged.
+candidate models can price live markets. The live historical-roster model is
+validated independently and does not promote these MMR-based candidate prices.
 
 The signup preview also has a site-manager-only **Matchup simulations** tab. Each
 within-group BO2 shows the model's single-game win chances and calculated score
@@ -302,6 +303,44 @@ metric distributions need at least 20 scored samples and Brier ≤0.30, with fiv
 personal and fifty pooled observations before scoring. These checks do not claim
 the model is calibrated for a new production dataset. Elo is excluded.
 
+### Historical pricing for a new signup season
+
+The worker also reads up to three earlier leagues into temporary in-memory
+Analytics generations. These facts remain separate from canonical signup-era
+ownership and settlement. When canonical validation is unavailable, or cannot
+price new teams, `historical-roster-v1` can publish after its own validation passes.
+
+This is explicitly a retrospective season holdout using recorded match
+participants. For each scored game, only completed games from other leagues
+with earlier completion times can inform the prediction. It assumes earlier
+season results were available after completion; it does not claim that later
+imports, historical signup rosters or historical MMR were recorded at kickoff.
+Original observation timestamps remain intact. Current inputs must have been
+observed by the worker's cutoff; unfinished, malformed and tiebreaker games are
+excluded, as is the entire target league. No synthetic games or player records
+are added to a live database.
+
+Team priors use each confirmed player's last 100 historical wins/losses, shrunk
+toward 50% with 20 prior games. Average the five player log-odds signals, cap at
+plus/minus 0.6, multiply by 0.35, then apply log5 between teams. Unknown players
+and TBD slots contribute a neutral signal. Signup MMR and current-season team
+records do not enter this model. At least 20 held-out matches with an informed
+player on each side must pass Brier <=0.27 and log loss <=0.8 before publication.
+
+Historical player distributions use the last 100 personal samples and last 2,000
+pooled samples. Each prop needs five personal and fifty pooled observations;
+each stat independently needs 20 held-out predictions and Brier <=0.30. Players
+without enough history receive no invented prop; leader markets need a complete
+priced field. Existing setup, kickoff, TBD and roster-change guards still apply.
+
+Historical facts do not expire just because their matches are old. This model
+requires a fresh canonical roster generation (under 48 hours) and binds quotes
+to the historical import metadata. New or repaired source imports hold old
+quotes until repricing. It does not require a current-season match feed to have
+run before that season has any matches. The other live models retain their
+normal source freshness checks. `betting:validate` reports both kinds of model
+readiness, including the retrospective assumption and independent stat scores.
+
 The `league-lineup-v4` candidates add these private, interpretable priors:
 
 - Lineup strength averages five players' earlier rostered win records, shrunk
@@ -336,7 +375,7 @@ with `BETTING_FIXTURE_LOOKAHEAD_DAYS` (1–60), to bound worker simulations. Fut
 fixtures remain visible in the schedule; preseason opening is independent of
 this window. Models cache distributions/probabilities within a worker run.
 
-Required league source loads must be complete and less than 48 hours old;
+For the canonical league/signup models, required league source loads must be complete and less than 48 hours old;
 rebuilding Analytics does not reset their true freshness. New data or source
 edits hold acceptance while refreshed quotes are prepared. Private public-input
 outages do not prevent a validated league/signup baseline from running.
@@ -477,8 +516,9 @@ npm run betting:benchmark -- --season-id 3 --base-url http://127.0.0.1:5173 --co
 ```
 
 Validation reads the canonical databases without migrations or publication. It
-reports source readiness, coverage and each model's temporal scores; it never
-backfills legacy previews into production validation. Use the internal SeasonId.
+reports canonical source readiness, coverage, each model's temporal scores and
+the separate historical-roster season-holdout scores. It never copies legacy
+facts into canonical ownership or settlement. Use the internal SeasonId.
 The benchmark sends anonymous market GET requests only and reports failures,
 latency, response size and throughput. Empty seasons underestimate real load.
 Run it against the deployment host and monitor that host's RSS/CPU/database
@@ -525,8 +565,8 @@ build migrates v8 and rebuilds the facts. No manual database edits are required.
 Remaining work includes real prospective calibration, uncertainty estimates,
 additional explicitly defined competition formats and production Discord/job/
 resource verification. Tiebreaker-dependent futures hold while advancement rules
-are unspecified. Production prices also remain held where real signup-era
-validation coverage is insufficient.
+are unspecified. Production prices remain held where neither canonical nor
+historical-roster validation passes.
 
 Additional local operational verification covers real worker migration/recovery,
 bounded-heap publication, queued retry/exhaustion, Discord backfill/edit/delete/

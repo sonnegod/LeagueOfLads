@@ -12,6 +12,7 @@ import {markBettingDirty} from '../../betting/refreshQueue.js';
 import {bettingDatabasePath,localBettingTestMode} from '../../betting/localTestPolicy.js';
 import {buildLocalTestInputs} from '../../betting/localTestInputs.js';
 import {prepareLocalTestSeason} from '../../betting/prepareLocalTest.js';
+import {buildHistoricalPricingInputs} from '../../betting/historicalPricing.js';
 
 const paths=analyticsPaths();let bettingPath=null;
 let league,betting,analytics,publicDb;
@@ -64,6 +65,7 @@ try {
       analytics=new Database(paths.analytics,{readonly:true,fileMustExist:true});
     }
     const result=runBetting({book,league,analytics,schedules,seasonId,
+      historicalInputBuilder:localTesting?null:(inputs,now)=>buildHistoricalPricingInputs(league,inputs,now),
       localTestInputBuilder:localTesting?(inputs,now)=>buildLocalTestInputs(league,inputs,now):null});
     console.log(JSON.stringify({...result,localTesting,...(prepared?{prepared}:{}),resources:{elapsedMs:Math.round(performance.now()-workerStarted),
       peakRssBytes:process.resourceUsage().maxRSS*1024,heapUsedBytes:process.memoryUsage().heapUsed}},null,2));

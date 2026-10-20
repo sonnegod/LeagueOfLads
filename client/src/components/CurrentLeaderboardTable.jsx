@@ -185,7 +185,6 @@ export default function CurrentLeagueSeries({ leagueId }) {
       <div className="leaderboard-groups">
         {loading && <div className="leaderboard-loading">Loading leaderboard...</div>}
         {groups.map(group => {
-          const showQualification = group.groupTeams.some(team => team.Wins + team.Losses > 0);
           const isSelected = matrixPhase !== 'closed' && selectedGroupId === group.GroupId;
 
           return (
@@ -235,7 +234,7 @@ export default function CurrentLeagueSeries({ leagueId }) {
                     {group.groupTeams.map(team => (
                       <tr
                         key={teamKey(team)}
-                        className={showQualification && team.Qualification
+                        className={team.Qualification
                           ? `leaderboard-qualification-${team.Qualification}`
                           : undefined}
                       >

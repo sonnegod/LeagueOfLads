@@ -12,6 +12,10 @@ function localInput(value) {
 }
 function parserTime(value){const [day,time]=value.split('T');const [hour,minute]=time.split(':');const h=Number(hour);return `${day} ${h%12||12}:${minute} ${h>=12?'PM':'AM'} EST`;}
 const issues={insufficient_temporal_samples:'More verified league history is needed to validate pricing.',baseline_validation_failed:'Pricing validation did not pass.',
+  insufficient_historical_samples:'Stored history does not yet have enough eligible matches for retrospective validation.',
+  historical_pricing_validation_failed:'Historical pricing did not pass validation. Check the validation report.',
+  historical_source_changed:'Historical imports changed during pricing. Refresh Analytics and Betting again.',
+  preseason_kickoff_missing:'Add the first regular-season fixture with a future kickoff to open preseason betting.',
   conflicting_roster_memberships:'Setup and Analytics are available; betting is held until each player belongs to one team in this season.',
   local_test_only:'Development test pricing is enabled; historical publication gates are bypassed only for this separate test Betting database.',
   league_source_not_ready:'Refresh the league sources before publishing new prices.',analytics_not_available:'Build Analytics for this season.',

@@ -2,8 +2,8 @@ import Database from 'better-sqlite3';
 import { migrateAnalytics } from './store.js';
 import { buildAnalytics } from './build.js';
 
-// Offline candidate-model input. Legacy seasons remain outside the canonical
-// signup-era dataset. Each history generation is discarded after extracting facts.
+// Historical pricing input, separate from canonical signup-era ownership and
+// settlement. Each history generation is discarded after extracting facts.
 export function readPreseasonPreviewHistory(league, { excludeLeagueId, now = new Date(), seasons = 3 } = {}) {
   if (!Number.isInteger(seasons) || seasons < 1 || seasons > 5) throw new Error('Use one to five history seasons');
   const hasUtc = league.pragma('table_info(MatchTeam)').some(c => c.name === 'StartTimeUtc');

@@ -5,6 +5,7 @@ import {existsSync} from 'node:fs';
 import {analyticsPaths,positiveId} from '../../analytics/config.js';
 import {readSeasonBettingInputs} from '../../analytics/bettingInputs.js';
 import {validateBaseline,validateLineupModel,validateStatDistributions} from '../../betting/models.js';
+import {buildHistoricalPricingInputs} from '../../betting/historicalPricing.js';
 
 const paths=analyticsPaths();let bettingPath=resolve(process.env.BETTING_DB||resolve(dirname(paths.league),'Betting.db'));
 let seasonId=null;const connections=[];
@@ -24,7 +25,7 @@ try {
   if(!seasonId)seasonId=league.prepare("SELECT SeasonId FROM LeagueSeasons ORDER BY CASE WHEN Status!='ended' THEN 0 ELSE 1 END,SeasonId DESC LIMIT 1").get()?.SeasonId;
   if(!seasonId)throw new Error('No signup-era season is available');
   const inputs=readSeasonBettingInputs(analytics,seasonId);
-  if(!inputs)throw new Error('No canonical Analytics publication exists for this season. Build Analytics first; legacy previews cannot validate live betting.');
+  if(!inputs)throw new Error('No canonical Analytics publication exists for this season. Build Analytics first.');
   if(existsSync(bettingPath)) {
     const betting=open(bettingPath);
     if(betting.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='BettingPreviewMetadata'").get())throw new Error('Use the live Betting database, not a historical preview');
@@ -33,13 +34,18 @@ try {
     if(inputs.publicFeatureHistory?.length>100000)throw new Error('Private observation history exceeds the supported validation batch');
   }
   const required=inputs.sources.filter(s=>['match_history','match_details'].includes(s.SourceName));
+  const historical=buildHistoricalPricingInputs(league,inputs);
+  const freshAnalytics=Number.isFinite(Date.parse(inputs.asOf))&&Date.parse(inputs.asOf)<=Date.now()&&Date.now()-Date.parse(inputs.asOf)<48*3600000;
+  const canonicalSourceReady=required.length===2&&required.every(s=>!s.IsStale&&s.LatestStatus==='complete')&&freshAnalytics;
+  const historicalSourceReady=!!historical?.metricHistory.length&&freshAnalytics;
   console.log(JSON.stringify({seasonId,name:inputs.season.LeagueName,analyticsAsOf:inputs.asOf,
-    sourceReady:required.length===2&&required.every(s=>!s.IsStale&&s.LatestStatus==='complete')
-      &&Number.isFinite(Date.parse(inputs.asOf))&&Date.parse(inputs.asOf)<=Date.now()&&Date.now()-Date.parse(inputs.asOf)<48*3600000,
+    sourceReady:canonicalSourceReady||historicalSourceReady&&historical.validation.validated,
+    sourceReadiness:{canonical:canonicalSourceReady,historical:historicalSourceReady},
     coverage:{teams:inputs.teams.length,rosteredPlayers:inputs.roster.length,verifiedGames:inputs.history.length,
       teamsWithSignupMMR:inputs.teams.filter(t=>Number.isFinite(t.AverageSignupMMR)).length},
     models:{league:validateBaseline(inputs.history),signup:validateBaseline(inputs.history,inputs.historyTeams,'roster'),
       lineup:validateLineupModel(inputs),lineupWithPrivatePublic:validateLineupModel(inputs,{includePublic:true}),
+      historical:historical?.validation||null,
       playerStats:validateStatDistributions(inputs.metricHistory)}},null,2));
 }catch(error){console.error(`Betting validation failed: ${error.message}`);process.exitCode=1;}
 finally{for(const db of connections.reverse())db.close();}
