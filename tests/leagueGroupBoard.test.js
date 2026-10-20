@@ -4,6 +4,7 @@ import Database from 'better-sqlite3';
 import express from 'express';
 import {leagueGroupBoardRevision,saveLeagueGroupBoard,groupTeamKey} from '../config/leagueGroupBoard.js';
 import {createLeagueGroupBoardRouter} from '../routes/leagueGroupBoardRoutes.js';
+import SeasonScheduleStore from '../config/seasonScheduleStore.js';
 
 function fixture() {
   const db=new Database(':memory:');
@@ -52,7 +53,8 @@ function fixture() {
   const readBoard=()=>{const league=getActiveLeague()||null;const board={league,groups:league?getGroups(league.LeagueId):[],availableTeams:league?getAvailableTeams(league.LeagueId):[],unregisteredTeams:league?getUnregisteredTeams(league.LeagueId):[]};
     return {...board,revision:leagueGroupBoardRevision(board)};};
   const options={readBoard,rebuild:()=>db.prepare('INSERT INTO Actions VALUES(?)').run('rebuild'),audit:(_type,message)=>db.prepare('INSERT INTO Actions VALUES(?)').run(message)};
-  return {db,readBoard,options,routerOptions:{db,getActiveLeague,getGroups,getAvailableTeams,getUnregisteredTeams,rebuild:options.rebuild,audit:options.audit},close:()=>db.close()};
+  const schedule=new SeasonScheduleStore(db);
+  return {db,readBoard,options,schedule,routerOptions:{db,getActiveLeague,getGroups,getAvailableTeams,getUnregisteredTeams,rebuild:options.rebuild,audit:options.audit},close:()=>db.close()};
 }
 function draft(board) {return {leagueId:board.league.LeagueId,revision:board.revision,groups:board.groups.map(g=>({id:g.GroupId,name:g.GroupName})),
   teams:[...board.groups.flatMap(g=>g.teams.map(t=>({key:groupTeamKey(t),name:t.TeamName,teamId:t.TeamId??null,groupId:g.GroupId}))),
@@ -98,6 +100,45 @@ test('group names can swap atomically without violating the season uniqueness co
     saveLeagueGroupBoard(f.db,input,f.options);
     assert.equal(f.db.prepare('SELECT GroupName FROM SeasonGroups WHERE GroupId=11').get().GroupName,'B');
     assert.equal(f.db.prepare('SELECT GroupName FROM SeasonGroups WHERE GroupId=12').get().GroupName,'A');
+  }finally{f.close();}
+});
+
+test('removing a saved named team removes its suggested matchups and preserves other teams, seasons and rosters',()=>{
+  const f=fixture();try {
+    const added=draft(f.readBoard());
+    added.teams.find(t=>t.key==='entry:20').groupId=1;
+    added.teams.push({key:'new-team:yesterday',name:'Yesterday team',teamId:null,groupId:1});
+    saveLeagueGroupBoard(f.db,added,f.options);
+    const entry=f.db.prepare("SELECT EntryId FROM LeagueRosterEntries WHERE DisplayName='Yesterday team'").get().EntryId;
+    f.schedule.saveSettings(1,{startDate:'2026-10-26',seriesPerWindow:3,weeksPerWindow:2});
+    f.schedule.generate(1);
+    f.db.exec("INSERT INTO LeagueRosterEntries VALUES(200,200,1,'Other historical team',901,NULL,2)");
+    f.schedule.insert(2,1,90,200,1);
+    const rosters=originalRows(f.db);
+    const remaining=f.db.prepare('SELECT * FROM SeasonMatchups WHERE TeamAEntryId<>? AND TeamBEntryId<>? ORDER BY MatchupId').all(entry,entry);
+    assert.equal(remaining.length,2,'one active matchup and one historical matchup remain');
+    const input=draft(f.readBoard());input.teams=input.teams.filter(t=>t.key!==`entry:${entry}`);
+    saveLeagueGroupBoard(f.db,input,f.options);
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM LeagueRosterEntries WHERE EntryId=?').get(entry).n,0);
+    assert.deepEqual(f.db.prepare('SELECT * FROM SeasonMatchups ORDER BY MatchupId').all(),remaining);
+    assert.equal(originalRows(f.db),rosters);
+    assert.deepEqual(f.db.pragma('foreign_key_check'),[]);
+  }finally{f.close();}
+});
+
+test('failed team removal restores both the team and its suggested matchups',()=>{
+  const f=fixture();try {
+    const setup=draft(f.readBoard());setup.teams.find(t=>t.key==='entry:20').groupId=1;
+    saveLeagueGroupBoard(f.db,setup,f.options);
+    f.db.exec('DELETE FROM Actions');
+    f.schedule.insert(1,1,10,20,1);
+    const revision=f.readBoard().revision,matchups=f.db.prepare('SELECT * FROM SeasonMatchups').all();
+    const input=draft(f.readBoard());input.teams=input.teams.filter(t=>t.key!=='entry:20');
+    assert.throws(()=>saveLeagueGroupBoard(f.db,input,{...f.options,audit:()=>{throw Error('Audit unavailable');}}),/Audit unavailable/);
+    assert.equal(f.readBoard().revision,revision);
+    assert.deepEqual(f.db.prepare('SELECT * FROM SeasonMatchups').all(),matchups);
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM Actions').get().n,0);
+    assert.deepEqual(f.db.pragma('foreign_key_check'),[]);
   }finally{f.close();}
 });
 

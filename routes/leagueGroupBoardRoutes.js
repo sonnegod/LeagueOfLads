@@ -36,7 +36,14 @@ export function createLeagueGroupBoardRouter({db,getActiveLeague,getGroups,getAv
       res.set('Cache-Control','private, no-store').json({success:true,...readBoard()});
     }catch(error){
       if(error.status)return res.status(error.status).json({error:error.message});
-      if(error.code?.startsWith('SQLITE_CONSTRAINT'))return res.status(409).json({error:'A group or team name is already assigned. Check the draft and try again.'});
+      if(error.code?.startsWith('SQLITE_CONSTRAINT')) {
+        const message=error.code==='SQLITE_CONSTRAINT_UNIQUE'
+          ?'A group or team name is already assigned. Check the draft and try again.'
+          :error.code==='SQLITE_CONSTRAINT_FOREIGNKEY'
+            ?'This team is still referenced by league data and cannot be removed.'
+            :'The group setup conflicts with existing league data. Reload the groups and try again.';
+        return res.status(409).json({error:message});
+      }
       next(error);
     }
   });

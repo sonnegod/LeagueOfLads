@@ -87,8 +87,13 @@ export function saveLeagueGroupBoard(db,input,{readBoard,rebuild,audit}) {
     }
     const entries=[...originalTeams.values()].filter(t=>t.EntryId!=null);
     for(const team of entries) {
-      if(!selected.has(groupTeamKey(team)))db.prepare('DELETE FROM LeagueRosterEntries WHERE LeagueId=? AND EntryId=?').run(leagueId,team.EntryId);
-      else db.prepare('UPDATE LeagueRosterEntries SET DisplayName=? WHERE LeagueId=? AND EntryId=?').run(`${token}:${team.EntryId}`,leagueId,team.EntryId);
+      if(!selected.has(groupTeamKey(team))) {
+        // Suggested opponents reference this entry; remove them before deleting the team.
+        db.prepare(`DELETE FROM SeasonMatchups WHERE SeasonId IN(
+          SELECT SeasonId FROM LeagueSeasons WHERE ExternalLeagueId=?)
+          AND (TeamAEntryId=? OR TeamBEntryId=?)`).run(leagueId,team.EntryId,team.EntryId);
+        db.prepare('DELETE FROM LeagueRosterEntries WHERE LeagueId=? AND EntryId=?').run(leagueId,team.EntryId);
+      }else db.prepare('UPDATE LeagueRosterEntries SET DisplayName=? WHERE LeagueId=? AND EntryId=?').run(`${token}:${team.EntryId}`,leagueId,team.EntryId);
     }
     const orders=new Map();
     const nextSort=groupId=>{const order=(orders.get(groupId)||0)+1;orders.set(groupId,order);return order;};
