@@ -12,42 +12,39 @@ const PlayoffBracketEditor = () => {
   const [loading, setLoading] = useState(true);
   const [bracket, setBracket] = useState(null);
   const [existing, setExisting] = useState(null);
+  const [error,setError]=useState('');
+  const [attempt,setAttempt]=useState(0);
 
   const [teams, setTeams] = useState([]);
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
+    const controller=new AbortController();
     const init = async () => {
-
-      const res = await fetch('/api/admin/playoffBracket');
-      const data = await res.json();
-
-      // Simulate checking for existing bracket
-      const existingBracket = data.playoffBracket;
-
-      setTeams(data.result || []);
-
-      if (existingBracket) {
-        const normalized = normalizeEqualSizePlayoffBracket(existingBracket);
-        setBracket(normalized.bracket);
-        setExisting(true)
-        setDirty(normalized.changed);
-        if (normalized.error) console.error(normalized.error);
-        setLoading(false);
-
-      } else {
-        // Generate Fresh Logic
-        const newStruct = generatePlayoffBracket(data.result || []);
-        setBracket(newStruct);
-        setExisting(false);
-        setLoading(false);
-
-      }
-      setLoading(false);
+      setLoading(true);setError('');
+      try {
+        const res = await fetch('/api/admin/playoffBracket',{signal:controller.signal});
+        const data = await res.json();
+        if(!res.ok)throw Error(data.error||'Could not load playoff teams');
+        if(controller.signal.aborted)return;
+        setTeams(data.result || []);
+        if (data.playoffBracket) {
+          const normalized = normalizeEqualSizePlayoffBracket(data.playoffBracket);
+          setBracket(normalized.bracket);
+          setExisting(true);
+          setDirty(normalized.changed);
+          if (normalized.error) console.error(normalized.error);
+        } else {
+          setBracket(generatePlayoffBracket(data.result || []));
+          setExisting(false);setDirty(false);
+        }
+      }catch(error){if(!controller.signal.aborted)setError(error.message);}
+      finally{if(!controller.signal.aborted)setLoading(false);}
     };
 
     init();
-  }, []);
+    return()=>controller.abort();
+  }, [attempt]);
 
   // --- CORE LOGIC: UPDATE MATCH & ADVANCE TEAMS ---
   const updateMatch = (matchId, field, value) => {
@@ -170,6 +167,7 @@ const PlayoffBracketEditor = () => {
   };
 
   if (loading) return <div style={styles.loading}>Generating Bracket Structure...</div>;
+  if(error)return <div role="alert">{error} <button type="button" onClick={()=>setAttempt(value=>value+1)}>Reload playoff teams</button></div>;
 
   if (!bracket || existing === null) {
     return <div>Loading bracket data...</div>; // Show a loader or null

@@ -219,8 +219,7 @@ export function buildAnalytics({ analytics, league, publicDb = null, firstSeason
       for (const season of seasons) {
         const boundary = hasBounds && season.ExternalLeagueId ? league.prepare(`SELECT GroupEndMatchId,
           TieBreakerEndMatchId FROM LeagueStageBoundaries WHERE LeagueId = ?`).get(season.ExternalLeagueId) : null;
-        const liveRules = hasLiveRules && season.ExternalLeagueId ? league.prepare(`SELECT UpperBracketTeams,
-          LowerBracketTeams, EliminatedTeams, HasTiebreaker, TiebreakerPosition FROM LeagueRules WHERE LeagueId = ?`)
+        const liveRules = hasLiveRules && season.ExternalLeagueId ? league.prepare(`SELECT * FROM LeagueRules WHERE LeagueId = ?`)
           .get(season.ExternalLeagueId) : null;
         const rules = liveRules ?? (!season.Preview && hasRules ? league.prepare(`SELECT UpperBracketTeams, LowerBracketTeams, EliminatedTeams,
           HasTiebreaker, TiebreakerPosition FROM SeasonLeagueRules WHERE SeasonId = ?`).get(season.SeasonId) : null);

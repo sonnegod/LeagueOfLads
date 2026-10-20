@@ -37,6 +37,7 @@ function toAppTeam(team) {
 export async function getAppStandingsPayload(db, leagueId, { groupId = null } = {}) {
   const rules = db.getLeagueRules(leagueId) || DEFAULT_LEAGUE_RULES;
   let groups = await db.getLeagueLeaderboard(leagueId);
+  const groupNumbers=new Map(groups.map((group,index)=>[group.GroupId,index+1]));
 
   if (groupId !== null) {
     groups = groups.filter((group) => Number(group.GroupId) === Number(groupId));
@@ -44,7 +45,7 @@ export async function getAppStandingsPayload(db, leagueId, { groupId = null } = 
 
   const appGroups = await Promise.all(groups.map(async (group) => {
     const sortedTeams = [...await db.getGroupStats(group)].sort(compareStandings);
-    const teams = classifyStandings(sortedTeams, rules).map(toAppTeam);
+    const teams = classifyStandings(sortedTeams, rules,groupNumbers.get(group.GroupId)).map(toAppTeam);
 
     return {
       groupId: numeric(group.GroupId),

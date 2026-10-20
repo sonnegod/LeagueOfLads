@@ -94,8 +94,18 @@ CREATE TABLE LeagueRules (
             EliminatedTeams INTEGER NOT NULL,
             HasTiebreaker INTEGER NOT NULL DEFAULT 0,
             TiebreakerPosition INTEGER,
+            QualificationJson TEXT,
             UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+
+-- table: LeagueQualificationStages
+CREATE TABLE LeagueQualificationStages (
+    LeagueId INTEGER PRIMARY KEY,
+    SnapshotJson TEXT NOT NULL,
+    ResultsJson TEXT,
+    StartedAtUtc TEXT NOT NULL,
+    FinalizedAtUtc TEXT
+);
 
 -- table: LeagueStageBoundaries
 CREATE TABLE LeagueStageBoundaries (

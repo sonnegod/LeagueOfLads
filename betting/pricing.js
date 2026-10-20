@@ -30,7 +30,7 @@ export function movedPrices(selections, stakes, policy = PRICE_POLICY) {
 }
 
 export function seriesDistribution(p, bestOf) {
-  if (!(p > 0 && p < 1) || ![2,3,5].includes(bestOf)) throw new Error('Invalid series model');
+  if (!(p > 0 && p < 1) || ![1,2,3,5].includes(bestOf)) throw new Error('Invalid series model');
   const outcomes = [];
   const walk = (a, b, probability) => {
     const done = bestOf === 2 ? a + b === 2 : a === (bestOf + 1) / 2 || b === (bestOf + 1) / 2;

@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import dotenv from 'dotenv';
-import { classifyStandings, DEFAULT_LEAGUE_RULES, normalizeLeagueRules } from './config/leagueRules.js';
+import { classifyStandings, DEFAULT_LEAGUE_RULES } from './config/leagueRules.js';
 import { buildGroupResults } from './config/groupResults.js';
 import { planRosterLinks } from './config/rosterMatching.js';
 import SiteRulesStore from './config/siteRulesStore.js';
@@ -21,6 +21,7 @@ import { getReportingPlayers } from './config/warehouseReporting.js';
 import { updateMatchRecord } from './config/matchRecordAdmin.js';
 import { initializeWarehouse } from './config/warehouseIngestion.js';
 import { configureWarehouseConnection } from './config/warehouseConnection.js';
+import { ensureQualificationSchema, saveQualificationRules } from './config/qualificationStore.js';
 dotenv.config();
 
 class DBInstance {
@@ -61,6 +62,7 @@ class DBInstance {
             TiebreakerPosition INTEGER,
             UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )`).run();
+        ensureQualificationSchema(this.db);
     }
 
     getSiteRules(){ return this.siteRules.list(); }
@@ -265,22 +267,13 @@ class DBInstance {
     }
 
     saveLeagueRules(leagueId, rules){
-        const normalized = normalizeLeagueRules(rules);
-        this.db.prepare(`INSERT INTO LeagueRules
-            (LeagueId, UpperBracketTeams, LowerBracketTeams, EliminatedTeams, HasTiebreaker, TiebreakerPosition, UpdatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(LeagueId) DO UPDATE SET
-              UpperBracketTeams=excluded.UpperBracketTeams,
-              LowerBracketTeams=excluded.LowerBracketTeams,
-              EliminatedTeams=excluded.EliminatedTeams,
-              HasTiebreaker=excluded.HasTiebreaker,
-              TiebreakerPosition=excluded.TiebreakerPosition,
-              UpdatedAt=CURRENT_TIMESTAMP`).run(
-                leagueId, normalized.UpperBracketTeams, normalized.LowerBracketTeams,
-                normalized.EliminatedTeams, normalized.HasTiebreaker ? 1 : 0,
-                normalized.TiebreakerPosition
-            );
-        return this.getLeagueRules(leagueId);
+        return this.db.transaction(()=>{
+            const groups=this.getLeagueSetup(leagueId);
+            const saved=saveQualificationRules(this.db,leagueId,rules,groups.map(group=>group.teams.length));
+            this.db.prepare('UPDATE LeagueRules SET UpdatedAt=CURRENT_TIMESTAMP WHERE LeagueId=?').run(leagueId);
+            this.recordAdminAudit('League Rules Changed',`Updated group qualification and tiebreaker rules for league ${leagueId}`);
+            return saved;
+        })();
     }
 
     ensureLiveMatchSchema(){
@@ -1807,7 +1800,7 @@ class DBInstance {
             const groups = await this.getCurrentLeagueLeaderboard();
 
             const groupsWithTeams = await Promise.all(
-                groups.map(async (group) => {
+                groups.map(async (group, groupIndex) => {
                     const groupTeams = await this.getGroupStats(group);
 
                     // Ensure teams are sorted correctly
@@ -1820,7 +1813,7 @@ class DBInstance {
                     });
 
                     const rules = this.getLeagueRules(group.LeagueId) || DEFAULT_LEAGUE_RULES;
-                    const playoffTeams = classifyStandings(groupTeams, rules)
+                    const playoffTeams = classifyStandings(groupTeams, rules,groupIndex+1)
                         .filter((team) => team.Qualification === 'upper' || team.Qualification === 'lower');
 
 

@@ -39,21 +39,27 @@ export function PlayerOddsRow({player,...actions}) {
 }
 
 export function TeamOddsGroups({groups,...actions}) {
-  const columns=[{key:'champion',label:'Champion'},{key:'upper',label:'Upper bracket'},{key:'lower',label:'Lower bracket'},{key:'eliminated',label:'Eliminated'},{key:'wins',label:'Season wins'}];
-  return <div className="historical-team-groups">{groups.map(group=><section className="historical-team-group" key={group.groupId??'unassigned'}>
-    <h2>{group.name}</h2><p className="historical-team-wins-help">Season wins counts regular-season games. A BO2 split gives each team one win.</p><div className="historical-betting-fixtures"><table className="sportsbook-table historical-team-table">
+  const columns=[{key:'champion',label:'Champion'},{key:'upper',label:'UB',description:'Upper bracket'},
+    {key:'lower',label:'LB',description:'Lower bracket'},{key:'eliminated',label:'ELIM',description:'Eliminated'},{key:'wins',label:'Season wins'}];
+  if(!groups.length)return null;
+  return <section className="team-odds-board" aria-label="Team odds">
+    <div className="team-odds-heading"><h2>Team odds</h2><p>Season wins counts regular-season games. A BO2 split gives each team one win.</p></div>
+    <table className="sportsbook-table team-odds-table" role="table" aria-label="Team odds by group">
       <colgroup><col style={{width:'28%'}} />{columns.map(c=><col key={c.key} style={{width:c.key==='wins'?'28%':'11%'}} />)}</colgroup>
-      <thead><tr><th scope="col">Team</th>{columns.map(c=><th key={c.key} scope="col">{c.label}</th>)}</tr></thead><tbody>
-        {group.teams.map(team=><tr key={team.teamKey||team.teamId}><th scope="row">{team.teamId?<Link to={`/team/${team.teamId}`} title={team.name}>{team.name}</Link>:team.name}
-          {team.pendingPlayers>0&&<small className="sportsbook-notice" style={{display:'block'}} title="Team odds include an estimated contribution for each pending roster spot">Provisional roster · {team.pendingPlayers} Player TBD</small>}</th>
+      <thead className="team-odds-columns" role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Team</th>{columns.map(c=><th key={c.key} scope="col" role="columnheader" title={c.description} aria-label={c.description}>{c.label}</th>)}</tr></thead>
+      {groups.map(group=><tbody key={group.groupId??'unassigned'} role="rowgroup" aria-label={group.name}>
+        <tr className="team-odds-group-heading" role="row"><th scope="rowgroup" colSpan={6} role="rowheader"><span>{group.name}</span><small>{group.teams.length} teams</small></th></tr>
+        {group.teams.map(team=><tr className="team-odds-team" key={team.teamKey||team.teamId} role="row"><th scope="row" role="rowheader">{team.teamId?<Link to={`/team/${team.teamId}`} title={team.name}>{team.name}</Link>:team.name}
+          {team.pendingPlayers>0&&<small className="sportsbook-notice" title="Team odds include an estimated contribution for each pending roster spot">Provisional roster · {team.pendingPlayers} Player TBD</small>}</th>
           {columns.map(column=>{
-            if(column.key==='wins')return <td key="wins" className="historical-team-wins"><PlayerMarketPrices market={team.wins} {...actions}/></td>;
+            if(column.key==='wins')return <td key="wins" role="cell" className="team-odds-wins"><span className="team-odds-label" aria-hidden="true">Season wins</span><PlayerMarketPrices market={team.wins} {...actions}/></td>;
             const offer=column.key==='champion'?team.champion:team.placement.find(p=>p.key===column.key);
             const odds=offer?.selection?.odds??(column.key==='champion'?team.championOdds:offer?.odds);
-            return <td key={column.key}>{odds==null?<span aria-label="Not offered">—</span>:actions.onChoose&&offer?.market
-              ?<OutcomeButton {...offer} {...actions} compact />:<strong className="historical-team-price">{odds.toFixed(2)}×</strong>}</td>;
+            return <td key={column.key} role="cell"><span className="team-odds-label" title={column.description} aria-hidden="true">{column.label}</span>
+              {odds==null?<span aria-label="Not offered">—</span>:actions.onChoose&&offer?.market
+              ?<OutcomeButton {...offer} {...actions} compact />:<strong className="team-odds-price">{odds.toFixed(2)}×</strong>}</td>;
           })}
         </tr>)}
-      </tbody></table></div>
-  </section>)}</div>;
+      </tbody>)}</table>
+  </section>;
 }

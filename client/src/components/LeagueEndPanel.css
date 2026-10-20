@@ -26,3 +26,14 @@
 }
 
 .league-stage-error { color: #f87171; }
+.tiebreaker-results-review {display:grid;gap:.8rem;min-width:0;}
+.tiebreaker-results-review h3,.tiebreaker-result-pool h4,.tiebreaker-results-review p {margin:0;}
+.tiebreaker-result-pool {padding:.8rem;border:1px solid var(--border,#334155);border-radius:8px;min-width:0;}
+.tiebreaker-result-pool ol {padding-left:1.5rem;}
+.tiebreaker-result-pool ol li {padding:.45rem 0;}
+.tiebreaker-result-pool ol li>span:first-child {display:inline-block;min-width:min(100%,200px);margin-right:.7rem;}
+.tiebreaker-result-pool small {display:block;color:var(--muted-text,#94a3b8);}
+.tiebreaker-result-pool ol strong {font-size:.8rem;}
+.tiebreaker-order-buttons {display:inline-flex;gap:.3rem;margin-left:.7rem;}
+.tiebreaker-confirm-order {display:flex;align-items:flex-start;gap:.6rem;font-size:.85rem;line-height:1.5;}
+.tiebreaker-confirm-order input {margin-top:.2rem;}

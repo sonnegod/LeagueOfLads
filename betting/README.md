@@ -295,7 +295,47 @@ field can resolve a repeated hour explicitly, e.g. `2026-11-01T06:00:00Z`.
 - Champion and bracket-placement futures for supported standard BO2 round-robin
   groups and the existing playoff bracket. Initial champion simulation requires
   power-of-two upper/lower counts, with lower count equal to or twice upper;
-  tiebreaker-enabled and nonstandard formats hold rather than invent a bracket.
+  unresolved tiebreakers and nonstandard formats hold rather than invent a bracket.
+
+### Active group qualification and tiebreakers
+
+In **Admin → League → Settings → Initial group setup → Edit rules**, assign
+finishing positions to upper, lower, eliminated, or a named tiebreaker
+pool. The same position rules apply to every group, including groups of different sizes. Rows assigned to the
+same pool combine across groups; several independent pools may coexist. The
+editor uses one set of color-coded finishing positions across all groups, shows
+pool entrants, and summarizes direct and tiebreaker qualification totals beside
+the rules. Smaller groups use only the positions they have.
+For each pool, choose a BO1 or BO3 round robin and the numbers advancing to upper,
+lower and elimination. These counts must account for every entrant. For example,
+third place from three groups can send its top two to upper and the last to lower.
+A separate lower pool can advance one to lower and eliminate its other two.
+
+The active league stores this explicit plan in `LeagueRules.QualificationJson`.
+Existing historical rules and draft-season count settings are retained. Startup
+adds the nullable column; no deploy-time data validation or migration script is
+needed. Saves check group sizes, destinations, outcome counts, active league and
+the rules revision so another admin's edits are not overwritten. Before play
+starts, saving updates an existing finalized Betting setup and queues refresh.
+
+Starting tiebreakers snapshots entrants and rules in `LeagueQualificationStages`
+and locks rule editing. Each named pool has its own league subtab with standings
+and a head-to-head matrix. League stages reviews the BO1/BO3 round-robin results
+using series wins then Neustadtl. All pairings must be complete; an admin must
+confirm remaining tied orders that cross upper/lower/elimination cutoffs.
+Starting playoffs atomically saves final pool ranks, bracket destinations and
+`PlayoffSeeding`, together with the tiebreaker stage boundary. Stale result
+reviews are rejected. Saved placements and scores survive restarts and later
+standings changes; the bracket editor uses the stored upper/lower qualifiers.
+
+Analytics carries the plan into private Betting inputs. Each season simulation
+plays the regular BO2 groups, then the configured pools, then the supported
+playoff bracket. Pool ranking uses series wins and Neustadtl, with remaining ties
+randomized within simulations. Tiebreaker games do not add to regular-season win
+totals or player props. Completed pools contribute to upper/lower/elimination
+probabilities; champion odds also require the final counts to fit the existing
+playoff generator (power-of-two upper/lower fields, lower equal to or twice upper).
+Legacy single-position rules without outcomes remain unresolved for those odds.
 
 Pricing retains a temporally validated, shrunk league-results/signup-MMR
 baseline plus empirical player distributions and seeded simulations. Match

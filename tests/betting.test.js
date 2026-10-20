@@ -45,11 +45,13 @@ test('Discord time formats use message time, New York DST, explicit AM and year 
   assert.equal(parsed.team1Key,11);assert.equal(parsed.bestOf,2);
 });
 
-test('BO2/BO3/BO5 score distributions are coherent and wager prices remain anchored',()=>{
-  for(const bestOf of [2,3,5]) {
+test('BO1/BO2/BO3/BO5 score distributions are coherent and wager prices remain anchored',()=>{
+  for(const bestOf of [1,2,3,5]) {
     const scores=seriesDistribution(.6,bestOf);assert.ok(Math.abs(scores.reduce((s,p)=>s+p.probability,0)-1)<1e-12);
-    assert.equal(scores.length,bestOf===2?3:bestOf===3?4:6);
+    assert.equal(scores.length,bestOf===1?2:bestOf===2?3:bestOf===3?4:6);
   }
+  assert.ok(Math.abs(seriesDistribution(.7,1).find(score=>score.a>score.b).probability-.7)<1e-12);
+  assert.ok(seriesDistribution(.7,3).filter(score=>score.a>score.b).reduce((sum,score)=>sum+score.probability,0)>.7);
   const selections=[.3,.4,.3].map(Probability=>({Probability,AnchorMicros:anchorPrice(Probability)}));
   for(const stakes of [[1,0,0],[10000000,0,0],[0,10000,0]]) {
     const prices=movedPrices(selections,stakes);

@@ -1,10 +1,10 @@
 import { seriesDistribution } from './pricing.js';
-import { classifyStandings } from '../config/leagueRules.js';
+import { classifyStandings,normalizeLeagueRules,normalizeQualificationPlan } from '../config/leagueRules.js';
 import { generatePlayoffBracket } from '../client/src/utils/playoffBracket.js';
 import {activeLineup,lineupPrior,resultAvailableAt} from './rosterStrength.js';
 import {plannedGameCounts} from './seasonFormat.js';
 
-export const MODEL_VERSION = 'league-lineup-v5';
+export const MODEL_VERSION = 'league-lineup-v6';
 export const METRICS = Object.freeze({ kills:'Kills',deaths:'Deaths',assists:'Assists',last_hits:'LastHits',
   hero_damage:'HeroDamage',tower_damage:'TowerDamage',healing:'Healing',gpm:'GPM',xpm:'XPM' });
 export const metricLabel = key => ({ last_hits:'Last hits',hero_damage:'Hero damage',tower_damage:'Tower damage',gpm:'GPM',xpm:'XPM' })[key] || key[0].toUpperCase()+key.slice(1);
@@ -183,8 +183,11 @@ export function statForecast(inputs,{playerId,stat,scope,games=1,event,teamKey,l
 }
 
 export function simulateSeason(inputs,setup,random,samples=2000,{includeMatchups=false}={}) {
-  const rules=JSON.parse(inputs.season.RulesJson||'null'); if(!rules) return null;
-  const groups=[...new Set(inputs.teams.map(t=>t.GroupId))];
+  const rawRules=JSON.parse(inputs.season.RulesJson||'null'); if(!rawRules) return null;
+  const rules=normalizeLeagueRules(rawRules);
+  const groups=[...new Set(inputs.teams.map(t=>t.GroupId))].sort((a,b)=>a-b);
+  const plan=rules.QualificationPlan;
+  if(plan)try{normalizeQualificationPlan(plan,groups.map(group=>inputs.teams.filter(t=>t.GroupId===group).length));}catch{return null;}
   const gameCounts=plannedGameCounts(setup);
   if(groups.includes(null)) return null;
   // Model the published standard group format only. A nonstandard calendar
@@ -218,15 +221,32 @@ export function simulateSeason(inputs,setup,random,samples=2000,{includeMatchups
       const rows=teams.map(t=>({...t,Wins:stats.get(t.TeamSubmissionId).wins,
         Neustadtl:stats.get(t.TeamSubmissionId).opponents.filter(o=>o.won).reduce((s,o)=>s+stats.get(o.key).wins,0),tie:random()}))
         .sort((a,b)=>b.Wins-a.Wins||b.Neustadtl-a.Neustadtl||a.tie-b.tie);
-      const qualified=classifyStandings(rows,rules);
-      // An unresolved tiebreaker slot is a real format ambiguity for simulation.
-      // Placement buckets still work; bracket futures wait for a supported format.
-      qualified.forEach((t,i)=> { const bucket=t.Qualification==='tiebreaker'?'lower':t.Qualification;
-        placement.get(t.TeamSubmissionId)[bucket]++; seeded.push({...t,Bracket:bucket,SeedNumber:i+1,TeamId:t.TeamSubmissionId}); });
+      const qualified=classifyStandings(rows,rules,groups.indexOf(group)+1);
+      qualified.forEach((t,i)=>seeded.push({...t,Bracket:t.Qualification,SeedNumber:i+1,TeamId:t.TeamSubmissionId}));
     }
+    // Rows from any group can feed the same pool. Simulate its declared format
+    // before assigning final placement; regular-season win totals stay separate.
+    for(const pool of plan?.tiebreakers||[]) {
+      const entrants=seeded.filter(team=>team.TiebreakerId===pool.id);
+      const stats=new Map(entrants.map(team=>[team.TeamId,{wins:0,opponents:[]}]));
+      for(let a=0;a<entrants.length;a++)for(let b=a+1;b<entrants.length;b++) {
+        const left=entrants[a].TeamId,right=entrants[b].TeamId;
+        const scores=seriesDistribution(teamProbability(inputs,left,right),pool.bestOf);let draw=random();
+        const picked=scores.find(score=>(draw-=score.probability)<=0)||scores.at(-1),won=picked.a>picked.b;
+        stats.get(left).wins+=Number(won);stats.get(right).wins+=Number(!won);
+        stats.get(left).opponents.push({key:right,won});stats.get(right).opponents.push({key:left,won:!won});
+      }
+      const ranked=entrants.map(team=>({...team,poolWins:stats.get(team.TeamId).wins,
+        score:stats.get(team.TeamId).opponents.filter(o=>o.won).reduce((sum,o)=>sum+stats.get(o.key).wins,0),tie:random()}))
+        .sort((a,b)=>b.poolWins-a.poolWins||b.score-a.score||a.tie-b.tie);
+      ranked.forEach((team,index)=>{
+        seeded.find(t=>t.TeamId===team.TeamId).Bracket=index<pool.upper?'upper':index<pool.upper+pool.lower?'lower':'eliminated';
+      });
+    }
+    seeded.forEach(team=>{const bucket=team.Bracket==='tiebreaker'?'lower':team.Bracket;placement.get(team.TeamId)[bucket]++;});
     const upper=seeded.filter(t=>t.Bracket==='upper');const lower=seeded.filter(t=>t.Bracket==='lower');
     const power=n=>n>=2&&(n&(n-1))===0;
-    const supported=power(upper.length)&&power(lower.length)&&(lower.length===upper.length||lower.length===2*upper.length)&&!rules.HasTiebreaker;
+    const supported=power(upper.length)&&power(lower.length)&&(lower.length===upper.length||lower.length===2*upper.length)&&(!rules.HasTiebreaker||!!plan);
     if(!supported) continue;
     const bracket=generatePlayoffBracket(seeded); const nodes=[...bracket.upperBracket.flatMap(r=>r.matches),...bracket.lowerBracket.flatMap(r=>r.matches),...bracket.grandFinals];
     const byId=new Map(nodes.map(n=>[n.id,n]));
@@ -250,7 +270,7 @@ export function simulateSeason(inputs,setup,random,samples=2000,{includeMatchups
     }
     if(winner&&resolved===nodes.length) {champion.set(winner,champion.get(winner)+1);finalists.forEach(key=>finalist.set(key,finalist.get(key)+1));counts.push(1);}
   }
-  return { samples,regularWins:Object.fromEntries(regularWins),...(includeMatchups?{matchups:[...matchups.values()]}:{}),placement:rules.HasTiebreaker?null:Object.fromEntries([...placement].map(([key,b])=>[key,Object.fromEntries(Object.entries(b).map(([k,n])=>[k,n/samples]))])),
+  return { samples,regularWins:Object.fromEntries(regularWins),...(includeMatchups?{matchups:[...matchups.values()]}:{}),placement:rules.HasTiebreaker&&!plan?null:Object.fromEntries([...placement].map(([key,b])=>[key,Object.fromEntries(Object.entries(b).map(([k,n])=>[k,n/samples]))])),
     champion:counts.length===samples?Object.fromEntries([...champion].map(([k,n])=>[k,(n+1)/(samples+champion.size)])):null,
     finalist:counts.length===samples?Object.fromEntries([...finalist].map(([k,n])=>[k,(n+1)/(samples+2)])):null };
 }

@@ -92,6 +92,18 @@ new prices. See [betting/README.md](betting/README.md) for setup, market types,
 verified result links, deployment, and Discord scheduling.
 ## Suggested regular season matchups
 
+Active league qualification rules are edited in **Admin → League → Settings →
+Initial group setup → Edit rules**. Assign each finishing position once for all groups to upper, lower,
+eliminated or a named tiebreaker pool. Pools combine selected rows across groups
+and define their BO1/BO3 format and advancement counts. Standings and preseason
+Betting use the same saved plan; historical seasons retain their existing rules.
+
+Starting tiebreakers freezes each pool's entrants and rules. The league's
+Tiebreakers tab has a separate subtab for each pool's standings and head-to-head
+results. In League stages, review the completed results and confirm any tied
+qualification cutoffs before starting playoffs. Closing tiebreakers saves the
+final placements and supplies the bracket editor's upper/lower team pools.
+
 Once a league starts, admins can open **Admin > League > Schedule** to set the first
 window's date and the pace of play. The default is **3 series per team every 2 weeks**;
 both counts are configurable. Save the pace, then randomize a single round robin

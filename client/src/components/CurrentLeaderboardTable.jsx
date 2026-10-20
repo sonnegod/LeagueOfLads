@@ -244,6 +244,7 @@ export default function CurrentLeagueSeries({ leagueId }) {
                               ? <Link to={`/team/roster/${team.TeamSubmissionId}`} target="_blank" rel="noopener noreferrer">{team.TeamName}</Link>
                               : team.TeamName)
                             : <Link to={`/team/${team.TeamId}`} target="_blank" rel="noopener noreferrer">{team.TeamName}</Link>}
+                          {team.TiebreakerName&&<small className="leaderboard-tiebreaker-name">{team.TiebreakerName}</small>}
                         </th>
                         <td>{team.Wins}</td>
                         <td>{team.Losses}</td>

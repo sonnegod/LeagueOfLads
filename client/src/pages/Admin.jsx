@@ -11,7 +11,6 @@ import PlayoffBracketEditor from "../components/PlayoffBracketEditor";
 import SeasonAdminPanel from "../components/SeasonAdminPanel";
 import SeasonSchedulePanel from "../components/SeasonSchedulePanel";
 import UnmatchedMatchTeamsPanel from "../components/UnmatchedMatchTeamsPanel";
-import LeagueRulesCard from "../components/LeagueRulesCard";
 import AdminManagementPanel from "../components/AdminManagementPanel";
 import AdminRequestsPanel from "../components/AdminRequestsPanel";
 import RulesAdminPanel from "../components/RulesAdminPanel";
@@ -197,7 +196,6 @@ export default function AdminPage() {
         {activeTab === "league" && activeLeagueTab === "settings" &&
           <div style={pageContainer}>
             <LeagueSetupTable refreshKey={refreshKey} onUpdated={triggerRefresh} />
-            <LeagueRulesCard refreshKey={refreshKey} />
           </div>}
         {activeTab === "league" && activeLeagueTab === "rosterChanges" && <div style={pageContainer}><RosterChangesPanel refreshKey={refreshKey} onChanged={triggerRefresh} /></div>}
         {activeTab === "admin" && activeAdminTab === "adminManagement" && <AdminManagementPanel />}

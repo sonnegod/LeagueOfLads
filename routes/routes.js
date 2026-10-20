@@ -17,7 +17,7 @@ import { publicSeasonRoutes, adminSeasonRoutes } from './seasonRoutes.js';
 import { createAnalyticsRoutes } from './analyticsRoutes.js';
 import { createBettingRoutes } from './bettingRoutes.js';
 import { createBettingRuntime, mutationRefresh } from '../betting/runtime.js';
-import { classifyStandings, DEFAULT_LEAGUE_RULES } from '../config/leagueRules.js';
+import { classifyStandings, DEFAULT_LEAGUE_RULES,qualificationPools } from '../config/leagueRules.js';
 import {
   getAppLiveMatchesPayload,
   toAppLiveMatch,
@@ -28,6 +28,10 @@ import { getAppStandingsPayload } from './utility/standingsResponses.js';
 import { createPlayerAwardsRouter } from './playerAwardsRoutes.js';
 import { createWarehouseReportingRouter } from './warehouseReportingRoutes.js';
 import { createLeagueGroupBoardRouter } from './leagueGroupBoardRoutes.js';
+import { createLeagueRulesRouter } from './leagueRulesRoutes.js';
+import { refreshQualificationSetup } from '../config/qualificationStore.js';
+import {createQualificationStageRouter} from './qualificationStageRoutes.js';
+import {readQualificationStage,readQualificationMatches,qualificationStageResponse} from '../config/tiebreakerStage.js';
 import { createPlayerLoginRouter } from './playerLoginRoutes.js';
 
 import dotenv from 'dotenv';
@@ -213,6 +217,13 @@ router.use('/site-management', createSiteManagementRouter({ bettingRoutes: admin
 
 router.use('/admin', checkAdmin);
 router.use('/admin', mutationRefresh);
+router.use('/admin',createQualificationStageRouter({db:db.db,getActiveLeague:()=>db.getActiveLeague()?.[0],
+  getRules:id=>db.getLeagueRules(id),getGroups:id=>db.getLeagueSetup(id),getLastMatch:()=>db.getLastMatchForActiveLeague()?.[0],
+  getUnlinkedCount:id=>db.getUnlinkedRosterCount(id),
+  audit:(type,message)=>db.recordAdminAudit(type,message)}));
+router.use('/admin',createLeagueRulesRouter({db:db.db,getActiveLeague:()=>db.getActiveLeague()?.[0],
+  getRules:id=>db.getLeagueRules(id),saveRules:(id,rules)=>db.saveLeagueRules(id,rules),
+  changed:leagueId=>refreshQualificationSetup(db.db,bettingRuntime.schedules,leagueId)}));
 router.use('/admin', createLeagueGroupBoardRouter({db:db.db,
   getActiveLeague:()=>db.getActiveLeague()?.[0],getGroups:id=>db.getLeagueSetup(id),
   getAvailableTeams:id=>db.getLeagueMatchTeams(id),rebuild:id=>db.rebuildLeagueGroupStandings(id),
@@ -569,26 +580,6 @@ router.get('/admin/activeLeague', checkAdmin, (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Failed to load active league' });
   }
-});
-
-router.get('/admin/leagueRules', checkAdmin, (req, res) => {
-  const league = db.getActiveLeague()?.[0];
-  if (!league) return res.status(404).json({ error: 'No active league' });
-  res.json({ league, rules: db.getLeagueRules(league.LeagueId) });
-});
-
-router.post('/admin/leagueRules', checkAdmin, (req, res) => {
-  const league = db.getActiveLeague()?.[0];
-  if (!league) return res.status(404).json({ error: 'No active league' });
-  const values = req.body || {};
-  const counts = ['UpperBracketTeams', 'LowerBracketTeams', 'EliminatedTeams'];
-  if (counts.some((key) => !Number.isInteger(Number(values[key])) || Number(values[key]) < 0)) {
-    return res.status(400).json({ error: 'Team counts must be non-negative integers' });
-  }
-  if (values.HasTiebreaker && (!Number.isInteger(Number(values.TiebreakerPosition)) || Number(values.TiebreakerPosition) < 1)) {
-    return res.status(400).json({ error: 'Tiebreaker position must be a positive integer' });
-  }
-  res.json({ success: true, rules: db.saveLeagueRules(league.LeagueId, values) });
 });
 
 router.post('/admin/leagues', checkAdmin, (req, res) => {
@@ -1428,6 +1419,7 @@ router.get('/leagueStage', (req, res) => {
 
 router.get('/tiebreakerInfo', async (req, res) => {
   try {
+    res.set('Cache-Control','no-store');
     const leagueId = req.query.leagueId || resolveActiveLeague();
 
     if (!leagueId) {
@@ -1441,10 +1433,16 @@ router.get('/tiebreakerInfo', async (req, res) => {
       });
     }
 
+    const saved=readQualificationStage(db.db,leagueId);
+    if(saved) {
+      const boundary=db.getLeagueStageBoundaries(leagueId)?.[0];
+      const matches=boundary?readQualificationMatches(db.db,leagueId,boundary):[];
+      return res.json(qualificationStageResponse(saved,matches));
+    }
     const groups = await db.getLeagueLeaderboard(leagueId);
 
     const groupsWithTeams = await Promise.all(
-      groups.map(async (group) => {
+      groups.map(async (group, groupIndex) => {
         const groupTeams = await db.getGroupStats(group);
 
         // Ensure teams are sorted correctly
@@ -1458,7 +1456,7 @@ router.get('/tiebreakerInfo', async (req, res) => {
 
         // ---- BUCKET LOGIC ----
         const rules = db.getLeagueRules(leagueId) || DEFAULT_LEAGUE_RULES;
-        const classified = classifyStandings(groupTeams, rules);
+        const classified = classifyStandings(groupTeams, rules, groupIndex+1);
         const upper = classified.filter((team) => team.Qualification === 'upper');
         const tiebreaker = classified.filter((team) => team.Qualification === 'tiebreaker');
         const lower = classified.filter((team) => team.Qualification === 'lower');
@@ -1497,6 +1495,7 @@ router.get('/tiebreakerInfo', async (req, res) => {
       success: true,
       groups: groupsWithTeams,
       tiebreakerTeams: allTiebreakerTeams,
+      tiebreakerPools: qualificationPools(allTiebreakerTeams,db.getLeagueRules(leagueId)||DEFAULT_LEAGUE_RULES),
       upperBracketTeams: allUpperBracketTeams,
       lowerBracketTeams: allLowerBracketTeams,
       eliminatedTeams: allEliminatedTeams,
@@ -1567,20 +1566,19 @@ router.get('/tiebreakerMatches', (req, res) => {
 router.get('/admin/playoffBracket', (req, res) => {
   try {
 
-    let result = -1;
+    const result = db.adminGetCurrentPlayoffTeams();
 
     const playoff = db.adminGetCurrentPlayoffBracket();
 
     if(playoff.length === 0){
       //return playoff teams
-      result = db.adminGetCurrentPlayoffTeams();
 
       return res.json({ result });
     }
     else{
       const playoffBracket = JSON.parse(playoff[0].PlayoffStructure);
 
-      return res.json({ playoffBracket });
+      return res.json({ playoffBracket,result });
     }
 
 
@@ -2307,13 +2305,13 @@ router.get('/currentLeaderboard', async (req, res) => {
 
 
     const groupsWithTeams = await Promise.all(
-      groups.map(async (group) => {
+      groups.map(async (group, groupIndex) => {
         const groupTeams = await db.getGroupStats(group);
         const groupH2H = await db.getHeadToHeadStats(group);
         const rules = db.getLeagueRules(leagueId) || DEFAULT_LEAGUE_RULES;
         return {
           ...group,
-          groupTeams: classifyStandings(groupTeams, rules),
+          groupTeams: classifyStandings(groupTeams, rules, groupIndex+1),
           rules,
           groupH2H
         };

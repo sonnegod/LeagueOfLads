@@ -9,6 +9,17 @@ import { ScheduleStore } from '../betting/scheduleStore.js';
 
 const at = new Date('2026-10-13T12:00:00.000Z');
 
+test('active group qualification plans survive Analytics publication for betting',()=>{
+  const f=fixture();try {
+    const plan={version:1,groups:[{group:1,rows:['tie:pool','tie:pool']}],
+      tiebreakers:[{id:'pool',name:'Upper play-in',bestOf:3,upper:1,lower:1,eliminated:0}]};
+    f.league.exec('CREATE TABLE LeagueRules(LeagueId INTEGER PRIMARY KEY,UpperBracketTeams INTEGER,LowerBracketTeams INTEGER,EliminatedTeams INTEGER,HasTiebreaker INTEGER,TiebreakerPosition INTEGER,QualificationJson TEXT)');
+    f.league.prepare('INSERT INTO LeagueRules VALUES(100,0,0,0,1,1,?)').run(JSON.stringify(plan));
+    buildAnalytics({...f,now:at});const inputs=readSeasonBettingInputs(f.analytics,3,at);
+    assert.deepEqual(JSON.parse(JSON.parse(inputs.season.RulesJson).QualificationJson),plan);
+  }finally{f.close();}
+});
+
 test('TBD slots remove placeholder membership, privately price five slots, and confirm without a permanent replacement',()=>{
   const f=fixture();try {
     f.league.exec(`UPDATE LeagueSeasons SET Status='active' WHERE SeasonId=3;

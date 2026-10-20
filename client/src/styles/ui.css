@@ -214,8 +214,8 @@
 .playoff-stage-actions button { margin-right: 0 !important; }
 .playoff-bracket-editor { min-width: 0; min-height: 0 !important; border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--ui-shadow); }
 
-/* Generic data tables only. The leaderboard colors, H2H matrices, and bracket stay as designed. */
-.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) {
+/* Generic data tables only. Qualification colors, H2H matrices, and brackets have their own styles. */
+.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *):not(.group-rule-table *) {
   border-collapse: separate !important;
   border-spacing: 0;
   border: 1px solid #334155;
@@ -225,7 +225,7 @@
   overflow: hidden;
 }
 
-.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) th {
+.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *):not(.group-rule-table *) th:not(.team-odds-group-heading *) {
   border-color: #334155 !important;
   background: #17243a !important;
   color: #cbd5e1 !important;
@@ -235,20 +235,20 @@
   text-transform: uppercase;
 }
 
-.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) td {
+.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *):not(.group-rule-table *) td {
   border-color: #334155 !important;
   color: #e2e8f0;
 }
 
-.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) tbody > tr:not(:has(table)) {
+.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *):not(.group-rule-table *) tbody > tr:not(:has(table)) {
   background: #0f172a !important;
 }
 
-.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) tbody > tr:not(:has(table)):hover {
+.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *):not(.group-rule-table *) tbody > tr:not(:has(table)):hover {
   background: #17243a !important;
 }
 
-.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) tbody > tr:has(table) > td {
+.content :where(table):not(.leaderboard-standings):not(.leaderboard-h2h-table):not(.admin-teams-matrix):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *):not(.group-rule-table *) tbody > tr:has(table) > td {
   background: #111c30 !important;
 }
 

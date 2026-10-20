@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import './LeagueEndPanel.css';
+import TiebreakerResultsReview from './TiebreakerResultsReview';
 
 async function request(url, options) {
   const response = await fetch(url, options);
@@ -23,6 +24,7 @@ export default function LeagueEndPanel({ season, onEnded }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [qualificationReview,setQualificationReview]=useState(null);
 
   const loadStage = useCallback(async () => {
     const [stageData, rulesData] = await Promise.all([
@@ -41,16 +43,19 @@ export default function LeagueEndPanel({ season, onEnded }) {
   }, [loadStage, season.SeasonId]);
 
   async function advanceStage() {
+    if(stage==='tiebreakers'&&!qualificationReview?.ready)return;
     const toTiebreakers = stage === 'groups' && hasTiebreaker;
     const nextStage = toTiebreakers ? 'tiebreakers' : 'playoffs';
     const closingStage = stage === 'tiebreakers' ? 'tiebreaker' : 'group';
-    if (!window.confirm(`Start ${nextStage}? This closes the ${closingStage} stage at the latest recorded match.`)) return;
+    if (!window.confirm(`Start ${nextStage}? This closes the ${closingStage} stage at the latest recorded match.${stage==='tiebreakers'&&qualificationReview?.enabled?' Final tiebreaker placements and playoff qualification will be saved.':''}`)) return;
     setBusy(true);
     setError('');
     setMessage('');
     try {
       const result = await request(toTiebreakers
-        ? '/api/admin/activateTiebreakers' : '/api/admin/activatePlayoffs', { method: 'POST' });
+        ? '/api/admin/activateTiebreakers' : '/api/admin/activatePlayoffs', { method: 'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({leagueId:season.ExternalLeagueId,
+            ...(qualificationReview?.enabled?{qualificationRevision:qualificationReview.revision,poolOrders:qualificationReview.poolOrders}:{})}) });
       if (!result.success) throw new Error(result.error || `Could not start ${nextStage}`);
       await loadStage();
       setMessage(`${nextStage === 'playoffs' ? 'Playoffs' : 'Tiebreakers'} started.`);
@@ -82,8 +87,9 @@ export default function LeagueEndPanel({ season, onEnded }) {
     <div className="league-stage-current">
       <strong>Current stage:</strong> {stageLabel || 'Loading...'}
     </div>
+    {stage==='tiebreakers'&&<TiebreakerResultsReview leagueId={season.ExternalLeagueId} disabled={busy} onChange={setQualificationReview}/>}
     {stage && stage !== 'playoffs' && <div className="league-stage-actions">
-      <button className="ui-button-primary" type="button" disabled={busy} onClick={advanceStage}>
+      <button className="ui-button-primary" type="button" disabled={busy||stage==='tiebreakers'&&!qualificationReview?.ready} onClick={advanceStage}>
         {nextLabel}
       </button>
     </div>}

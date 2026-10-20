@@ -1,5 +1,6 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {Link} from 'react-router-dom';
+import GroupQualificationEditor from './GroupQualificationEditor';
 import './LeagueSetupTable.css';
 
 async function request(options={}) {
@@ -41,6 +42,7 @@ export default function LeagueSetupTable({refreshKey,onUpdated}) {
   const [snapshot,setSnapshot]=useState(null),[draft,setDraft]=useState(null),[newGroupName,setNewGroupName]=useState('');
   const [newTeamNames,setNewTeamNames]=useState({}),[dragged,setDragged]=useState(null);
   const [expandedTeams,setExpandedTeams]=useState({});
+  const [editingRules,setEditingRules]=useState(false);
   const [loadError,setLoadError]=useState(''),[saveError,setSaveError]=useState(''),[message,setMessage]=useState(''),[saving,setSaving]=useState(false);
   const mounted=useRef(false),pending=useRef(null),serial=useRef(0),savingRef=useRef(false),initialDraft=useRef('');
   const load=useCallback(async()=>{
@@ -95,15 +97,16 @@ export default function LeagueSetupTable({refreshKey,onUpdated}) {
       <div className="league-setup-actions">{editing?<>
         <button type="button" className="ui-button-primary" disabled={saving||conflict||Boolean(blocker)||!changed} onClick={save}>{saving?'Saving…':'Save groups'}</button>
         <button type="button" disabled={saving} onClick={cancel}>Cancel</button>
-      </>:<button type="button" disabled={!snapshot?.league} onClick={()=>{
+      </>:<><button type="button" disabled={!snapshot?.league||editingRules} onClick={()=>{
         const next=beginDraft(snapshot);initialDraft.current=JSON.stringify(payload(next));setDraft(next);setMessage('');setSaveError('');
-      }}>Edit groups</button>}</div>
+      }}>Edit groups</button><button type="button" disabled={!snapshot?.league} onClick={()=>setEditingRules(value=>!value)}>{editingRules?'Hide rules':'Edit rules'}</button></>}</div>
     </div>
     {loadError&&<p className="league-setup-error" role="alert">{loadError} <button type="button" onClick={load}>Retry</button></p>}
     {saveError&&<p className="league-setup-error" role="alert">{saveError}</p>}
     {conflict&&<p className="league-setup-conflict" role="alert">Another admin or league update changed the saved groups. Your draft is still here. Cancel editing to load the latest version.</p>}
     {message&&<p className="league-setup-message" role="status">{message}</p>}
-    {!snapshot?<p>Loading groups…</p>:!snapshot.league&&!editing?<p>No active league.</p>:<>
+    {editingRules&&snapshot?.league&&<GroupQualificationEditor leagueId={snapshot.league.LeagueId} groups={snapshot.groups} onSaved={onUpdated}/>}
+    {!editingRules&&(!snapshot?<p>Loading groups…</p>:!snapshot.league&&!editing?<p>No active league.</p>:<>
       <p className="league-setup-hint">{editing?'Drag teams between groups, or use their group dropdown. Removing a team also deletes its signup and roster. Changes apply when you save.':'Click Edit groups to make changes. Saved changes from other admins appear automatically.'}</p>
       {editing&&<form className="league-setup-add-group" onSubmit={event=>{
         event.preventDefault();const name=newGroupName.trim();if(!name)return;
@@ -161,6 +164,6 @@ export default function LeagueSetupTable({refreshKey,onUpdated}) {
           value={newTeamNames[group.id]||''} onChange={event=>setNewTeamNames(current=>({...current,[group.id]:event.target.value}))} />
           <button type="submit" disabled={saving||!(newTeamNames[group.id]||'').trim()}>Add team</button></form>}
       </section>)}</div>
-    </>}
+    </>)}
   </section>;
 }

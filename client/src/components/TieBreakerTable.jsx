@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from 'react-router-dom';
 
-export default function TieBreakerTable({ teams, leagueId }) {
+export default function TieBreakerTable({ teams, leagueId, recordedMatches=null }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -10,32 +10,35 @@ export default function TieBreakerTable({ teams, leagueId }) {
   // Load all tiebreaker matches
   // ------------------------------------------------------
   useEffect(() => {
+    if(recordedMatches!==null)return;
+    const controller=new AbortController();
     async function load() {
       try {
         const url = leagueId
           ? `/api/tiebreakerMatches?leagueId=${leagueId}`
           : "/api/tiebreakerMatches";
-        const res = await fetch(url);
+        const res = await fetch(url,{signal:controller.signal});
         const data = await res.json();
 
-        setMatches(data || []);
+        if(!controller.signal.aborted)setMatches(data || []);
       } catch (err) {
-        console.error("TieBreaker match load error:", err);
+        if(!controller.signal.aborted)console.error("TieBreaker match load error:", err);
       } finally {
-        setLoading(false);
+        if(!controller.signal.aborted)setLoading(false);
       }
     }
     load();
-  }, [leagueId]);
+    return()=>controller.abort();
+  }, [leagueId,recordedMatches]);
 
-  if (loading) return <p>Loading tiebreaker data...</p>;
+  if (loading&&recordedMatches===null) return <p>Loading tiebreaker data...</p>;
   if (!teams || teams.length === 0) return <p>No tiebreaker teams available.</p>;
 
   // ------------------------------------------------------
   // Build H2H map
   // ------------------------------------------------------
   const h2hMap = {};
-  for (const m of matches) {
+  for (const m of recordedMatches??matches) {
     const k1 = `${m.TeamA}-${m.TeamB}`;
     const k2 = `${m.TeamB}-${m.TeamA}`;
 
@@ -49,7 +52,7 @@ export default function TieBreakerTable({ teams, leagueId }) {
   }
 
   return (
-    <div style={wrapper}>
+    <div className="tiebreaker-pool-tables" style={wrapper}>
       {/* LEFT SIDE — Standings */}
       <div style={left}>
         <h3 style={{ textAlign: "center", color: 'var(--text, #e6e6e6)' }}>Tiebreaker Standings</h3>
@@ -58,13 +61,15 @@ export default function TieBreakerTable({ teams, leagueId }) {
           <thead>
             <tr>
               <th style={{ ...headerTh, background: 'var(--surface, #121315)', color: 'var(--text, #e6e6e6)' }}>Team</th>
+              {teams[0]?.SeriesWins!=null&&<><th>Series W–L</th><th>Neustadtl</th></>}
             </tr>
           </thead>
 
           <tbody>
             {teams.map((t) => (
               <tr key={t.TeamId}>
-                <td style={{ ...td, color: 'var(--text, #e6e6e6)' }}><Link to={`/team/${t.TeamId}`} style={{ color: 'inherit' }}>{t.TeamName}</Link></td>
+                <td style={{ ...td, color: 'var(--text, #e6e6e6)' }}><Link to={`/team/${t.TeamId}`} style={{ color: 'inherit' }}>{t.SeriesWins!=null?`${t.Rank}. `:''}{t.TeamName}</Link></td>
+                {t.SeriesWins!=null&&<><td style={td}>{t.SeriesWins}–{t.SeriesLosses}</td><td style={td}>{t.Neustadtl}</td></>}
               </tr>
             ))}
           </tbody>

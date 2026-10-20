@@ -12,5 +12,7 @@ LadsData.db
 !backups/
 !backups/**/*.db
 Logs/
+# Temporary local verification scripts and artifacts
+/.scratch/
 client/src/data/dotaItems.generated.json
 client/src/data/dotaItems.generated.json.*.tmp

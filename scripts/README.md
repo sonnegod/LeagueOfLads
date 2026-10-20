@@ -3,6 +3,11 @@
 Utility and scheduled-job scripts live here to keep the project root focused on
 app entrypoints and shared modules.
 
+Put temporary debugging or verification scripts and their output in `.scratch/`
+at the repository root. That directory is ignored by Git, so these local checks
+stay out of commits and deployments. Keep reusable regression tests in `tests/`
+and application or scheduled-job tools in `scripts/`.
+
 - `league/`: active league ingestion and standings jobs used by `nightlyRun.sh`
 - `public/`: public match-data generation jobs used by `generatePublicMatchData.sh`
 - `legacy/`: one-off historical league utilities
