@@ -547,6 +547,8 @@ Wednesday. Valid numeric dates take precedence. The assumption is recorded with
 the post, and admins can edit the fixture. Multiple weekdays or unclear times
 still need review. As with other scheduling posts, `9 est` means 9 PM in New York;
 omitted AM/PM and year are recorded assumptions.
+Discord emphasis and inline-code formatting around the time is ignored, so
+`Sunday **8 EST**` is interpreted the same as `Sunday 8 EST`.
 Polling uses a ten-minute per-channel lease with heartbeat/ownership checks.
 Tracked edits remain subject to review even when team mentions disappear;
 permission/network failures cannot be mistaken for deleted messages. Dirty

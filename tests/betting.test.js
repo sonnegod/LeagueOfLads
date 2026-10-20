@@ -78,6 +78,20 @@ test('Discord falls back to one clear weekday for unverifiable dates while prese
   assert.equal(parse('Sun 2026-11-01 1 AM','2026-10-31T12:00:00Z').error,'ambiguous_dst_time');
 });
 
+test('Discord formatted role mentions and bold times parse without altering timezone names or ignoring conflicting clocks',()=>{
+  const authoredAt='2026-10-20T16:00:00.000Z';
+  const teams=[{TeamSubmissionId:11,TeamName:'Safelane Custody Battle'},{TeamSubmissionId:12,TeamName:'8PM START'}];
+  const message={authoredAt,roleNames:{'111111111111111111':'safelane custody battle','222222222222222222':'8pm Start'}};
+  for(const time of ['**8 EST**','*8 EST*','__8 EST__','`8 EST`','~~8 EST~~']) {
+    const parsed=parseScheduleMessage({...message,content:`**<@&111111111111111111>** vs **<@&222222222222222222>** Sunday, October 25th ${time}`},teams);
+    assert.equal(parsed.scheduledStartUtc,'2026-10-26T00:00:00.000Z',time);assert.equal(parsed.team1Key,11);assert.equal(parsed.team2Key,12);
+    assert.equal(parsed.status,'scheduled');assert.equal(parsed.bestOf,2);assert.ok(parsed.assumptions.includes('PM assumed'));
+  }
+  assert.equal(parseScheduleTime('Sunday **8 PM** America/New_York',authoredAt).scheduledStartUtc,'2026-10-26T00:00:00.000Z');
+  assert.equal(parseScheduleTime('Sunday **8 AM** EST',authoredAt).scheduledStartUtc,'2026-10-25T12:00:00.000Z');
+  assert.equal(parseScheduleTime('Sunday **8 EST** or **9 EST**',authoredAt).error,'conflicting_times');
+});
+
 test('BO1/BO2/BO3/BO5 score distributions are coherent and wager prices remain anchored',()=>{
   for(const bestOf of [1,2,3,5]) {
     const scores=seriesDistribution(.6,bestOf);assert.ok(Math.abs(scores.reduce((s,p)=>s+p.probability,0)-1)<1e-12);

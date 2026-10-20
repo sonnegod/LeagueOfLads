@@ -1,4 +1,4 @@
-export const PARSER_VERSION = 5;
+export const PARSER_VERSION = 6;
 export const LEAGUE_TIMEZONE = 'America/New_York';
 const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const weekdayAliases = {sun:'sunday',mon:'monday',tue:'tuesday',tues:'tuesday',wed:'wednesday',weds:'wednesday',
@@ -31,6 +31,8 @@ export function parseScheduleTime(text, authoredAt, horizonDays = 60, {allowPast
   const reference = new Date(authoredAt);
   if (!Number.isFinite(reference.getTime())) return { error: 'invalid_message_time' };
   text = String(text).toLowerCase()
+    .replace(/[*`~]+/g,' ')
+    .replace(/(?<!\w)_+|_+(?!\w)/g,' ')
     .replace(/\b(sun|mon|tue|tues|wed|weds|thu|thur|thurs|fri|sat)\b\.?/g,word=>weekdayAliases[word.replace('.','')]);
   if(/\b(?:last\s+(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday)|yesterday|played|finished)\b/.test(text))return {error:'retrospective_post'};
   if(/\b(?:bst|cet|cest|ist|aest|aedt|jst)\b/.test(text))return {error:'unknown_timezone'};
