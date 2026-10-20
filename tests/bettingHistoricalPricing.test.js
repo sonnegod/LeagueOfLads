@@ -8,6 +8,10 @@ import { teamProbability, statSampler, seededRandom } from '../betting/models.js
 import { readSeasonBettingInputs } from '../analytics/bettingInputs.js';
 import { runBetting, seasonGuard, fixtureGuard } from '../betting/engine.js';
 import { preseasonFixture } from './helpers/bettingFixture.js';
+import {readCachedHistoricalPricing} from '../betting/cachedPricing.js';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import Database from 'better-sqlite3';
 
 const now = new Date('2026-10-13T12:00:00.000Z');
 function history({ reversed = false } = {}) {
@@ -114,28 +118,117 @@ test('cold-start production markets open from validated history, accept a ticket
   }
 });
 
-test('historical source guards do not authorize unrelated models; new imports, roster edits and stale Analytics hold quotes', async () => {
+test('fixture source guards retain freshness checks while generated preseason prices keep their approved inputs', async () => {
   const f = coldStart(), scratch = mkdtempSync(join(tmpdir(), 'lads-historical-guards-'));
   try {
     runBetting({ ...f, now, seasonId: 2, simulations: 100, historicalInputBuilder: f.builder });
     const market = f.betting.prepare("SELECT * FROM BettingMarkets WHERE MarketType='season_team' LIMIT 1").get();
+    const fixture = f.betting.prepare("SELECT * FROM BettingMarkets WHERE MarketType='series_winner' LIMIT 1").get();
     const path = join(scratch, 'Analytics.db'); await f.analytics.backup(path);
     const shared = {};
     assert.equal(seasonGuard(f.league, path, 2, market, now, shared), null);
-    const ordinary = { ...market, RulesJson: JSON.stringify({ ...JSON.parse(market.RulesJson), historicalPricing: undefined }) };
+    const ordinary = { ...fixture, RulesJson: JSON.stringify({ ...JSON.parse(fixture.RulesJson), historicalPricing: undefined }) };
     assert.match(seasonGuard(f.league, path, 2, ordinary, now, shared), /source data needs refreshing/);
     f.league.exec("CREATE TABLE MatchSourceDetails(MatchId INTEGER PRIMARY KEY,ObservedAtUtc TEXT); INSERT INTO MatchSourceDetails VALUES(1,'2026-10-13T12:00:01Z');");
-    assert.match(seasonGuard(f.league, path, 2, market, now), /historical inputs/);
+    assert.match(seasonGuard(f.league, path, 2, fixture, now), /historical inputs/);
+    assert.equal(seasonGuard(f.league, path, 2, market, now),null);
     f.league.exec('DROP TABLE MatchSourceDetails; UPDATE SeasonTeams SET GroupId=5 WHERE TeamSubmissionId=21;');
     assert.match(seasonGuard(f.league, path, 2, market, now), /setup changed/);
     f.league.exec('UPDATE SeasonTeams SET GroupId=2 WHERE TeamSubmissionId=21;');
-    const future = { ...market, UpdatedAtUtc: '2026-10-20T12:00:00Z' };
+    const future = { ...fixture, UpdatedAtUtc: '2026-10-20T12:00:00Z' };
     f.league.prepare('UPDATE ScheduledEvents SET ScheduledStartUtc=?').run('2026-10-25T00:00:00Z');
     assert.match(seasonGuard(f.league, path, 2, future, new Date('2026-10-20T12:00:00Z')), /inputs need refreshing/);
+    assert.equal(seasonGuard(f.league, path, 2, market, new Date('2026-10-20T12:00:00Z')),null);
   } finally {
     f.close(); if (dirname(resolve(scratch)) !== resolve(tmpdir())) throw Error('Unexpected cleanup target');
     rmSync(scratch, { recursive: true, force: true });
   }
+});
+
+test('routine scheduling reuses approved historical inputs, recovers preseason locks and leaves its prices and accepted tickets unchanged',async()=>{
+  const f=coldStart(),scratch=mkdtempSync(join(tmpdir(),'lads-fixed-preseason-'));
+  try {
+    runBetting({...f,now,seasonId:2,simulations:100,historicalInputBuilder:f.builder});
+    const market=f.betting.prepare("SELECT * FROM BettingMarkets WHERE MarketType='season_team' LIMIT 1").get();
+    const selection=f.betting.prepare('SELECT SelectionId FROM BettingSelections WHERE MarketId=? LIMIT 1').get(market.MarketId);
+    f.book.accept('99',{seasonId:2,stake:100,requestKey:'fixed_preseason_before',legs:[{selectionId:selection.SelectionId,quoteVersion:market.QuoteVersion}]});
+    const prices=()=>f.betting.prepare(`SELECT s.* FROM BettingSelections s JOIN BettingMarkets m USING(MarketId)
+      WHERE m.SeasonId=2 AND m.EventId IS NULL ORDER BY SelectionId`).all();
+    const originals=prices(),tickets=f.betting.prepare('SELECT * FROM BettingTicketLegs').all();
+    const originalMarkets=f.betting.prepare('SELECT MarketId,Line,ForecastId,UpdatedAtUtc FROM BettingMarkets WHERE SeasonId=2 AND EventId IS NULL ORDER BY MarketId').all();
+    f.betting.prepare("UPDATE BettingMarkets SET Status='locked' WHERE SeasonId=2 AND EventId IS NULL").run();
+    const later=new Date(now.getTime()+60000);f.book.now=()=>later;
+    f.analytics.prepare('UPDATE AnalyticsRuns SET AsOfUtc=?').run(later.toISOString());
+    f.league.exec('UPDATE BettingRefreshState SET RequestedRevision=RequestedRevision+1');
+    const event=f.schedules.save(2,{team1Key:23,team2Key:24,stage:'regular',bestOf:2,scheduledStartUtc:'2026-10-18T01:00:00Z'},'1',later);
+    let cachedCalls=0;
+    const builder=inputs=>{cachedCalls++;const value=readCachedHistoricalPricing(f.book,f.league,inputs.season.SeasonId,f.schedules.setup(2));assert.ok(value);return value;};
+    runBetting({...f,now:later,seasonId:2,simulations:100,preservePreseason:true,historicalInputBuilder:builder});
+    assert.equal(cachedCalls,1);
+    assert.deepEqual(prices(),originals);
+    assert.deepEqual(f.betting.prepare('SELECT * FROM BettingTicketLegs').all(),tickets);
+    assert.deepEqual(f.betting.prepare('SELECT MarketId,Line,ForecastId,UpdatedAtUtc FROM BettingMarkets WHERE SeasonId=2 AND EventId IS NULL ORDER BY MarketId').all(),originalMarkets);
+    assert.equal(f.betting.prepare("SELECT COUNT(*) n FROM BettingMarkets WHERE SeasonId=2 AND EventId IS NULL AND Status!='open'").get().n,0);
+    assert.ok(f.betting.prepare("SELECT 1 FROM BettingMarkets WHERE EventId=? AND Status='open'").get(event.EventId));
+    const newest=f.betting.prepare('SELECT ForecastJson FROM BettingForecasts ORDER BY ForecastId DESC LIMIT 1').get();
+    assert.ok(JSON.parse(newest.ForecastJson).markets.every(m=>m.definition.eventId));
+    const path=join(scratch,'Analytics.db');await f.analytics.backup(path);
+    const reopened=f.betting.prepare('SELECT * FROM BettingMarkets WHERE MarketId=?').get(market.MarketId);
+    assert.equal(seasonGuard(f.league,path,2,reopened,later),null);
+    f.book.seasonGuard=(sid,m)=>seasonGuard(f.league,path,sid,m,later);
+    const placed=f.book.accept('99',{seasonId:2,stake:100,requestKey:'fixed_preseason_after',legs:[{selectionId:selection.SelectionId,quoteVersion:reopened.QuoteVersion}]});
+    assert.ok(placed.ticketId);
+    // Real play still closes the fixed book, even if its old locks were repaired.
+    f.league.prepare("UPDATE ScheduledEvents SET Status='started' WHERE EventId=?").run(event.EventId);
+    runBetting({...f,now:later,seasonId:2,simulations:100,preservePreseason:true,historicalInputBuilder:builder});
+    assert.equal(f.betting.prepare("SELECT COUNT(*) n FROM BettingMarkets WHERE SeasonId=2 AND EventId IS NULL AND Status!='locked'").get().n,0);
+    assert.match(seasonGuard(f.league,path,2,reopened,later),/Preseason betting is closed/);
+  }finally{f.close();if(dirname(resolve(scratch))!==resolve(tmpdir()))throw Error('Unexpected cleanup target');rmSync(scratch,{recursive:true,force:true});}
+});
+
+test('saved historical matchup inputs reject source, setup or validation changes without reconstructing history',()=>{
+  const f=coldStart();
+  try {
+    runBetting({...f,now,seasonId:2,simulations:100,historicalInputBuilder:f.builder});
+    const setup=f.schedules.setup(2);
+    assert.ok(readCachedHistoricalPricing(f.book,f.league,2,setup));
+    assert.equal(readCachedHistoricalPricing(f.book,f.league,2,{...setup,SetupJson:'{}'}),null);
+    f.league.exec("CREATE TABLE MatchSourceDetails(MatchId INTEGER PRIMARY KEY,ObservedAtUtc TEXT); INSERT INTO MatchSourceDetails VALUES(1,'2026-10-13T12:00:01Z');");
+    assert.equal(readCachedHistoricalPricing(f.book,f.league,2,setup),null);
+    f.league.exec('DROP TABLE MatchSourceDetails');
+    f.betting.exec("UPDATE BettingForecasts SET ValidationJson='{\"validated\":false}'");
+    assert.equal(readCachedHistoricalPricing(f.book,f.league,2,setup),null);
+  }finally{f.close();}
+});
+
+test('the routine CLI repairs the preseason book and prices a new matchup under a bounded heap without rebuilding Analytics',async t=>{
+  const f=coldStart(),scratch=mkdtempSync(join(tmpdir(),'lads-cached-pricing-worker-'));let betting,analytics;
+  try {
+    runBetting({...f,now,seasonId:2,simulations:100,historicalInputBuilder:f.builder});
+    f.league.exec("UPDATE LeagueSeasons SET Status='ended' WHERE SeasonId=1");
+    const prices=f.betting.prepare(`SELECT s.* FROM BettingSelections s JOIN BettingMarkets m USING(MarketId)
+      WHERE m.SeasonId=2 AND m.EventId IS NULL ORDER BY SelectionId`).all();
+    const current=new Date();
+    f.analytics.prepare('UPDATE AnalyticsRuns SET AsOfUtc=?').run(new Date(current.getTime()-1000).toISOString());
+    f.league.prepare('UPDATE ScheduledEvents SET ScheduledStartUtc=?').run(new Date(current.getTime()+86400000).toISOString());
+    const event=f.schedules.save(2,{team1Key:23,team2Key:24,stage:'regular',bestOf:2,
+      scheduledStartUtc:new Date(current.getTime()+2*86400000).toISOString()},'1',current);
+    f.betting.exec("UPDATE BettingMarkets SET Status='locked' WHERE SeasonId=2 AND EventId IS NULL");
+    const paths={league:join(scratch,'LadsData.db'),analytics:join(scratch,'Analytics.db'),betting:join(scratch,'Betting.db')};
+    await f.league.backup(paths.league);await f.analytics.backup(paths.analytics);await f.betting.backup(paths.betting);
+    const {stdout}=await promisify(execFile)(process.execPath,['--max-old-space-size=256','scripts/betting/run.js',
+      '--league-db',paths.league,'--analytics-db',paths.analytics,'--betting-db',paths.betting],
+      {windowsHide:true,env:{...process.env,BETTING_LOCAL_TEST_MODE:'false'}});
+    const result=JSON.parse(stdout);assert.deepEqual(result.issues,[]);
+    betting=new Database(paths.betting,{readonly:true});analytics=new Database(paths.analytics,{readonly:true});
+    assert.equal(analytics.prepare('SELECT COUNT(*) n FROM AnalyticsRuns').get().n,1);
+    assert.equal(betting.prepare("SELECT COUNT(*) n FROM BettingMarkets WHERE SeasonId=2 AND EventId IS NULL AND Status!='open'").get().n,0);
+    assert.ok(betting.prepare("SELECT 1 FROM BettingMarkets WHERE EventId=? AND Status='open'").get(event.EventId));
+    assert.deepEqual(betting.prepare(`SELECT s.* FROM BettingSelections s JOIN BettingMarkets m USING(MarketId)
+      WHERE m.SeasonId=2 AND m.EventId IS NULL ORDER BY SelectionId`).all(),prices);
+    t.diagnostic(JSON.stringify({peakRssMB:Math.round(result.resources.peakRssBytes/1048576),heapMB:Math.round(result.resources.heapUsedBytes/1048576),
+      elapsedMs:result.resources.elapsedMs,note:'Isolated saved-history fixture; not a production-host memory guarantee.'}));
+  }finally{betting?.close();analytics?.close();f.close();if(dirname(resolve(scratch))!==resolve(tmpdir()))throw Error('Unexpected cleanup target');rmSync(scratch,{recursive:true,force:true});}
 });
 
 test('failed retrospective validation keeps production markets closed', () => {

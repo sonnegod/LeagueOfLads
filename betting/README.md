@@ -13,7 +13,7 @@ Analytics builds continue and flag ambiguous memberships; those appearances do
 not become eligible roster statistics. The Betting panel lists conflicting
 account IDs, and season betting remains held while the conflict exists (including
 existing open markets and new ticket acceptance). Replace the placeholder with
-a unique player, finalize setup again, then refresh Analytics and Betting.
+a unique player, finalize setup again, then explicitly rebuild affected preseason odds.
 Preseason odds previews still require unambiguous rosters.
 Dashboard My Bets/Wallet also use season accounts. Retired betting endpoints
 return 410; the new history page retains access to older tickets.
@@ -49,6 +49,22 @@ old wallets into a separate legacy account. No manual SQL migration is needed.
 Refresh rebuilds Analytics from committed local sources and then runs pricing
 and settlement; it does not fetch Steam/OpenDota/Discord data.
 
+Routine Discord/admin scheduling changes and **Refresh matchup odds** run
+`node scripts/betting/run.js` without rebuilding Analytics. They reuse the
+approved historical features saved with the preseason generation, price upcoming
+matchups and settle verified results. Saved historical inputs must still match
+the canonical setup and import fingerprint; a mismatch waits for the scheduled
+data refresh rather than reconstructing historical Analytics in a scheduling job.
+
+Published preseason prices, lines and selections stay fixed across routine and
+nightly refreshes. Later Analytics timestamps or pending fixture updates do not
+hold that book. Setup, roster, TBD leader, season cancellation and kickoff/live
+checks still apply. A routine run repairs premature preseason locks when those
+checks permit betting; it updates only status/cutoff metadata and quote versions,
+preserving prices and accepted tickets. A changed finalized setup requires an
+explicit rebuild with `node scripts/betting/run.js --rebuild-preseason` (add
+`--refresh-analytics` only when the canonical Analytics generation also needs work).
+
 To select an existing signup-era season for a worker run:
 
 ```bash
@@ -77,7 +93,7 @@ Open **Site Management → Betting → Open preseason odds preview**, or
 `/betting?previewSeason=3`. Use **Rebuild preseason preview** on that page or in
 Betting administration after changing rosters, groups or rules. The calculation
 runs in a separate worker; the preview page reloads its prices on completion.
-The normal **Refresh Analytics and Betting** button updates canonical live data,
+The normal **Refresh matchup odds** button updates live matchup quotes,
 not these separate preview files. The command above also rebuilds the preview.
 `--history-seasons 3` (default, range 1–5) and `--simulations 2000` are
 optional. `--season-id` is mutually exclusive with historical reconstruction flags.
@@ -264,7 +280,7 @@ development test mode does not make those validation results pass.
    regular-season kickoff closes preseason betting automatically; live games,
    started fixtures and imported results close it immediately even without a
    schedule. Without a known kickoff, preseason quotes have no scheduled expiry.
-3. Refresh Analytics and Betting. Job status explains missing sources/history or
+3. Refresh matchup odds. Job status explains missing sources/history or
    unsupported formats. Eligible validated outputs publish automatically.
 4. After matches load, edit the fixture to link its **actual SeriesId**. This is
    an explicit admin verification step; a matching pair of names or teams is
@@ -386,10 +402,12 @@ market needs at least two history-qualified players and freezes those listed
 entrants for pricing and settlement. Existing setup, kickoff, TBD and
 roster-change guards still apply.
 
-Historical facts do not expire just because their matches are old. This model
-requires a fresh canonical roster generation (under 48 hours) and binds quotes
-to the historical import metadata. New or repaired source imports hold old
-quotes until repricing. It does not require a current-season match feed to have
+Historical facts do not expire just because their matches are old. New matchup
+pricing requires a fresh canonical roster generation (under 48 hours) and binds
+quotes to historical import metadata. New or repaired source imports hold matchup
+quotes until repricing. Published preseason prices retain their approved inputs
+and remain subject to canonical setup/roster and kickoff checks. The model does
+not require a current-season match feed to have
 run before that season has any matches. The other live models retain their
 normal source freshness checks. `betting:validate` reports both kinds of model
 readiness, including the retrospective assumption and independent stat scores.
@@ -510,7 +528,7 @@ quotes without waiting for the next league ingestion. Actual source watermarks
 still determine whether any new quote is allowed.
 
 Successful admin
-mutations debounce a separate refresh worker for three seconds; changes arriving
+mutations debounce a separate matchup refresh worker for three seconds; changes arriving
 during a run queue another. Durable pending revisions survive API restarts.
 Failed automatic refreshes retry after 5, 10, 20, 40 and 60 seconds, stopping after
 six failed attempts per trigger. Pending revisions remain held; Admin Betting
@@ -518,6 +536,7 @@ shows retry/failure status and allows a manual retry. API restart or a later
 change resumes pending work. Standalone/cron worker runs also record pending
 revisions, attempt/completion times and failures. CLI results include elapsed
 time, peak process RSS and heap usage for host-side inspection.
+Routine workers reuse saved inputs; scheduled data jobs own Analytics builds.
 The worker runs in a separate process, computes simulations outside the SQLite
 publication transaction, and holds a single-worker lease. It does not simulate
 prices in ordinary website requests.

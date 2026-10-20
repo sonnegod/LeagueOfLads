@@ -31,7 +31,7 @@ try {
   const state=db?.prepare('SELECT RequestedRevision,CompletedRevision FROM BettingRefreshState WHERE Id=1').get();
   db?.close();db=null;
   if(state?.RequestedRevision>state?.CompletedRevision) {
-    const code=await new Promise(resolve=>{const child=spawn(process.execPath,[fileURLToPath(new URL('../scripts/betting/run.js',import.meta.url)),'--refresh-analytics'],
+    const code=await new Promise(resolve=>{const child=spawn(process.execPath,[fileURLToPath(new URL('../scripts/betting/run.js',import.meta.url))],
       {windowsHide:true,stdio:'inherit'});child.once('error',()=>resolve(1));child.once('close',resolve);});
     if(code!==0)process.exitCode=1;
   }

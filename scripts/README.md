@@ -17,7 +17,10 @@ and application or scheduled-job tools in `scripts/`.
 
 Betting setup: `npm run betting:init`, `npm run betting:refresh`, then
 `npm run betting:status`. The nightly and public-data jobs run Analytics then Betting;
-admin changes queue a separate debounced worker. See
+admin/Discord scheduling changes queue a lighter worker using the existing
+Analytics generation and saved historical pricing inputs. Routine workers keep
+published preseason prices; an explicit `node scripts/betting/run.js --rebuild-preseason`
+regenerates them after setup changes. See
 [betting/README.md](../betting/README.md) for explicit actual-series links,
 validation holds, season wallets, and Discord/locking cron configuration.
 Read-only checks: `npm run betting:validate -- --season-id 3` reports model/source

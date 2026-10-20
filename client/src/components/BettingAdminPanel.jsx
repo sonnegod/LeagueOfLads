@@ -14,7 +14,8 @@ function parserTime(value){const [day,time]=value.split('T');const [hour,minute]
 const issues={insufficient_temporal_samples:'More verified league history is needed to validate pricing.',baseline_validation_failed:'Pricing validation did not pass.',
   insufficient_historical_samples:'Stored history does not yet have enough eligible matches for retrospective validation.',
   historical_pricing_validation_failed:'Historical pricing did not pass validation. Check the validation report.',
-  historical_source_changed:'Historical imports changed during pricing. Refresh Analytics and Betting again.',
+  historical_source_changed:'Historical imports changed during pricing. Retry after the data refresh finishes.',
+  saved_pricing_inputs_need_refresh:'Saved matchup pricing inputs need a scheduled data refresh. Existing preseason odds remain available.',
   conflicting_roster_memberships:'Setup and Analytics are available; betting is held until each player belongs to one team in this season.',
   local_test_only:'Development test pricing is enabled; historical publication gates are bypassed only for this separate test Betting database.',
   league_source_not_ready:'Refresh the league sources before publishing new prices.',analytics_not_available:'Build Analytics for this season.',
@@ -46,7 +47,7 @@ export default function BettingAdminPanel({refreshKey}) {
     <details className="admin-help"><summary>What do the refresh buttons do?</summary>
       <ul>
         <li><strong>Refresh view</strong> reloads this page’s status and fixture list.</li>
-        <li><strong>Refresh Analytics and Betting</strong> rebuilds summaries and highlights from imported data, then updates eligible odds and settles verified results. Admin changes and scheduled jobs normally trigger this automatically; use it to retry a failed refresh or reprocess a correction.</li>
+        <li><strong>Refresh matchup odds</strong> prices upcoming matchups using saved inputs and settles verified results. Existing preseason prices stay in place. Analytics summaries and historical inputs are refreshed by the scheduled data jobs.</li>
         <li><strong>Rebuild preseason preview</strong> regenerates the separate preview after roster, group or rule changes. The normal Betting refresh does not rebuild this preview.</li>
         <li>The refresh runs in the background. Check Refresh view for completion. Missing imports or insufficient history can still keep markets on hold.</li>
         <li>Accepted bets keep their original odds. Verified results, refunds and corrections can update ticket payouts and point balances.</li>
@@ -70,14 +71,14 @@ export default function BettingAdminPanel({refreshKey}) {
       <section className="betting-admin-widget"><h3>Betting setup · {data.season.name}</h3><p className="admin-help">Use Finalize setup once rosters, groups and qualification rules are ready. Preseason betting opens when setup and pricing are ready. A scheduled fixture is optional; markets close at the first known regular-season kickoff or when play begins.</p>
         {data.setup&&<p>Finalized {date(data.setup.finalizedAt)} NY · Revision {data.setup.revision}</p>}
         {data.refresh?.pending&&<p role="status">Updated markets are pending.
-          {data.refresh.nextRetryAt?` Retrying ${date(data.refresh.nextRetryAt)} NY.`:data.refresh.error==='refresh_retry_exhausted'?' Automatic retries failed. Use Refresh Analytics and Betting to retry.':data.refresh.error?' The last refresh failed.':' A refresh is queued or running.'}</p>}
+          {data.refresh.nextRetryAt?` Retrying ${date(data.refresh.nextRetryAt)} NY.`:data.refresh.error==='refresh_retry_exhausted'?' Automatic retries failed. Use Refresh matchup odds to retry.':data.refresh.error?' The last refresh failed.':' A refresh is queued or running.'}</p>}
         {data.refresh?.lastCompletedAt&&<p className="sportsbook-notice">Last completed refresh: {date(data.refresh.lastCompletedAt)} NY</p>}
         <form className="betting-admin-form" onSubmit={e=>{e.preventDefault();run(()=>request(`/api/site-management/betting/seasons/${sid}/setup`,{gamesPerTeam:groupGames?'group_round_robin':Number(games)}),'Betting setup finalized. A refresh is queued.');}}>
           <label className="betting-admin-check"><input type="checkbox" checked={groupGames} onChange={e=>setGroupGames(e.target.checked)} />Use BO2 group round robin</label>
           {!groupGames&&<label>Regular-season games per team<input required type="number" min="5" max="100" value={games} onChange={e=>setGames(e.target.value)} /></label>}
           {groupGames&&<p className="admin-help">Each team plays every other team in its group twice. Counts follow group size; for example, a four-team group gives each team six games.</p>}
           <button disabled={busy||data.season.status==='ended'}>Finalize setup</button>
-          <button type="button" disabled={busy} onClick={()=>run(()=>request('/api/site-management/betting/refresh',{}),'Analytics and Betting refresh queued. Refresh this view to see the result.')}>Refresh Analytics and Betting</button>
+          <button type="button" disabled={busy} onClick={()=>run(()=>request('/api/site-management/betting/refresh',{}),'Matchup odds refresh queued. Refresh this view to see the result.')}>Refresh matchup odds</button>
         </form>
         <div className="betting-admin-jobs">{data.jobs.map(j=><p key={j.JobId}>{date(j.StartedAtUtc)} NY · {j.Status} · {j.MarketsOpened} markets opened · {j.MarketsSettled} settlements
           {j.IssueCode&&<span> · {j.IssueCode.split(',').map(code=>issues[code]||'A market is awaiting verified inputs.').join(' ')}</span>}</p>)}</div>

@@ -14,21 +14,23 @@ import {buildLocalTestInputs} from '../../betting/localTestInputs.js';
 import {prepareLocalTestSeason} from '../../betting/prepareLocalTest.js';
 import {buildHistoricalPricingInputs} from '../../betting/historicalPricing.js';
 import {WORKER_BUSY_EXIT_CODE} from '../../betting/workerLock.js';
+import {readCachedHistoricalPricing} from '../../betting/cachedPricing.js';
 
 const paths=analyticsPaths();let bettingPath=null;
 let league,betting,analytics,publicDb;
 const args=process.argv.slice(2);let seasonId=null;let refresh=false;let init=false;let status=false;
 let trackedRefresh=false;
 let lockOwner=null;
-let prepareTest=false,prepared=null;
+let prepareTest=false,prepared=null,rebuildPreseason=false;
 const workerStarted=performance.now();
 try {
   for(let i=0;i<args.length;i++) {
     if(args[i]==='--refresh-analytics')refresh=true;
+    else if(args[i]==='--rebuild-preseason')rebuildPreseason=true;
     else if(args[i]==='--init-only')init=true;
     else if(args[i]==='--status')status=true;
     else if(args[i]==='--prepare-local-test')prepareTest=true;
-    else if(args[i]==='--help'){console.log('Usage: node scripts/betting/run.js [--init-only|--status|--refresh-analytics] [--prepare-local-test --season-id id] [--season-id id] [--league-db path] [--analytics-db path] [--betting-db path]');process.exit(0);}
+    else if(args[i]==='--help'){console.log('Usage: node scripts/betting/run.js [--init-only|--status|--refresh-analytics] [--rebuild-preseason] [--prepare-local-test --season-id id] [--season-id id] [--league-db path] [--analytics-db path] [--betting-db path]');process.exit(0);}
     else if(['--season-id','--league-db','--analytics-db','--betting-db'].includes(args[i])) {
       const flag=args[i];const value=args[++i];if(!value)throw new Error('Missing argument');
       if(flag==='--season-id'){seasonId=Number(value);if(!Number.isSafeInteger(seasonId)||seasonId<=0)throw new Error('Invalid season');}
@@ -69,8 +71,14 @@ try {
       if(!existsSync(paths.analytics))throw new Error('Build Analytics before running Betting');
       analytics=new Database(paths.analytics,{readonly:true,fileMustExist:true});
     }
-    const result=runBetting({book,league,analytics,schedules,seasonId,lockOwner,
-      historicalInputBuilder:localTesting?null:(inputs,now)=>buildHistoricalPricingInputs(league,inputs,now),
+    const result=runBetting({book,league,analytics,schedules,seasonId,lockOwner,preservePreseason:!rebuildPreseason,
+      historicalInputBuilder:localTesting?null:(inputs,now)=>{
+        const cached=readCachedHistoricalPricing(book,league,inputs.season.SeasonId,schedules.setup(inputs.season.SeasonId));
+        if(cached&&!rebuildPreseason)return cached;
+        const hasPreseason=book.db.prepare('SELECT 1 FROM BettingMarkets WHERE SeasonId=? AND EventId IS NULL LIMIT 1').get(inputs.season.SeasonId);
+        if(!refresh&&!rebuildPreseason&&hasPreseason)return {validation:{validated:false,reason:'saved_pricing_inputs_need_refresh'}};
+        return buildHistoricalPricingInputs(league,inputs,now);
+      },
       localTestInputBuilder:localTesting?(inputs,now)=>buildLocalTestInputs(league,inputs,now):null});
     console.log(JSON.stringify({...result,localTesting,...(prepared?{prepared}:{}),resources:{elapsedMs:Math.round(performance.now()-workerStarted),
       peakRssBytes:process.resourceUsage().maxRSS*1024,heapUsedBytes:process.memoryUsage().heapUsed}},null,2));

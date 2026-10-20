@@ -27,7 +27,7 @@ export function createBettingRuntime(league,betting,audit=()=>{}) {
   }});
   refreshQueue?.dispose();
   refreshQueue=createRefreshQueue({db:league,launch:()=>spawn(process.execPath,
-    [fileURLToPath(new URL('../scripts/betting/run.js',import.meta.url)),'--refresh-analytics'],{windowsHide:true,stdio:'ignore',env:process.env})});
+    [fileURLToPath(new URL('../scripts/betting/run.js',import.meta.url))],{windowsHide:true,stdio:'ignore',env:process.env})});
   book=new BettingStore(betting,{eventGuard:(eventId,market)=>fixtureGuard(league,eventId,market),
     seasonGuard:(seasonId,market)=>seasonGuard(league,paths.analytics,seasonId,market)});
   refreshQueue.resume();

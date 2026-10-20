@@ -58,6 +58,27 @@ test('finalized preseason without any fixtures opens every supported market type
   } finally {if(server)await new Promise(done=>server.close(done));cleanup(f,scratch);}
 });
 
+test('fixed preseason recovery without any fixtures clears an obsolete cutoff without rebuilding history or changing prices',()=>{
+  const f=preseasonFixture();
+  try {
+    refresh(f);
+    const prices=f.betting.prepare(`SELECT s.* FROM BettingSelections s JOIN BettingMarkets m USING(MarketId)
+      WHERE m.SeasonId=2 AND m.EventId IS NULL ORDER BY s.SelectionId`).all();
+    removeSchedule(f);
+    f.betting.exec(`UPDATE BettingMarkets SET Status='locked',CloseAtUtc='2026-10-12T01:00:00.000Z',
+      RulesJson=json_remove(RulesJson,'$.frozenPreseason') WHERE SeasonId=2 AND EventId IS NULL`);
+    const result=runBetting({...f,seasonId:2,now,simulations:100,preservePreseason:true,
+      historicalInputBuilder:()=>{throw Error('No history rebuild should run');}});
+    assert.deepEqual(result.issues,[]);
+    assert.equal(f.betting.prepare("SELECT COUNT(*) n FROM BettingMarkets WHERE SeasonId=2 AND EventId IS NULL AND (Status!='open' OR CloseAtUtc!='')").get().n,0);
+    assert.deepEqual(f.betting.prepare(`SELECT s.* FROM BettingSelections s JOIN BettingMarkets m USING(MarketId)
+      WHERE m.SeasonId=2 AND m.EventId IS NULL ORDER BY s.SelectionId`).all(),prices);
+    f.league.exec('UPDATE SeasonTeams SET GroupId=9 WHERE TeamSubmissionId=21');
+    runBetting({...f,seasonId:2,now,simulations:100,preservePreseason:true});
+    assert.equal(market(f).Status,'held');
+  }finally{f.close();}
+});
+
 test('adding or removing the first kickoff updates existing preseason quotes without changing accepted tickets or lines',async()=>{
   const f=preseasonFixture(),scratch=mkdtempSync(join(tmpdir(),'lads-preseason-kickoff-'));
   try {
