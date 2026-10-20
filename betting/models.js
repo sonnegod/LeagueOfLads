@@ -5,6 +5,7 @@ import {activeLineup,lineupPrior,resultAvailableAt} from './rosterStrength.js';
 import {plannedGameCounts} from './seasonFormat.js';
 
 export const MODEL_VERSION = 'league-lineup-v6';
+export const LEADER_FIELD_VERSION = 'listed-history-v1';
 export const METRICS = Object.freeze({ kills:'Kills',deaths:'Deaths',assists:'Assists',last_hits:'LastHits',
   hero_damage:'HeroDamage',tower_damage:'TowerDamage',healing:'Healing',gpm:'GPM',xpm:'XPM' });
 export const metricLabel = key => ({ last_hits:'Last hits',hero_damage:'Hero damage',tower_damage:'Tower damage',gpm:'GPM',xpm:'XPM' })[key] || key[0].toUpperCase()+key.slice(1);
@@ -289,7 +290,18 @@ export function seasonWinsForecast(simulation,teamKey,fixedLine=null) {
   return {line,expected,games,samples:simulation.samples,over,under:1-over};
 }
 
+export function eligibleLeaderRoster(inputs,roster,stat) {
+  const column=METRICS[stat];if(!column||new Set(roster.map(p=>p.PlayerId)).size!==roster.length)return [];
+  const counts=new Map();
+  if(!inputs.preseasonDistributions)for(const game of inputs.metricHistory||[])if(Number.isFinite(game[column]))
+    counts.set(game.PlayerId,(counts.get(game.PlayerId)||0)+1);
+  return roster.filter(player=>(inputs.preseasonDistributions
+    ?inputs.preseasonDistributions.players[player.PlayerId]?.[stat]?.samples||0:counts.get(player.PlayerId)||0)>=5
+    &&statSampler(inputs,player.PlayerId,stat,()=>.5));
+}
+
 export function leaderForecast(inputs,roster,stat,scope,games,random,samples=2000) {
+  roster=eligibleLeaderRoster(inputs,roster,stat);
   const samplers=roster.map(p=>statSampler(inputs,p.PlayerId,stat,random));if(samplers.some(s=>!s)||roster.length<2)return null;
   const wins=Array(roster.length).fill(1);
   for(let run=0;run<samples;run++) {

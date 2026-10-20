@@ -23,6 +23,13 @@ Player odds, Team odds, and Player leaders tabs. Expand a player to view aligned
 totals/averages and Over/Under buttons; team tables group alphabetically by their
 saved group names. Open live outcomes add real selections to the slip. The
 historical preview shares these components but remains read-only.
+Player-leader markets compare **only the players listed in that market**. A
+player needs at least five verified historical observations for that statistic
+and a ready pricing distribution; no baseline odds are invented for players
+without history. At least two priced players are required. Each market freezes
+its field when published, and settlement compares that same field. Unlisted
+players do not affect its winner. Regular-season participation requirements and
+dead-heat payouts still apply; unnamed TBD roster slots keep leaders held.
 
 ## Run locally
 
@@ -179,9 +186,9 @@ game counts, season standings, or awards to form these preseason prices.
 
 Season 21’s test currently yields 1,129 preseason markets and 326 example-series
 markets from 358 valid Season 20 games. Some reconstructed players occur on
-multiple teams; their preseason selections are withheld, and league-wide
-leader markets wait for a complete, unambiguous field. Players with fewer than
-five earlier appearances are also withheld. Team markets use **neutral strength
+multiple teams; their preseason selections are withheld, and leader markets
+wait for an unambiguous roster. Leader fields include players with at least
+five earlier observations for that statistic. Team markets use **neutral strength
 priors** because the historical signup MMRs are unavailable. Player prop lines
 use the earlier league history. Legacy membership and exact source-availability
 times are unknown, so these prices are illustrations rather than a validated
@@ -291,7 +298,8 @@ field can resolve a repeated hour explicitly, e.g. `2026-11-01T06:00:00Z`.
   official game; a game prop requires its specified game. Otherwise refunded.
 - Preseason roster-only regular-season totals/averages for kills, deaths,
   assists, last hits, hero damage, tower damage, and healing; GPM/XPM averages.
-- Total-kills, average-kills, average-GPM, and average-XPM leader markets.
+- Total-kills, average-kills, average-GPM, and average-XPM leader markets among
+  their listed players with verified history.
 - Champion and bracket-placement futures for supported standard BO2 round-robin
   groups and the existing playoff bracket. Initial champion simulation requires
   power-of-two upper/lower counts, with lower count equal to or twice upper;
@@ -373,8 +381,10 @@ player on each side must pass Brier <=0.27 and log loss <=0.8 before publication
 Historical player distributions use the last 100 personal samples and last 2,000
 pooled samples. Each prop needs five personal and fifty pooled observations;
 each stat independently needs 20 held-out predictions and Brier <=0.30. Players
-without enough history receive no invented prop; leader markets need a complete
-priced field. Existing setup, kickoff, TBD and roster-change guards still apply.
+without enough history receive no invented prop or leader odds. Each leader
+market needs at least two history-qualified players and freezes those listed
+entrants for pricing and settlement. Existing setup, kickoff, TBD and
+roster-change guards still apply.
 
 Historical facts do not expire just because their matches are old. This model
 requires a fresh canonical roster generation (under 48 hours) and binds quotes
@@ -518,6 +528,9 @@ entrypoints forward to the new worker and no longer mutate legacy tables.
 Verify the server's existing cron entries (`crontab -l`); deployment does not
 install cron or enable Discord credentials. Recommended initial cadence: Discord
 every two minutes, locking every minute, plus existing nightly ingestion.
+For the Discord entry, use `*/2 * * * * /bin/bash /root/LeagueOfLads/discordRun.sh`.
+An existing `0 * * * *` entry only checks on the hour; replace that entry rather
+than adding a second one. Restarting the website does not change the cadence.
 Acceptance also checks kickoff/live/actual-series signals synchronously, so a
 missed locking cron cannot accept bets after a known kickoff.
 
@@ -526,6 +539,14 @@ permissions, and the message-content intent. It only reads posts, pages at most
 2,000 messages per run with persisted catch-up progress, reconciles fifty old
 posts, and ignores posts authored before the season's creation. No live Discord
 network run or production load test has been performed in local verification.
+Scheduling posts use numeric dates and weekday abbreviations such as `weds`.
+If the date cannot be verified but one weekday is clear, Discord uses its next
+occurrence at the posted time (including today if that time has not passed).
+Month names and typos are not interpreted: `weds oc 21st 9 est` uses the next
+Wednesday. Valid numeric dates take precedence. The assumption is recorded with
+the post, and admins can edit the fixture. Multiple weekdays or unclear times
+still need review. As with other scheduling posts, `9 est` means 9 PM in New York;
+omitted AM/PM and year are recorded assumptions.
 Polling uses a ten-minute per-channel lease with heartbeat/ownership checks.
 Tracked edits remain subject to review even when team mentions disappear;
 permission/network failures cannot be mistaken for deleted messages. Dirty
@@ -591,7 +612,7 @@ includes the estimated MMR in the five-slot team average; the missing historical
 player contribution is neutral. No player record, stats or prop is invented.
 Team odds display **Provisional roster** without exposing the estimate. Confirmed
 player props and team futures may publish through the existing source, model,
-schedule and setup checks. League-wide player-leader markets remain held until
+schedule and setup checks. Player-leader markets remain held until
 all pending slots are confirmed. Unresolved duplicate memberships still block.
 
 Confirm the actual player using the searchable picker, their MMR, and optionally

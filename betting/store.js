@@ -81,11 +81,22 @@ export class BettingStore {
       if(Boolean(definition.rules?.localTesting)!==this.localTesting)fail('Local test markets require a dedicated development test database',409);
       if (!probabilities.length || probabilities.some(p => !(p.probability > 0 && p.probability < 1))
         || Math.abs(probabilities.reduce((sum,p) => sum + p.probability,0) - 1) > .000001) fail('Invalid forecast probabilities');
+      if(definition.type==='player_leader'&&definition.rules?.leaderField) {
+        const ids=(definition.roster||[]).map(p=>`player:${p.PlayerId}`).sort();
+        if(ids.length<2||new Set(ids).size!==ids.length||JSON.stringify(ids)!==JSON.stringify(probabilities.map(p=>p.key).sort()))
+          fail('Player-leader selections must match the listed field');
+      }
       const key = digest({ season: definition.seasonId, event: definition.eventId || null, type: definition.type,
         scope: definition.scope || null, stat: definition.stat || null, player: definition.playerId || null, team: definition.teamKey || null,
         game: definition.gameNumber || null, regularGames: definition.scope==='total'?definition.regularGames||null:null,
+        ...(definition.type==='player_leader'&&definition.rules?.leaderField?{leaderField:definition.rules.leaderField}:{}),
         ...(this.localTesting?{localTesting:true}:{}) });
       const previous = this.db.prepare('SELECT * FROM BettingMarkets WHERE DefinitionKey=?').get(key);
+      if(previous&&definition.type==='player_leader'&&definition.rules?.leaderField) {
+        const field=roster=>roster.map(p=>[p.PlayerId,p.TeamSubmissionId]).sort((a,b)=>a[0]-b[0]);
+        if(JSON.stringify(field(JSON.parse(previous.RulesJson).roster))!==JSON.stringify(field(definition.roster||[])))
+          fail('A published player-leader market keeps its original listed field',409);
+      }
       if(previous&&previous.Line!==(definition.line??null))fail('An existing market keeps its original line',409);
       if (previous && ['settled','void','locked'].includes(previous.Status)) return previous.MarketId;
       if (marketHasClosed({CloseAtUtc:closeAt},this.now())) return previous?.MarketId || null;

@@ -45,6 +45,39 @@ test('Discord time formats use message time, New York DST, explicit AM and year 
   assert.equal(parsed.team1Key,11);assert.equal(parsed.bestOf,2);
 });
 
+test('Discord weekday abbreviations use the next occurrence without interpreting month names',()=>{
+  const authored='2026-10-20T12:00:00.000Z';
+  for(const text of ['weds oc 21st 9 est','Wed October 28th 9pm','weds 9 est','10/21 weds 9 est']) {
+    assert.equal(parseScheduleTime(text,authored).scheduledStartUtc,'2026-10-22T01:00:00.000Z',text);
+  }
+  assert.equal(parseScheduleTime('weds oc 21st 9 est',authored).assumptions.includes('Next weekday occurrence'),true);
+  assert.equal(parseScheduleTime('weds oc 21st 9 est',authored).assumptions.includes('PM assumed'),true);
+  assert.equal(parseScheduleTime('October 21st 9pm',authored).error,'missing_date');
+  assert.equal(parseScheduleTime('weds 10/28 9 est',authored).scheduledStartUtc,'2026-10-29T01:00:00.000Z');
+  assert.equal(parseScheduleTime('weds 10/22 9 est',authored).error,'weekday_date_conflict');
+  assert.equal(parseScheduleTime('Wed 10/21 and 10/22 9 est',authored).error,'conflicting_dates');
+  assert.equal(parseScheduleTime('Wed and Thurs 9 est',authored).error,'conflicting_dates');
+  assert.equal(parseScheduleTime('last weds 9 est',authored).error,'retrospective_post');
+});
+
+test('Discord falls back to one clear weekday for unverifiable dates while preserving verified dates and times',()=>{
+  const teams=[{TeamSubmissionId:11,ExternalTeamId:1011111},{TeamSubmissionId:12,ExternalTeamId:1022222}];
+  const parse=(text,authoredAt='2026-10-20T12:00:00.000Z')=>parseScheduleMessage({content:`1011111 vs 1022222 ${text}`,authoredAt},teams);
+  for(const text of ['weds 10/22 9 est','weds 2/30 9 est','weds 10/21 or 10/22 9 est','weds 2025-10-21 9 est']) {
+    const result=parse(text);assert.equal(result.scheduledStartUtc,'2026-10-22T01:00:00.000Z',text);
+    assert.ok(result.assumptions.includes('Written date could not be verified; next wednesday assumed'));
+  }
+  assert.equal(parse('weds 10/28 9 est').scheduledStartUtc,'2026-10-29T01:00:00.000Z');
+  assert.equal(parse('weds 9 est','2026-10-22T02:00:00Z').scheduledStartUtc,'2026-10-29T01:00:00.000Z');
+  assert.equal(parse('weds 9 est','2026-10-21T12:00:00Z').scheduledStartUtc,'2026-10-22T01:00:00.000Z');
+  assert.equal(parse('weds Thurs 9 est').error,'conflicting_dates');
+  assert.equal(parse('2/30 9 est').error,'invalid_date');
+  assert.equal(parse('weds').error,'missing_time');
+  assert.equal(parse('weds 9pm or 10pm').error,'conflicting_times');
+  assert.equal(parse('last weds 9 est').error,'retrospective_post');
+  assert.equal(parse('Sun 2026-11-01 1 AM','2026-10-31T12:00:00Z').error,'ambiguous_dst_time');
+});
+
 test('BO1/BO2/BO3/BO5 score distributions are coherent and wager prices remain anchored',()=>{
   for(const bestOf of [1,2,3,5]) {
     const scores=seriesDistribution(.6,bestOf);assert.ok(Math.abs(scores.reduce((s,p)=>s+p.probability,0)-1)<1e-12);
@@ -209,6 +242,7 @@ test('finalized preseason setup publishes player totals, averages, leaders and s
     }
     f.schedules.finalizeSetup(2,6,'1',now);
     f.schedules.save(2,{team1Key:21,team2Key:22,stage:'regular',bestOf:2,scheduledStartUtc:'2026-10-17T01:00:00Z'},'1',now);
+    f.analytics.exec('UPDATE PlayerGameFacts SET PlayerId=210 WHERE PlayerId=1; UPDATE PlayerGameFacts SET PlayerId=211 WHERE PlayerId=2;');
     const result=runBetting({...f,seasonId:2,now,simulations:50});assert.ok(result.marketsOpened>20);
     const types=f.betting.prepare('SELECT DISTINCT MarketType FROM BettingMarkets WHERE SeasonId=2').all().map(r=>r.MarketType);
     for(const type of ['season_player','player_leader','champion','placement'])assert.ok(types.includes(type),type);

@@ -3,7 +3,7 @@ import {existsSync} from 'node:fs';
 import {dirname,resolve} from 'node:path';
 import {digest} from './scheduleStore.js';
 import {anchorPrice,configuredPricePolicy,ODDS_SCALE} from './pricing.js';
-import {MODEL_VERSION,METRICS,metricLabel,seededRandom,seriesForecast,statForecast,leaderForecast,simulateSeason} from './models.js';
+import {MODEL_VERSION,LEADER_FIELD_VERSION,METRICS,metricLabel,seededRandom,seriesForecast,statForecast,leaderForecast,simulateSeason} from './models.js';
 
 const day=value=>typeof value==='string'&&/^\d{4}-\d\d-\d\d(?:T.*)?$/.test(value)?value.slice(0,10):null;
 const table=(db,name)=>!!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
@@ -121,7 +121,7 @@ export function buildHistoricalPreview(source,{leagueId=19817,trainingLeagueId=n
     }
     if(planned?.reconstructed)warnings.push('preseason_rosters_reconstructed_from_first_complete_match','game_counts_and_rules_assumed_from_saved_groups');
     if(planned?.conflicts.length)warnings.push('conflicting_reconstructed_players_withheld');
-    const setupDigest=digest({model:MODEL_VERSION,version:PREVIEW_VERSION,inputs:priceInputs,rosterConfig,fixtures:sampleFixtures,simulations,margin});
+    const setupDigest=digest({model:MODEL_VERSION,leaderField:LEADER_FIELD_VERSION,version:PREVIEW_VERSION,inputs:priceInputs,rosterConfig,fixtures:sampleFixtures,simulations,margin});
     const seed=parseInt(setupDigest.slice(0,8),16);const random=seededRandom(seed);
     const add=(scope,definition,outcomes)=>markets.push({marketId:markets.length+1,scope,...definition,
       selections:outcomes.map(o=>({key:o.key,label:o.label,odds:anchorPrice(o.probability,margin)/ODDS_SCALE}))});
@@ -144,9 +144,9 @@ export function buildHistoricalPreview(source,{leagueId=19817,trainingLeagueId=n
     else {
       priceInputs.roster=planned.roster.map(p=>({...p,PlayerName:name(p.PlayerId)}));
       for(const player of priceInputs.roster)playerMarkets(player,'preseason');
-      if(!planned.conflicts.length&&priceInputs.roster.every(p=>samples(p.PlayerId)>=5))for(const [stat,aggregation] of [['kills','total'],['kills','average'],['gpm','average'],['xpm','average']]) {
+      if(!planned.conflicts.length)for(const [stat,aggregation] of [['kills','total'],['kills','average'],['gpm','average'],['xpm','average']]) {
         const outcomes=leaderForecast(priceInputs,priceInputs.roster,stat,aggregation,planned.gameCounts,random,simulations);
-        if(outcomes)add('preseason',{type:'player_leader',stat,aggregation,title:`Regular-season leader — ${metricLabel(stat)} ${aggregation}`},outcomes);
+        if(outcomes)add('preseason',{type:'player_leader',stat,aggregation,leaderField:LEADER_FIELD_VERSION,title:`Regular-season leader — ${metricLabel(stat)} ${aggregation} · Among listed players`},outcomes);
       }
       else held.push({scope:'preseason',reason:'leader_field_has_missing_history_or_conflicting_players'});
       if(planned.rules) {
@@ -243,7 +243,8 @@ export function readHistoricalPreview(path,{scope='preseason',preseasonGroup='al
       const playerView=scope==='preseason'&&group==='player'&&groupPlayers;
       const teamView=scope==='preseason'&&group==='team'&&groupTeams;
       const selections=marketId=>db.prepare('SELECT Label AS label,Odds AS odds FROM PreviewSelections WHERE RunId=? AND MarketId=? ORDER BY OutcomeKey').all(run.RunId,marketId);
-      const marketDto=m=>({marketId:m.MarketId,title:m.Title,type:m.MarketType,eventId:m.EventId,selections:selections(m.MarketId)});
+      const marketDto=m=>({marketId:m.MarketId,title:m.Title,type:m.MarketType,eventId:m.EventId,
+        leaderField:m.MarketType==='player_leader'?JSON.parse(m.DefinitionJson).leaderField:undefined,selections:selections(m.MarketId)});
       const teamGroups=[];
       if(teamView) {
         const teams=db.prepare(`SELECT json_extract(t.value,'$.TeamId') AS TeamId,json_extract(t.value,'$.GroupId') AS GroupId,

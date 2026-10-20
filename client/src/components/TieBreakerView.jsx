@@ -3,6 +3,7 @@ import TieBreakerTable from './TieBreakerTable';
 import UpperBracketTable from './UpperBracketTable';
 import LowerBracketTable from './LowerBracketTable';
 import EliminatedBracketTable from './EliminatedBracketTable';
+import TiebreakerInfo from './TiebreakerInfo';
 import './TieBreakerView.css';
 
 function QualifierTables({upper=[],lower=[],eliminated=[]}) {
@@ -49,7 +50,7 @@ export default function TiebreakerView({leagueId}) {
           tabIndex={item.id===pool.id?0:-1} onKeyDown={switchTab} onClick={()=>setSelected(item.id)}>{item.name}</button>)}
       </div>
       <section role="tabpanel" id={`${tabId}-panel-${activeIndex}`} aria-labelledby={`${tabId}-tab-${activeIndex}`}>
-        <h2>{pool.name}</h2>
+        <h2 className="tiebreaker-pool-title">{pool.name}<TiebreakerInfo key={pool.id} pool={pool}/></h2>
         <p>BO{pool.bestOf} round robin · Top {pool.upper} to upper bracket · Next {pool.lower} to lower bracket · {pool.eliminated} eliminated</p>
         <p>{data.finalized?'Final results saved.':`${pool.completedPairs??0} of ${pool.totalPairs??pool.teams.length*(pool.teams.length-1)/2} pairings completed. Qualification is confirmed when tiebreakers end.`}</p>
         {!data.finalized&&pool.needsOrder&&!pool.problems?.length&&<p>Equal results remain at a qualification cutoff. The final order needs admin confirmation.</p>}

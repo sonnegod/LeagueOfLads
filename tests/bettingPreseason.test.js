@@ -30,7 +30,9 @@ function cleanup(f,scratch) {
 test('finalized preseason without any fixtures opens every supported market type, survives locking, and accepts a public quote',async()=>{
   const f=preseasonFixture(),scratch=mkdtempSync(join(tmpdir(),'lads-unscheduled-preseason-'));let server;
   try {
-    removeSchedule(f);const result=refresh(f);
+    removeSchedule(f);
+    f.analytics.exec('UPDATE PlayerGameFacts SET PlayerId=210 WHERE PlayerId=1; UPDATE PlayerGameFacts SET PlayerId=211 WHERE PlayerId=2;');
+    const result=refresh(f);
     assert.ok(result.marketsOpened>100);assert.deepEqual(result.issues,[]);
     const types=f.betting.prepare('SELECT DISTINCT MarketType FROM BettingMarkets WHERE SeasonId=2').all().map(row=>row.MarketType);
     for(const type of ['season_player','season_team','player_leader','champion','placement'])assert.ok(types.includes(type),type);

@@ -6,6 +6,7 @@ import {ScheduleStore} from '../betting/scheduleStore.js';
 import {createRefreshQueue,markBettingDirty} from '../betting/refreshQueue.js';
 import {pollSchedules} from '../discordbot/schedulePoller.js';
 import {parseScheduleMessage} from '../betting/scheduleParser.js';
+import {runBetting} from '../betting/engine.js';
 
 const instant=new Date('2026-10-13T12:00:00.000Z');
 const season={SeasonId:1,CreatedAt:'2026-10-01T00:00:00.000Z'};
@@ -104,5 +105,38 @@ test('Discord ignores bots and old/unrelated posts; explicit BO3 tiebreakers kee
     await f.poll();assert.equal(f.store.list(1).length,1);assert.equal(f.store.list(1)[0].Stage,'tiebreaker');assert.equal(f.store.list(1)[0].BestOf,3);
     assert.equal(parseScheduleMessage({content:'1011111 vs 1022222 Saturday 9est playoff BO3',authoredAt:instant.toISOString()},f.store.teams(1)).stage,'playoff');
     assert.equal(f.league.prepare('SELECT COUNT(*) AS n FROM ScheduleMessages').get().n,1);
+  }finally{f.close();}
+});
+
+test('role-tagged post with an unverifiable month uses its weekday, publishes markets and preserves admin corrections',async()=>{
+  const postedAt=new Date('2026-10-20T12:00:00.000Z');
+  const roles=new Map([['111111111111111111',{name:'6 OR 7'}],['222222222222222222',{name:"This Cowboy Wasn't Made For Modern Love"}]]);
+  const f=pollFixture([message(100,'<@&111111111111111111> vs <@&222222222222222222> weds oc 21st 9 est',
+    {createdAt:postedAt,mentions:{roles}})]);
+  try {
+    for(const [key,name] of [[11,'6 OR 7'],[12,"This Cowboy Wasn't Made For Modern Love"]]) {
+      f.league.prepare('UPDATE SeasonTeams SET TeamName=? WHERE TeamSubmissionId=?').run(name,key);
+      f.analytics.prepare('UPDATE TeamFacts SET TeamName=? WHERE TeamSubmissionId=?').run(name,key);
+    }
+    f.analytics.prepare('UPDATE AnalyticsRuns SET AsOfUtc=?').run(postedAt.toISOString());
+    f.analytics.prepare('UPDATE SourceSnapshots SET LastSuccessAtUtc=?').run(postedAt.toISOString());
+    const imported=await f.poll({now:()=>postedAt});assert.equal(imported.changed,1);
+    const post=f.league.prepare("SELECT * FROM ScheduleMessages WHERE MessageId='100'").get();
+    assert.equal(post.ParseStatus,'parsed');assert.equal(post.IssueCode,null);
+    assert.ok(JSON.parse(post.AssumptionsJson).includes('Next weekday occurrence'));
+    const event=f.store.get(post.EventId);
+    assert.equal(event.ScheduledStartUtc,'2026-10-22T01:00:00.000Z');
+    assert.equal(event.Team1Key,11);assert.equal(event.Team2Key,12);assert.equal(event.Stage,'regular');assert.equal(event.BestOf,2);
+    assert.ok(state(f).RequestedRevision>state(f).CompletedRevision);
+    runBetting({...f,now:postedAt,simulations:50});
+    const markets=f.betting.prepare("SELECT MarketType FROM BettingMarkets WHERE EventId=? AND Status='open'").all(event.EventId);
+    assert.ok(markets.some(m=>m.MarketType==='series_winner'));assert.ok(markets.some(m=>m.MarketType==='exact_score'));
+    const revision=state(f).RequestedRevision;await f.poll({now:()=>postedAt});
+    assert.equal(state(f).RequestedRevision,revision);assert.equal(f.store.list(1).length,1);
+    const correctedStart='2026-10-23T01:00:00.000Z';
+    f.store.save(1,{eventId:event.EventId,revision:event.Revision,team1Key:11,team2Key:12,stage:'regular',bestOf:2,
+      scheduledStartUtc:correctedStart},'admin',postedAt);
+    await f.poll({now:()=>postedAt});
+    assert.equal(f.store.get(event.EventId).ScheduledStartUtc,correctedStart);
   }finally{f.close();}
 });

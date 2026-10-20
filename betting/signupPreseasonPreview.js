@@ -1,9 +1,9 @@
 import { resolve, dirname } from 'node:path';
 import { digest } from './scheduleStore.js';
-import { METRICS, seededRandom, statForecast, leaderForecast, simulateSeason, seasonWinsForecast } from './models.js';
+import { METRICS, LEADER_FIELD_VERSION,seededRandom, statForecast, leaderForecast, simulateSeason, seasonWinsForecast } from './models.js';
 import { configuredPricePolicy, anchorPrice, ODDS_SCALE } from './pricing.js';
 
-export const PRESEASON_MODEL_VERSION = 'edw-preseason-records-v4';
+export const PRESEASON_MODEL_VERSION = 'edw-preseason-records-v5';
 const valid = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const positive = value => Number.isSafeInteger(Number(value)) && Number(value) > 0;
 export function signupPreviewPath(bettingPath, seasonId) {
@@ -103,7 +103,7 @@ export function buildSignupPreseasonPreview({ inputs, history, historyReports = 
   }
   for (const [stat, aggregation] of [['kills', 'total'], ['kills', 'average'], ['gpm', 'average'], ['xpm', 'average']]) {
     const prediction = pendingSlots.length?null:leaderForecast(priceInputs, roster, stat, aggregation, gameCounts, random, simulations);
-    if (prediction) add({ type: 'player_leader', stat, aggregation, title: `Regular-season leader — ${stat} ${aggregation}` }, prediction);
+    if (prediction) add({ type: 'player_leader', stat, aggregation,leaderField:LEADER_FIELD_VERSION, title: `Regular-season leader — ${stat} ${aggregation} · Among listed players` }, prediction);
     else held.push({ scope: 'preseason', stat, reason: pendingSlots.length?'pending_roster_slots':'leader_field_has_missing_history_or_conflicting_players' });
   }
   const simulated = simulateSeason(priceInputs, { RegularGamesPerTeam: gameCounts }, random, simulations, { includeMatchups: true });

@@ -80,7 +80,7 @@ export default function HistoricalBettingPreview({leagueId,seasonId}) {
       {loading&&<p role="status">Loading preview…</p>}
       {!loading&&!simulationView&&!(playerView?(data.players?.length||data.leaderMarkets?.length):teamView?data.teamGroups?.length:data.markets.length)&&<p>No priced markets match this view. Check the held markets below.</p>}
       {simulationView?(!loading&&<BettingMatchupSimulations report={data.matchupSimulation} groups={data.teamGroups||[]} search={search}/>):playerView?<>{!loading&&<>
-        {!!data.leaderMarkets?.length&&<details><summary>League-wide player leaders</summary><div className="historical-betting-fixtures"><table className="sportsbook-table"><thead><tr><th>Market</th><th>Reference odds</th></tr></thead><tbody>
+        {!!data.leaderMarkets?.length&&<details><summary>Player leaders</summary><div className="historical-betting-fixtures"><table className="sportsbook-table"><thead><tr><th>Market</th><th>Reference odds</th></tr></thead><tbody>
           {data.leaderMarkets.map(m=><tr key={m.marketId}><td>{m.title}</td><td><MarketPrices market={m} /></td></tr>)}
         </tbody></table></div></details>}
         <div className="historical-player-list">{data.players?.map(player=><PlayerOddsRow key={player.playerId} player={player} />)}</div>

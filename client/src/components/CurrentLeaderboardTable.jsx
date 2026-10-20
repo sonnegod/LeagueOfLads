@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import {normalizeLeagueRules} from '../../../config/leagueRules.js';
+import TiebreakerInfo from './TiebreakerInfo';
 import './CurrentLeaderboardTable.css';
 
 export default function CurrentLeagueSeries({ leagueId }) {
@@ -244,7 +246,9 @@ export default function CurrentLeagueSeries({ leagueId }) {
                               ? <Link to={`/team/roster/${team.TeamSubmissionId}`} target="_blank" rel="noopener noreferrer">{team.TeamName}</Link>
                               : team.TeamName)
                             : <Link to={`/team/${team.TeamId}`} target="_blank" rel="noopener noreferrer">{team.TeamName}</Link>}
-                          {team.TiebreakerName&&<small className="leaderboard-tiebreaker-name">{team.TiebreakerName}</small>}
+                          {team.TiebreakerName&&<small className="leaderboard-tiebreaker-name"><span>{team.TiebreakerName}</span>
+                            {normalizeLeagueRules(group.rules||{}).QualificationPlan?.tiebreakers.filter(pool=>pool.id===team.TiebreakerId)
+                              .map(pool=><TiebreakerInfo key={pool.id} pool={pool}/>)}</small>}
                         </th>
                         <td>{team.Wins}</td>
                         <td>{team.Losses}</td>

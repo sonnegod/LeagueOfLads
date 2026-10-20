@@ -1,6 +1,8 @@
-export const PARSER_VERSION = 3;
+export const PARSER_VERSION = 5;
 export const LEAGUE_TIMEZONE = 'America/New_York';
 const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const weekdayAliases = {sun:'sunday',mon:'monday',tue:'tuesday',tues:'tuesday',wed:'wednesday',weds:'wednesday',
+  thu:'thursday',thur:'thursday',thurs:'thursday',fri:'friday',sat:'saturday'};
 const formatters=new Map();
 const formatter = timezone => {
   if(!formatters.has(timezone)) {
@@ -25,10 +27,11 @@ export function localToUtc({ year, month, day, hour, minute }, timezone = LEAGUE
   return candidates.length === 1 ? { utc: candidates[0] } : { error: candidates.length ? 'ambiguous_dst_time' : 'invalid_local_time' };
 }
 
-export function parseScheduleTime(text, authoredAt, horizonDays = 60, {allowPast=false} = {}) {
+export function parseScheduleTime(text, authoredAt, horizonDays = 60, {allowPast=false,weekdayFallback=false} = {}) {
   const reference = new Date(authoredAt);
   if (!Number.isFinite(reference.getTime())) return { error: 'invalid_message_time' };
-  text = String(text).toLowerCase();
+  text = String(text).toLowerCase()
+    .replace(/\b(sun|mon|tue|tues|wed|weds|thu|thur|thurs|fri|sat)\b\.?/g,word=>weekdayAliases[word.replace('.','')]);
   if(/\b(?:last\s+(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday)|yesterday|played|finished)\b/.test(text))return {error:'retrospective_post'};
   if(/\b(?:bst|cet|cest|ist|aest|aedt|jst)\b/.test(text))return {error:'unknown_timezone'};
   let timezone = LEAGUE_TIMEZONE;
@@ -56,43 +59,53 @@ export function parseScheduleTime(text, authoredAt, horizonDays = 60, {allowPast
   const offset = text.match(/(?:utc|gmt)\s*([+-])(\d{1,2})(?::?(\d{2}))?\b/i);
   const dates = [...text.matchAll(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b|\b(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\b/g)];
   const days = weekdays.filter(d => new RegExp(`\\b${d}\\b`).test(text));
-  if (dates.length > 1 || days.length > 1) return { error: 'conflicting_dates' };
+  if (days.length > 1 || (dates.length > 1 && (!weekdayFallback || !days.length))) return { error: 'conflicting_dates' };
   if (!dates.length && !days.length) return { error: 'missing_date' };
   const offsetMinutes=offset?(Number(offset[2])*60+Number(offset[3]||0))*(offset[1]==='+'?1:-1):null;
   const current = offset?parts(new Date(reference.getTime()+offsetMinutes*60000),'UTC'):parts(reference, timezone); let year; let month; let day;
   const assumptions = [];
+  let dateAssumptions = [];
   if (!isMeridiem && !clock24) assumptions.push('PM assumed');
   if (!explicitZone && !offset) assumptions.push('New York timezone assumed');
-  if (dates.length) {
-    const d = dates[0]; year = Number(d[1] || d[6] || current.year); month = Number(d[2] || d[4]); day = Number(d[3] || d[5]);
-    if (!d[1] && !d[6]) {
-      assumptions.push('Year inferred');
-      if (Date.UTC(year, month - 1, day + 1) < Date.UTC(current.year, current.month - 1, current.day)) year++;
-    }
-  } else {
+  const useWeekday = (fallback=false) => {
     const base = new Date(Date.UTC(current.year, current.month - 1, current.day));
     const delta = (weekdays.indexOf(days[0]) - base.getUTCDay() + 7) % 7;
     base.setUTCDate(base.getUTCDate() + delta);
+    if (!delta && (hour < current.hour || (hour === current.hour && minute <= current.minute))) base.setUTCDate(base.getUTCDate() + 7);
     year = base.getUTCFullYear(); month = base.getUTCMonth() + 1; day = base.getUTCDate();
-    if (!delta && (hour < current.hour || (hour === current.hour && minute <= current.minute))) {
-      base.setUTCDate(base.getUTCDate() + 7); year = base.getUTCFullYear(); month = base.getUTCMonth() + 1; day = base.getUTCDate();
+    dateAssumptions = ['Next weekday occurrence'];
+    if(fallback)dateAssumptions.push(`Written date could not be verified; next ${days[0]} assumed`);
+  };
+  if (dates.length === 1) {
+    const d = dates[0]; year = Number(d[1] || d[6] || current.year); month = Number(d[2] || d[4]); day = Number(d[3] || d[5]);
+    if (!d[1] && !d[6]) {
+      dateAssumptions.push('Year inferred');
+      if (Date.UTC(year, month - 1, day + 1) < Date.UTC(current.year, current.month - 1, current.day)) year++;
     }
-    assumptions.push('Next weekday occurrence');
+  } else {
+    useWeekday(dates.length>1);
   }
-  const calendar = new Date(Date.UTC(year, month - 1, day));
-  if (calendar.getUTCFullYear() !== year || calendar.getUTCMonth() + 1 !== month || calendar.getUTCDate() !== day) return { error: 'invalid_date' };
-  if (days.length && calendar.getUTCDay() !== weekdays.indexOf(days[0])) return { error: 'weekday_date_conflict' };
-  let result;
-  if (offset) {
-    const minutes = Number(offset[2]) * 60 + Number(offset[3] || 0);
-    if (minutes > 840 || Number(offset[3] || 0) > 59) return { error: 'invalid_offset' };
-    result = { utc: new Date(Date.UTC(year, month - 1, day, hour, minute) - (offset[1] === '+' ? minutes : -minutes) * 60000).toISOString() };
-    timezone = offset[0].toUpperCase();
-  } else result = localToUtc({ year, month, day, hour, minute }, timezone);
-  if (result.error) return result;
-  const distance = Date.parse(result.utc) - reference.getTime();
-  if ((!allowPast&&distance < -3600000) || distance > horizonDays * 86400000) return { error: 'outside_scheduling_horizon' };
-  return { scheduledStartUtc: result.utc, timezone, originalTimezone: explicitZone || offset?.[0] || null, assumptions };
+  const resolveDate = () => {
+    const calendar = new Date(Date.UTC(year, month - 1, day));
+    if (calendar.getUTCFullYear() !== year || calendar.getUTCMonth() + 1 !== month || calendar.getUTCDate() !== day) return { error: 'invalid_date' };
+    if (days.length && calendar.getUTCDay() !== weekdays.indexOf(days[0])) return { error: 'weekday_date_conflict' };
+    let result;
+    if (offset) {
+      const minutes = Number(offset[2]) * 60 + Number(offset[3] || 0);
+      if (minutes > 840 || Number(offset[3] || 0) > 59) return { error: 'invalid_offset' };
+      result = { utc: new Date(Date.UTC(year, month - 1, day, hour, minute) - (offset[1] === '+' ? minutes : -minutes) * 60000).toISOString() };
+      timezone = offset[0].toUpperCase();
+    } else result = localToUtc({ year, month, day, hour, minute }, timezone);
+    if (result.error) return result;
+    const distance = Date.parse(result.utc) - reference.getTime();
+    if ((!allowPast&&distance < -3600000) || distance > horizonDays * 86400000) return { error: 'outside_scheduling_horizon' };
+    return { scheduledStartUtc: result.utc, timezone, originalTimezone: explicitZone || offset?.[0] || null };
+  };
+  let result = resolveDate();
+  if(weekdayFallback && days.length===1 && ['invalid_date','weekday_date_conflict','outside_scheduling_horizon'].includes(result.error)) {
+    useWeekday(true);result=resolveDate();
+  }
+  return result.error ? result : {...result,assumptions:[...assumptions,...dateAssumptions]};
 }
 
 export function parseScheduleMessage(message, teams, roleAliases = []) {
@@ -116,7 +129,8 @@ export function parseScheduleMessage(message, teams, roleAliases = []) {
     ids.add(candidates[0].TeamSubmissionId);
   }
   if (ids.size !== 2) return { error: 'need_two_unique_teams' };
-  const parsed = parseScheduleTime(content.replace(/<@&\d+>/g, '').replace(/\b\d{6,10}\b/g, ''), message.editedAt || message.authoredAt);
+  const parsed = parseScheduleTime(content.replace(/<@&\d+>/g, '').replace(/\b\d{6,10}\b/g, ''), message.editedAt || message.authoredAt,
+    60,{weekdayFallback:true});
   if (parsed.error) return parsed;
   const stage = /\btiebreak/i.test(content) ? 'tiebreaker' : /\b(?:playoff|finals?|bo\s*[35])\b/i.test(content) ? 'playoff' : 'regular';
   const bestOf = Number(content.match(/\bbo\s*([235])\b/i)?.[1] || (stage === 'regular' ? 2 : /grand\s+final/i.test(content)?5:3));

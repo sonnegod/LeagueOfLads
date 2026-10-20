@@ -110,7 +110,8 @@ test('uneven groups get different planned game counts and unsupported playoffs d
   assert.equal(preview.markets.some(m => m.type === 'champion'), false);
   assert.ok(preview.markets.some(m => m.type === 'placement'));
   assert.ok(preview.held.some(h => h.reason === 'group_or_bracket_format_not_supported'));
-  assert.equal(preview.markets.some(m => m.type === 'player_leader'), false);
+  const leaders=preview.markets.filter(m=>m.type==='player_leader');assert.equal(leaders.length,4);
+  assert.ok(leaders.every(m=>m.selections.length===20&&m.selections.every(s=>Number(s.key.slice(7))<100)));
 });
 
 test('signup preview validates incomplete rosters, duplicates, stages and existing regular-season games', () => {

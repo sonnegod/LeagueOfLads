@@ -235,7 +235,7 @@
 .leaderboard-qualification-upper { background: #123b2b; }
 .leaderboard-qualification-upper th:first-child { border-left-color: #4ade80; }
 .leaderboard-qualification-tiebreaker { background: #1c3356; }
-.leaderboard-tiebreaker-name {display:block;font-size:.7rem;color:#bfdbfe;margin-top:.2rem;}
+.leaderboard-tiebreaker-name {display:flex;align-items:center;gap:.3rem;font-size:.7rem;color:#bfdbfe;margin-top:.2rem;}
 .leaderboard-qualification-tiebreaker th:first-child { border-left-color: #60a5fa; }
 .leaderboard-qualification-lower { background: #48351e; }
 .leaderboard-qualification-lower th:first-child { border-left-color: #fbbf24; }

@@ -39,6 +39,7 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
     const selections=db.prepare('SELECT SelectionId,OutcomeKey,Label,OfferedMicros FROM BettingSelections WHERE MarketId=? AND IsActive=1 ORDER BY SelectionId').all(m.MarketId);
     return {marketId:m.MarketId,seasonId:m.SeasonId,eventId:m.EventId,type:m.MarketType,title:m.Title,stat:m.StatKey,scope:m.Scope,
       playerId:m.PlayerId,teamKey:m.TeamKey,line:m.Line,gameNumber:m.GameNumber,bestOf:m.BestOf,stage:m.Stage,
+      leaderField:m.MarketType==='player_leader'?JSON.parse(m.RulesJson).leaderField||'league':undefined,
       closeAt:m.CloseAtUtc||null,status:locked?'locked':guard?'held':m.Status,quoteVersion:m.QuoteVersion,bettorCount:activity?.total,
       notice:guard||(m.Status==='held'?'Market temporarily unavailable':null),selections:selections.map(s=>({selectionId:s.SelectionId,key:s.OutcomeKey,label:s.Label,odds:s.OfferedMicros/ODDS_SCALE,
         available:!s.OutcomeKey.startsWith('player:')||!changed.includes(Number(s.OutcomeKey.slice(7))),bettorCount:activity?.byOutcome[s.OutcomeKey]||0}))};
@@ -85,6 +86,15 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
       ORDER BY PlayerId DESC,MarketId`).all(sid,...playerIds,sid):[];
     else if(view==='team')rows=db.prepare(`SELECT * FROM BettingMarkets WHERE SeasonId=? AND EventId IS NULL
       AND MarketType IN ('champion','placement','season_team') AND Status IN ('open','held','locked') ORDER BY MarketId DESC LIMIT 401`).all(sid);
+    else if(type==='player_leader') {
+      const pattern=`%${search.replace(/[\\%_]/g,'\\$&')}%`;
+      rows=db.prepare(`SELECT m.* FROM BettingMarkets m WHERE m.SeasonId=? AND m.MarketId IN (
+        SELECT MAX(MarketId) FROM BettingMarkets WHERE SeasonId=? AND MarketType='player_leader'
+        AND Status IN ('open','held','locked') GROUP BY StatKey,Scope)
+        AND (? IS NULL OR m.MarketId<?) AND (? IS NULL OR m.EventId=?) AND (?!='series' OR m.EventId IS NOT NULL)
+        AND (m.Title LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM BettingSelections s WHERE s.MarketId=m.MarketId AND s.Label LIKE ? ESCAPE '\\'))
+        ORDER BY m.MarketId DESC LIMIT ?`).all(sid,sid,before,before,event,event,view,pattern,pattern,limit+1);
+    }
     else rows=db.prepare(`SELECT * FROM BettingMarkets WHERE SeasonId=? AND Status IN ('open','held','locked')
       AND (? IS NULL OR MarketType=?) AND (? IS NULL OR EventId=?) AND (? IS NULL OR MarketId<?)
       AND (?!='series' OR EventId IS NOT NULL)

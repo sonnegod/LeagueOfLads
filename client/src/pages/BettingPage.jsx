@@ -46,6 +46,7 @@ function SportsbookPage() {
     .catch(err=>{if(err.name!=='AbortError')setError(err.message);});return()=>controller.abort();},[tab,user,refresh,revision]);
   const playerView=marketView==='preseason'&&preseasonGroup==='player';
   const teamView=marketView==='preseason'&&preseasonGroup==='team';
+  const leaderView=marketView==='preseason'&&preseasonGroup==='leaders';
   function changeMarketView(value){setMarketView(value);setBefore(null);setPages([]);setData({markets:[]});}
   function changePreseasonGroup(value){setPreseasonGroup(value);setBefore(null);setPages([]);setData({markets:[]});}
   return <div className="ui-page sportsbook-page">
@@ -69,7 +70,7 @@ function SportsbookPage() {
           {events.map(e=><option key={e.eventId} value={e.eventId}>{e.localTestFixture?'Test · ':''}{e.team1} vs {e.team2} · {date(e.startAt)} NY</option>)}</select></label></>}
         <label>Search<input type="search" maxLength="100" placeholder="Player, team or market" value={search} onChange={e=>{setSearch(e.target.value);setBefore(null);setPages([]);}} /></label></div>
       {loading&&<p role="status">Loading markets…</p>}
-      {!loading&&!(teamView?data.teamGroups?.length:playerView||marketView==='props'?data.players?.length:marketView==='series'?data.fixtures?.length:data.markets?.length)&&<div className="sportsbook-empty"><h2>No markets available</h2><p>{marketView==='preseason'?'Preseason markets appear after setup is finalized and pricing is ready.':'Try another fixture or check back before kickoff.'}</p></div>}
+      {!loading&&!(teamView?data.teamGroups?.length:playerView||marketView==='props'?data.players?.length:marketView==='series'?data.fixtures?.length:data.markets?.length)&&<div className="sportsbook-empty"><h2>No markets available</h2><p>{leaderView?'Leader markets need at least two players with enough verified history, confirmed rosters, and ready pricing. Try clearing your search if markets were previously visible.':marketView==='preseason'?'Preseason markets appear after setup is finalized and pricing is ready.':'Try another fixture or check back before kickoff.'}</p></div>}
       {playerView&&<><p className="sportsbook-notice">Rostered regular-season games only. At least 5 games and more than 50% participation required.</p>
         <div className="historical-player-list">{(data.players||[]).map(player=><PlayerOddsRow key={`${season}:${player.playerId}`} player={player} onChoose={choose} slip={slip} busy={busy||loading} canBet={Boolean(user)} />)}</div></>}
       {teamView&&<TeamOddsGroups groups={data.teamGroups||[]} onChoose={choose} slip={slip} busy={busy||loading} canBet={Boolean(user)} />}
@@ -78,6 +79,7 @@ function SportsbookPage() {
       {marketView==='preseason'&&!playerView&&!teamView&&<div className="sportsbook-markets">{data.markets.map(m=><article className="sportsbook-market" key={m.marketId}>
         <div className="sportsbook-market-meta"><span>{m.eventId?`BO${m.bestOf} · ${m.stage}`:m.type==='champion'?'Preseason · League title':m.type==='placement'?'Preseason · Bracket placement':'Preseason · Regular-season stats'}</span><span>{m.status==='open'?(m.closeAt?`Closes ${date(m.closeAt)} NY`:'Closes when the season starts'):m.status}</span></div>
         <h2>{m.title}</h2>{m.playerId&&<Link to={`/player/${m.playerId}`}>Player profile</Link>}
+        {m.type==='player_leader'&&m.leaderField==='listed-history-v1'&&<p className="sportsbook-notice">Highest result among these {m.selections.length} listed players. Players without enough verified history are excluded. The field is fixed when this market opens.</p>}
         {m.notice&&<p className="sportsbook-notice">{m.notice}</p>}
         <div className="sportsbook-selections">{m.selections.map(s=><button type="button" key={s.selectionId} disabled={!user||m.status!=='open'||s.available===false||busy||loading}
           data-signin-required={!user||undefined} title={!user?'Sign in with Steam to add this to your bet slip':m.notice||undefined}

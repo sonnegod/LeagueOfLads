@@ -9,7 +9,7 @@ import { currentSeasonRoster, conflictingRosterPlayers } from './rosterMembershi
 import { currentPendingSlots } from '../config/pendingRosterSlots.js';
 import { HISTORICAL_PRICING_VERSION, historicalSourceFingerprint } from './historicalPricing.js';
 import { marketHasClosed } from './marketTiming.js';
-import { MODEL_VERSION,METRICS,metricLabel,seededRandom,validateBaseline,validateLineupModel,validateStatDistributions,seriesForecast,statForecast,leaderForecast,simulateSeason,seasonWinsForecast } from './models.js';
+import { MODEL_VERSION,LEADER_FIELD_VERSION,METRICS,metricLabel,seededRandom,validateBaseline,validateLineupModel,validateStatDistributions,seriesForecast,statForecast,leaderForecast,eligibleLeaderRoster,simulateSeason,seasonWinsForecast } from './models.js';
 
 const allVoid = (book,market,reason) => book.void(market.MarketId,reason);
 const overUnder = (value,line) => value===line ? {over:{result:'void'},under:{result:'void'}}
@@ -294,7 +294,9 @@ export function settleSeason(book,league,inputs,setup,events) {
           results=overUnder(value(row),market.Line);evidence={seasonId:market.SeasonId,value:value(row),games:row.GamesPlayed,teamGames:row.TeamGames};
         } else {
           const roster=rules.roster;const rows=roster.map(p=>({p,row:stat.find(s=>s.PlayerId===p.PlayerId&&s.TeamSubmissionId===p.TeamSubmissionId)}));
-          const eligible=stat.filter(row=>row.MarketEligible);
+          const listed=rules.leaderField===LEADER_FIELD_VERSION;
+          const eligible=stat.filter(row=>row.MarketEligible&&(!listed||roster.some(p=>p.PlayerId===row.PlayerId&&p.TeamSubmissionId===row.TeamSubmissionId)
+            &&!permanentlyChanged.includes(row.PlayerId)));
           if(eligible.some(row=>!row.MetricComplete||!Number.isFinite(value(row)))||new Set(eligible.map(row=>row.PlayerId)).size!==eligible.length) {holdResult(book,market,selections,'metric_needs_review');continue;}
           const compare=(a,b)=>market.Scope==='total'?a.Total-b.Total:a.Total*b.Samples-b.Total*a.Samples;
           const top=eligible.reduce((best,row)=>!best||compare(row,best)>0?row:best,null);
@@ -303,7 +305,7 @@ export function settleSeason(book,league,inputs,setup,events) {
           results=Object.fromEntries(selections.map(s=>{const playerId=Number(s.OutcomeKey.slice(7));const declared=roster.find(p=>p.PlayerId===playerId);
             const row=declared?stat.find(r=>r.PlayerId===playerId&&r.TeamSubmissionId===declared.TeamSubmissionId):null;
             return [s.OutcomeKey,{result:!row?.MarketEligible||permanentlyChanged.includes(playerId)?'void':leaders.includes(playerId)?'won':'lost',divisor:leaders.includes(playerId)?leaders.length:1}];}));
-          evidence={seasonId:market.SeasonId,leaders,metricValue:high};
+          evidence={seasonId:market.SeasonId,leaders,metricValue:high,...(listed?{leaderField:rules.leaderField}: {})};
         }
       } else if(market.MarketType==='season_team') {
         if(events.some(e=>e.Stage==='regular'&&e.Status==='forfeit'&&[e.Team1Key,e.Team2Key].includes(market.TeamKey))) {
@@ -436,7 +438,7 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
       const snapshotId=book.db.prepare('SELECT SnapshotId FROM BettingInputSnapshots WHERE Digest=?').get(inputHash).SnapshotId;
       const upcoming=events.filter(e=>Date.parse(e.ScheduledStartUtc)>now.getTime()&&Date.parse(e.ScheduledStartUtc)<=now.getTime()+lookaheadDays*86400000);
       const modelVersion=inputs.historicalPricing?.version||`${MODEL_VERSION}-${inputs.modelMode}`;
-      const forecastKey=digest({inputHash,events,setup,model:modelVersion,simulations,policy:book.policy,lookaheadDays,upcoming:upcoming.map(e=>e.EventId)});
+      const forecastKey=digest({inputHash,events,setup,model:modelVersion,leaderField:LEADER_FIELD_VERSION,simulations,policy:book.policy,lookaheadDays,upcoming:upcoming.map(e=>e.EventId)});
       if(book.db.prepare('SELECT 1 FROM BettingForecasts WHERE ForecastKey=?').get(forecastKey))continue;
       const semantic=JSON.parse(JSON.stringify({teams:inputs.teams,roster:inputs.roster,stats:inputs.teamStats,metrics:inputs.metricHistory,
         games:inputs.games,mode:inputs.modelMode},(key,value)=>['RunId','SourceObservedAtUtc'].includes(key)?undefined:value));
@@ -513,8 +515,17 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
         }
         for(const [stat,scope] of [['kills','total'],['kills','average'],['gpm','average'],['xpm','average']]) {
           if(!validation.statDistributions[stat]?.validated)continue;
-          const prediction=!inputs.pendingSlots.length&&roster.length===inputs.teams.length*5?leaderForecast(inputs,roster,stat,scope,plannedGameCounts(setup),random,simulations):null;
-          if(prediction)publish({...def,type:'player_leader',stat,scope,title:`Regular-season leader — ${metricLabel(stat)} ${scope}`},prediction,preseason.closeAt);
+          if(inputs.pendingSlots.length||roster.length!==inputs.teams.length*5)continue;
+          const previous=book.db.prepare(`SELECT MarketId,RulesJson FROM BettingMarkets WHERE SeasonId=? AND MarketType='player_leader'
+            AND StatKey=? AND Scope=? AND json_extract(RulesJson,'$.leaderField')=? ORDER BY MarketId DESC LIMIT 1`)
+            .get(season.SeasonId,stat,scope,LEADER_FIELD_VERSION);
+          const field=previous?JSON.parse(previous.RulesJson).roster:eligibleLeaderRoster(inputs,roster,stat);
+          const ready=eligibleLeaderRoster(inputs,field,stat).length===field.length&&!field.some(p=>changedPlayers.includes(p.PlayerId));
+          const prediction=ready?leaderForecast(inputs,field,stat,scope,plannedGameCounts(setup),random,simulations):null;
+          if(prediction)publish({...def,type:'player_leader',stat,scope,roster:field,
+            rules:{...def.rules,leaderField:LEADER_FIELD_VERSION},
+            title:`Regular-season leader — ${metricLabel(stat)} ${scope} · Among listed players`},prediction,preseason.closeAt);
+          else if(previous)book.db.prepare("UPDATE BettingMarkets SET Status='held',HoldReason='leader_field_needs_review' WHERE MarketId=? AND Status IN ('open','held')").run(previous.MarketId);
         }
         const simulated=simulateSeason(inputs,setup,random,simulations);forecasts.push({seasonSimulation:simulated});
         if(simulated)for(const team of inputs.teams) {
