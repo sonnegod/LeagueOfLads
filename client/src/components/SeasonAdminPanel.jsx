@@ -26,7 +26,7 @@ function TeamPlayersList({ players }) {
 }
 
 function RemoveSignupButton({ team, seasonId, busy, run }) {
-  if (team.ExternalTeamId != null) return null;
+  if (team.GroupId != null) return null;
   return <button type="button" className="ui-button-danger" disabled={busy}
     aria-label={`Remove signup for ${team.TeamName}`} onClick={() => {
       if (!window.confirm(`Delete the signup and roster for ${team.TeamName} from this season?`)) return;
@@ -449,10 +449,10 @@ export default function SeasonAdminPanel({ onChanged }) {
       </>}
       {season.Status === 'active' && <>
         <p>League ID: {season.ExternalLeagueId}. Use Schedule to suggest regular season matchups, or Editor, Playoffs, and Settings for other league operations.</p>
-        {data.unlinkedSignups?.length > 0 && <section className="season-submissions">
-          <h3>Unlinked team signups ({data.unlinkedSignups.length})</h3>
-          <div className="season-team-list">{data.unlinkedSignups.map(team => <div className="season-team-card" key={team.TeamSubmissionId}>
-            <div className="season-actions"><strong>{team.TeamName}</strong><span>Awaiting team ID</span>
+        {data.unassignedSignups?.length > 0 && <section className="season-submissions">
+          <h3>Unassigned team signups ({data.unassignedSignups.length})</h3>
+          <div className="season-team-list">{data.unassignedSignups.map(team => <div className="season-team-card" key={team.TeamSubmissionId}>
+            <div className="season-actions"><strong>{team.TeamName}</strong><span>No group assigned</span>
               <RemoveSignupButton team={team} seasonId={sid} busy={busy} run={run} />
             </div>
           </div>)}</div>

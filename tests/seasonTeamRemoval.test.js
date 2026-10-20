@@ -85,10 +85,43 @@ test('unregistered teams can be deleted from the group draft without blocking be
   }finally{f.close();}
 });
 
-test('signup removal deletes assigned and unregistered unlinked teams after league start',()=>{
+test('unassigned signups with a team ID can be removed through signup actions or the group draft',()=>{
+  for(const action of ['signup','groups']) {
+    const f=fixture();try {
+      const team=f.store.addRosterTeam(f.season.SeasonId,roster('Unassigned signup with ID',16));f.markPending(team);
+      f.db.prepare('INSERT INTO TeamInfo(TeamId,TeamName) VALUES(7777,?)').run('Existing Dota team');
+      f.db.prepare('UPDATE SeasonTeams SET ExternalTeamId=7777 WHERE TeamSubmissionId=?').run(team.TeamSubmissionId);
+      assert.ok(f.store.unregisteredTeams(12345).some(t=>t.TeamSubmissionId===team.TeamSubmissionId&&t.TeamId===7777));
+      if(action==='signup')f.store.removeTeam(f.season.SeasonId,team.TeamSubmissionId);
+      else {
+        const input=f.draft();input.teams=input.teams.filter(t=>t.key!==`submission:${team.TeamSubmissionId}`);
+        saveLeagueGroupBoard(f.db,input,f.options);
+      }
+      assert.equal(f.store.getTeam(team.TeamSubmissionId),null,action);
+      assert.deepEqual(currentPendingSlots(f.db,f.season.SeasonId),[]);
+      assert.equal(f.db.prepare('SELECT TeamName FROM TeamInfo WHERE TeamId=7777').get().TeamName,'Existing Dota team');
+      assert.doesNotThrow(()=>f.schedules.finalizeSetup(f.season.SeasonId,6));
+      assert.deepEqual(f.db.pragma('foreign_key_check'),[]);
+    }finally{f.close();}
+  }
+});
+
+test('removing an unassigned signup with a team ID preserves recorded matches',()=>{
+  const f=fixture();try {
+    const team=f.store.addRosterTeam(f.season.SeasonId,roster('Already played',16));
+    f.db.prepare('UPDATE SeasonTeams SET ExternalTeamId=7777 WHERE TeamSubmissionId=?').run(team.TeamSubmissionId);
+    f.db.exec(`INSERT INTO MatchTeam(MatchId,TeamRad,TeamDire,WinnerId,SeriesId) VALUES(1,7777,8888,7777,0);
+      INSERT INTO MatchLeague(MatchId,LeagueId) VALUES(1,12345)`);
+    assert.throws(()=>f.store.removeTeam(f.season.SeasonId,team.TeamSubmissionId),/played matches|recorded fixtures/);
+    assert.ok(f.store.getTeam(team.TeamSubmissionId));
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM MatchTeam').get().n,1);
+  }finally{f.close();}
+});
+
+test('signup removal deletes assigned and unassigned teams without team IDs after league start',()=>{
   const f=fixture();try {
     const assigned=f.teams[2];f.markPending(assigned);
-    const unregistered=f.store.addRosterTeam(f.season.SeasonId,roster('Unlinked signup',16));f.markPending(unregistered);
+    const unregistered=f.store.addRosterTeam(f.season.SeasonId,roster('Unassigned signup',16));f.markPending(unregistered);
     for(const team of [assigned,unregistered]) {
       assert.equal(f.store.removeTeam(f.season.SeasonId,team.TeamSubmissionId).TeamSubmissionId,team.TeamSubmissionId);
       assert.equal(f.store.getTeam(team.TeamSubmissionId),null);

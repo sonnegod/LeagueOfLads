@@ -124,8 +124,8 @@ adminSeasonRoutes.get('/current', (req, res) => {
     const latest = db.seasons.lastEnded();
     const showSubmissions = ['signup_open', 'signup_closed'].includes(season?.Status);
     return res.json({ season, latest, teams: showSubmissions ? db.seasons.teams(season.SeasonId, true) : [],
-      unlinkedSignups: season?.Status === 'active'
-        ? db.seasons.teams(season.SeasonId).filter(team => team.ExternalTeamId == null) : [],
+      unassignedSignups: season?.Status === 'active'
+        ? db.seasons.unregisteredTeams(season.ExternalLeagueId) : [],
       ...(season ? db.seasons.groupSummary(season.SeasonId) : { groups: [], spread: null }) });
   } catch (error) { return respond(res, error); }
 });

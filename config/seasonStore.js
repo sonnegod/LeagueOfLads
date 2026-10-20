@@ -534,7 +534,7 @@ export default class SeasonStore {
   }
 
   unregisteredTeams(leagueId) {
-    return this.db.prepare(`SELECT t.TeamSubmissionId,t.TeamName,t.ExternalTeamId AS TeamId,
+    return this.db.prepare(`SELECT t.TeamSubmissionId,t.TeamName,t.GroupId,t.ExternalTeamId AS TeamId,
         EXISTS(SELECT 1 FROM TeamRosterPlayers r WHERE r.TeamSubmissionId=t.TeamSubmissionId) AS HasRoster
       FROM SeasonTeams t JOIN LeagueSeasons s ON s.SeasonId=t.SeasonId
       WHERE s.ExternalLeagueId=? AND s.Status='active' AND t.GroupId IS NULL

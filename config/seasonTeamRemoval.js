@@ -16,8 +16,14 @@ export function deleteSeasonSignup(db,seasonId,teamId) {
     const entries=tables.has('LeagueRosterEntries')
       ?db.prepare('SELECT EntryId,LeagueId,TeamId FROM LeagueRosterEntries WHERE TeamSubmissionId=?').all(teamId):[];
     const events=teamEvents(db,tables,seasonId,teamId);
-    if(team.ExternalTeamId!=null || entries.some(entry=>entry.TeamId!=null || entry.LeagueId!==season.ExternalLeagueId)
-      || events.some(playedFixture))fail('Teams linked to played matches or recorded fixtures cannot be deleted');
+    const publishedGroup=team.ExternalTeamId!=null&&tables.has('LeagueGroups')
+      ?db.prepare('SELECT 1 FROM LeagueGroups WHERE LeagueId=? AND TeamId=?').get(season.ExternalLeagueId,team.ExternalTeamId):null;
+    const assigned=team.GroupId!=null || entries.length>0 || publishedGroup;
+    const playedMatch=team.ExternalTeamId!=null&&tables.has('MatchTeam')&&tables.has('MatchLeague')
+      ?db.prepare(`SELECT 1 FROM MatchTeam m JOIN MatchLeague l ON l.MatchId=m.MatchId
+        WHERE l.LeagueId=? AND (m.TeamRad=? OR m.TeamDire=?) LIMIT 1`).get(season.ExternalLeagueId,team.ExternalTeamId,team.ExternalTeamId):null;
+    if((team.ExternalTeamId!=null&&assigned) || entries.some(entry=>entry.TeamId!=null || entry.LeagueId!==season.ExternalLeagueId)
+      || events.some(playedFixture) || playedMatch)fail('Teams linked to played matches or recorded fixtures cannot be deleted');
 
     for(const entry of entries) {
       if(tables.has('SeasonMatchups'))db.prepare('DELETE FROM SeasonMatchups WHERE SeasonId=? AND (TeamAEntryId=? OR TeamBEntryId=?)')

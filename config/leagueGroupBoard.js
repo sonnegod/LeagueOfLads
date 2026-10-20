@@ -63,7 +63,7 @@ export function saveLeagueGroupBoard(db,input,{readBoard,rebuild,audit}) {
       }
       selected.set(team.key,{...team,name,original,newTeam});
     }
-    for(const [key,team] of originalTeams)if(!selected.has(key)&&((!team.Unregistered&&team.EntryId==null)||team.TeamId!=null))
+    for(const [key,team] of originalTeams)if(!selected.has(key)&&!team.Unregistered&&(team.EntryId==null||team.TeamId!=null))
       fail('Existing played teams must remain in the setup');
 
     const season=db.prepare("SELECT SeasonId FROM LeagueSeasons WHERE ExternalLeagueId=? AND Status='active'").get(leagueId);
