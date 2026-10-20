@@ -25,7 +25,17 @@ function TeamPlayersList({ players }) {
   </div>;
 }
 
-function GroupTeamCard({ team, seasonId, groups, busy, revealView, expanded, onExpand, move, onDragStart, onDragEnd }) {
+function RemoveSignupButton({ team, seasonId, busy, run }) {
+  if (team.ExternalTeamId != null) return null;
+  return <button type="button" className="ui-button-danger" disabled={busy}
+    aria-label={`Remove signup for ${team.TeamName}`} onClick={() => {
+      if (!window.confirm(`Delete the signup and roster for ${team.TeamName} from this season?`)) return;
+      run(() => request(`/api/admin/seasons/${seasonId}/teams/${team.TeamSubmissionId}`, { method: 'DELETE' }),
+        'Team signup removed.').catch(() => {});
+    }}>Remove signup</button>;
+}
+
+function GroupTeamCard({ team, seasonId, groups, busy, revealView, expanded, onExpand, move, run, onDragStart, onDragEnd }) {
   const [roster, setRoster] = useState(null);
   useEffect(() => {
     if (!expanded || revealView || team.IsManual) return undefined;
@@ -53,6 +63,7 @@ function GroupTeamCard({ team, seasonId, groups, busy, revealView, expanded, onE
         {team.IsManual ? <small>Manual team</small> : <button type="button" aria-expanded={expanded}
           aria-label={`${expanded ? 'Hide' : 'Show'} players for ${team.TeamName}`}
           onClick={() => onExpand(team.TeamSubmissionId)}>{expanded ? 'Hide players' : 'Players'} <span aria-hidden="true">{expanded ? '▴' : '▾'}</span></button>}
+        <RemoveSignupButton team={team} seasonId={seasonId} busy={busy} run={run} />
       </div>
       {expanded && !team.IsManual && <div className="season-group-card-roster">
         {!roster || roster.loading ? <small role="status">Loading players…</small> : roster.error ? <small className="season-error" role="alert">{roster.error}</small>
@@ -304,7 +315,7 @@ function GroupsPanel({ season, teams, groups, spread, refresh, run, busy }) {
       {group.teams.map(team => <GroupTeamCard key={team.TeamSubmissionId} team={team} seasonId={seasonId}
         groups={visibleGroups} busy={busy} revealView={revealView} expanded={expandedTeams.includes(team.TeamSubmissionId)}
         onExpand={teamId => setExpandedTeams(current => current.includes(teamId) ? current.filter(id => id !== teamId) : [...current, teamId])}
-        move={move}
+        move={move} run={run}
         onDragStart={event => { event.dataTransfer.setData('text/plain', String(team.TeamSubmissionId)); setDragged(team.TeamSubmissionId); }}
         onDragEnd={() => setDragged(null)} />)}
       </div>
@@ -438,6 +449,14 @@ export default function SeasonAdminPanel({ onChanged }) {
       </>}
       {season.Status === 'active' && <>
         <p>League ID: {season.ExternalLeagueId}. Use Schedule to suggest regular season matchups, or Editor, Playoffs, and Settings for other league operations.</p>
+        {data.unlinkedSignups?.length > 0 && <section className="season-submissions">
+          <h3>Unlinked team signups ({data.unlinkedSignups.length})</h3>
+          <div className="season-team-list">{data.unlinkedSignups.map(team => <div className="season-team-card" key={team.TeamSubmissionId}>
+            <div className="season-actions"><strong>{team.TeamName}</strong><span>Awaiting team ID</span>
+              <RemoveSignupButton team={team} seasonId={sid} busy={busy} run={run} />
+            </div>
+          </div>)}</div>
+        </section>}
         <LeagueEndPanel season={season} onEnded={() => {
           reload().catch(err => setError(err.message));
           onChanged?.();

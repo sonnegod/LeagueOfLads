@@ -7,6 +7,7 @@ import { backfillLegacyChampions } from './legacyLeagueChampions.js';
 import { ensureChampionshipRosterSchema, hasSignupRoster, CHAMPIONSHIP_ROSTER_PLAYERS_SQL } from './championshipRoster.js';
 import { screenshotMimeFromBytes } from '../shared/screenshotFormat.js';
 import { applySignupSlotOverrides, pendingSlotOverrides } from './pendingRosterSlots.js';
+import { deleteSeasonSignup, repairRemovedSeasonSignups } from './seasonTeamRemoval.js';
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -150,6 +151,7 @@ export default class SeasonStore {
       CREATE INDEX IF NOT EXISTS idx_SeasonTeams_Season ON SeasonTeams(SeasonId);
       CREATE INDEX IF NOT EXISTS idx_SeasonGroups_Season ON SeasonGroups(SeasonId);
     `);
+    repairRemovedSeasonSignups(db,audit);
     this.rosters = new TeamRosterStore(db);
     this.schedule = new SeasonScheduleStore(db, audit);
     ensureChampionshipRosterSchema(db);
@@ -572,9 +574,8 @@ export default class SeasonStore {
       const season = this.get(seasonId);
       const team = this.getTeam(teamId, false);
       if (!season || !team || team.SeasonId !== seasonId) fail('Team not found', 404);
-      if (!['signup_open', 'signup_closed'].includes(season.Status)) fail('Teams cannot be removed after league start', 409);
-      this.db.prepare('DELETE FROM SeasonTeamPlayers WHERE TeamSubmissionId = ?').run(teamId);
-      this.db.prepare('DELETE FROM SeasonTeams WHERE TeamSubmissionId = ?').run(teamId);
+      if (!['signup_open', 'signup_closed', 'active'].includes(season.Status)) fail('Teams cannot be removed from completed seasons', 409);
+      deleteSeasonSignup(this.db,seasonId,teamId);
       this.audit('Signup Removed', `Removed ${team.TeamName} (submission ${teamId}) from season ${seasonId}`);
       return team;
     })();

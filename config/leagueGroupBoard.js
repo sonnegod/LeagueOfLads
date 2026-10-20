@@ -1,5 +1,6 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {saveRegisteredLeagueTeam} from './leagueParticipants.js';
+import {deleteSeasonSignup} from './seasonTeamRemoval.js';
 
 export const groupTeamKey = team => team.EntryId != null ? `entry:${team.EntryId}` : `team:${team.TeamId}`;
 const fail = (message,status=400) => { throw Object.assign(new Error(message),{status}); };
@@ -62,7 +63,7 @@ export function saveLeagueGroupBoard(db,input,{readBoard,rebuild,audit}) {
       }
       selected.set(team.key,{...team,name,original,newTeam});
     }
-    for(const [key,team] of originalTeams)if(!selected.has(key)&&(team.EntryId==null||team.TeamId!=null))
+    for(const [key,team] of originalTeams)if(!selected.has(key)&&((!team.Unregistered&&team.EntryId==null)||team.TeamId!=null))
       fail('Existing played teams must remain in the setup');
 
     const season=db.prepare("SELECT SeasonId FROM LeagueSeasons WHERE ExternalLeagueId=? AND Status='active'").get(leagueId);
@@ -88,12 +89,23 @@ export function saveLeagueGroupBoard(db,input,{readBoard,rebuild,audit}) {
     const entries=[...originalTeams.values()].filter(t=>t.EntryId!=null);
     for(const team of entries) {
       if(!selected.has(groupTeamKey(team))) {
+        // Read the stored identity: rosterless signup teams hide it in the board response.
+        const entry=db.prepare('SELECT TeamSubmissionId FROM LeagueRosterEntries WHERE LeagueId=? AND EntryId=?').get(leagueId,team.EntryId);
+        if(entry.TeamSubmissionId!=null) {
+          if(!season)fail('The signup season is no longer active',409);
+          deleteSeasonSignup(db,season.SeasonId,entry.TeamSubmissionId);
+          continue;
+        }
         // Suggested opponents reference this entry; remove them before deleting the team.
         db.prepare(`DELETE FROM SeasonMatchups WHERE SeasonId IN(
           SELECT SeasonId FROM LeagueSeasons WHERE ExternalLeagueId=?)
           AND (TeamAEntryId=? OR TeamBEntryId=?)`).run(leagueId,team.EntryId,team.EntryId);
         db.prepare('DELETE FROM LeagueRosterEntries WHERE LeagueId=? AND EntryId=?').run(leagueId,team.EntryId);
       }else db.prepare('UPDATE LeagueRosterEntries SET DisplayName=? WHERE LeagueId=? AND EntryId=?').run(`${token}:${team.EntryId}`,leagueId,team.EntryId);
+    }
+    for(const [key,team] of originalTeams)if(team.Unregistered&&!selected.has(key)) {
+      if(!season)fail('The signup season is no longer active',409);
+      deleteSeasonSignup(db,season.SeasonId,team.TeamSubmissionId);
     }
     const orders=new Map();
     const nextSort=groupId=>{const order=(orders.get(groupId)||0)+1;orders.set(groupId,order);return order;};

@@ -104,7 +104,7 @@ export default function LeagueSetupTable({refreshKey,onUpdated}) {
     {conflict&&<p className="league-setup-conflict" role="alert">Another admin or league update changed the saved groups. Your draft is still here. Cancel editing to load the latest version.</p>}
     {message&&<p className="league-setup-message" role="status">{message}</p>}
     {!snapshot?<p>Loading groups…</p>:!snapshot.league&&!editing?<p>No active league.</p>:<>
-      <p className="league-setup-hint">{editing?'Drag teams between groups, or use their group dropdown. Changes apply when you save.':'Click Edit groups to make changes. Saved changes from other admins appear automatically.'}</p>
+      <p className="league-setup-hint">{editing?'Drag teams between groups, or use their group dropdown. Removing a team also deletes its signup and roster. Changes apply when you save.':'Click Edit groups to make changes. Saved changes from other admins appear automatically.'}</p>
       {editing&&<form className="league-setup-add-group" onSubmit={event=>{
         event.preventDefault();const name=newGroupName.trim();if(!name)return;
         setDraft(current=>({...current,groups:[...current.groups,{id:`new-group:${crypto.randomUUID()}`,name}]}));setNewGroupName('');
@@ -148,8 +148,8 @@ export default function LeagueSetupTable({refreshKey,onUpdated}) {
                 onChange={event=>updateTeam(team.key,{teamId:event.target.value?Number(event.target.value):null})}>
                 <option value="">Awaiting Team ID</option>{candidates.map(t=><option key={t.TeamId} value={t.TeamId}>{t.TeamName||'Unknown team'} ({t.TeamId})</option>)}
               </select></label>}
-              {!team.unregistered&&<button type="button" className="ui-button-danger" disabled={saving}
-                onClick={()=>setDraft(current=>({...current,teams:current.teams.filter(t=>t.key!==team.key)}))}>Remove team</button>}
+              <button type="button" className="ui-button-danger" disabled={saving}
+                onClick={()=>setDraft(current=>({...current,teams:current.teams.filter(t=>t.key!==team.key)}))}>Remove team</button>
             </details>}
           </div>;
         })}</div>
