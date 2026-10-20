@@ -12,9 +12,26 @@
 .schedule-note, .schedule-window header span { color: var(--muted-text, #aab2c0); line-height: 1.6; }
 .schedule-error { color: #f87171; }
 .schedule-notices { border-left: 3px solid #eab308; padding: 0.75rem 1rem; }
-.schedule-window header { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; justify-content: space-between; align-items: center; }
+.schedule-window header { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 0.5rem 1rem; align-items: center; }
+.schedule-window header>span {text-align:right;}
+.schedule-windows {display:grid;gap:1rem;min-width:0;}
 .schedule-table-wrap { overflow-x: auto; }
-.schedule-window table { width: 100%; min-width: 440px; border-collapse: collapse; }
-.schedule-window th, .schedule-window td { padding: 0.7rem; text-align: left; border-bottom: 1px solid var(--border, #334155); }
+.schedule-window table { width: 100%; min-width: 440px; border-collapse: collapse; table-layout:fixed; }
+.schedule-group-column {width:18%;}.schedule-team-column {width:41%;}
+.schedule-matchups-table--editing .schedule-group-column {width:16%;}
+.schedule-matchups-table--editing .schedule-team-column {width:32%;}
+.schedule-actions-column {width:20%;}
+.schedule-window th, .schedule-window td { padding: 0.7rem; text-align: left; vertical-align:top; overflow-wrap:anywhere; border-bottom: 1px solid var(--border, #334155); }
 .schedule-window summary { cursor: pointer; color: var(--muted-text, #aab2c0); }
 .schedule-loads { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.6rem; padding-top: 0.75rem; }
+.schedule-windows--team {grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:.75rem;align-items:start;}
+.schedule-window--team {gap:.6rem;padding:.8rem;max-width:420px;box-sizing:border-box;}
+.schedule-window--team header {grid-template-columns:minmax(0,1fr) auto;gap:.5rem;}
+.schedule-window--team h3 {font-size:1rem;}
+.schedule-team-caption {font-size:.9rem;}
+.schedule-team-dates,.schedule-series-count {font-size:.78rem;color:var(--muted-text,#aab2c0);}
+.schedule-opponents {display:grid;gap:.3rem;margin:0;padding-left:1.3rem;}
+.schedule-opponents li {padding:.3rem 0;font-size:.85rem;overflow-wrap:anywhere;}
+.schedule-opponents li+li {border-top:1px solid var(--border,#334155);}
+.schedule-opponents .schedule-actions {margin-top:.35rem;gap:.35rem;}
+@media(max-width:480px){.schedule-window:not(.schedule-window--team) header {grid-template-columns:1fr;}.schedule-window:not(.schedule-window--team) header>span {text-align:left;}}

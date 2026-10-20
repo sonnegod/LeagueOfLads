@@ -244,6 +244,54 @@ test('settings and lifecycle validation prevents invalid dates, foreign seasons,
   } finally { db.close(); }
 });
 
+function addViewerRosters(db) {
+  db.exec(`ALTER TABLE LeagueRosterEntries ADD COLUMN TeamSubmissionId INTEGER;
+    CREATE TABLE SeasonTeams(TeamSubmissionId INTEGER PRIMARY KEY,SeasonId INTEGER,ExternalTeamId INTEGER);
+    CREATE TABLE SeasonTeamPlayers(TeamSubmissionId INTEGER,PlayerId INTEGER,Slot INTEGER);
+    CREATE TABLE TeamRosterPlayers(TeamSubmissionId INTEGER,PlayerId INTEGER,Slot INTEGER);
+    CREATE TABLE SeasonPendingRosterSlots(TeamSubmissionId INTEGER,Slot INTEGER,ConfirmedPlayerId INTEGER);
+    INSERT INTO SeasonTeams VALUES(101,1,NULL),(102,1,300);
+    UPDATE LeagueRosterEntries SET TeamSubmissionId=101 WHERE EntryId=1;
+    UPDATE LeagueRosterEntries SET TeamId=300 WHERE EntryId=3;
+    INSERT INTO SeasonTeamPlayers VALUES(101,501,0);
+    INSERT INTO TeamRosterPlayers VALUES(101,502,0),(102,503,0),(101,504,1),(101,505,2),(102,505,2);
+    INSERT INTO SeasonPendingRosterSlots VALUES(101,1,NULL);`);
+}
+
+test('viewer schedule default uses only one confirmed current roster, including teams without a Dota team ID',()=>{
+  const {db,store}=fixture([4]);try {
+    addViewerRosters(db);
+    assert.equal(store.viewerTeamEntryId(900,502),1);
+    assert.equal(store.viewerTeamEntryId(900,503),3);
+    for(const player of [501,504,505,999,null,0,-1])assert.equal(store.viewerTeamEntryId(900,player),null);
+    assert.equal(store.viewerTeamEntryId(899,502),null);
+    db.exec('UPDATE LeagueRosterEntries SET TeamSubmissionId=101 WHERE EntryId=2');
+    assert.equal(store.viewerTeamEntryId(900,502),null,'ambiguous entry mappings cannot select an arbitrary team');
+    db.exec("UPDATE LeagueSeasons SET Status='ended' WHERE SeasonId=1");
+    assert.equal(store.viewerTeamEntryId(900,503),null);
+  }finally{db.close();}
+});
+
+test('public schedule personalizes only from the signed-in session and prevents shared caching of defaults',async()=>{
+  const {db,store,settings}=fixture([4]);let server;
+  try {
+    addViewerRosters(db);store.saveSettings(1,settings);store.generate(1,{},()=>.37);
+    const app=express();app.use((req,res,next)=>{
+      const account=req.get('x-test-account');req.isAuthenticated=()=>Boolean(account);
+      if(account)req.user={id:/^\d+$/.test(account)?String(76561197960265728n+BigInt(account)):'bad'};
+      next();
+    });app.use('/api',createPublicScheduleRouter(store));
+    server=app.listen(0,'127.0.0.1');await once(server,'listening');const base=`http://127.0.0.1:${server.address().port}`;
+    const get=account=>fetch(`${base}/api/leagues/900/schedule?playerId=502`,{headers:account?{'x-test-account':account}:{}});
+    assert.equal((await (await get()).json()).viewerTeamEntryId,null);
+    const own=await get('502');assert.equal(own.headers.get('cache-control'),'private, no-store');assert.match(own.headers.get('vary'),/Cookie/);
+    const payload=await own.json();assert.equal(payload.viewerTeamEntryId,1);assert.equal(payload.matchups.length,6);
+    assert.equal(JSON.stringify(payload).includes('PlayerId'),false);
+    assert.equal((await (await get('503')).json()).viewerTeamEntryId,3);
+    for(const account of ['999','505','bad'])assert.equal((await (await get(account)).json()).viewerTeamEntryId,null);
+  }finally{if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}db.close();}
+});
+
 test('API supports manual and randomized planning with a public read view and validates request IDs', async () => {
   const { db, store, settings } = fixture([4]);
   const app = express();

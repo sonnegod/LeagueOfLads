@@ -1,3 +1,5 @@
+import {currentSeasonRoster} from '../betting/rosterMembership.js';
+
 function fail(message, status = 400) {
   throw Object.assign(new Error(message), { status });
 }
@@ -166,6 +168,24 @@ export default class SeasonScheduleStore {
     const season = this.db.prepare('SELECT SeasonId FROM LeagueSeasons WHERE ExternalLeagueId = ?').get(leagueId);
     return season ? this.read(season.SeasonId)
       : { settings: null, matchups: [], windows: [], groups: [], teams: [], warnings: [], expectedMatchups: 0 };
+  }
+
+  viewerTeamEntryId(leagueId,playerId) {
+    if(!Number.isSafeInteger(playerId)||playerId<=0)return null;
+    const season=this.db.prepare("SELECT SeasonId,Status FROM LeagueSeasons WHERE ExternalLeagueId=? AND Status='active'").get(leagueId);
+    if(!season)return null;
+    const tables=new Set(this.db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row=>row.name));
+    if(!tables.has('SeasonTeams')||(!tables.has('SeasonTeamPlayers')&&!tables.has('TeamRosterPlayers')))return null;
+    const memberships=[...new Set(currentSeasonRoster(this.db,season.SeasonId,season.Status)
+      .filter(player=>player.PlayerId===playerId).map(player=>player.TeamSubmissionId))];
+    if(memberships.length!==1)return null;
+    const columns=this.db.pragma('table_info(LeagueRosterEntries)').map(column=>column.name);
+    const condition=columns.includes('TeamSubmissionId')
+      ?'(r.TeamSubmissionId=t.TeamSubmissionId OR (r.TeamSubmissionId IS NULL AND r.TeamId=t.ExternalTeamId))'
+      :'r.TeamId=t.ExternalTeamId';
+    const rows=this.db.prepare(`SELECT r.EntryId FROM LeagueRosterEntries r JOIN SeasonTeams t
+      ON t.TeamSubmissionId=? AND t.SeasonId=? WHERE r.LeagueId=? AND ${condition}`).all(memberships[0],season.SeasonId,leagueId);
+    return rows.length===1?rows[0].EntryId:null;
   }
 
   saveSettings(seasonId, values = {}) {

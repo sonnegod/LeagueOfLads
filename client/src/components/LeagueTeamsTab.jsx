@@ -38,7 +38,7 @@ export default function LeagueTeamsTab({ leagueId }) {
               <span>{team.WinPercentage == null ? '—' : `${Number(team.WinPercentage).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`} WR</span>
             </div></div></header>
         {team.players.length || team.pendingSlots.length ? <ul>{team.players.map(player => <li key={player.PlayerId}>
-          <Link to={`/player/${player.PlayerId}`} target="_blank" rel="noopener noreferrer">{player.PlayerName}</Link>
+          <Link to={`/player/${player.PlayerId}`}>{player.PlayerName}</Link>
           <DotabuffLink playerId={player.PlayerId} name={player.PlayerName} />
         </li>)}{team.pendingSlots.map(slot => <li key={`pending:${slot.Slot}`}><span>Player TBD</span></li>)}</ul>
           : <p className="league-roster-empty">Roster not recorded yet.</p>}

@@ -43,7 +43,16 @@ export function createPublicScheduleRouter(store) {
   const router = express.Router();
   router.get('/leagues/:leagueId/schedule', (req, res) => {
     if (!positiveId(req.params.leagueId)) return res.status(400).json({ error: 'Invalid league' });
-    try { return res.json(store.forLeague(Number(req.params.leagueId))); }
+    try {
+      let playerId=null;
+      if(req.isAuthenticated?.()&&req.user)try {
+        const account=BigInt(req.user.id)-76561197960265728n;
+        if(account>0n&&account<=BigInt(Number.MAX_SAFE_INTEGER))playerId=Number(account);
+      }catch{}
+      res.set('Cache-Control','private, no-store');res.vary('Cookie');
+      const leagueId=Number(req.params.leagueId);
+      return res.json({...store.forLeague(leagueId),viewerTeamEntryId:store.viewerTeamEntryId(leagueId,playerId)});
+    }
     catch (error) { return respond(res, error); }
   });
   return router;

@@ -126,6 +126,11 @@ series. Re-slotting preserves existing order, so manually arranged plans can
 still have uneven loads; check the per-team counts and advisory notes.
 Teams can find their assignments on the league page's **Schedule** tab and filter by
 group or team. The Schedule tab is shown only while the league is active.
+Signed-in players default to their confirmed current team. Players without one
+unambiguous roster and guests see All teams. Selecting a single team shows compact
+window cards with its opponents; All teams keeps the full matchup tables. The
+public response includes only the viewer's matching entry ID and cannot be
+shared-cached. Admin schedule editing still starts with All teams.
 
 Server startup creates `SeasonScheduleSettings` and `SeasonMatchups` automatically
 inside `LadsData.db`. Suggestions use stable `LeagueRosterEntries.EntryId` values,
