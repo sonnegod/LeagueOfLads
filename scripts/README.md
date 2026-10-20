@@ -38,16 +38,21 @@ Analytics is created/migrated automatically by `node scripts/analytics/build.js`
 Use `--init-only` for schema creation or `--status` for a read-only status check.
 Deployments build the client on a GitHub Actions runner with Node 22, then upload
 the finished files to a per-run staging directory on the server. The server
-advances its `main` checkout to the build's commit, installs server dependencies,
+updates its checkout with `git pull origin main`, installs server dependencies,
 backs up databases, publishes the staged client and restarts PM2. Frontend installs
 and Vite builds no longer compete with the live app for server memory. An install,
-backup or commit mismatch failure leaves the published frontend untouched; staging
+backup or Git pull failure leaves the published frontend untouched; staging
 is cleaned up when the deployment command exits. Existing GitHub server secrets
 are reused. Startup initializes additive source/Betting schemas; Analytics builds,
 pricing and item downloads are handled separately. `nightlyRun.sh` builds even
 without an active league, and admin controls can request an immediate refresh.
 Source ingestion adds freshness/timestamp records
 automatically on its next run. Details are in [analytics/README.md](../analytics/README.md).
+
+The pull uses the server's existing Git configuration and retains its local
+history; deployment does not push server commits to GitHub. Conflicting changes
+still need to be resolved on the server. The published frontend is built from
+GitHub source, so server-only frontend edits are not included in that build.
 
 ## Scheduled database backups
 
