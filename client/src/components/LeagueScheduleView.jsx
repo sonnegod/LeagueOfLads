@@ -21,7 +21,7 @@ export default function LeagueScheduleView({ plan, onEdit, onRemove, busy = fals
     {settings && <p className="schedule-note">
       Suggested pace: <strong>{settings.SeriesPerWindow} series per team every {settings.WeeksPerWindow} week{settings.WeeksPerWindow === 1 ? '' : 's'}</strong>.
       {' '}These are pacing suggestions. Teams may play other opponents or play outside these windows.
-      Final windows and byes can mean fewer series.
+      Small remainders go in the final window; byes can mean fewer series.
     </p>}
     {plan.matchups.length > 0 && <div className="schedule-controls">
       <label>Group<select value={groupId} onChange={event => { setGroupId(event.target.value); setTeamId('all'); }}>

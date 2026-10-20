@@ -19,7 +19,7 @@ export function ScheduledBettingCard({fixture,...actions}) {
     <div className="sportsbook-market-meta"><span>{fixture.localTestFixture?'Test · ':''}BO{fixture.bestOf} · {fixture.stage}</span><span>{date(fixture.startAt)} NY</span></div>
     <h2 className="scheduled-team-heading"><span title={fixture.team1.name}>{teamName(fixture.team1)}</span><span className="scheduled-vs">vs</span><span title={fixture.team2.name}>{teamName(fixture.team2)}</span></h2>
     <ResultPrices market={fixture.exactScore} keys={keys} labels={keys.map(key=>key.replace('-','–'))} compact {...actions}/>
-    <div className="scheduled-card-footer"><span>{fixture.exactScore?.status==='open'?'':fixture.exactScore?.status||'Odds pending'}</span><Link to={href}>View bets →</Link></div>
+    <div className="scheduled-card-footer"><span>{fixture.exactScore?.status==='open'?'':fixture.exactScore?.status||'Odds pending'}</span><Link className="scheduled-card-link" to={href} aria-label={`View bets for ${fixture.team1.name} vs ${fixture.team2.name}`}>View bets →</Link></div>
   </article>;
 }
 
@@ -72,7 +72,7 @@ export function ScheduledPlayerProps({player,bestOf,refreshKey,...actions}) {
 
 function ResultPrices({market,keys,labels,compact=false,...actions}) {
   if(!market)return <p className="sportsbook-notice">Score odds are not available yet.</p>;
-  return <><div className={`sportsbook-selections scheduled-score-options${compact?' scheduled-card-prices':''}`} style={keys.length===3?undefined:{gridTemplateColumns:`repeat(${keys.length},minmax(0,1fr))`}}>
+  return <><div className={`sportsbook-selections scheduled-score-options${compact?' scheduled-card-prices':''}`} style={keys.length===3||(compact&&keys.length>4)?undefined:{gridTemplateColumns:`repeat(${keys.length},minmax(0,1fr))`}}>
     {keys.map((key,i)=>{
       const selection=market.selections.find(s=>s.key===key);
       return <button key={key} type="button" disabled={actions.canBet===false||!selection||market.status!=='open'||selection.available===false||actions.busy}

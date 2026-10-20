@@ -113,7 +113,9 @@ export default function TeamPage() {
   return (
     <div className="detail-page team-detail-page" style={{ padding: '1rem' }}>
       <div className="team-page-heading">
-        <h1>{teamName}</h1>
+        <div className="team-page-title"><h1>{teamName}</h1>
+          {roster?.SeasonStatus==='active'&&roster.CaptainId>0&&<p className="team-page-captain">Captain: <Link to={`/player/${roster.CaptainId}`}>{roster.CaptainName||`Player ${roster.CaptainId}`}</Link></p>}
+        </div>
         <DotabuffLink teamId={teamId} name={teamName} />
       </div>
       {(roster || teamId) && <TeamRosterHistory roster={roster || { TeamId: teamId }} leagueId={selectedLeague} />}

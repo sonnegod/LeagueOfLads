@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import HeroDisplay from "./HeroDisplay";
 import DotabuffLink from './DotabuffLink';
+import {rosterDisplayMembers} from '../utils/rosterDisplayMembers';
 
 const PLAYER_LEADER_MIN_GAMES = 5;
 
@@ -103,10 +104,11 @@ export default function TeamHomeTab({
 function RosterCard({ roster }) {
   return <FeatureCard title="Roster">
     {roster ?
-      <ul className="team-home-roster-players">{roster.players.map(player => <li key={player.PlayerId}>
-        <Link to={`/player/${player.PlayerId}`} target="_blank" rel="noopener noreferrer">{player.PlayerName}</Link>
-        <DotabuffLink playerId={player.PlayerId} name={player.PlayerName} />
-      </li>)}{roster.pendingSlots?.map(slot => <li key={`pending:${slot.Slot}`}><span>Player TBD</span></li>)}</ul>
+      <ul className="team-home-roster-players">{rosterDisplayMembers(roster).map((player,index) => <li key={player.pending?`pending:${player.Slot}`:player.PlayerId}>
+        {roster.Source==='signup'&&roster.SeasonStatus==='active'&&<span className="team-roster-position">Pos {index+1}</span>}
+        {player.pending?<span>Player TBD</span>:<><Link to={`/player/${player.PlayerId}`} target="_blank" rel="noopener noreferrer">{player.PlayerName}</Link>
+        <DotabuffLink playerId={player.PlayerId} name={player.PlayerName} /></>}
+      </li>)}</ul>
       : <EmptyState>No roster recorded yet.</EmptyState>}
   </FeatureCard>;
 }

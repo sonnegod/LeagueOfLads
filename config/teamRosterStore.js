@@ -1,9 +1,11 @@
 import { ensurePendingRosterSchema, pendingSlotOverrides } from './pendingRosterSlots.js';
+import {ensureRosterDisplayOrderSchema,readRosterOrder} from './rosterDisplayOrder.js';
 
 export default class TeamRosterStore {
   constructor(db) {
     this.db = db;
     ensurePendingRosterSchema(db);
+    ensureRosterDisplayOrderSchema(db);
     db.exec(`CREATE TABLE IF NOT EXISTS TeamRosterPlayers (
       TeamSubmissionId INTEGER NOT NULL REFERENCES SeasonTeams(TeamSubmissionId),
       PlayerId INTEGER NOT NULL REFERENCES PlayerInfo(PlayerId),
@@ -78,10 +80,12 @@ export default class TeamRosterStore {
   forSubmission(teamSubmissionId) {
     const team = this.db.prepare(`SELECT t.TeamSubmissionId, t.SeasonId,
         t.ExternalTeamId AS TeamId, s.ExternalLeagueId AS LeagueId, s.LeagueName, s.Status AS SeasonStatus,
-        COALESCE(e.DisplayName, t.TeamName) AS TeamName,
+        COALESCE(e.DisplayName, t.TeamName) AS TeamName, t.CaptainId,
+        CAST(captain.PlayerName AS TEXT) AS CaptainName,
         period.EffectiveFrom, period.EffectiveTo, period.FromEstimated
       FROM SeasonTeams t
       JOIN LeagueSeasons s ON s.SeasonId = t.SeasonId
+      LEFT JOIN PlayerInfo captain ON captain.PlayerId = t.CaptainId
       LEFT JOIN LeagueRosterEntries e ON e.TeamSubmissionId = t.TeamSubmissionId
       LEFT JOIN TeamRosterPeriods period ON period.TeamSubmissionId = t.TeamSubmissionId
       WHERE t.TeamSubmissionId = ? AND s.Status IN ('active', 'ended')
@@ -93,7 +97,9 @@ export default class TeamRosterStore {
       WHERE r.TeamSubmissionId = ? ORDER BY r.Slot`).all(teamSubmissionId);
     const pendingSlots = pendingSlotOverrides(this.db, team.SeasonId)
       .filter(p=>p.TeamSubmissionId===team.TeamSubmissionId && p.ConfirmedPlayerId==null).map(p=>({Slot:p.Slot}));
-    return { ...team, Source: 'signup', players, pendingSlots };
+    const SlotOrder=readRosterOrder(this.db,teamSubmissionId);
+    players.sort((a,b)=>SlotOrder.indexOf(a.Slot)-SlotOrder.indexOf(b.Slot));
+    return { ...team, Source: 'signup', players, pendingSlots, SlotOrder };
   }
 
   forTeam(teamId, leagueId = 'all') {

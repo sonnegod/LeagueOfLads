@@ -3,13 +3,29 @@ import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import TeamRosterStore from '../config/teamRosterStore.js';
 
+test('public team rosters expose the saved captain and persist display order independently of roster positions',()=>{
+  const db=fixture();try {
+    const store=new TeamRosterStore(db);
+    db.prepare('UPDATE SeasonTeams SET CaptainId=5,ExternalTeamId=333 WHERE TeamSubmissionId=1').run();
+    const original=db.prepare('SELECT PlayerId,Slot FROM TeamRosterPlayers WHERE TeamSubmissionId=1 ORDER BY Slot').all();
+    db.prepare('INSERT INTO TeamRosterDisplayOrder VALUES(?,?)').run(1,JSON.stringify([2,0,4,1,3]));
+    const roster=store.forSubmission(1);
+    assert.equal(roster.CaptainId,5);assert.equal(roster.CaptainName,'Player 5');assert.equal(roster.SeasonStatus,'active');
+    assert.deepEqual(roster.players.map(p=>p.PlayerId),[3,1,5,2,4]);
+    assert.deepEqual(roster.SlotOrder,[2,0,4,1,3]);
+    assert.deepEqual(new TeamRosterStore(db).forTeam(333).players.map(p=>p.PlayerId),[3,1,5,2,4]);
+    assert.deepEqual(db.prepare('SELECT PlayerId,Slot FROM TeamRosterPlayers WHERE TeamSubmissionId=1 ORDER BY Slot').all(),original);
+    assert.deepEqual(store.forSubmission(2).players.map(p=>p.PlayerId),[2,6,7,8,9]);
+  }finally{db.close();}
+});
+
 function fixture() {
   const db = new Database(':memory:');
   db.pragma('foreign_keys = ON');
   db.exec(`CREATE TABLE PlayerInfo (PlayerId INTEGER PRIMARY KEY, PlayerName TEXT);
     CREATE TABLE LeagueSeasons (SeasonId INTEGER PRIMARY KEY, Status TEXT, ExternalLeagueId INTEGER, LeagueName TEXT, EndedAt TEXT);
     CREATE TABLE SeasonTeams (TeamSubmissionId INTEGER PRIMARY KEY, SeasonId INTEGER,
-      TeamName TEXT, IsManual INTEGER, ExternalTeamId INTEGER);
+      TeamName TEXT, IsManual INTEGER, ExternalTeamId INTEGER, CaptainId INTEGER);
     CREATE TABLE SeasonTeamPlayers (TeamSubmissionId INTEGER, PlayerId INTEGER, Slot INTEGER);
     CREATE TABLE LeagueRosterEntries (TeamSubmissionId INTEGER, DisplayName TEXT);
     CREATE TABLE MatchTeam (MatchId INTEGER PRIMARY KEY, TeamRad INTEGER, TeamDire INTEGER);
@@ -21,7 +37,7 @@ function fixture() {
     CREATE TABLE MatchTeamPlayer (MatchId INTEGER, PlayerId INTEGER, TeamId INTEGER);
     INSERT INTO LeagueSeasons (SeasonId, Status, ExternalLeagueId, LeagueName)
       VALUES (1, 'active', 100, 'Current'), (2, 'ended', 200, 'Past'), (3, 'signup_closed', 300, 'Next');
-    INSERT INTO SeasonTeams VALUES (1, 1, 'Current team', 0, NULL), (2, 2, 'Past team', 0, 111),
+    INSERT INTO SeasonTeams (TeamSubmissionId,SeasonId,TeamName,IsManual,ExternalTeamId) VALUES (1, 1, 'Current team', 0, NULL), (2, 2, 'Past team', 0, 111),
       (3, 3, 'Pending', 0, NULL), (4, 1, 'Manual', 1, 222);
     INSERT INTO LeagueRosterEntries VALUES (1, 'Public team name');`);
   for (let id = 1; id <= 11; id += 1) {

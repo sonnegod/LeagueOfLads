@@ -1,7 +1,8 @@
 .team-page-heading, .player-page-heading { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1.25rem; }
 /* Override the shared page heading margins; space belongs to the whole row. */
-.content .detail-page.team-detail-page .team-page-heading > h1,
+.content .detail-page.team-detail-page .team-page-title > h1,
 .content .detail-page.player-detail-page .player-page-heading > h1 { margin: 0; }
+.team-page-captain {margin:.4rem 0 0;color:var(--muted-text,#9ca3af);font-size:.9rem;}
 .dotabuff-link { display: inline-flex; align-items: center; justify-content: center;
   align-self: center; vertical-align: middle; line-height: 0;
   padding: 0; border: 0; background: transparent; cursor: pointer; flex-shrink: 0; }
@@ -17,6 +18,7 @@
 .team-active-roster-players { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; padding: 0;
   margin: 0.8rem 0 0; list-style: none; }
 .team-active-roster-players li { display: flex; align-items: center; gap: 0.5rem; }
+.team-roster-position {min-width:45px;flex-shrink:0;color:var(--muted-text,#9ca3af);font-size:.85rem;}
 .team-standin-label { display: block; margin-top: 0.2rem; font-size: 0.75rem; color: var(--muted-text, #9ca3af); }
 .team-roster-dates { display: block; margin-top: 0.35rem; color: var(--muted-text, #9ca3af); font-size: 0.8rem; }
 .team-roster-history { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border, #2a2d33); }

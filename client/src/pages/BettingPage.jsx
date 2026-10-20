@@ -26,7 +26,7 @@ function SportsbookPage() {
   const selectedSeason=params.get('seasonId');
   useEffect(()=>{const controller=new AbortController();request('/api/betting/meta',{signal:controller.signal}).then(value=>{
     if(controller.signal.aborted)return;
-    setMeta(value);setSeason(current=>String(value.seasons.find(s=>String(s.seasonId)===selectedSeason)?.seasonId||value.seasons.find(s=>String(s.seasonId)===current)?.seasonId||value.defaultSeasonId||''));
+    setMeta(value);setSeason(String(value.seasons.find(s=>String(s.seasonId)===selectedSeason)?.seasonId||value.defaultSeasonId||''));
   }).catch(err=>{if(err.name!=='AbortError')setError(err.message);});return()=>controller.abort();},[setSeason,selectedSeason]);
   useEffect(()=>{setBefore(null);setPages([]);setEvent('');setTicketBefore(null);setTicketPages([]);},[season]);
   useEffect(()=>{
@@ -67,11 +67,11 @@ function SportsbookPage() {
   function changePreseasonGroup(value){setPreseasonGroup(value);setBefore(null);setPages([]);setData({markets:[]});}
   return <div className="ui-page sportsbook-page">
     <header className="sportsbook-heading"><div><h1>League betting</h1><p>Series, player props, and season futures · Site points</p></div>
-      {user&&wallet&&<div className="sportsbook-wallet"><strong>{points(wallet.balance)}</strong><span>Season points</span></div>}</header>
+      <div className="sportsbook-heading-actions">
+        {user&&wallet&&<div className="sportsbook-wallet"><strong>{points(wallet.balance)}</strong><span>Season points</span></div>}
+        <button type="button" disabled={loading} onClick={()=>setRefresh(r=>r+1)}>Refresh</button>
+      </div></header>
     {meta?.localTesting&&<p className="sportsbook-test-banner" role="status"><strong>Local test betting</strong> · Development only. Test wallets and tickets are separate. Prices are available for testing and have not been approved for production.</p>}
-    <div className="sportsbook-toolbar sportsbook-season-toolbar"><label><span>Season</span><select value={season} onChange={e=>setSeason(e.target.value)}>
-      {meta?.seasons.map(s=><option key={s.seasonId} value={s.seasonId}>{s.name}</option>)}</select></label>
-      <button type="button" disabled={loading} onClick={()=>setRefresh(r=>r+1)}>Refresh</button></div>
     <div className="ui-tabs" aria-label="Betting sections">{[['markets','Markets'],['tickets','Your tickets'],['leaderboard','Leaderboard'],['legacy','Legacy history']].map(([key,label])=>
       <button type="button" className="ui-tab" key={key} aria-pressed={tab===key} onClick={()=>setTab(key)}>{label}</button>)}</div>
     {error&&<p role="alert" className="sportsbook-error">{error}</p>}

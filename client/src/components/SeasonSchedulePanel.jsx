@@ -93,8 +93,8 @@ export default function SeasonSchedulePanel({ seasonId }) {
             onChange={event => setSettings({ ...settings, weeksPerWindow: event.target.value })} /></label>
           <button disabled={busy} className="ui-button-primary">Save pace</button>
         </div>
-        <p className="schedule-note">Dates and counts are guidance only. Changing the pace updates the date labels;
-          randomize again to redistribute existing matchups using a new series target.</p>
+        <p className="schedule-note">Dates and counts are guidance only. Save pace changes, then use Re-slot matchups
+          to move the existing pairings into their new windows. Small remainders go in the last window.</p>
       </form>
       <div className="schedule-actions">
         <button type="button" className="ui-button-primary" disabled={busy || !plan.settings || settingsDirty}
@@ -104,10 +104,14 @@ export default function SeasonSchedulePanel({ seasonId }) {
               'In-group matchups randomized.');
             if (saved) resetMatchup();
           }}>Randomize all matchups</button>
+        <button type="button" disabled={busy || !plan.settings || settingsDirty || !plan.matchups.length}
+          onClick={async()=>{if(await run(`${base}/reslot`,'POST',{},'Matchups re-slotted in their existing order.'))resetMatchup();}}>Re-slot matchups</button>
         <button type="button" disabled={busy} onClick={() => run(base, 'GET', null, 'Schedule refreshed.')}>Refresh</button>
         <span>{plan.matchups.length} / {plan.expectedMatchups} possible in-group pairings assigned</span>
       </div>
-      {settingsDirty && <p role="status">Save the pace changes before generating matchups.</p>}
+      {settingsDirty && <p role="status">Save the pace changes before randomizing or re-slotting matchups.</p>}
+      <p className="schedule-note">Re-slotting keeps opponents and their order within each group. A manually arranged order
+        may leave some teams with uneven loads; check the series counts and pacing notes below.</p>
       <p className="schedule-note">Randomization suggests one series against every opponent in the same group.
         Re-randomizing replaces the plan, including manual edits. It does not change groups or recorded results.</p>
       {plan.settings && <form ref={editorRef} className="schedule-card" onSubmit={saveMatchup}>

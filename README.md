@@ -111,11 +111,19 @@ within each group, or add and edit individual pairings and their window numbers.
 Leaving a team or opponent on Random selects an unused in-group pairing, favoring
 teams with fewer suggestions in that window. Re-randomizing asks for confirmation
 because it replaces the existing suggestions, including manual edits.
+After changing the pace, save it and choose **Re-slot matchups** to redistribute
+the existing pairings in their current order within each group. This keeps IDs
+and opponents, including manual pairings. Small remainders go into the last
+window: at four series per window, groups of 9/9/10 get 4+4, 4+4, and 4+5 series
+per team. Complete windows are chosen close to the requested pace; larger
+remainders can form a separate final window.
 
 This is a pacing guide. Teams may play off-schedule opponents, early, or late;
 suggestions do not restrict match ingestion or affect results and standings. Manual
 plans can exceed the series target; the editor shows advisory workload notes.
-Odd-sized groups have byes, and the final window may contain fewer series.
+Odd-sized groups can have byes, and final windows can contain more or fewer
+series. Re-slotting preserves existing order, so manually arranged plans can
+still have uneven loads; check the per-team counts and advisory notes.
 Teams can find their assignments on the league page's **Schedule** tab and filter by
 group or team. The Schedule tab is shown only while the league is active.
 

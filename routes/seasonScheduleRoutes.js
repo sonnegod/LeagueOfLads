@@ -25,6 +25,7 @@ export function createAdminScheduleRouter(store) {
   router.get('/:seasonId/schedule', action(seasonId => store.read(seasonId)));
   router.put('/:seasonId/schedule', action((seasonId, body) => store.saveSettings(seasonId, body)));
   router.post('/:seasonId/schedule/randomize', action((seasonId, body) => store.generate(seasonId, body)));
+  router.post('/:seasonId/schedule/reslot', action(seasonId => store.reslot(seasonId)));
   router.post('/:seasonId/schedule/matchups', action((seasonId, body) => store.saveMatchup(seasonId, body)));
   router.post('/:seasonId/schedule/matchups/random', action((seasonId, body) => store.randomMatchup(seasonId, body)));
   router.patch('/:seasonId/schedule/matchups/:matchupId', action((seasonId, body, req) => {

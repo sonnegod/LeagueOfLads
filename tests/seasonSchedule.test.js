@@ -99,6 +99,86 @@ test('cadence is configurable and existing suggestions require explicit replacem
   } finally { db.close(); }
 });
 
+test('9/9/10 format gives nine-team groups 4+4 series and puts the ten-team remainder in its last window',()=>{
+  const {db,store,settings}=fixture([9,9,10]);try {
+    store.saveSettings(1,{...settings,seriesPerWindow:4});
+    for(const seed of [0,.37,.8]) {
+      const plan=store.generate(1,{replaceExisting:true},()=>seed);
+      assert.equal(plan.matchups.length,117);assert.equal(plan.windows.length,2);assert.deepEqual(plan.warnings,[]);
+      assert.equal(new Set(plan.matchups.map(row=>`${row.TeamAEntryId}:${row.TeamBEntryId}`)).size,117);
+      for(const window of plan.windows)for(const team of window.teamLoads) {
+        assert.equal(team.series,team.GroupId===3&&window.number===2?5:4);
+      }
+    }
+  }finally{db.close();}
+});
+
+test('generation retains complete round robins across odd/even groups and configurable paces',()=>{
+  for(let size=2;size<=14;size++)for(const pace of [1,2,3,4,5,6]) {
+    const {db,store,settings}=fixture([size]);try {
+      store.saveSettings(1,{...settings,seriesPerWindow:pace});const plan=store.generate(1,{},()=>.37);
+      assert.equal(plan.matchups.length,size*(size-1)/2,`size ${size}, pace ${pace}`);
+      assert.equal(new Set(plan.matchups.map(row=>`${row.TeamAEntryId}:${row.TeamBEntryId}`)).size,plan.matchups.length);
+      for(const team of plan.teams)assert.equal(plan.matchups.filter(row=>[row.TeamAEntryId,row.TeamBEntryId].includes(team.EntryId)).length,size-1);
+    }finally{db.close();}
+  }
+});
+
+test('re-slotting an existing 5+4 plan moves the extra series to the end without replacing opponents',()=>{
+  const {db,store,settings}=fixture([10]);try {
+    store.saveSettings(1,{...settings,seriesPerWindow:4});const generated=store.generate(1,{},()=>.37);
+    generated.matchups.forEach((row,index)=>db.prepare('UPDATE SeasonMatchups SET WindowNumber=? WHERE MatchupId=?').run(index<25?1:2,row.MatchupId));
+    assert.ok(store.read(1).windows[0].teamLoads.every(team=>team.series===5));
+    const after=store.reslot(1);assert.equal(after.windows.length,2);
+    assert.ok(after.windows[0].teamLoads.every(team=>team.series===4));
+    assert.ok(after.windows[1].teamLoads.every(team=>team.series===5));
+    assert.deepEqual(after.matchups.map(row=>row.MatchupId),generated.matchups.map(row=>row.MatchupId));
+    assert.deepEqual(after.warnings,[]);
+  }finally{db.close();}
+});
+
+test('re-slotting uses the saved pace while preserving pairings, IDs, and existing per-group order',()=>{
+  const {db,store,settings,audit}=fixture([9,9,10]);try {
+    store.saveSettings(1,{...settings,seriesPerWindow:4});const before=store.generate(1,{},()=>.37);
+    const pairings=plan=>plan.matchups.map(({MatchupId,GroupId,TeamAEntryId,TeamBEntryId})=>({MatchupId,GroupId,TeamAEntryId,TeamBEntryId})).sort((a,b)=>a.MatchupId-b.MatchupId);
+    const saved=store.saveSettings(1,{...settings,startDate:'2026-11-02',seriesPerWindow:2,weeksPerWindow:1});
+    assert.deepEqual(saved.matchups,before.matchups,'saving settings alone keeps current window assignments');
+    const after=store.reslot(1);assert.deepEqual(pairings(after),pairings(before));assert.equal(after.windows.length,5);
+    for(const group of before.groups)assert.deepEqual(after.matchups.filter(row=>row.GroupId===group.GroupId).map(row=>row.MatchupId),
+      before.matchups.filter(row=>row.GroupId===group.GroupId).map(row=>row.MatchupId));
+    assert.equal(after.windows[0].startDate,'2026-11-02');assert.equal(after.windows[1].startDate,'2026-11-09');
+    assert.ok(after.windows.every(window=>window.teamLoads.every(team=>team.series<=2)));
+    assert.deepEqual(store.reslot(1).matchups,after.matchups,'re-slotting again is stable');
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM MatchLeague').get().n,1);
+    assert.deepEqual(db.prepare('SELECT * FROM LeagueStandings').all(),[{LeagueId:900,TeamId:101,Wins:1,Losses:0}]);
+    assert.ok(audit.some(row=>row.type==='Schedule Re-slotted'));
+  }finally{db.close();}
+});
+
+test('re-slotting preserves manually moved order and migrates an older plan without changing opponents',()=>{
+  const {db,store,settings}=fixture([4]);try {
+    store.saveSettings(1,{...settings,seriesPerWindow:4});
+    for(const opponent of [2,3,4])store.saveMatchup(1,{teamAEntryId:1,teamBEntryId:opponent,windowNumber:opponent===2?5:1});
+    const original=store.read(1).matchups.map(row=>row.MatchupId);
+    db.exec('ALTER TABLE SeasonMatchups DROP COLUMN SortOrder');
+    const migrated=new SeasonScheduleStore(db);const after=migrated.reslot(1);
+    assert.deepEqual(after.matchups.map(row=>row.MatchupId),original);assert.equal(after.windows.length,1);
+    assert.deepEqual(migrated.reslot(1).matchups,after.matchups);
+  }finally{db.close();}
+});
+
+test('re-slotting rejects empty, changed-group and ended plans without partial writes',()=>{
+  const {db,store,settings}=fixture([4,2]);try {
+    assert.throws(()=>store.reslot(1),{status:409});store.saveSettings(1,settings);
+    assert.throws(()=>store.reslot(1),{status:409});
+    store.generate(1,{},()=>.37);const rows=db.prepare('SELECT * FROM SeasonMatchups ORDER BY MatchupId').all();
+    db.exec('UPDATE LeagueRosterEntries SET GroupId=2 WHERE EntryId=1');
+    assert.throws(()=>store.reslot(1),{status:409});assert.deepEqual(db.prepare('SELECT * FROM SeasonMatchups ORDER BY MatchupId').all(),rows);
+    db.exec("UPDATE LeagueRosterEntries SET GroupId=1 WHERE EntryId=1;UPDATE LeagueSeasons SET Status='ended' WHERE SeasonId=1");
+    assert.throws(()=>store.reslot(1),{status:409});
+  }finally{db.close();}
+});
+
 test('manual edits permit extra workload as advice while rejecting duplicate and cross-group pairings', () => {
   const { db, store, settings } = fixture([5, 2]);
   try {
@@ -196,6 +276,10 @@ test('API supports manual and randomized planning with a public read view and va
     assert.equal(moved.data.matchups[0].WindowNumber, 2);
     assert.equal((await request(`${endpoint}/randomize`, 'POST', {})).status, 409);
     assert.equal((await request(`${endpoint}/randomize`, 'POST', { replaceExisting: true })).data.matchups.length, 6);
+    assert.equal((await request(`${endpoint}/reslot`,'POST',{},false)).status,401);
+    const beforeReslot=(await request(endpoint)).data.matchups;
+    const reslotted=await request(`${endpoint}/reslot`,'POST',{});assert.equal(reslotted.status,200);
+    assert.deepEqual(reslotted.data.matchups.map(row=>row.MatchupId),beforeReslot.map(row=>row.MatchupId));
     const publicView = await request('/api/leagues/900/schedule', 'GET', undefined, false);
     assert.equal(publicView.status, 200);
     assert.equal(publicView.data.matchups.length, 6);

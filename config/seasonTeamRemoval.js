@@ -39,7 +39,7 @@ export function deleteSeasonSignup(db,seasonId,teamId) {
           .run(updated.EventId,updated.Revision,JSON.stringify(updated),'team_removed',timestamp);
       }
     }
-    for(const table of ['SeasonPendingRosterSlots','TeamRosterMembershipHistory','TeamDiscordAliases',
+    for(const table of ['SeasonPendingRosterSlots','TeamRosterDisplayOrder','TeamRosterMembershipHistory','TeamDiscordAliases',
       'BettingOfficialOutcomes','SignupMMRs','TeamRosterPeriods','TeamRosterPlayers','SeasonTeamPlayers']) {
       if(tables.has(table))db.prepare(`DELETE FROM ${table} WHERE TeamSubmissionId=?`).run(teamId);
     }

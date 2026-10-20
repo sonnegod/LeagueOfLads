@@ -116,9 +116,13 @@ test('Betting and league Analytics require the site role while league admins ret
     assert.equal((await request('/api/site-management/league-analytics/highlights/settings', 'league-admin', 'PATCH', { paused: true })).status, 403);
     assert.equal((await request('/api/admin/rosters/status')).status, 401);
     const roster = await request('/api/admin/rosters/status', 'league-admin'); assert.equal(roster.status, 200);
-    const data = await roster.json(); assert.deepEqual(Object.keys(data).sort(), ['rosterSlots', 'season', 'teams']);
+    const data = await roster.json(); assert.deepEqual(Object.keys(data).sort(), ['rosterOrders', 'rosterSlots', 'season', 'teams']);
     assert.equal(data.season.seasonId, 1); assert.equal(data.teams.length, 2);
     assert.equal(data.rosterSlots.length, 10);
+    const orderBody={teamKey:11,order:[4,3,2,1,0],expectedRoster:data.rosterSlots.filter(p=>p.teamKey===11)};
+    assert.equal((await request('/api/admin/rosters/seasons/1/roster-order',null,'PUT',orderBody)).status,401);
+    assert.equal((await request('/api/admin/rosters/seasons/1/roster-order','owner','PUT',orderBody)).status,403);
+    assert.equal((await request('/api/admin/rosters/seasons/1/roster-order','league-admin','PUT',orderBody)).status,200);
     const candidates = await request('/api/admin/rosters/players?search=Player', 'league-admin');
     assert.equal(candidates.status,200);assert.equal((await candidates.json()).players.length,10);
     assert.equal((await request('/api/admin/rosters/seasons/1/pending-slots', null, 'POST', {})).status,401);

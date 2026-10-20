@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { parseScheduleMessage, PARSER_VERSION } from './scheduleParser.js';
 import { currentSeasonRoster, conflictingRosterPlayers } from './rosterMembership.js';
 import { ensurePendingRosterSchema, currentPendingSlots } from '../config/pendingRosterSlots.js';
+import {ensureRosterDisplayOrderSchema,validRosterOrder} from '../config/rosterDisplayOrder.js';
 
 export const digest = value => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 export function fail(message, status = 400, code = 'INVALID_REQUEST') { const error = new Error(message); error.status = status; error.code = code; throw error; }
@@ -13,6 +14,7 @@ export class ScheduleStore {
   constructor(db, { audit = () => {}, changed = () => {} } = {}) {
     this.db = db; this.audit = audit; this.changed = changed;
     ensurePendingRosterSchema(db);
+    ensureRosterDisplayOrderSchema(db);
     db.exec(readFileSync(new URL('../scripts/db/schedules.schema.sql', import.meta.url), 'utf8'));
     const refreshColumns=db.pragma('table_info(BettingRefreshState)').map(c=>c.name);
     for(const [name,type] of Object.entries({LastAttemptAtUtc:'TEXT',LastCompletedAtUtc:'TEXT',ConsecutiveFailures:'INTEGER NOT NULL DEFAULT 0',LastErrorCode:'TEXT',NextRetryAtUtc:'TEXT'}))
@@ -168,6 +170,21 @@ export class ScheduleStore {
         name:player?this.db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId=?').get(player.PlayerId)?.PlayerName:null,
         pending:!!tbd,estimatedMMR:tbd?.EstimatedMMR??null};
     }));
+  }
+  reorderRoster(seasonId,{teamKey,order,expectedRoster},actor=null) {
+    teamKey=id(teamKey);
+    if(!teamKey||!validRosterOrder(order)||!Array.isArray(expectedRoster)||expectedRoster.length!==5)fail('Provide all five roster positions once');
+    return this.db.transaction(()=>{
+      const season=this.db.prepare('SELECT Status FROM LeagueSeasons WHERE SeasonId=?').get(seasonId);
+      if(!['signup_closed','active'].includes(season?.Status)||!this.teams(seasonId).some(t=>t.TeamSubmissionId===teamKey))fail('Choose a team in the current season',409);
+      const snapshot=slots=>slots.map(p=>[p.slot,p.playerId??null,!!p.pending]);
+      const current=this.rosterSlots(seasonId).filter(p=>p.teamKey===teamKey);
+      if(JSON.stringify(snapshot(current))!==JSON.stringify(snapshot(expectedRoster)))fail('The roster changed. Refresh before reordering it',409);
+      this.db.prepare(`INSERT INTO TeamRosterDisplayOrder VALUES(?,?) ON CONFLICT(TeamSubmissionId)
+        DO UPDATE SET OrderJson=excluded.OrderJson`).run(teamKey,JSON.stringify(order));
+      this.audit('Roster Order Changed',`Reordered team ${teamKey} in season ${seasonId}${actor==null?'':` by ${actor}`}`);
+      return {saved:true,order};
+    })();
   }
   setPendingSlot(seasonId,{teamKey,slot,estimatedMMR,expectedPlayerId=null},actor=null,now=new Date()) {
     teamKey=id(teamKey);slot=Number(slot);estimatedMMR=Number(estimatedMMR);

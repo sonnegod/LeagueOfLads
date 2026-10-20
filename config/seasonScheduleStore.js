@@ -44,6 +44,29 @@ export function groupRoundRobin(teamIds, random = Math.random) {
   return shuffle(rounds, random);
 }
 
+function groupWindowCount(size, pace) {
+  // Odd groups need bye rounds for an odd pace. Use the nearest whole number
+  // of windows so a small remainder stays at the end rather than on its own.
+  const rounds=size%2&&pace%2?size:size-1;
+  return Math.max(1,Math.round(rounds/pace));
+}
+
+function pacedGroupPairs(teamIds, pace, random) {
+  const lastWindow=groupWindowCount(teamIds.length,pace);
+  if(teamIds.length%2&&pace%2===0) {
+    // Each circular distance gives every team two opponents, avoiding the
+    // uneven loads caused by splitting odd-group bye rounds across windows.
+    const teams=shuffle(teamIds,random),size=teams.length;
+    const distances=shuffle(Array.from({length:(size-1)/2},(_,index)=>index+1),random);
+    return distances.flatMap((distance,index)=>teams.map((a,i)=>({
+      pair:[a,teams[(i+distance)%size]],window:Math.min(Math.floor(index/(pace/2))+1,lastWindow),
+    })));
+  }
+  return groupRoundRobin(teamIds,random).flatMap((pairs,index)=>pairs.map(pair=>({
+    pair,window:Math.min(Math.floor(index/pace)+1,lastWindow),
+  })));
+}
+
 export default class SeasonScheduleStore {
   constructor(db, audit = () => {}) {
     this.db = db;
@@ -69,6 +92,7 @@ export default class SeasonScheduleStore {
       CREATE INDEX IF NOT EXISTS idx_SeasonMatchups_Window
         ON SeasonMatchups (SeasonId, WindowNumber, GroupId);
     `);
+    if(!db.pragma('table_info(SeasonMatchups)').some(column=>column.name==='SortOrder'))db.exec('ALTER TABLE SeasonMatchups ADD COLUMN SortOrder INTEGER');
   }
 
   season(seasonId, editing = false) {
@@ -100,7 +124,7 @@ export default class SeasonScheduleStore {
       FROM SeasonMatchups m
       JOIN LeagueRosterEntries a ON a.EntryId = m.TeamAEntryId
       JOIN LeagueRosterEntries b ON b.EntryId = m.TeamBEntryId
-      WHERE m.SeasonId = ? ORDER BY m.WindowNumber, m.GroupId, m.MatchupId`).all(seasonId);
+      WHERE m.SeasonId = ? ORDER BY m.WindowNumber, m.GroupId, COALESCE(m.SortOrder,m.MatchupId), m.MatchupId`).all(seasonId);
     const windows = [];
     const warnings = [];
     const lastWindow = Math.max(0, ...matchups.map(row => row.WindowNumber));
@@ -115,8 +139,11 @@ export default class SeasonScheduleStore {
       }
       windows.push({ number, startDate, endDate,
         teamLoads: teams.map(team => ({ ...team, series: counts.get(team.EntryId) || 0 })) });
-      for (const team of teams) if (counts.get(team.EntryId) > settings.SeriesPerWindow) {
-        warnings.push(`${team.TeamName} has ${counts.get(team.EntryId)} series in window ${number} (target ${settings.SeriesPerWindow}).`);
+      for (const team of teams) {
+        const size=teams.filter(other=>other.GroupId===team.GroupId).length;
+        const windows=groupWindowCount(size,settings.SeriesPerWindow);
+        const target=number===windows?Math.max(settings.SeriesPerWindow,size-1-(windows-1)*settings.SeriesPerWindow):settings.SeriesPerWindow;
+        if(counts.get(team.EntryId)>target)warnings.push(`${team.TeamName} has ${counts.get(team.EntryId)} series in window ${number} (target ${target}).`);
       }
     }
     const teamMap = new Map(teams.map(team => [team.EntryId, team]));
@@ -188,13 +215,39 @@ export default class SeasonScheduleStore {
       }
       this.db.prepare('DELETE FROM SeasonMatchups WHERE SeasonId = ?').run(seasonId);
       for (const group of groups) {
-        const rounds = groupRoundRobin(teams.filter(team => team.GroupId === group.GroupId).map(team => team.EntryId), random);
-        rounds.forEach((pairs, index) => {
-          const window = Math.floor(index / settings.SeriesPerWindow) + 1;
-          pairs.forEach(([a, b]) => this.insert(seasonId, group.GroupId, a, b, window));
-        });
+        const ids=teams.filter(team=>team.GroupId===group.GroupId).map(team=>team.EntryId);
+        if(ids.length<2)continue;
+        for(const {pair:[a,b],window} of pacedGroupPairs(ids,settings.SeriesPerWindow,random))this.insert(seasonId,group.GroupId,a,b,window);
       }
       this.audit('Schedule Randomized', `Generated in-group round robin for season ${seasonId}`);
+      return this.read(seasonId);
+    })();
+  }
+
+  reslot(seasonId) {
+    return this.db.transaction(()=>{
+      const settings=this.requireSettings(seasonId),plan=this.read(seasonId);
+      if(!plan.matchups.length)fail('Add matchups before re-slotting the plan',409);
+      const teams=new Map(plan.teams.map(team=>[team.EntryId,team]));
+      const groups=new Set(plan.groups.map(group=>group.GroupId));
+      if(plan.matchups.some(row=>!groups.has(row.GroupId)||teams.get(row.TeamAEntryId)?.GroupId!==row.GroupId||teams.get(row.TeamBEntryId)?.GroupId!==row.GroupId)) {
+        fail('Update matchups with changed group assignments before re-slotting',409);
+      }
+      const update=this.db.prepare('UPDATE SeasonMatchups SET WindowNumber=?,SortOrder=? WHERE SeasonId=? AND MatchupId=?');
+      for(const group of plan.groups) {
+        const ids=plan.teams.filter(team=>team.GroupId===group.GroupId).map(team=>team.EntryId);
+        const lastWindow=groupWindowCount(ids.length,settings.SeriesPerWindow);
+        const rows=plan.matchups.filter(row=>row.GroupId===group.GroupId);
+        let window=1,counts=new Map();
+        rows.forEach((row,index)=>{
+          if(window<lastWindow&&[row.TeamAEntryId,row.TeamBEntryId].some(id=>(counts.get(id)||0)>=settings.SeriesPerWindow)) {
+            window++;counts=new Map();
+          }
+          for(const id of [row.TeamAEntryId,row.TeamBEntryId])counts.set(id,(counts.get(id)||0)+1);
+          update.run(window,index,seasonId,row.MatchupId);
+        });
+      }
+      this.audit('Schedule Re-slotted',`Moved existing season ${seasonId} matchups into windows using the saved pace`);
       return this.read(seasonId);
     })();
   }

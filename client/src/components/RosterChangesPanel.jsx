@@ -1,6 +1,7 @@
 import {useEffect,useState} from 'react';
 import PendingRosterSlotsPanel from './PendingRosterSlotsPanel';
 import AddRosterTeamCard from './AddRosterTeamCard';
+import RosterOrderCard from './RosterOrderCard';
 import '../css/BettingV2.css';
 
 const initialChange={playerId:'',fromTeamKey:'',toTeamKey:'',replacementPlayerId:'',slot:0,localTime:'',kind:'permanent',reason:''};
@@ -31,7 +32,9 @@ export default function RosterChangesPanel({refreshKey,onChanged}) {
     {!data&&!error&&<p>Loading roster administration…</p>}
     {data&&['signup_closed','active'].includes(data.season?.status)&&<AddRosterTeamCard key={data.season.seasonId} season={data.season}
       onChanged={()=>{setRefresh(value=>value+1);onChanged?.();}} />}
-    {data&&['signup_closed','active'].includes(data.season?.status)&&<PendingRosterSlotsPanel data={data}
+    {data&&['signup_closed','active'].includes(data.season?.status)&&<RosterOrderCard data={data}
+      onChanged={()=>{setRefresh(value=>value+1);onChanged?.();}} />}
+    {data?.season?.status==='signup_closed'&&<PendingRosterSlotsPanel data={data}
       onChanged={()=>{setRefresh(value=>value+1);onChanged?.();}} />}
     {data&&(data.season?.status!=='active'?<p>Roster changes are available during an active league.</p>:<section className="betting-admin-widget">
       <h3>{data.season.name}</h3><p>Permanent changes refund affected preseason player bets. Effective dates preserve earlier appearances on the original team.</p>
