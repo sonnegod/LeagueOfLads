@@ -554,6 +554,18 @@ revisions persist when an import partly succeeds or its following refresh fails.
 The next poll can retry refresh without needing a new scheduling post. BO3
 tiebreaker posts retain the separate tiebreaker stage and do not create markets.
 
+The betting worker locks the full refresh before rebuilding Analytics. A second
+worker exits with code 75 (deferred), keeps pending revisions, and does not use
+the API's failure retry budget. The API checks again after thirty seconds.
+Locks record the owning host/process, with boot/start identity on Linux; an
+exited owner is reclaimed immediately while a live owner keeps its lock even
+for a long build. Older locks without process metadata retain their existing
+fifteen-minute expiry. Normal completion and failures release owned locks.
+
+The live betting page checks for published updates every thirty seconds while
+visible and immediately when its tab becomes visible again. These reads do not
+start pricing jobs or reset filters, pagination, or the bet slip.
+
 ```bash
 npm run test:betting
 npm run test:analytics

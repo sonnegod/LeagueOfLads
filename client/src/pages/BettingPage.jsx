@@ -22,6 +22,7 @@ function SportsbookPage() {
   const [leaderboard,setLeaderboard]=useState([]);const [legacy,setLegacy]=useState(null);const [tab,setTab]=useState(()=>['tickets','leaderboard','legacy'].includes(params.get('tab'))?params.get('tab'):'markets');
   const [before,setBefore]=useState(null);const [pages,setPages]=useState([]);const [ticketBefore,setTicketBefore]=useState(null);const [ticketPages,setTicketPages]=useState([]);
   const [loading,setLoading]=useState(true),[error,setError]=useState(''),[refresh,setRefresh]=useState(0);
+  const [readRevision,setReadRevision]=useState(0);
   const selectedSeason=params.get('seasonId');
   useEffect(()=>{const controller=new AbortController();request('/api/betting/meta',{signal:controller.signal}).then(value=>{
     if(controller.signal.aborted)return;
@@ -29,18 +30,33 @@ function SportsbookPage() {
   }).catch(err=>{if(err.name!=='AbortError')setError(err.message);});return()=>controller.abort();},[setSeason,selectedSeason]);
   useEffect(()=>{setBefore(null);setPages([]);setEvent('');setTicketBefore(null);setTicketPages([]);},[season]);
   useEffect(()=>{
-    if(!season)return;const controller=new AbortController();setLoading(true);setError('');
+    if(!season)return;const controller=new AbortController();let timer,inFlight=false;
     const view=marketView==='preseason'?preseasonGroup:marketView;
     const params=new URLSearchParams({seasonId:season,limit:'20',view:view==='leaders'?'all':view});
     if(view==='leaders')params.set('type','player_leader');else if(view==='series')params.set('groupFixtures','1');
     if(search)params.set('search',search);if(['series','props'].includes(view)&&event)params.set('eventId',event);if(before)params.set('before',before);
     const ticketParams=new URLSearchParams({seasonId:season});if(ticketBefore)ticketParams.set('before',ticketBefore);
-    Promise.all([request(`/api/betting/${view==='props'?'player-props':'markets'}?${params}`,{signal:controller.signal}),request(`/api/betting/events?seasonId=${season}`,{signal:controller.signal}),
-      request(`/api/betting/leaderboard?seasonId=${season}`,{signal:controller.signal}),
-      ...(user?[request(`/api/betting/wallet?seasonId=${season}`,{signal:controller.signal}),request(`/api/betting/tickets?${ticketParams}`,{signal:controller.signal})]:[])])
-      .then(([markets,fixtures,leaders,balance,history])=>{if(controller.signal.aborted)return;setData(markets);setEvents(fixtures.events);setLeaderboard(leaders.players);setWallet(balance||null);setTickets(history||{tickets:[]});})
-      .catch(err=>{if(err.name!=='AbortError')setError(err.message);}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
-    return()=>controller.abort();
+    const load=async(background=false)=>{
+      if(inFlight||controller.signal.aborted)return;
+      clearTimeout(timer);inFlight=true;
+      if(!background){setLoading(true);setError('');}
+      try {
+        const [markets,fixtures,leaders,balance,history]=await Promise.all([
+          request(`/api/betting/${view==='props'?'player-props':'markets'}?${params}`,{signal:controller.signal}),
+          request(`/api/betting/events?seasonId=${season}`,{signal:controller.signal}),request(`/api/betting/leaderboard?seasonId=${season}`,{signal:controller.signal}),
+          ...(user?[request(`/api/betting/wallet?seasonId=${season}`,{signal:controller.signal}),request(`/api/betting/tickets?${ticketParams}`,{signal:controller.signal})]:[])]);
+        if(controller.signal.aborted)return;
+        setError('');setData(markets);setEvents(fixtures.events);setLeaderboard(leaders.players);setWallet(balance||null);setTickets(history||{tickets:[]});
+        setReadRevision(value=>value+1);
+      }catch(err){if(!controller.signal.aborted&&err.name!=='AbortError')setError(err.message);}
+      finally {
+        inFlight=false;
+        if(!controller.signal.aborted){setLoading(false);timer=setTimeout(()=>{if(document.visibilityState!=='hidden')load(true);},30000);}
+      }
+    };
+    const visible=()=>{if(document.visibilityState==='visible')load(true);};
+    load();document.addEventListener('visibilitychange',visible);
+    return()=>{controller.abort();clearTimeout(timer);document.removeEventListener('visibilitychange',visible);};
   },[season,marketView,preseasonGroup,search,event,before,ticketBefore,user,refresh,revision]);
   useEffect(()=>{if(tab!=='legacy'||!user)return;const controller=new AbortController();request('/api/betting/legacy',{signal:controller.signal}).then(setLegacy)
     .catch(err=>{if(err.name!=='AbortError')setError(err.message);});return()=>controller.abort();},[tab,user,refresh,revision]);
@@ -75,7 +91,7 @@ function SportsbookPage() {
         <div className="historical-player-list">{(data.players||[]).map(player=><PlayerOddsRow key={`${season}:${player.playerId}`} player={player} onChoose={choose} slip={slip} busy={busy||loading} canBet={Boolean(user)} />)}</div></>}
       {teamView&&<TeamOddsGroups groups={data.teamGroups||[]} onChoose={choose} slip={slip} busy={busy||loading} canBet={Boolean(user)} />}
       {marketView==='series'&&<div className="scheduled-fixtures">{(data.fixtures||[]).map(fixture=><ScheduledBettingCard key={`${season}:${fixture.eventId}`} fixture={fixture} onChoose={choose} slip={slip} busy={busy||loading} canBet={Boolean(user)}/>)}</div>}
-      {marketView==='props'&&<div className="historical-player-list">{(data.players||[]).map(player=><ScheduledPlayerProps key={`${season}:${player.fixture.eventId}:${player.playerId}`} player={player} bestOf={player.fixture.bestOf} refreshKey={`${refresh}:${revision}`} onChoose={choose} slip={slip} busy={busy||loading} canBet={Boolean(user)}/>)}</div>}
+      {marketView==='props'&&<div className="historical-player-list">{(data.players||[]).map(player=><ScheduledPlayerProps key={`${season}:${player.fixture.eventId}:${player.playerId}`} player={player} bestOf={player.fixture.bestOf} refreshKey={`${refresh}:${revision}:${readRevision}`} onChoose={choose} slip={slip} busy={busy||loading} canBet={Boolean(user)}/>)}</div>}
       {marketView==='preseason'&&!playerView&&!teamView&&<div className="sportsbook-markets">{data.markets.map(m=><article className="sportsbook-market" key={m.marketId}>
         <div className="sportsbook-market-meta"><span>{m.eventId?`BO${m.bestOf} · ${m.stage}`:m.type==='champion'?'Preseason · League title':m.type==='placement'?'Preseason · Bracket placement':'Preseason · Regular-season stats'}</span><span>{m.status==='open'?(m.closeAt?`Closes ${date(m.closeAt)} NY`:'Closes when the season starts'):m.status}</span></div>
         <h2>{m.title}</h2>{m.playerId&&<Link to={`/player/${m.playerId}`}>Player profile</Link>}

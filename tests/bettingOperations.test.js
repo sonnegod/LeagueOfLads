@@ -7,6 +7,7 @@ import {createRefreshQueue,markBettingDirty} from '../betting/refreshQueue.js';
 import {pollSchedules} from '../discordbot/schedulePoller.js';
 import {parseScheduleMessage} from '../betting/scheduleParser.js';
 import {runBetting} from '../betting/engine.js';
+import {WORKER_BUSY_EXIT_CODE} from '../betting/workerLock.js';
 
 const instant=new Date('2026-10-13T12:00:00.000Z');
 const season={SeasonId:1,CreatedAt:'2026-10-01T00:00:00.000Z'};
@@ -41,6 +42,20 @@ test('failed children retry with backoff once per process result, keep quotes he
     f.fire().emit('close',1);assert.equal(f.timers.size,0);assert.equal(state(f).LastErrorCode,'refresh_retry_exhausted');
     assert.equal(state(f).ConsecutiveFailures,3);assert.equal(JSON.stringify(state(f)).includes('PRIVATE'),false);
     f.queue.request();assert.equal(state(f).LastErrorCode,null);f.complete(f.fire());assert.equal(state(f).ConsecutiveFailures,0);
+  }finally{f.close();}
+});
+
+test('competing workers defer without exhausting automatic retries and newer pending revisions remain queued',()=>{
+  const f=queueFixture();try {
+    f.queue.request();
+    for(let i=0;i<8;i++) {
+      f.fire().emit('close',WORKER_BUSY_EXIT_CODE);
+      assert.equal(state(f).ConsecutiveFailures,0);assert.equal(state(f).LastErrorCode,null);
+      assert.equal([...f.timers.values()][0].delay,30000);
+      assert.ok(state(f).RequestedRevision>state(f).CompletedRevision);
+    }
+    markBettingDirty(f.league,instant);f.complete(f.fire());assert.equal(f.timers.size,0);
+    assert.equal(state(f).RequestedRevision,state(f).CompletedRevision);
   }finally{f.close();}
 });
 

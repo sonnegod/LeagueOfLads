@@ -13,11 +13,13 @@ import {bettingDatabasePath,localBettingTestMode} from '../../betting/localTestP
 import {buildLocalTestInputs} from '../../betting/localTestInputs.js';
 import {prepareLocalTestSeason} from '../../betting/prepareLocalTest.js';
 import {buildHistoricalPricingInputs} from '../../betting/historicalPricing.js';
+import {WORKER_BUSY_EXIT_CODE} from '../../betting/workerLock.js';
 
 const paths=analyticsPaths();let bettingPath=null;
 let league,betting,analytics,publicDb;
 const args=process.argv.slice(2);let seasonId=null;let refresh=false;let init=false;let status=false;
 let trackedRefresh=false;
+let lockOwner=null;
 let prepareTest=false,prepared=null;
 const workerStarted=performance.now();
 try {
@@ -55,6 +57,9 @@ try {
     markets:betting.prepare('SELECT SeasonId,Status,COUNT(*) AS count FROM BettingMarkets GROUP BY SeasonId,Status').all()},null,2));
   else if(init)console.log('Schedule and Betting migrations complete. Legacy tables are preserved.');
   else {
+    // Serialize the whole derived refresh, before any Analytics publication.
+    lockOwner=book.acquireLock();
+    if(!lockOwner)throw Object.assign(new Error('Another betting worker is running'),{code:'BETTING_WORKER_BUSY'});
     settleOperationalChanges(book,league,seasonId);
     if(refresh){
       analytics=openAnalytics(paths.analytics);
@@ -64,7 +69,7 @@ try {
       if(!existsSync(paths.analytics))throw new Error('Build Analytics before running Betting');
       analytics=new Database(paths.analytics,{readonly:true,fileMustExist:true});
     }
-    const result=runBetting({book,league,analytics,schedules,seasonId,
+    const result=runBetting({book,league,analytics,schedules,seasonId,lockOwner,
       historicalInputBuilder:localTesting?null:(inputs,now)=>buildHistoricalPricingInputs(league,inputs,now),
       localTestInputBuilder:localTesting?(inputs,now)=>buildLocalTestInputs(league,inputs,now):null});
     console.log(JSON.stringify({...result,localTesting,...(prepared?{prepared}:{}),resources:{elapsedMs:Math.round(performance.now()-workerStarted),
@@ -73,7 +78,15 @@ try {
       ConsecutiveFailures=0,LastErrorCode=NULL,NextRetryAtUtc=NULL WHERE Id=1`).run(requestedRevision,new Date().toISOString());
   }
 }catch(error){
-  if(trackedRefresh)try{league.prepare("UPDATE BettingRefreshState SET LastErrorCode='refresh_failed',ConsecutiveFailures=ConsecutiveFailures+1 WHERE Id=1").run();}catch{}
-  console.error('Betting job failed:',error.message);process.exitCode=1;
+  if(error.code==='BETTING_WORKER_BUSY') {
+    console.log('Betting refresh deferred: another worker is running. Pending updates remain queued.');
+    process.exitCode=WORKER_BUSY_EXIT_CODE;
+  }else {
+    if(trackedRefresh)try{league.prepare("UPDATE BettingRefreshState SET LastErrorCode='refresh_failed',ConsecutiveFailures=ConsecutiveFailures+1 WHERE Id=1").run();}catch{}
+    console.error('Betting job failed:',error.message);process.exitCode=1;
+  }
 }
-finally{publicDb?.close();analytics?.close();betting?.close();league?.close();}
+finally{
+  if(lockOwner)betting?.prepare('DELETE FROM BettingWorkerLock WHERE Owner=?').run(lockOwner);
+  publicDb?.close();analytics?.close();betting?.close();league?.close();
+}

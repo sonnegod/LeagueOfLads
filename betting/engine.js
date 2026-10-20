@@ -338,12 +338,14 @@ export function settleSeason(book,league,inputs,setup,events) {
 }
 
 export function runBetting({book,league,analytics,schedules,seasonId=null,now=new Date(),simulations=2000,
-  lookaheadDays=Number(process.env.BETTING_FIXTURE_LOOKAHEAD_DAYS||7),localTestInputBuilder=null,historicalInputBuilder=null}) {
+  lookaheadDays=Number(process.env.BETTING_FIXTURE_LOOKAHEAD_DAYS||7),localTestInputBuilder=null,historicalInputBuilder=null,lockOwner=null}) {
   const localTesting=localBettingTestMode(book.env);
   if(localTesting!==book.localTesting)throw new Error('Betting test mode changed; reopen the correct database');
   if(localTesting&&typeof localTestInputBuilder!=='function')throw new Error('Local test pricing inputs are required');
   if(!Number.isInteger(lookaheadDays)||lookaheadDays<1||lookaheadDays>60)throw new Error('BETTING_FIXTURE_LOOKAHEAD_DAYS must be between 1 and 60');
-  const owner=book.acquireLock();if(!owner)throw new Error('Another betting worker is running');
+  const owner=lockOwner||book.acquireLock();
+  if(!owner)throw Object.assign(new Error('Another betting worker is running'),{code:'BETTING_WORKER_BUSY'});
+  if(lockOwner&&!book.db.prepare('SELECT 1 FROM BettingWorkerLock WHERE Id=1 AND Owner=?').get(lockOwner))throw new Error('Betting worker lock was lost');
   const job=Number(book.db.prepare("INSERT INTO BettingJobs (StartedAtUtc,Status) VALUES (?,'running')").run(now.toISOString()).lastInsertRowid);
   let opened=0,settled=0;const issues=[];
   try {
@@ -558,7 +560,7 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
     return {marketsOpened:opened,marketsSettled:settled,issues:[...new Set(issues)]};
   } catch(error) {book.db.prepare("UPDATE BettingJobs SET Status='failed',CompletedAtUtc=?,IssueCode='worker_failed' WHERE JobId=?").run(new Date().toISOString(),job);throw error;}
   finally {
-    book.db.prepare('DELETE FROM BettingWorkerLock WHERE Owner=?').run(owner);
+    if(!lockOwner)book.db.prepare('DELETE FROM BettingWorkerLock WHERE Owner=?').run(owner);
     book.db.prepare('DELETE FROM BettingJobs WHERE JobId NOT IN (SELECT JobId FROM BettingJobs ORDER BY JobId DESC LIMIT 100)').run();
   }
 }

@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
 import { digest, fail } from './scheduleStore.js';
 import { anchorPrice, movedPrices, ODDS_SCALE, PRICE_POLICY,configuredPricePolicy } from './pricing.js';
 import { importLegacyPending } from './legacy.js';
@@ -7,6 +6,7 @@ import { toPointCents,exactPayoutCents } from '../client/src/utils/bettingPoints
 import {localBettingTestMode} from './localTestPolicy.js';
 import {parlayConflict} from '../client/src/utils/bettingParlays.js';
 import {marketHasClosed} from './marketTiming.js';
+import {workerOwner,workerOwnerAlive} from './workerLock.js';
 
 export function pointCents(value) {
   const cents=toPointCents(value);if(cents===null)fail('Enter points with at most two decimal places');return cents;
@@ -227,9 +227,16 @@ export class BettingStore {
   void(marketId, reason) { const outcomes = Object.fromEntries(this.db.prepare('SELECT OutcomeKey FROM BettingSelections WHERE MarketId=?').all(marketId)
     .map(s=>[s.OutcomeKey,{ result:'void' }])); return this.settle(marketId,outcomes,{reason}); }
   acquireLock() {
-    const owner = randomUUID(); const now = this.now();
-    this.db.prepare('DELETE FROM BettingWorkerLock WHERE LeaseUntilUtc<=?').run(now.toISOString());
-    const result = this.db.prepare('INSERT OR IGNORE INTO BettingWorkerLock VALUES (1,?,?)').run(owner,new Date(now.getTime()+15*60000).toISOString());
-    return result.changes ? owner : null;
+    return this.db.transaction(()=>{
+      const owner=workerOwner(),now=this.now();
+      const previous=this.db.prepare('SELECT * FROM BettingWorkerLock WHERE Id=1').get();
+      if(previous) {
+        const alive=workerOwnerAlive(previous.Owner);
+        if(alive===true||(alive===null&&previous.LeaseUntilUtc>now.toISOString()))return null;
+        this.db.prepare('DELETE FROM BettingWorkerLock WHERE Id=1 AND Owner=?').run(previous.Owner);
+      }
+      this.db.prepare('INSERT INTO BettingWorkerLock VALUES (1,?,?)').run(owner,new Date(now.getTime()+15*60000).toISOString());
+      return owner;
+    }).immediate();
   }
 }

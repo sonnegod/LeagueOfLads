@@ -1,3 +1,5 @@
+import {WORKER_BUSY_EXIT_CODE} from './workerLock.js';
+
 export function markBettingDirty(db,now=new Date()) {
   db.prepare('UPDATE BettingRefreshState SET RequestedRevision=RequestedRevision+1,RequestedAtUtc=? WHERE Id=1').run(now.toISOString());
 }
@@ -15,7 +17,11 @@ export function createRefreshQueue({db,launch,now=()=>new Date(),setTimer=setTim
   }
   function finish(code) {
     running=false;if(disposed)return;
-    if(code===0) {
+    if(code===WORKER_BUSY_EXIT_CODE) {
+      // A competing cron/API worker is doing the work; this is not a failure.
+      failures=0;db.prepare('UPDATE BettingRefreshState SET ConsecutiveFailures=0,LastErrorCode=NULL,NextRetryAtUtc=NULL WHERE Id=1').run();
+      if(pending())schedule(30000,true);
+    }else if(code===0) {
       failures=0;db.prepare('UPDATE BettingRefreshState SET ConsecutiveFailures=0,LastErrorCode=NULL,NextRetryAtUtc=NULL WHERE Id=1').run();
       if(pending())schedule(debounceMs);
     }else {
