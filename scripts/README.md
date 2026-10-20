@@ -36,8 +36,14 @@ root and Node executable; production defaults remain `/root/LeagueOfLads` and
 
 Analytics is created/migrated automatically by `node scripts/analytics/build.js`.
 Use `--init-only` for schema creation or `--status` for a read-only status check.
-Deployments install dependencies, build/publish the client, back up databases and
-restart PM2. Startup initializes additive source/Betting schemas; Analytics builds,
+Deployments build the client on a GitHub Actions runner with Node 22, then upload
+the finished files to a per-run staging directory on the server. The server
+advances its `main` checkout to the build's commit, installs server dependencies,
+backs up databases, publishes the staged client and restarts PM2. Frontend installs
+and Vite builds no longer compete with the live app for server memory. An install,
+backup or commit mismatch failure leaves the published frontend untouched; staging
+is cleaned up when the deployment command exits. Existing GitHub server secrets
+are reused. Startup initializes additive source/Betting schemas; Analytics builds,
 pricing and item downloads are handled separately. `nightlyRun.sh` builds even
 without an active league, and admin controls can request an immediate refresh.
 Source ingestion adds freshness/timestamp records
@@ -380,8 +386,11 @@ on Draft God. There is no additional schema migration for the views.
 ### Item catalog refresh
 
 Run `node scripts/assets/refreshDotaItems.js` manually from the repository root
-when the item catalog needs an update, then rebuild the client. Deployments use
-the existing generated or bundled catalog without downloading it. The command fetches
+when the item catalog needs an update, then rebuild the client locally. GitHub
+deployment builds use the tracked bundled `client/src/data/dotaItems.json` without
+downloading a catalog; the server's ignored generated file is not part of that
+build. To publish a catalog update, review the generated data and update the
+bundled snapshot in Git. The command fetches
 OpenDota's item constants with a 15-second timeout and an 8 MB response limit,
 then keeps only the frontend's item ID, key, display name and Steam image path.
 Unnamed internal entries are skipped. Malformed schemas, duplicate IDs, unsafe

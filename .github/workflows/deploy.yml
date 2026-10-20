@@ -9,39 +9,86 @@ concurrency:
   group: production-deploy
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: Production
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@master
+      - name: Check out deployment commit
+        uses: actions/checkout@v7
+
+      - name: Set up frontend build runtime
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Install frontend dependencies
+        working-directory: client
+        # Lockfiles are not tracked in this repository.
+        run: npm install --no-audit --no-fund
+
+      - name: Build frontend on GitHub runner
+        working-directory: client
+        run: npm run build
+
+      - name: Upload built frontend to staging
+        uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }} # Using password instead of key
-          script: |
-            set -e
-            # Navigate to the project folder
-            cd ~/LeagueOfLads
-            
-            # Pull latest code
-            git pull origin main
+          password: ${{ secrets.SERVER_PASSWORD }}
+          source: client/dist/
+          target: leagueoflads-deployments/${{ github.run_id }}-${{ github.run_attempt }}
+          strip_components: 2
 
-            # Validate the runtime before installing native SQLite/client dependencies
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          command_timeout: 20m
+          envs: DEPLOY_SHA,DEPLOY_ID
+          script: |
+            set -eu
+            # Uploaded builds are isolated from the live site until ready.
+            case "$DEPLOY_ID" in ''|*[!0-9-]*) echo "Invalid deployment ID"; exit 1 ;; esac
+            staging="$HOME/leagueoflads-deployments/$DEPLOY_ID"
+            trap 'rm -rf -- "$staging"' EXIT
+            test -s "$staging/index.html"
+            test -d "$staging/assets"
+            cd ~/LeagueOfLads
+
+            # Advance to the same commit that produced the uploaded frontend.
+            # A newer server checkout fails safely rather than mixing versions.
+            git fetch origin main
+            git switch main
+            git merge --ff-only "$DEPLOY_SHA"
+            if [ "$(git rev-parse HEAD)" != "$DEPLOY_SHA" ]; then
+              echo "Server checkout differs from build commit; deploy the latest main run."
+              exit 1
+            fi
+
+            # Native server dependencies are still installed on the server.
             node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (!((major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major > 22)) { console.error("Node 20.19+ or 22.12+ is required; Node 22.12+ is recommended."); process.exit(1); }'
             
-            # Install server dependencies.
             npm install
-
-            # Build before changing the published client.
-            cd client
-            npm install
-            npm run build
-            
-            cd ..
             # Back up before restart-time schema initialization. Data builds and
             # refreshes run through scheduled jobs and admin controls.
             bash scripts/db/backupDatabases.sh
-            sudo cp -r client/dist/* /var/www/leagueoflads/
+            # Copy assets first and index last, retaining older hashed assets
+            # for browsers that already loaded the previous frontend.
+            for entry in "$staging/"*; do
+              if [ "$(basename "$entry")" != index.html ]; then
+                sudo cp -r "$entry" /var/www/leagueoflads/
+              fi
+            done
+            sudo cp "$staging/index.html" /var/www/leagueoflads/
             pm2 restart all
