@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import HeroDisplay from './HeroDisplay';
+import InventorySlot from './MatchInventorySlot';
 import { useReport, ReportState, Panel, TimelineChart, fmt, clock, ReportTable } from './PerformanceUI';
 import items from '@dota-items';
 // Validated generated catalog, with the bundled snapshot as a build-time fallback.
@@ -16,7 +17,9 @@ export default function MatchAnalysis({ matchId, section, initialPlayerId }) {
 }
 
 function LoadedAnalysis({ data, section, initialPlayerId }) {
-  const eventsReport = useReport(section === 'gameflow' ? `/api/matches/${data.match.MatchId}/analysis/events` : null);
+  const combined = section === 'analysis';
+  const showFlow = section === 'gameflow' || combined;
+  const eventsReport = useReport(showFlow ? `/api/matches/${data.match.MatchId}/analysis/events` : null);
   const [hoveredEvent, setHoveredEvent] = useState(null), [focusedEvent, setFocusedEvent] = useState(null);
   const [hiddenEvents, setHiddenEvents] = useState([]);
   const activeEvent = hoveredEvent ?? focusedEvent;
@@ -25,8 +28,11 @@ function LoadedAnalysis({ data, section, initialPlayerId }) {
   const teamName = side => side === 0 ? match.RadiantTeamName : side === 1 ? match.DireTeamName : 'Team unavailable';
   const points = data.timeline.map(p => ({ time: p.TimeSeconds, gold: p.RadiantGoldAdvantage, xp: p.RadiantXpAdvantage }));
   return <div className="performance-report">
+    {combined && <><div className="match-section-heading"><div><h2>Match analysis</h2><p>Follow the match from economy swings to individual progress and fight outcomes.</p></div></div>
+      <nav className="match-analysis-jumps" aria-label="Jump to analysis section"><a href="#match-game-flow">Game flow & objectives</a>
+        <a href="#match-player-economy">Player economy</a><a href="#match-teamfights">Teamfights</a></nav></>}
     <p className="performance-coverage">{match.Status === 'partial' ? 'Some extended sections are unavailable.' : 'Extended match data available.'} Missing values are shown as —.</p>
-    {section === 'gameflow' && <div className="match-flow-layout">
+    {showFlow && <section id="match-game-flow" className="match-analysis-section" aria-label="Game flow and objectives"><div className="match-flow-layout">
       <Panel title="Game flow">
         <div className="performance-chart-event-controls" aria-label="Chart events">{[['death', 'Hero deaths'], ['tower', 'Towers'], ['roshan', 'Roshan']].map(([key, label]) =>
           <button type="button" key={key} aria-pressed={!hiddenEvents.includes(key)} onClick={() => setHiddenEvents(old => old.includes(key) ? old.filter(k => k !== key) : [...old, key])}>{label}</button>)}</div>
@@ -51,10 +57,10 @@ function LoadedAnalysis({ data, section, initialPlayerId }) {
             {event.playerId != null && <Link to={`/player/${event.playerId}`}>{data.players.find(p => p.PlayerId === event.playerId)?.PlayerName || `Player ${event.playerId}`}</Link>}</div>
         </li>)}</ol> : <p className="performance-message">{data.sections.objectives?.available ? 'No objective events recorded.' : 'Objective data is unavailable.'}</p>}
       </Panel>
-    </div>}
-    {section === 'economy' && <PlayerEconomy data={data} />}
+    </div></section>}
+    {(section === 'economy' || combined) && <section id="match-player-economy" className="match-analysis-section" aria-label="Player economy"><PlayerEconomy data={data} /></section>}
     {section === 'items' && <MatchItems data={data} initialPlayerId={initialPlayerId} />}
-    {section === 'fights' && <FightAnalysis match={match} />}
+    {(section === 'fights' || combined) && <section id="match-teamfights" className="match-analysis-section" aria-label="Teamfights"><FightAnalysis match={match} /></section>}
   </div>;
 }
 
@@ -140,16 +146,6 @@ function Inventory({ inventory }) {
       <InventorySlot id={inventory.neutral} label="Neutral item" round />
     </div>
   </div>;
-}
-
-function InventorySlot({ id, label, round = false }) {
-  const item = items[id], name = id == null ? 'Not recorded' : id === 0 ? 'Empty slot' : item?.name || `Item ${id}`;
-  return <span className={`performance-item${id == null || id === 0 ? ' performance-item--empty' : ''}${round ? ' performance-item--neutral' : ''}`}
-    role="img" aria-label={`${label}: ${name}`} title={name} tabIndex={0}>
-    <span className="performance-item-fallback" aria-hidden="true">{id == null ? '?' : id === 0 ? '—' : name}</span>
-    {item?.image && <img src={`https://cdn.cloudflare.steamstatic.com${item.image}`} alt="" loading="lazy"
-      onError={event => { event.currentTarget.style.display = 'none'; }} />}
-  </span>;
 }
 
 function FightAnalysis({ match }) {

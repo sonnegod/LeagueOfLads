@@ -1,0 +1,97 @@
+.match-view-navigation.ui-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; gap: 6px !important; margin-bottom: 22px; }
+.match-view-navigation.ui-tabs .ui-tab { display: grid; gap: 6px; justify-items: start; text-align: left; white-space: normal; padding: 12px 16px !important; }
+.match-view-navigation strong { font-size: .92rem; }
+.match-view-navigation small { font-size: .71rem; font-weight: 400; opacity: .85; line-height: 1.4; }
+.match-section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.match-section-heading h2 { margin: 0; color: #dbeafe; font-size: 1.12rem; }
+.match-section-heading p { margin: 6px 0 0; color: #94a3b8; font-size: .78rem; line-height: 1.6; }
+.match-table-scroll-hint { display: none; margin: 0; color: #94a3b8; font-size: .73rem; line-height: 1.5; }
+.match-team-comparison { display: grid; gap: 14px; }
+.match-comparison-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.match-comparison-metric { min-width: 0; padding: 16px; border: 1px solid #334155; border-radius: 10px; background: #0f172a; }
+.match-comparison-metric h3 { margin: 0 0 12px; color: #cbd5e1; font-size: .77rem; font-weight: 500; }
+.match-comparison-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.match-comparison-values > span:last-child { text-align: right; }
+.match-comparison-values small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .65rem; margin-bottom: 7px; }
+.match-comparison-values strong { font-size: clamp(1.05rem, 1.6vw, 1.4rem); font-variant-numeric: tabular-nums; }
+.match-comparison-bar { height: 4px; margin-top: 14px; border-radius: 4px; overflow: hidden; background: #ff8b8b; }
+.match-comparison-bar > span { display: block; height: 100%; background: #4fd6a3; }
+.match-comparison-bar[data-available=false] { background: #334155; }
+.match-unified-scoreboard .match-scoreboard-team > small { margin-left: auto; font-size: .72rem; color: #94a3b8; }
+.match-unified-scoreboard .performance-table { min-width: 940px; font-size: .8rem; }
+.match-unified-scoreboard .performance-table th:first-child { width: 22%; }
+.match-unified-scoreboard .performance-table th:nth-child(2) { width: 10%; }
+.match-unified-scoreboard .performance-table th:last-child { width: 7%; }
+.match-unified-scoreboard .performance-table th, .match-unified-scoreboard .performance-table td { padding: 11px 7px; }
+.match-unified-scoreboard .performance-table th:not(:first-child), .match-unified-scoreboard .performance-table td:not(:first-child) { text-align: center; }
+.match-unified-scoreboard .detail-sort-button { font-size: .7rem; justify-content: center; }
+.match-unified-scoreboard th:first-child .detail-sort-button { justify-content: flex-start; }
+.match-player-identity { display: flex; align-items: center; gap: 10px; }
+.match-player-identity > span { min-width: 0; }
+.match-player-identity > span > a { font-weight: 700; font-size: .83rem; }
+.match-player-identity small { display: block; margin-top: 5px; color: #94a3b8; font-size: .67rem; }
+.match-player-identity small > span { white-space: nowrap; }
+.match-stat-pair { display: grid; gap: 5px; }
+.match-stat-pair strong { font-weight: 650; font-variant-numeric: tabular-nums; }
+.match-stat-pair strong > span { font-size: .62rem; font-weight: 400; color: #94a3b8; }
+.match-stat-pair small { color: #94a3b8; font-size: .65rem; }
+.match-stat-gold { color: #fde68a; font-variant-numeric: tabular-nums; }
+.match-kda { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.match-kda > span { color: #94a3b8; }
+.content .match-build-link { min-height: 30px; padding: 5px 8px; font-size: .68rem; }
+.match-analysis-jumps { display: flex; flex-wrap: wrap; gap: 8px; }
+.match-analysis-jumps a { padding: 7px 11px; border: 1px solid #334155; border-radius: 7px; background: #111c30; color: #bfdbfe; font-size: .76rem; }
+.match-analysis-section { display: grid; gap: 16px; min-width: 0; scroll-margin-top: 90px; }
+.match-build-players { display: grid; min-width: 0; }
+.match-build-player { min-width: 0; padding: 18px 0; border-bottom: 1px solid #334155; scroll-margin-top: 90px; }
+.match-build-player:first-child { padding-top: 0; }
+.match-build-player:last-child { padding-bottom: 0; border-bottom: 0; }
+.match-build-player-main { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 22px; margin-bottom: 10px; }
+.match-build-player-heading { display: flex; align-items: center; flex-wrap: wrap; flex: 1; gap: 8px 14px; min-width: 200px; font-size: .85rem; }
+.match-build-player-heading > a:first-child { font-size: 1.05rem; font-weight: 750; color: #bfdbfe; overflow-wrap: anywhere; }
+.match-build-loadouts { display: flex; gap: 10px; margin-bottom: 10px; }
+/* A shared starting-slot count aligns every player's cards and keeps item sizes equal. */
+.match-build-loadout { --item-slots: 10; box-sizing: border-box; flex: var(--item-slots) 1 calc(18px + var(--item-slots) * 4px); min-width: 0; padding: 10px; border: 1px solid #25354d; border-radius: 7px; background: #111c30; }
+.match-build-loadout h3 { margin: 0 0 7px; color: #cbd5e1; font-size: .72rem; font-weight: 600; }
+.match-build-equipment { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; align-items: start; }
+.match-build-item-group { min-width: 0; }
+.match-build-item-group:nth-child(1) { grid-column: span 6; }
+.match-build-item-group:nth-child(2) { grid-column: span 3; }
+.match-build-item-group.match-build-item-group--starting { grid-column: 1 / -1; }
+.match-build-item-group > span { display: block; margin-bottom: 4px; color: #94a3b8; font-size: .62rem; }
+.match-build-item-group > div { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: end; gap: 4px; }
+.match-build-item-group--starting > div { grid-template-columns: repeat(var(--item-slots), minmax(0, 1fr)); grid-auto-flow: row; }
+.match-build-loadout .performance-item { width: 100%; }
+.match-build-loadout .performance-item--neutral { width: 72.73%; justify-self: center; }
+.match-build-loadout .performance-item-fallback { font-size: .5rem; }
+.match-build-equipment-note { color: #94a3b8; font-size: .75rem; }
+.content .match-build-purchase-button { min-height: 32px; padding: 7px 10px; font-size: .72rem; }
+.match-build-purchase-detail { margin-top: 16px; padding: 16px; border: 1px solid #334155; border-radius: 9px; background: #111c30; }
+.match-build-purchase-detail h3 { margin: 0 0 14px; color: #dbeafe; font-size: .86rem; }
+.match-build-purchases { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 6px 18px; margin: 0 0 12px; padding: 0; list-style: none; }
+.match-build-purchases li { display: flex; align-items: baseline; gap: 12px; padding: 7px 0; font-size: .75rem; border-bottom: 1px solid #25354d; }
+.match-build-purchases time { min-width: 40px; color: #94a3b8; font-variant-numeric: tabular-nums; }
+@media (min-width: 1400px) {
+  .match-analysis-section .match-flow-layout { grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr); }
+  .match-analysis-section .match-flow-events .performance-events { max-height: 500px; }
+}
+@media (max-width: 1050px) {
+  .match-comparison-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .match-table-scroll-hint { display: block; }
+  .match-unified-scoreboard .performance-table td:first-child, .match-unified-scoreboard .performance-table th:first-child { position: sticky; left: 0; z-index: 1; border-right: 1px solid #334155; background: #0f172a; }
+}
+@media (max-width: 600px) {
+  .match-detail-page .match-overview-header { display: flex; flex-direction: column; gap: 16px; }
+  .match-detail-page .match-overview-main { width: 100%; padding: 0; }
+  .match-detail-page .match-overview-header h1 { gap: 10px; }
+  .match-detail-page .match-overview-team > a { font-size: 1.05rem; }
+  .match-detail-page .match-overview-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; text-align: center; }
+  .match-view-navigation.ui-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .match-view-navigation.ui-tabs .ui-tab { padding: 10px !important; }
+  .match-comparison-metric { padding: 12px; }
+  .match-comparison-values { gap: 6px; }
+  .match-build-player-heading { min-width: 0; }
+  .match-build-loadouts { flex-direction: column; gap: 8px; }
+  .match-build-loadout { flex: none; }
+  .match-build-item-group--starting > div { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+}

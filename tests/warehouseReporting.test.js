@@ -344,6 +344,27 @@ test('fight objective context respects window bounds, the next fight, match end 
   }finally{db.close();}
 });
 
+test('starting purchases keep repeated pre-horn and zero-time buys, exclude later buys and distinguish missing logs', () => {
+  const { db, reporting } = fixture();
+  try {
+    db.exec(`INSERT INTO MatchPlayerPurchases VALUES(1,1,1,-90,'branches'),(1,1,2,-80,'branches'),
+      (1,1,3,1,'blink'),(1,999,0,-60,'boots');
+      DELETE FROM MatchPlayerPurchases WHERE MatchId=1 AND PlayerId=2;`);
+    let players = reporting.inventories(1).players;
+    assert.deepEqual(players[0].startingItems, ['branches', 'branches', 'tango']);
+    assert.deepEqual(players[1].startingItems, [], 'recorded empty purchase log stays empty');
+    assert.equal(players.length, 10, 'unlisted players never enter the response');
+    const source = JSON.parse(gunzipSync(db.prepare('SELECT GameplayData FROM MatchSourceResponses WHERE MatchId=1').get().GameplayData));
+    delete source.players[1].purchase_log;
+    db.prepare('UPDATE MatchSourceResponses SET GameplayData=? WHERE MatchId=1').run(gzipSync(JSON.stringify(source)));
+    players = reporting.inventories(1).players;
+    assert.equal(players[1].startingItems, null, 'missing log is unavailable, not an empty build');
+    assert.ok(reporting.inventories(3).players.every(player => player.startingItems === null));
+    db.exec('UPDATE MatchTeam SET Rehost=1 WHERE MatchId=1');
+    assert.ok(reporting.inventories(1).players.every(player => player.startingItems === null));
+  } finally { db.close(); }
+});
+
 test('all-player inventories keep each source inventory with its player and expose no private source fields',()=>{
   const {db,reporting}=fixture();
   try {

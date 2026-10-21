@@ -174,9 +174,17 @@ export class WarehouseReporting {
       const archive = overview.available ? this.db.prepare('SELECT GameplayData FROM MatchSourceResponses WHERE MatchId=?').get(matchId) : null;
       const sources = new Map((archive ? parse(gunzipSync(archive.GameplayData).toString('utf8')).players || [] : [])
         .map(player => [player.account_id, player]));
+      const startingItems = new Map();
+      if (overview.available) for (const purchase of this.rows('MatchPlayerPurchases', [matchId],
+        'AND TimeSeconds<=0 ORDER BY PlayerId,TimeSeconds,EventIndex')) {
+        if (!startingItems.has(purchase.PlayerId)) startingItems.set(purchase.PlayerId, []);
+        startingItems.get(purchase.PlayerId).push(purchase.ItemKey);
+      }
       return { available: overview.available, players: overview.players.map(player => {
         const source = sources.get(player.PlayerId);
-        return { playerId: player.PlayerId, inventory: source ? {
+        return { playerId: player.PlayerId,
+          startingItems: Array.isArray(source?.purchase_log) ? startingItems.get(player.PlayerId) || [] : null,
+          inventory: source ? {
           items: Array.from({ length: 6 }, (_, i) => source[`item_${i}`] ?? null),
           backpack: Array.from({ length: 3 }, (_, i) => source[`backpack_${i}`] ?? null), neutral: source.item_neutral ?? null,
         } : null };
