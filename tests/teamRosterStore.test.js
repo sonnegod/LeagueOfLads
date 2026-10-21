@@ -13,6 +13,11 @@ test('public team rosters expose the saved captain and persist display order ind
     assert.equal(roster.CaptainId,5);assert.equal(roster.CaptainName,'Player 5');assert.equal(roster.SeasonStatus,'active');
     assert.deepEqual(roster.players.map(p=>p.PlayerId),[3,1,5,2,4]);
     assert.deepEqual(roster.SlotOrder,[2,0,4,1,3]);
+    const team = { EntryId: 1, TeamSubmissionId: 1, TeamId: 333, TeamName: 'Current team' };
+    const card = store.forLeague(100, { groups: [{ GroupId: 1, GroupName: 'Group A', teams: [team] }], teams: [team] })[0].teams[0];
+    assert.equal(card.CaptainId, 5); assert.equal(card.CaptainName, 'Player 5');
+    assert.equal(card.SeasonStatus, 'active'); assert.equal(card.Source, 'signup');
+    assert.deepEqual(card.players.map(player => player.PlayerId), [3,1,5,2,4]);
     assert.deepEqual(new TeamRosterStore(db).forTeam(333).players.map(p=>p.PlayerId),[3,1,5,2,4]);
     assert.deepEqual(db.prepare('SELECT PlayerId,Slot FROM TeamRosterPlayers WHERE TeamSubmissionId=1 ORDER BY Slot').all(),original);
     assert.deepEqual(store.forSubmission(2).players.map(p=>p.PlayerId),[2,6,7,8,9]);
@@ -206,6 +211,9 @@ test('league cards group signup and legacy rosters without exposing signup MMR o
     assert.deepEqual(result[0].teams.map(t=>t.TeamName),['Alpha legacy','Zulu signup']);
     assert.deepEqual(result[0].teams[0].players.map(p=>p.PlayerId),[1,2,3,4,5],'use the selected season, not the later match');
     assert.equal(result[0].teams[0].GamesPlayed,10);assert.equal(result[0].teams[0].WinPercentage,60);
+    assert.equal(result[0].teams[0].Source,'match_lineup');
+    assert.equal(result[0].teams[0].CaptainId,null,'do not borrow a captain from another season');
+    assert.equal(result[0].teams[0].CaptainName,null);
     const card=result[0].teams[1];assert.equal(card.TeamSubmissionId,1);assert.equal(card.HasRoster,true);
     assert.equal(card.TeamId,null);assert.deepEqual(card.players.map(p=>p.PlayerId),[1,2,3,4]);
     assert.equal(card.GamesPlayed,0);assert.equal(card.WinPercentage,null);

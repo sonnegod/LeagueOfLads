@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import {normalizeLeagueRules} from '../../../config/leagueRules.js';
 import TiebreakerInfo from './TiebreakerInfo';
+import LeagueTeamRosterPreview from './LeagueTeamRosterPreview';
+import { useReport } from './PerformanceUI';
 import './CurrentLeaderboardTable.css';
 
 export default function CurrentLeagueSeries({ leagueId }) {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [rostersRequested, setRostersRequested] = useState(false);
+  const rosterReport = useReport(rostersRequested && leagueId ? `/api/leagues/${leagueId}/teamRosters` : null);
+  const rosters = new Map((rosterReport.data?.groups || []).flatMap(group => group.teams).map(team => [teamKey(team), team]));
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [matrixPhase, setMatrixPhase] = useState('closed');
   const [selectedCardSize, setSelectedCardSize] = useState(null);
@@ -241,11 +245,8 @@ export default function CurrentLeagueSeries({ leagueId }) {
                           : undefined}
                       >
                         <th scope="row">
-                          {team.TeamId == null
-                            ? (team.TeamSubmissionId
-                              ? <Link to={`/team/roster/${team.TeamSubmissionId}`} target="_blank" rel="noopener noreferrer">{team.TeamName}</Link>
-                              : team.TeamName)
-                            : <Link to={`/team/${team.TeamId}`} target="_blank" rel="noopener noreferrer">{team.TeamName}</Link>}
+                          <LeagueTeamRosterPreview team={team} roster={rosters.get(teamKey(team))}
+                            report={rosterReport} onRequest={() => setRostersRequested(true)} />
                           {team.TiebreakerName&&<small className="leaderboard-tiebreaker-name"><span>{team.TiebreakerName}</span>
                             {normalizeLeagueRules(group.rules||{}).QualificationPlan?.tiebreakers.filter(pool=>pool.id===team.TiebreakerId)
                               .map(pool=><TiebreakerInfo key={pool.id} pool={pool}/>)}</small>}

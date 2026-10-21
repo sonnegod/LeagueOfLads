@@ -28,9 +28,8 @@ function LoadedAnalysis({ data, section, initialPlayerId }) {
   const teamName = side => side === 0 ? match.RadiantTeamName : side === 1 ? match.DireTeamName : 'Team unavailable';
   const points = data.timeline.map(p => ({ time: p.TimeSeconds, gold: p.RadiantGoldAdvantage, xp: p.RadiantXpAdvantage }));
   return <div className="performance-report">
-    {combined && <><div className="match-section-heading"><div><h2>Match analysis</h2><p>Follow the match from economy swings to individual progress and fight outcomes.</p></div></div>
-      <nav className="match-analysis-jumps" aria-label="Jump to analysis section"><a href="#match-game-flow">Game flow & objectives</a>
-        <a href="#match-player-economy">Player economy</a><a href="#match-teamfights">Teamfights</a></nav></>}
+    {combined && <nav className="match-analysis-jumps" aria-label="Jump to analysis section"><a href="#match-game-flow">Game flow & objectives</a>
+      <a href="#match-player-economy">Player economy</a><a href="#match-teamfights">Teamfights</a></nav>}
     <p className="performance-coverage">{match.Status === 'partial' ? 'Some extended sections are unavailable.' : 'Extended match data available.'} Missing values are shown as —.</p>
     {showFlow && <section id="match-game-flow" className="match-analysis-section" aria-label="Game flow and objectives"><div className="match-flow-layout">
       <Panel title="Game flow">

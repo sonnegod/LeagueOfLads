@@ -150,6 +150,9 @@ export default class TeamRosterStore {
       return {
         EntryId: team.EntryId ?? null, TeamId: team.TeamId > 0 ? team.TeamId : null,
         TeamSubmissionId: roster?.TeamSubmissionId ?? null, HasRoster: Boolean(roster),
+        SeasonStatus: roster?.SeasonStatus ?? null, Source: lineup?.Source ?? null,
+        CaptainId: roster?.CaptainId > 0 ? roster.CaptainId : null,
+        CaptainName: roster?.CaptainId > 0 ? String(roster.CaptainName ?? `Player ${roster.CaptainId}`) : null,
         TeamName: String(team.TeamName ?? ''),
         GamesPlayed: records.get(key(team))?.GamesPlayed ?? 0,
         WinPercentage: records.get(key(team))?.WinPercentage ?? null,

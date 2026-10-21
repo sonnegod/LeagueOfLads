@@ -64,7 +64,6 @@ export default function MatchBuilds({ matchId, match, groups, initialPlayerId })
     if (initialPlayerId != null) document.getElementById(`match-build-player-${initialPlayerId}`)?.scrollIntoView({ block: 'center' });
   }, [initialPlayerId]);
   return <div className="performance-report match-builds" style={{ '--starting-item-slots': startingSlots }}>
-    <div className="match-section-heading"><div><h2>Player builds</h2><p>Starting items, final items and spell choices together. Open a player's purchases for the full order and timing.</p></div></div>
     {skills.error && <p className="performance-message" role="alert">Could not load spell upgrades. <button type="button" onClick={skills.retry}>Retry spells</button></p>}
     {inventory.error && <p className="performance-message" role="alert">Could not load items. <button type="button" onClick={inventory.retry}>Retry items</button></p>}
     {groups.map(({ side, players }) => <Panel key={side ?? 'unknown'} className="match-builds-panel">

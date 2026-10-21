@@ -1,0 +1,17 @@
+.league-team-roster-trigger { display: inline-flex; align-items: baseline; gap: 5px; max-width: 100%; }
+.league-team-roster-trigger > a, .league-team-roster-trigger > span { min-width: 0; }
+.league-team-roster-trigger .league-team-roster-button { display: inline-flex; align-self: center; align-items: center; justify-content: center; flex: none; width: 23px; min-height: 23px; padding: 3px; border: 0; border-radius: 5px; background: transparent; color: #94a3b8; cursor: pointer; }
+.league-team-roster-trigger .league-team-roster-button:hover, .league-team-roster-trigger .league-team-roster-button[aria-expanded=true] { color: #dbeafe; background: #334155; }
+.league-team-roster-button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+.league-team-roster-popup { position: fixed; z-index: 10000; box-sizing: border-box; width: min(300px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; padding: 14px; border: 1px solid #4978af; border-radius: 10px; background: #111c30; color: #e2e8f0; box-shadow: 0 12px 30px #020617aa; font: 400 .8rem/1.5 system-ui, sans-serif; text-align: left; }
+.league-team-roster-popup header { display: grid; gap: 3px; padding-bottom: 10px; border-bottom: 1px solid #334155; }
+.league-team-roster-popup header small { color: #94a3b8; font-size: .68rem; }
+.league-team-roster-popup header strong { color: #dbeafe; font-size: .9rem; overflow-wrap: anywhere; }
+.league-team-roster-popup ul { display: grid; gap: 9px; margin: 12px 0 0; padding: 0; list-style: none; }
+.league-team-roster-popup li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.league-team-roster-popup a { color: #bfdbfe; text-decoration: none; overflow-wrap: anywhere; }
+.league-team-roster-popup a:hover { text-decoration: underline; }
+.league-team-roster-popup a:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+.league-team-roster-captain { flex: none; padding: 2px 6px; border: 1px solid #6b5429; border-radius: 5px; background: #382d19; color: #fde68a; font-size: .62rem; }
+.league-team-roster-popup p { margin: 12px 0 0; }
+.league-team-roster-popup .league-team-roster-captain-note, .league-team-roster-pending { color: #94a3b8; font-size: .72rem; }

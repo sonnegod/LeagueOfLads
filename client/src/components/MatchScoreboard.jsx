@@ -43,7 +43,6 @@ export default function MatchScoreboard({ match, groups, onViewBuild }) {
   ];
   return <div className="performance-report match-dashboard-overview">
     <section className="match-team-comparison" aria-label="Team comparison">
-      <div className="match-section-heading"><div><h2>At a glance</h2><p>Recorded totals · {teams[0].name} vs {teams[1].name}</p></div></div>
       <div className="match-comparison-grid">{comparisons.map(([label, fields]) => {
         const values = teams.map(team => total(team.players, fields));
         const complete = values.every(known), sum = complete ? values[0] + values[1] : 0;
@@ -55,7 +54,6 @@ export default function MatchScoreboard({ match, groups, onViewBuild }) {
         </article>;
       })}</div>
     </section>
-    <div className="match-section-heading"><div><h2>Player performance</h2><p>Combat, economy and support in one scoreboard. Select a column to sort.</p></div></div>
     <p className="match-table-scroll-hint">Scroll across the scoreboards to see every statistic. Player names stay in view.</p>
     {groups.map(({ side, players }) => <Panel key={side ?? 'unknown'} className="match-scoreboard match-unified-scoreboard">
       <div className={`match-scoreboard-team performance-side-${side}`}>

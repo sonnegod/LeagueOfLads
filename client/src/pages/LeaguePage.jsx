@@ -176,7 +176,7 @@ export default function LeaguePage({
       {/* Groups Tab */}
       {activeTab === "group" && showGroups && (
         <div>
-          <CurrentLeaderboardTable leagueId={leagueId} />
+          <CurrentLeaderboardTable key={leagueId} leagueId={leagueId} />
           {showRecentSeries && (
             <>
               <hr style={{ margin: "2rem 0" }} />
