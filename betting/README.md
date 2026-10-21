@@ -253,7 +253,7 @@ preview, including the bounded exposure movement after wagers.
 
 Only tagged local markets bypass historical model-validation and source-feed
 publication gates. The canonical Analytics generation must still be complete,
-recent and earlier than the quote. Authentication, funds, stake caps, quote
+recent and earlier than the quote. Authentication, funds, quote
 versions, setup/roster checks and kickoff locking remain in force. During closed
 signups, local player props verify membership against finalized, unchanged
 Betting setup; they do not invent historical effective roster dates. Settlement
@@ -457,8 +457,11 @@ Each account receives 10,000 points once per season. Previous season/legacy
 wallets remain separate, including late credits. All acceptance uses the signed-in
 Steam account; a submitted account ID cannot spend another user's balance.
 
-A user's cumulative stake across tickets is capped at 1,000 points per market.
-The full parlay stake counts against each market. Tickets have up to eight legs.
+Users can stake up to their available season-wallet balance, including repeated
+tickets on the same market. There is no fixed per-ticket or cumulative per-market
+stake cap. The minimum stake is 0.01 points, with at most two decimal places;
+wallet debits remain atomic and potential returns must fit exact point arithmetic.
+The metadata API reports `stakeCap: null`. Tickets have up to eight legs.
 Scheduled player props can combine within a fixture or across fixtures, including
 one matchup-result selection per fixture. Each market allows one outcome only.
 For the same player/stat/fixture, series totals and averages cannot combine with

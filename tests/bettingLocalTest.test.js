@@ -71,7 +71,8 @@ test('local wagers retain auth, caps, quote, roster/setup and kickoff checks whi
     app.use('/betting',createBettingRoutes({book,league:f.league,schedules:f.schedules,analyticsPath,refresh:()=>{}}).publicRoutes);
     server=app.listen(0,'127.0.0.1');await new Promise(done=>server.once('listening',done));
     const base=`http://127.0.0.1:${server.address().port}/betting`,headers={'Content-Type':'application/json','x-test-user':'99'};
-    assert.equal((await(await fetch(`${base}/meta`)).json()).localTesting,true);
+    const meta=await(await fetch(`${base}/meta`)).json();
+    assert.equal(meta.localTesting,true);assert.equal(meta.stakeCap,null);
     assert.equal((await fetch(`${base}/wallet?seasonId=2`)).status,401);
     const dto=await(await fetch(`${base}/markets?seasonId=2&view=team`)).json(),market=dto.teamGroups[0].teams[0].wins;
     assert.equal(market.status,'open');
@@ -83,9 +84,10 @@ test('local wagers retain auth, caps, quote, roster/setup and kickoff checks whi
     const post=(key,stake=100,version=market.quoteVersion)=>fetch(`${base}/tickets`,{method:'POST',headers,body:JSON.stringify({seasonId:2,stake,requestKey:key,
       legs:[{selectionId:market.selections[0].selectionId,quoteVersion:version}]})});
     assert.equal((await post('local_valid_ticket')).status,201);assert.equal(book.wallet(2,'99').balance,9900);
-    assert.equal((await post('local_bad_stake_01',1001)).status,400);
-    const current=local.prepare('SELECT QuoteVersion FROM BettingMarkets WHERE MarketId=?').get(row.MarketId).QuoteVersion;
-    const cap=await post('local_cap_ticket',951,current);assert.equal(cap.status,409);assert.equal((await cap.json()).code,'STAKE_CAP');
+    assert.equal((await post('local_bad_stake_01','0.001')).status,400);
+    let current=local.prepare('SELECT QuoteVersion FROM BettingMarkets WHERE MarketId=?').get(row.MarketId).QuoteVersion;
+    assert.equal((await post('local_large_ticket',2500,current)).status,201);assert.equal(book.wallet(2,'99').balance,7400);
+    current=local.prepare('SELECT QuoteVersion FROM BettingMarkets WHERE MarketId=?').get(row.MarketId).QuoteVersion;
     assert.equal((await post('local_stale_quote',100,current-1)).status,409);
     local.prepare('UPDATE BettingWallets SET BalanceCents=0 WHERE SeasonId=2 AND UserId=?').run('99');
     const balance=await post('local_insufficient_balance',100,current);assert.equal(balance.status,409);assert.equal((await balance.json()).code,'INSUFFICIENT_BALANCE');

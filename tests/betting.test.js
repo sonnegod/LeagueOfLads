@@ -107,15 +107,22 @@ test('BO1/BO2/BO3/BO5 score distributions are coherent and wager prices remain a
   assert.deepEqual(movedPrices(selections,[100,0,0]),movedPrices(selections,[100,0,0]));
 });
 
-test('season credits, quote checks, cumulative market caps and duplicate requests are atomic',()=>{
+test('season credits, uncapped stakes, quote checks and duplicate requests preserve atomic wallet debits',()=>{
   const f=bookFixture();try {
     assert.equal(f.book.wallet(1,'99').balance,10000);assert.equal(f.book.wallet(1,'99').balance,10000);
     const quote=f.select('team1');const first=f.ticket('team1',600);
     assert.equal(f.book.wallet(1,'99').balance,9400);
     assert.deepEqual(f.book.accept('99',{seasonId:1,stake:600,requestKey:'request_0001',legs:[{selectionId:quote.SelectionId,quoteVersion:quote.QuoteVersion}]}),{ticketId:first.ticketId,reused:true});
     assert.throws(()=>f.book.accept('99',{seasonId:1,stake:100,requestKey:'request_0002',legs:[{selectionId:quote.SelectionId,quoteVersion:quote.QuoteVersion}]}),{code:'QUOTE_CHANGED'});
-    assert.throws(()=>f.ticket('team2',401,'request_0003'),{code:'STAKE_CAP'});
-    f.ticket('team2',400,'request_0004');assert.equal(f.book.wallet(1,'99').balance,9000);
+    f.ticket('team2',2400,'request_0003');assert.equal(f.book.wallet(1,'99').balance,7000);
+    f.ticket('team1',2000,'request_0004');assert.equal(f.book.wallet(1,'99').balance,5000);
+    const ticketsBefore=f.db.prepare('SELECT COUNT(*) n FROM BettingTickets').get().n;
+    assert.throws(()=>f.ticket('team1','5000.01','request_0005'),{code:'INSUFFICIENT_BALANCE'});
+    assert.equal(f.book.wallet(1,'99').balance,5000);
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM BettingTickets').get().n,ticketsBefore);
+    f.ticket('team1',5000,'request_0006');assert.equal(f.book.wallet(1,'99').balance,0);
+    assert.throws(()=>f.ticket('team2','0.01','request_0007'),{code:'INSUFFICIENT_BALANCE'});
+    for(const stake of [0,-1,'0.001','90071992547409.92'])assert.throws(()=>f.ticket('team1',stake,'request_invalid'));
     f.book.registerSeason({SeasonId:2,LeagueName:'Next',Status:'active'});assert.equal(f.book.wallet(2,'99').balance,10000);
     assert.equal(f.db.prepare("SELECT COUNT(*) AS n FROM BettingLedger WHERE Kind='season_credit' AND SeasonId=1").get().n,1);
   }finally{f.db.close();}

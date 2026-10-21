@@ -48,7 +48,7 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
   publicRoutes.get('/meta',endpoint((req,res)=>{
     const seasons=league.prepare('SELECT SeasonId,LeagueName,Status FROM LeagueSeasons ORDER BY ExternalLeagueId DESC NULLS LAST,SeasonId DESC LIMIT 30').all();
     return res.json({seasons:seasons.map(s=>({seasonId:s.SeasonId,name:s.LeagueName,status:s.Status})),defaultSeasonId:seasonId(req),
-      stakeCap:1000,startingPoints:10000,movementPercent:10,localTesting:book.localTesting});
+      stakeCap:null,startingPoints:10000,movementPercent:10,localTesting:book.localTesting});
   }));
   publicRoutes.get('/markets',readEndpoint((req,res)=>{
     const sid=seasonId(req);if(!sid)return res.json({markets:[],nextBefore:null});

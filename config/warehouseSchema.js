@@ -1,5 +1,5 @@
 // Shared EDW schema. No API requests, historical reimports or result corrections.
-export const WAREHOUSE_VERSION = 1;
+export const WAREHOUSE_VERSION = 2;
 export const MATCH_TEAM_ADDITIONS = {
   StartTimeUtc: 'INTEGER', PatchId: 'INTEGER REFERENCES Patches(PatchId)',
   RadiantScore: 'INTEGER', DireScore: 'INTEGER', FirstBloodTime: 'INTEGER'
@@ -12,7 +12,7 @@ export const MATCH_PLAYER_ADDITIONS = {
 };
 // Child-before-parent order also drives deletion and orphan repair.
 export const WAREHOUSE_CHILDREN = ['MatchTeamfightPlayers', 'MatchTeamfights', 'MatchObjectives',
-  'MatchPlayerPurchases', 'MatchPlayerTimeline', 'MatchTeamTimeline', 'MatchSourceResponses', 'MatchIngestionState'];
+  'MatchPlayerAbilityUpgrades', 'MatchPlayerPurchases', 'MatchPlayerTimeline', 'MatchTeamTimeline', 'MatchSourceResponses', 'MatchIngestionState'];
 
 const columns = (db, table) => new Set(db.pragma(`table_info(${table})`).map(c => c.name));
 function addColumns(db, table, additions) {
@@ -40,6 +40,10 @@ export const WAREHOUSE_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS MatchPlayerPurchases (
     MatchId INTEGER NOT NULL REFERENCES MatchTeam(MatchId), PlayerId INTEGER NOT NULL, EventIndex INTEGER NOT NULL,
     TimeSeconds INTEGER NOT NULL, ItemKey TEXT NOT NULL, PRIMARY KEY(MatchId,PlayerId,EventIndex));
+  CREATE TABLE IF NOT EXISTS MatchPlayerAbilityUpgrades (
+    MatchId INTEGER NOT NULL REFERENCES MatchTeam(MatchId), PlayerId INTEGER NOT NULL,
+    UpgradeIndex INTEGER NOT NULL CHECK(UpgradeIndex>=0), AbilityId INTEGER NOT NULL CHECK(AbilityId>0),
+    PRIMARY KEY(MatchId,PlayerId,UpgradeIndex));
   CREATE TABLE IF NOT EXISTS MatchObjectives (
     MatchId INTEGER NOT NULL REFERENCES MatchTeam(MatchId), EventIndex INTEGER NOT NULL,
     TimeSeconds INTEGER NOT NULL, Type TEXT NOT NULL, PlayerId INTEGER, PlayerSlot INTEGER,

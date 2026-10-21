@@ -1,4 +1,4 @@
-export const PRICE_POLICY = Object.freeze({ margin: .10, movement: .10, liquidityPoints: 10000, stakeCap: 1000 });
+export const PRICE_POLICY = Object.freeze({ margin: .10, movement: .10, liquidityPoints: 10000 });
 export function configuredPricePolicy(env=process.env) {
   const margin=env.BETTING_ODDS_REDUCTION===undefined?PRICE_POLICY.margin:Number(env.BETTING_ODDS_REDUCTION);
   if(!Number.isFinite(margin)||margin<0||margin>.30)throw new Error('BETTING_ODDS_REDUCTION must be between 0 and 0.30');

@@ -245,7 +245,7 @@ Nightly refresh is sufficient for most historical aggregates. It is insufficient
 
 The initial source freshness limit is 48 hours since the last successful source refresh/check, not since the last match was played and not simply since Analytics was rebuilt. Carry forward each source's true availability state. Warn on stale sources and hold affected new prices/acceptance against stale forecasts. If public-match inputs are unavailable or stale, Betting may use a separately validated league-only fallback with its own model/version; otherwise it holds the affected market. A missing private source does not block independently valid league highlights. Existing accepted tickets retain their original terms.
 
-When a wager changes a quote, Betting must verify the current quote version, market status, wallet, cumulative stake cap, and kickoff inside acceptance processing. An expired/stale quote is returned for review instead of silently accepting a different price.
+When a wager changes a quote, Betting must verify the current quote version, market status, wallet, and kickoff inside acceptance processing. An expired/stale quote is returned for review instead of silently accepting a different price.
 
 ## 6. Odds and market architecture
 
@@ -294,11 +294,11 @@ Keep fair probabilities, configured margin, exposure adjustments, and displayed 
 
 Confirmed: wagers influence offered odds alongside the betting model, but their influence must be scaled and bounded. Calculate each adjustment against the current analytical anchor, not recursively against the last adjusted price; repeated small bets must not compound into unbounded movement. Use the current cumulative exposure, soften sparse wager samples, and maintain coherent related outcome prices. Analytics neither reads wagering pools nor adjusts prices.
 
-Keep the current 10% decimal-odds reduction configurable: the initial price policy is `fair decimal odds × 0.90`, with legal minimum price/rounding handled explicitly. Apply the pricing policy once after probability/exposure calculations, rather than repeatedly applying a new margin with every wager. The confirmed price-movement and stake bounds are below; calibrate the smoothing algorithm within them during validation.
+Keep the current 10% decimal-odds reduction configurable: the initial price policy is `fair decimal odds × 0.90`, with legal minimum price/rounding handled explicitly. Apply the pricing policy once after probability/exposure calculations, rather than repeatedly applying a new margin with every wager. The confirmed price-movement bounds are below; calibrate the smoothing algorithm within them during validation.
 
 Confirmed initial bounds: every offered decimal price stays within ±10% of its current model-based anchor (after the margin, before wager movement). A 2.00 anchor therefore permits 1.80–2.20. Respect the bounds and minimum legal odds jointly; keep related probabilities/prices coherent and do not allow rounding to breach the bounds. New analytical inputs can establish a new anchor; wager activity alone cannot. The smoothing implementation can be tuned within these confirmed bounds.
 
-Each user may stake at most 1,000 points cumulatively on a market across all tickets and selections. Switching selections or splitting a stake does not create a new allowance. Charge a parlay's full stake against every included market's cap; initially prohibit multiple selections from the same market within one ticket. Enforce wallet and cap checks atomically in Betting. This is a stake cap, not a guarantee of a maximum payout or total platform exposure.
+Users may stake up to their available season-wallet balance, with no fixed per-ticket or cumulative per-market cap. Enforce wallet checks and debits atomically in Betting. Stakes must be positive whole centipoints and potential returns must fit exact point arithmetic. Multiple selections from the same market within one ticket remain prohibited.
 
 Create season-scoped wallets/ledgers in Betting. Each user gets one 10,000-point starting credit per season, recorded idempotently. Earlier balances, tickets, results, and transactions remain historical; late payouts and refunds belong to the ticket's season and must not increase a new season's balance. Do not implement a reset by deleting old transactions or overwriting the sole existing balance. Preserve pre-overhaul tickets in an explicitly identified legacy season/account during migration.
 
@@ -443,8 +443,8 @@ Automatic publication does not require publishing an unvalidated model. Validate
 - A failed build leaves the last complete publication available; a request never mixes generations.
 - Analytics creates no market, line, betting forecast probability, or odds records. Betting owns those calculations and stores their results.
 - Betting can rerun pricing from a fixed Analytics generation; accepted quotes remain unchanged and retain durable input provenance.
-- Repeated wagers cannot move prices beyond the configured analytical-anchor bounds or repeatedly apply the margin. Stake caps include repeated tickets for the same user/market.
-- Offered prices respect the ±10% anchor bounds; repeated/alternative-selection/parlay stakes share the 1,000-point user/market cap under concurrent requests.
+- Repeated wagers cannot move prices beyond the configured analytical-anchor bounds or repeatedly apply the margin. Repeated tickets remain limited by the available season-wallet balance.
+- Offered prices respect the ±10% anchor bounds; repeated/alternative-selection/parlay wagers debit the wallet atomically under concurrent requests.
 - Season starting credits occur once, and an old ticket's late payout/refund cannot alter a new season wallet.
 - External team ID linking preserves roster and forecast identity.
 - Stand-in games cannot enter preseason roster totals/averages; unknown membership is surfaced for resolution.

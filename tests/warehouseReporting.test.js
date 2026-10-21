@@ -68,6 +68,34 @@ test('match reporting assigns real sides despite duplicate memberships and credi
   } finally { db.close(); }
 });
 
+test('skill builds read normalized rows without decompressing archives and follow curated participants and match eligibility', () => {
+  const { db, reporting } = fixture();
+  try {
+    db.exec(`INSERT INTO MatchPlayerAbilityUpgrades VALUES(1,1,0,5040),(1,1,1,5041),(1,1,2,5040),
+      (1,6,0,999999),(1,999,0,5040);
+      UPDATE MatchSourceResponses SET GameplayData=X'00' WHERE MatchId=1;`);
+    const report = reporting.skillBuilds(1);
+    assert.equal(report.available, true);
+    assert.equal(report.players.length, 10);
+    assert.deepEqual(report.players[0], { playerId: 1, upgrades: [
+      { index: 0, abilityId: 5040 }, { index: 1, abilityId: 5041 }, { index: 2, abilityId: 5040 },
+    ] });
+    assert.deepEqual(report.players.find(p => p.playerId === 6).upgrades, [{ index: 0, abilityId: 999999 }]);
+    assert.deepEqual(report.players.find(p => p.playerId === 2).upgrades, []);
+    assert.equal(report.players.some(p => p.playerId === 999), false);
+    assert.deepEqual(Object.keys(report), ['available', 'players']);
+    assert.equal(reporting.skillBuilds(99999), null);
+    assert.equal(reporting.skillBuilds(3).available, false);
+    db.exec('DELETE FROM MatchPlayerAbilityUpgrades WHERE PlayerId=1');
+    assert.deepEqual(reporting.skillBuilds(1).players[0].upgrades, [], 'cached builds follow normalized row changes');
+    db.exec('UPDATE MatchTeam SET Rehost=1 WHERE MatchId=1');
+    assert.equal(reporting.skillBuilds(1).available, false);
+    assert.ok(reporting.skillBuilds(1).players.every(p => p.upgrades.length === 0));
+    db.exec('UPDATE MatchTeam SET Rehost=0,TeamDire=TeamRad WHERE MatchId=1');
+    assert.equal(reporting.skillBuilds(1).available, false);
+  } finally { db.close(); }
+});
+
 test('player reports count eligible samples, preserve zero, exclude unplayed checkpoints and separate team records',()=>{
   const {db,reporting}=fixture();
   try {
@@ -649,6 +677,11 @@ test('public reporting API validates identifiers and filters and supports legacy
       assert.equal((await fetch(base+url)).status,400,url);
     }
     assert.equal((await fetch(base+'/matches/999/analysis')).status,404);
+    assert.equal((await fetch(base+'/matches/999/analysis/skills')).status,404);
+    assert.equal((await fetch(base+'/matches/no/analysis/skills')).status,400);
+    const skills = await (await fetch(base+'/matches/1/analysis/skills')).json();
+    assert.equal(skills.players.length,10);
+    assert.equal(skills.available,false);
     assert.equal((await fetch(base+'/hero/99999/performance')).status,404);
     assert.equal((await fetch(base+'/leagues/99999/performance')).status,404);
     assert.equal((await fetch(base+'/hero/1/performance')).status,200);

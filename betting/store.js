@@ -143,7 +143,7 @@ export class BettingStore {
   }
   accept(userId, { seasonId, stake, legs, requestKey }) {
     userId = String(userId); seasonId = Number(seasonId); const cents = pointCents(stake);
-    if (!cents || cents > PRICE_POLICY.stakeCap * 100 || !Array.isArray(legs) || !legs.length || legs.length > 8
+    if (!cents || !Array.isArray(legs) || !legs.length || legs.length > 8
       || typeof requestKey !== 'string' || !/^[a-zA-Z0-9_-]{8,80}$/.test(requestKey)) fail('Invalid stake, selections or request key');
     return this.db.transaction(() => {
       const previous = this.db.prepare('SELECT * FROM BettingTickets WHERE UserId=? AND RequestKey=?').get(userId, requestKey);
@@ -165,9 +165,6 @@ export class BettingStore {
         const conflict=parlayConflict([...accepted,row].map(m=>({marketId:m.MarketId,selectionId:m.SelectionId,eventId:m.EventId,
           type:m.MarketType,playerId:m.PlayerId,stat:m.StatKey,scope:m.Scope,gameNumber:m.GameNumber})));
         if(conflict)fail(conflict.message,400,conflict.code);
-        const used = this.db.prepare(`SELECT COALESCE(SUM(t.StakeCents),0) AS cents FROM BettingTickets t
-          JOIN BettingTicketLegs l ON l.TicketId=t.TicketId WHERE t.UserId=? AND l.MarketId=?`).get(userId,row.MarketId).cents;
-        if (used + cents > PRICE_POLICY.stakeCap * 100) fail('Your cumulative stake on this market exceeds 1,000 points',409,'STAKE_CAP');
         accepted.push(row);
       }
       const odds = accepted.reduce((product,l)=>product*l.OfferedMicros/ODDS_SCALE,1);

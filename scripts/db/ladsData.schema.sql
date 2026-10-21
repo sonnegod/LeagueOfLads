@@ -570,6 +570,10 @@ CREATE INDEX IF NOT EXISTS idx_Patches_Start ON Patches(StartsAt);
   CREATE TABLE IF NOT EXISTS MatchPlayerPurchases (
     MatchId INTEGER NOT NULL REFERENCES MatchTeam(MatchId), PlayerId INTEGER NOT NULL, EventIndex INTEGER NOT NULL,
     TimeSeconds INTEGER NOT NULL, ItemKey TEXT NOT NULL, PRIMARY KEY(MatchId,PlayerId,EventIndex));
+  CREATE TABLE IF NOT EXISTS MatchPlayerAbilityUpgrades (
+    MatchId INTEGER NOT NULL REFERENCES MatchTeam(MatchId), PlayerId INTEGER NOT NULL,
+    UpgradeIndex INTEGER NOT NULL CHECK(UpgradeIndex>=0), AbilityId INTEGER NOT NULL CHECK(AbilityId>0),
+    PRIMARY KEY(MatchId,PlayerId,UpgradeIndex));
   CREATE TABLE IF NOT EXISTS MatchObjectives (
     MatchId INTEGER NOT NULL REFERENCES MatchTeam(MatchId), EventIndex INTEGER NOT NULL,
     TimeSeconds INTEGER NOT NULL, Type TEXT NOT NULL, PlayerId INTEGER, PlayerSlot INTEGER,

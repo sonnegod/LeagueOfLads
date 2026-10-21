@@ -102,6 +102,60 @@ but does not bypass OpenDota request quotas. Use bounded, resumable collection
 and import only the additional fields for curated existing match IDs; preserve
 production corrections and newer data rather than replacing the live database.
 
+### Extract saved skill builds
+
+New match ingestion stores valid `ability_upgrades_arr` entries in
+`MatchPlayerAbilityUpgrades` as `(MatchId, PlayerId, UpgradeIndex, AbilityId)`.
+`UpgradeIndex` is zero based and preserves repeated ability IDs and talent IDs.
+It represents upgrade order, not a confirmed hero level or timestamp. The compressed
+archive remains available as source provenance. Missing or malformed sequences do
+not replace an existing valid build; a valid newer parsed sequence can replace it.
+
+To populate this table from existing archives without OpenDota requests:
+
+```bash
+node scripts/db/backfillAbilityUpgrades.js db/LadsData.db
+node scripts/db/backfillAbilityUpgrades.js db/LadsData.db --apply
+```
+
+To process the entire local archive in one invocation:
+
+```bash
+node scripts/db/backfillAbilityUpgrades.js db/LadsData.db --apply --all
+```
+
+`--all` continues automatically through the batches, prints progress and final
+totals, and creates one backup for the invocation. It still loads and commits one
+match at a time. It makes no external API requests. Omit `--apply` to preview the
+entire archive. Ctrl+C stops the run; completed matches stay committed, and rerunning
+the command is safe.
+
+Preview is read only, including before the schema migration. Apply backs up the
+database, creates the additive schema, checks archive hashes and current player/hero
+identities, and commits one match at a time. Each invocation processes at most 1,000
+archives by default; use `--limit N` to change this and the printed `--after-match-id N`
+to continue. With `--all`, this limit controls batch size rather than the overall
+total. Repeating a range is safe and does not duplicate upgrades. Errors are
+reported with match IDs; rerun those ranges after correcting the source problem.
+The backfill also records the new section's coverage for validation, preserving
+original archive hashes, collection times and ingestion outcomes. Old archives are
+not required to have upgrade rows until explicitly extracted or reimported.
+This extraction is manual, separate from deployment and startup.
+
+Match → Overview → Spells (before Items) shows two team cards with each player's
+hero and compact upgrade sequence. `/api/matches/:matchId/analysis/skills` reads the normalized table for
+all players in one request; it does not decompress archives or collect new data.
+Missing builds are labeled unavailable. Combat retains the player statistics.
+Numbered spell icons show spell names on hover and upgrade details on selection;
+numbers mean upgrade order, not inferred hero levels. Talent and attribute upgrades
+have distinct symbols, and unknown IDs retain a placeholder.
+
+`client/src/data/dotaAbilities.json` is a bundled ID/name catalog derived from the
+[OpenDota constants](https://github.com/odota/dotaconstants) revision recorded in its
+`source` field; ability artwork uses Valve's image CDN, like item artwork. It is
+loaded with the Combat sequence component, not downloaded during deployment or
+per match. Historical builds still need the explicit archive extraction above.
+
 ### Recover missing historical match durations
 
 Historical enrichment preserved the original `MatchTeam.Duration`, including null

@@ -25,6 +25,7 @@ import BettingFixturePage from './pages/BettingFixturePage';
 import {SeasonBettingLayout} from './context/SeasonBetSlipContext';
 import HeadToHeadPage from "./pages/HeadToHeadPage";
 const DraftGodPage = lazy(() => import('./pages/DraftGod'));
+const SkillBuildPreview = import.meta.env.DEV ? lazy(() => import('./pages/SkillBuildPreview')) : null;
 import LiveMatchesPage from "./pages/LiveMatchesPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import RulesPage from "./pages/RulesPage";
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/team/:teamId" element={<TeamPage />} />
         <Route path="/team/roster/:teamSubmissionId" element={<TeamPage />} />
         <Route path="/match/:matchId" element={<MatchPage />} />
+        {import.meta.env.DEV && <Route path="/preview/skill-build" element={<Suspense fallback={<p>Loading preview…</p>}><SkillBuildPreview /></Suspense>} />}
         <Route path="/team" element={<TeamsPage />} />
         <Route path="/h2h" element={<HeadToHeadPage />} />
         <Route path="/player" element={<PlayersPage />} />

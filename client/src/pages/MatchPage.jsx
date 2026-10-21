@@ -7,6 +7,7 @@ import './MatchSeriesPages.css';
 
 const MatchAnalysis = lazy(() => import('../components/MatchAnalysis'));
 const MatchDraftAnalysis = lazy(() => import('../components/MatchDraftAnalysis'));
+const MatchSpells = lazy(() => import('../components/MatchSpells'));
 const modes = {
   combat: [['Kills', 'K'], ['Deaths', 'D'], ['Assists', 'A'], ['HeroDamage', 'Hero damage'], ['Healing', 'Healing'], ['TowerDamage', 'Tower damage']],
   economy: [['Lasthits', 'LH'], ['Denies', 'Denies'], ['Networth', 'Net worth'], ['GPM', 'GPM'], ['XPM', 'XPM'], ['FinalLevel', 'Level']],
@@ -57,9 +58,11 @@ function MatchView({ data, matchId }) {
       <button className="ui-tab" key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>{label}</button>)}
     </div>
     {tab === 'overview' ? <div className="performance-report">
-      <div className="ui-tabs" aria-label="Overview sections">{[...Object.keys(modes), 'items', 'draft'].map(key => <button key={key} className="ui-tab"
+      <div className="ui-tabs" aria-label="Overview sections">{[...Object.keys(modes), 'spells', 'items', 'draft'].map(key => <button key={key} className="ui-tab"
         aria-pressed={mode === key} onClick={() => setMode(key)}>{key === 'draft' ? 'Picks & bans' : key[0].toUpperCase() + key.slice(1)}</button>)}</div>
-      {mode === 'items' ? <Suspense fallback={<p role="status">Loading items…</p>}>
+      {mode === 'spells' ? <Suspense fallback={<p role="status">Loading skill builds…</p>}>
+        <MatchSpells matchId={matchId} match={match} groups={groups} />
+      </Suspense> : mode === 'items' ? <Suspense fallback={<p role="status">Loading items…</p>}>
         <MatchAnalysis matchId={matchId} section="items" initialPlayerId={playerId} />
       </Suspense> : mode === 'draft' ? <Suspense fallback={<p role="status">Loading draft context…</p>}>
         <MatchDraftAnalysis matchId={matchId} />

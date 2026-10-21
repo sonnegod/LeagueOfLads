@@ -4,6 +4,7 @@ import { ensureWarehouseSchema, MATCH_PLAYER_ADDITIONS, WAREHOUSE_CHILDREN } fro
 import { seedWarehousePatches } from './warehousePatches.js';
 import { isSqliteBusy } from './warehouseConnection.js';
 import { planMatchRepair, repairMatchCore } from './warehouseRepair.js';
+import { validAbilityUpgrades, writeAbilityUpgrades } from './warehouseAbilityUpgrades.js';
 
 export const IMPORTER_VERSION = 1;
 const finite = n => typeof n === 'number' && Number.isFinite(n);
@@ -121,8 +122,17 @@ function mergeGameplay(previous, incoming, issues) {
       if (next.purchase_log !== undefined && !validEventArray(next.purchase_log, 'purchase_log')) issues.push(`Invalid purchase_log for ${next.account_id}; retained prior section`);
       if (Array.isArray(old.purchase_log)) player.purchase_log = old.purchase_log; else delete player.purchase_log;
     }
+    if (validAbilityUpgrades(next.ability_upgrades_arr) && (parsed || !validAbilityUpgrades(old.ability_upgrades_arr))) {
+      player.ability_upgrades_arr = next.ability_upgrades_arr;
+    } else {
+      if (next.ability_upgrades_arr !== undefined && !validAbilityUpgrades(next.ability_upgrades_arr)) {
+        issues.push(`Invalid ability_upgrades_arr for ${next.account_id}; retained prior section`);
+      }
+      if (validAbilityUpgrades(old.ability_upgrades_arr)) player.ability_upgrades_arr = old.ability_upgrades_arr;
+      else delete player.ability_upgrades_arr;
+    }
     for (const key of ['kills_log','deaths_log','buyback_log','obs_log','sen_log','obs_left_log','sen_left_log',
-      'runes_log','ability_upgrades_arr','neutral_item_history']) {
+      'runes_log','neutral_item_history']) {
       if (Array.isArray(next[key]) && (parsed || !Array.isArray(old[key]))) player[key] = next[key];
       else if (Array.isArray(old[key])) player[key] = old[key];
       else delete player[key];
@@ -175,6 +185,8 @@ function sectionsFor(data) {
     teamTimeline: { gold: data.radiant_gold_adv?.filter(finite).length || 0, xp: data.radiant_xp_adv?.filter(finite).length || 0 },
     purchases: { players: data.players.filter(p => Array.isArray(p.purchase_log)).length,
       events: data.players.reduce((n, p) => n + (p.purchase_log?.length || 0), 0) },
+    abilityUpgrades: { players: data.players.filter(p => validAbilityUpgrades(p.ability_upgrades_arr)).length,
+      events: data.players.reduce((n, p) => n + (validAbilityUpgrades(p.ability_upgrades_arr) ? p.ability_upgrades_arr.length : 0), 0) },
     objectives: { available: Array.isArray(data.objectives), events: data.objectives?.length || 0 },
     fights: { available: Array.isArray(data.teamfights), events: data.teamfights?.length || 0 }
   };
@@ -205,6 +217,7 @@ function reportCuratedDifferences(db, data, match, issues) {
 
 function writeDetails(db, data) {
   const id = data.match_id;
+  writeAbilityUpgrades(db, data);
   const updates = Object.keys(MATCH_PLAYER_ADDITIONS);
   const update = db.prepare(`UPDATE MatchPlayer SET ${updates.map(k => `${k}=COALESCE(@${k},${k})`).join(',')}
     WHERE MatchId=@MatchId AND PlayerId=@PlayerId`);

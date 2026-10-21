@@ -8,6 +8,9 @@ import { captureWarehouseBaseline, compareWarehouseBaseline, validateWarehouse }
 import { deleteMatchRecords, findOrphanMatchRecords, cleanupOrphanMatchRecords } from '../config/matchMaintenance.js';
 import { planWarehouseCollection } from '../config/warehouseCollection.js';
 import { syncWarehousePatches } from '../config/warehousePatches.js';
+import { backfillAbilityUpgrades } from '../config/warehouseAbilityUpgrades.js';
+import { createHash } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 
 function fixture({ migrate = true } = {}) {
   const db = new Database(':memory:');
@@ -79,6 +82,7 @@ test('ingestion preserves every original field and stores repeated/pregame event
     assert.equal(db.prepare('SELECT RadiantGoldAdvantage FROM MatchTeamTimeline WHERE TimeSeconds=1200').get().RadiantGoldAdvantage,3500);
     assert.equal(db.prepare('SELECT Gold FROM MatchPlayerTimeline WHERE PlayerId=1 AND TimeSeconds=600').get().Gold,5000);
     assert.equal(db.prepare('SELECT COUNT(*) n FROM MatchPlayerPurchases').get().n,30);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM MatchPlayerAbilityUpgrades').get().n,30);
     assert.equal(db.prepare('SELECT MIN(TimeSeconds) t FROM MatchPlayerPurchases').get().t,-60);
     const player = db.prepare('SELECT * FROM MatchPlayer WHERE PlayerId=1').get();
     assert.equal(player.Kills,3); assert.equal(player.Denies,0); assert.equal(player.ObserversPlaced,0);
@@ -106,6 +110,105 @@ test('ingestion preserves every original field and stores repeated/pregame event
     assert.equal(compareWarehouseBaseline(db,baseline).unchanged,true);
     db.exec('UPDATE MatchPlayerTimeline SET Gold=999999 WHERE PlayerId=1 AND TimeSeconds=600');
     assert.equal(validateWarehouse(db,{leagueId:20,deep:true}).valid,false);
+  } finally { db.close(); }
+});
+
+test('ability upgrades preserve repeated IDs, retain valid builds on partial/invalid/older responses, and replace newer builds', () => {
+  const db = fixture();
+  const read = () => db.prepare('SELECT UpgradeIndex,AbilityId FROM MatchPlayerAbilityUpgrades WHERE PlayerId=1 ORDER BY UpgradeIndex').raw().all();
+  try {
+    const data = payload(); data.players[0].ability_upgrades_arr = [5040, 5041, 5040, 9001];
+    ingestWarehouseMatch(db, data);
+    assert.deepEqual(read(), [[0,5040],[1,5041],[2,5040],[3,9001]]);
+    const partial = payload(); delete partial.version; delete partial.players[0].ability_upgrades_arr;
+    ingestWarehouseMatch(db, partial);
+    assert.deepEqual(read().map(r => r[1]), [5040,5041,5040,9001]);
+    for (const bad of [[5040,null], ['5040'], [0], [-1], [1.5], [Number.MAX_SAFE_INTEGER + 1], {}]) {
+      const malformed = payload(); malformed.players[0].ability_upgrades_arr = bad;
+      const result = ingestWarehouseMatch(db, malformed);
+      assert.ok(result.issues.some(issue => issue.includes('Invalid ability_upgrades_arr for 1;')));
+      assert.deepEqual(read().map(r => r[1]), [5040,5041,5040,9001]);
+    }
+    const older = payload(); older.version = 21; older.players[0].ability_upgrades_arr = [7];
+    ingestWarehouseMatch(db, older);
+    assert.equal(read().length, 4);
+    const newer = payload(); newer.version = 23; newer.players[0].ability_upgrades_arr = [5041,5040];
+    ingestWarehouseMatch(db, newer);
+    assert.deepEqual(read(), [[0,5041],[1,5040]]);
+    assert.equal(validateWarehouse(db, { deep: true }).valid, true);
+    db.exec('UPDATE MatchPlayerAbilityUpgrades SET AbilityId=99 WHERE PlayerId=1 AND UpgradeIndex=0');
+    assert.equal(validateWarehouse(db, { deep: true }).valid, false);
+    newer.players[0].ability_upgrades_arr = [];
+    ingestWarehouseMatch(db, newer);
+    assert.deepEqual(read(), []);
+    assert.equal(validateWarehouse(db, { deep: true }).valid, true);
+    assert.deepEqual(db.pragma('foreign_key_check'), []);
+  } finally { db.close(); }
+});
+
+test('version-one warehouses gain an empty upgrade table without scanning archives', () => {
+  const db = fixture({ migrate: false });
+  try {
+    db.exec(`DROP TABLE MatchPlayerAbilityUpgrades; INSERT INTO WarehouseMigrations VALUES (1,'2026-10-20');`);
+    ensureWarehouseSchema(db);
+    assert.equal(warehouseNeedsMigration(db), false);
+    assert.deepEqual(db.prepare('SELECT Version FROM WarehouseMigrations ORDER BY Version').pluck().all(), [1,2]);
+    assert.equal(db.prepare('SELECT COUNT(*) FROM MatchPlayerAbilityUpgrades').pluck().get(), 0);
+  } finally { db.close(); }
+});
+
+test('saved ability builds backfill in bounded idempotent batches, checking hashes and player identities', () => {
+  const db = fixture();
+  const saveArchive = data => {
+    const raw = JSON.stringify(data), digest = createHash('sha256').update(raw).digest('hex');
+    db.prepare('UPDATE MatchSourceResponses SET GameplayData=?,SourceHash=? WHERE MatchId=?').run(gzipSync(raw), digest, data.match_id);
+  };
+  try {
+    const data = payload(); data.players[0].ability_upgrades_arr = [10,20,10,9001];
+    ingestWarehouseMatch(db, data);
+    db.exec(`INSERT INTO MatchTeam (MatchId,TeamRad,TeamDire,WinnerId,SeriesId,Duration) VALUES(2,100,200,200,0,2100);
+      INSERT INTO MatchLeague VALUES(2,20,'2025-05-23');
+      INSERT INTO MatchPlayer (MatchId,PlayerId,HeroId,Kills,Deaths,Assists,Lasthits,GPM,XPM)
+        SELECT 2,PlayerId,HeroId,Kills,Deaths,Assists,Lasthits,GPM,XPM FROM MatchPlayer WHERE MatchId=1;`);
+    ingestWarehouseMatch(db, { ...data, match_id: 2 });
+    db.exec(`DROP TABLE MatchPlayerAbilityUpgrades;
+      UPDATE MatchIngestionState SET SectionsJson=json_remove(SectionsJson,'$.abilityUpgrades');`);
+    const before = db.prepare('SELECT total_changes()').pluck().get();
+    const preview = backfillAbilityUpgrades(db, { limit: 1 });
+    assert.equal(preview.checked, 1); assert.equal(preview.upgrades, 31); assert.equal(preview.more, true);
+    assert.equal(preview.changedMatches, 1); assert.equal(preview.lastMatchId, 1);
+    assert.equal(db.prepare('SELECT total_changes()').pluck().get(), before);
+    // Simulate the additive migration on an already-open fixture connection.
+    db.exec(`CREATE TABLE MatchPlayerAbilityUpgrades (MatchId INTEGER NOT NULL REFERENCES MatchTeam(MatchId),
+      PlayerId INTEGER NOT NULL,UpgradeIndex INTEGER NOT NULL,AbilityId INTEGER NOT NULL,
+      PRIMARY KEY(MatchId,PlayerId,UpgradeIndex));`);
+    const baseline = captureWarehouseBaseline(db);
+    assert.equal(validateWarehouse(db, { deep: true }).valid, true, 'old sections remain valid before explicit extraction');
+    const archiveBefore = db.prepare('SELECT SourceHash,CollectedAt FROM MatchSourceResponses ORDER BY MatchId').all();
+    const first = backfillAbilityUpgrades(db, { apply: true, limit: 1 });
+    assert.equal(first.changedMatches, 1); assert.equal(first.more, true);
+    const second = backfillAbilityUpgrades(db, { apply: true, afterMatchId: first.lastMatchId, limit: 1 });
+    assert.equal(second.checked, 1); assert.equal(second.changedMatches, 1); assert.equal(second.more, false);
+    assert.equal(db.prepare('SELECT COUNT(*) FROM MatchPlayerAbilityUpgrades').pluck().get(), 62);
+    assert.equal(backfillAbilityUpgrades(db, { apply: true }).changedMatches, 0);
+    assert.equal(compareWarehouseBaseline(db, baseline).unchanged, true);
+    assert.deepEqual(db.prepare('SELECT SourceHash,CollectedAt FROM MatchSourceResponses ORDER BY MatchId').all(), archiveBefore);
+    assert.equal(validateWarehouse(db, { deep: true }).valid, true);
+    assert.deepEqual(JSON.parse(db.prepare('SELECT SectionsJson FROM MatchIngestionState WHERE MatchId=1').get().SectionsJson).abilityUpgrades,
+      { players: 10, events: 31 });
+    // Gapped indexes must be repaired even when the ordered ability IDs match.
+    db.exec('UPDATE MatchPlayerAbilityUpgrades SET UpgradeIndex=20 WHERE MatchId=1 AND PlayerId=1 AND UpgradeIndex=3');
+    assert.equal(backfillAbilityUpgrades(db, { apply: true, limit: 1 }).changedMatches, 1);
+    assert.equal(db.prepare('SELECT MAX(UpgradeIndex) FROM MatchPlayerAbilityUpgrades WHERE MatchId=1 AND PlayerId=1').pluck().get(), 3);
+    const original = db.prepare('SELECT * FROM MatchPlayerAbilityUpgrades ORDER BY MatchId,PlayerId,UpgradeIndex').all();
+    data.players[0].hero_id = 999;
+    saveArchive(data);
+    const conflict = backfillAbilityUpgrades(db, { apply: true, limit: 1 });
+    assert.equal(conflict.failedMatches, 1); assert.match(conflict.errors[0].message, /participants/);
+    assert.deepEqual(db.prepare('SELECT * FROM MatchPlayerAbilityUpgrades ORDER BY MatchId,PlayerId,UpgradeIndex').all(), original);
+    db.exec("UPDATE MatchSourceResponses SET SourceHash='wrong' WHERE MatchId=1");
+    assert.match(backfillAbilityUpgrades(db, { apply: true, limit: 1 }).errors[0].message, /hash mismatch/);
+    assert.throws(() => backfillAbilityUpgrades(db, { limit: 0 }), /Invalid backfill range/);
   } finally { db.close(); }
 });
 

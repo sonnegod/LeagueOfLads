@@ -151,6 +151,22 @@ export class WarehouseReporting {
     });
   }
 
+  skillBuilds(matchId) {
+    return this.cached(`match:${matchId}:skills`, () => {
+      const match = this.matches('match', matchId)[0];
+      if (!match) return null;
+      const players = getReportingPlayers(this.db, matchId);
+      const builds = new Map(players.map(p => [p.PlayerId, []]));
+      if (!match.Rehost && match.TeamRad !== match.TeamDire) {
+        for (const row of this.rows('MatchPlayerAbilityUpgrades', [matchId], 'ORDER BY PlayerId,UpgradeIndex')) {
+          builds.get(row.PlayerId)?.push({ index: row.UpgradeIndex, abilityId: row.AbilityId });
+        }
+      }
+      return { available: [...builds.values()].some(upgrades => upgrades.length > 0),
+        players: players.map(p => ({ playerId: p.PlayerId, upgrades: builds.get(p.PlayerId) })) };
+    });
+  }
+
   inventories(matchId) {
     return this.cached(`match:${matchId}:inventories`, () => {
       const overview = this.match(matchId);

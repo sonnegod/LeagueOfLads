@@ -92,7 +92,10 @@ export function reconcileWarehouseSources(db, { leagueId = null } = {}) {
       const digest = createHash('sha256').update(raw).digest('hex');
       same(id, 'archive.matchId', id, data.match_id);
       same(id, 'archive.hash', row.SourceHash, digest);
-      same(id, 'state.hash', row.SourceHash, db.prepare('SELECT SourceHash FROM MatchIngestionState WHERE MatchId=?').get(id)?.SourceHash);
+      const state = db.prepare('SELECT SourceHash,SectionsJson FROM MatchIngestionState WHERE MatchId=?').get(id);
+      same(id, 'state.hash', row.SourceHash, state?.SourceHash);
+      // Older archives are normalized explicitly, rather than during migration/validation.
+      const upgradesNormalized = Boolean(state && Object.hasOwn(JSON.parse(state.SectionsJson), 'abilityUpgrades'));
       const match = db.prepare('SELECT * FROM MatchTeam WHERE MatchId=?').get(id);
       for (const [column, field] of [['StartTimeUtc','start_time'],['RadiantScore','radiant_score'],['DireScore','dire_score'],['FirstBloodTime','first_blood_time']]) {
         if (value(data[field]) !== null) same(id, column, data[field], match[column]);
@@ -114,6 +117,10 @@ export function reconcileWarehouseSources(db, { leagueId = null } = {}) {
         if (Array.isArray(p.purchase_log)) same(id, `player.${p.account_id}.purchases`,
           p.purchase_log.map((e, i) => [i, e.time, e.key]),
           db.prepare('SELECT EventIndex,TimeSeconds,ItemKey FROM MatchPlayerPurchases WHERE MatchId=? AND PlayerId=? ORDER BY EventIndex').raw().all(id, p.account_id));
+        if (upgradesNormalized && Array.isArray(p.ability_upgrades_arr) && p.ability_upgrades_arr.every(n => Number.isSafeInteger(n) && n > 0)) {
+          same(id, `player.${p.account_id}.abilityUpgrades`, p.ability_upgrades_arr.map((abilityId, index) => [index, abilityId]),
+            db.prepare('SELECT UpgradeIndex,AbilityId FROM MatchPlayerAbilityUpgrades WHERE MatchId=? AND PlayerId=? ORDER BY UpgradeIndex').raw().all(id, p.account_id));
+        }
       }
       const expectedTeam = Array.from({ length: Math.max(data.radiant_gold_adv?.length || 0, data.radiant_xp_adv?.length || 0) },
         (_, i) => [i * 60, value(data.radiant_gold_adv?.[i]), value(data.radiant_xp_adv?.[i])]);
@@ -148,7 +155,7 @@ export function validateWarehouse(db, { leagueId = null, deep = false } = {}) {
   }
   if (tables.has('MatchTeamfightPlayers')) checks.fightPlayerOrphans = db.prepare(`SELECT COUNT(*) n FROM MatchTeamfightPlayers p
     WHERE NOT EXISTS (SELECT 1 FROM MatchTeamfights f WHERE f.MatchId=p.MatchId AND f.FightIndex=p.FightIndex)`).get().n;
-  for (const name of ['MatchPlayerTimeline', 'MatchPlayerPurchases', 'MatchTeamfightPlayers']) {
+  for (const name of ['MatchPlayerTimeline', 'MatchPlayerPurchases', 'MatchPlayerAbilityUpgrades', 'MatchTeamfightPlayers']) {
     if (tables.has(name)) checks[`${name}:unknownPlayers`] = db.prepare(`SELECT COUNT(*) n FROM ${name} c WHERE NOT EXISTS
       (SELECT 1 FROM MatchPlayer p WHERE p.MatchId=c.MatchId AND p.PlayerId=c.PlayerId)`).get().n;
   }

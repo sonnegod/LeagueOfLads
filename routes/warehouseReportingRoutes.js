@@ -30,6 +30,7 @@ export function createWarehouseReportingRouter(db) {
   router.get('/hero/:heroId/performance', handle(req => reporting.heroPerformance(positive(req.params.heroId), performanceFilters(req))));
   router.get('/leagues/:leagueId/performance', handle(req => reporting.leaguePerformance(positive(req.params.leagueId), performanceFilters(req))));
   router.get('/matches/:matchId/analysis', handle(req => reporting.match(positive(req.params.matchId))));
+  router.get('/matches/:matchId/analysis/skills', handle(req => reporting.skillBuilds(positive(req.params.matchId))));
   router.get('/matches/:matchId/analysis/inventories', handle(req => reporting.inventories(positive(req.params.matchId))));
   router.get('/matches/:matchId/analysis/events', handle(req => reporting.events(positive(req.params.matchId))));
   router.get('/matches/:matchId/analysis/draft/views', handle(req => reporting.draftViews(positive(req.params.matchId))));
