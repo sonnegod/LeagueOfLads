@@ -1,19 +1,16 @@
 import { lazy, Suspense, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import HeroDisplay from '../components/HeroDisplay';
 import MatchResultBadge from '../components/MatchResultBadge';
-import { useReport, ReportState, Panel, ReportTable, fmt, clock } from '../components/PerformanceUI';
+import MatchScoreboard from '../components/MatchScoreboard';
+import { useReport, ReportState, fmt, clock } from '../components/PerformanceUI';
 import './MatchSeriesPages.css';
+import './MatchDashboard.css';
 
 const MatchAnalysis = lazy(() => import('../components/MatchAnalysis'));
 const MatchDraftAnalysis = lazy(() => import('../components/MatchDraftAnalysis'));
-const MatchSpells = lazy(() => import('../components/MatchSpells'));
-const modes = {
-  combat: [['Kills', 'K'], ['Deaths', 'D'], ['Assists', 'A'], ['HeroDamage', 'Hero damage'], ['Healing', 'Healing'], ['TowerDamage', 'Tower damage']],
-  economy: [['Lasthits', 'LH'], ['Denies', 'Denies'], ['Networth', 'Net worth'], ['GPM', 'GPM'], ['XPM', 'XPM'], ['FinalLevel', 'Level']],
-  support: [['ObserversPlaced', 'Observers'], ['SentriesPlaced', 'Sentries'], ['ObserversKilled', 'Obs destroyed'],
-    ['SentriesKilled', 'Dewards'], ['CampsStacked', 'Stacks'], ['StunSeconds', 'Stun seconds']],
-};
+const MatchBuilds = lazy(() => import('../components/MatchBuilds'));
+const views = [['overview', 'Overview', 'Scoreboard & team comparison'], ['builds', 'Builds', 'Items, spells & purchases'],
+  ['analysis', 'Analysis', 'Game flow, economy & fights'], ['draft', 'Draft', 'Picks, bans & context']];
 
 export default function MatchPage() {
   const { matchId } = useParams();
@@ -24,16 +21,9 @@ export default function MatchPage() {
 }
 
 function MatchView({ data, matchId }) {
-  const [tab, setTab] = useState('overview'), [mode, setMode] = useState('combat'), [playerId, setPlayerId] = useState(null);
+  const [tab, setTab] = useState('overview'), [playerId, setPlayerId] = useState(null);
   const match = data.match[0];
   const groups = [0, 1, null].map(side => ({ side, players: data.matchPlayers.filter(p => p.TeamSide === side) })).filter(g => g.players.length);
-  const columns = [
-    { key: 'PlayerName', label: 'Player', render: p => <Link to={`/player/${p.PlayerId}`}>{p.PlayerName}</Link> },
-    { key: 'HeroName', label: 'Hero', render: p => <HeroDisplay heroId={p.HeroId} heroName={p.HeroName} showName={false} /> },
-    ...(modes[mode] || []).map(([key, label]) => ({ key, label })),
-    { key: 'details', label: 'Details', sortable: false, value: () => null, render: p => <button type="button"
-      onClick={() => { setPlayerId(p.PlayerId); setMode('items'); }}>View</button> },
-  ].map(column => ({ ...column, className: column.key === 'PlayerName' ? 'performance-cell-left' : 'performance-cell-center' }));
   const date = match.StartTimeUtc ? `${new Intl.DateTimeFormat(undefined, { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })
     .format(new Date(match.StartTimeUtc * 1000))} ET` : match.DatePlayed || 'Date unavailable';
   return <>
@@ -54,31 +44,16 @@ function MatchView({ data, matchId }) {
         <span>Match {match.MatchId}</span>
         <span>{date}</span><span>Patch {match.PatchKey || 'unavailable'}</span></div>
     </header>
-    <div className="ui-tabs" aria-label="Match sections">{[['overview', 'Overview'], ['gameflow', 'Game flow'], ['economy', 'Player economy'], ['fights', 'Teamfights']].map(([key, label]) =>
-      <button className="ui-tab" key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>{label}</button>)}
+    <div className="ui-tabs match-view-navigation" aria-label="Match sections">{views.map(([key, label, description]) =>
+      <button type="button" className="ui-tab" key={key} aria-pressed={tab === key} aria-controls="match-view" onClick={() => setTab(key)}>
+        <strong>{label}</strong><small>{description}</small></button>)}
     </div>
-    {tab === 'overview' ? <div className="performance-report">
-      <div className="ui-tabs" aria-label="Overview sections">{[...Object.keys(modes), 'spells', 'items', 'draft'].map(key => <button key={key} className="ui-tab"
-        aria-pressed={mode === key} onClick={() => setMode(key)}>{key === 'draft' ? 'Picks & bans' : key[0].toUpperCase() + key.slice(1)}</button>)}</div>
-      {mode === 'spells' ? <Suspense fallback={<p role="status">Loading skill builds…</p>}>
-        <MatchSpells matchId={matchId} match={match} groups={groups} />
-      </Suspense> : mode === 'items' ? <Suspense fallback={<p role="status">Loading items…</p>}>
-        <MatchAnalysis matchId={matchId} section="items" initialPlayerId={playerId} />
-      </Suspense> : mode === 'draft' ? <Suspense fallback={<p role="status">Loading draft context…</p>}>
-        <MatchDraftAnalysis matchId={matchId} />
-      </Suspense> : <>
-      {groups.map(({ side, players }) => <Panel key={side ?? 'unknown'} className="match-scoreboard">
-        <div className={`match-scoreboard-team performance-side-${side}`}>
-          <h2>{side === null ? 'Side unavailable' : <Link to={`/team/${side === 0 ? match.rad_team_id : match.dire_team_id}`}>
-            {side === 0 ? match.rad_team_name : match.dire_team_name}</Link>}</h2>
-          {side !== null && <MatchResultBadge winnerSide={match.WinnerSide} side={side === 0 ? 'r' : 'd'} />}
-        </div>
-        <ReportTable key={mode} rows={players} columns={columns} rowKey="PlayerId" initialSort="PlayerSlot" initialDirection="asc" />
-      </Panel>)}
-      <p className="performance-note">Extended statistics are shown where recorded. Missing values are unavailable, not zero.</p>
-      </>}
-    </div> : <Suspense fallback={<p role="status">Loading match analysis…</p>}>
-      <MatchAnalysis matchId={matchId} section={tab} initialPlayerId={playerId} />
-    </Suspense>}
+    <div id="match-view">
+      {tab === 'overview' ? <MatchScoreboard match={match} groups={groups} onViewBuild={id => { setPlayerId(id); setTab('builds'); }} /> :
+        <Suspense fallback={<p role="status">Loading {tab === 'builds' ? 'player builds' : tab === 'draft' ? 'draft context' : 'match analysis'}…</p>}>
+          {tab === 'builds' ? <MatchBuilds matchId={matchId} match={match} groups={groups} initialPlayerId={playerId} /> :
+            tab === 'draft' ? <MatchDraftAnalysis matchId={matchId} /> : <MatchAnalysis matchId={matchId} section="analysis" />}
+        </Suspense>}
+    </div>
   </>;
 }

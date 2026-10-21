@@ -11,9 +11,3 @@
 .content .match-skill-point:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
 .match-skill-empty { color: #94a3b8; font-size: .72rem; padding: 20px 0 9px; }
 .match-skill-selection { margin: 8px 0 0; color: #bfdbfe; font-size: .74rem; line-height: 1.5; }
-.match-spell-players { display: grid; min-width: 0; }
-.match-spell-player { min-width: 0; padding: 16px 0; border-bottom: 1px solid #334155; }
-.match-spell-player:first-child { padding-top: 0; }
-.match-spell-player:last-child { padding-bottom: 0; border-bottom: 0; }
-.match-spell-player-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 8px; font-size: .85rem; }
-.match-spell-player-heading > a:first-child { font-size: 1.05rem; font-weight: 750; color: #bfdbfe; overflow-wrap: anywhere; }

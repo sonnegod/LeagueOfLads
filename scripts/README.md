@@ -142,10 +142,15 @@ original archive hashes, collection times and ingestion outcomes. Old archives a
 not required to have upgrade rows until explicitly extracted or reimported.
 This extraction is manual, separate from deployment and startup.
 
-Match → Overview → Spells (before Items) shows two team cards with each player's
-hero and compact upgrade sequence. `/api/matches/:matchId/analysis/skills` reads the normalized table for
+The match page has four views: Overview (combined player stats and team totals),
+Builds (starting/final items, spell upgrades and expandable purchase timelines), Analysis (game
+flow, player economy and teamfights), and Draft. The Builds view shows two team
+cards with each player's hero, equipment and upgrade sequence together.
+`/api/matches/:matchId/analysis/skills` reads the normalized table for
 all players in one request; it does not decompress archives or collect new data.
-Missing builds are labeled unavailable. Combat retains the player statistics.
+Missing builds are labeled unavailable. Overview keeps the scoreboard available
+without loading build or analysis requests. Team comparisons require complete
+recorded values for the listed players, so absent statistics do not become zero.
 Numbered spell icons show spell names on hover and upgrade details on selection;
 numbers mean upgrade order, not inferred hero levels. Talent and attribute upgrades
 have distinct symbols, and unknown IDs retain a placeholder.
@@ -153,7 +158,7 @@ have distinct symbols, and unknown IDs retain a placeholder.
 `client/src/data/dotaAbilities.json` is a bundled ID/name catalog derived from the
 [OpenDota constants](https://github.com/odota/dotaconstants) revision recorded in its
 `source` field; ability artwork uses Valve's image CDN, like item artwork. It is
-loaded with the Combat sequence component, not downloaded during deployment or
+loaded with the Builds view, not downloaded during deployment or
 per match. Historical builds still need the explicit archive extraction above.
 
 ### Recover missing historical match durations
@@ -286,7 +291,7 @@ changing match records. `routes/warehouseReportingRoutes.js` provides these publ
 endpoints, mounted under `/api`:
 
 - `/matches/:matchId/analysis`: scoreboard, patch/kickoff, team and all-player timelines, and objectives.
-- `/matches/:matchId/analysis/inventories`: all players' final inventories in one response, from one cached source read.
+- `/matches/:matchId/analysis/inventories`: all players' final inventories and starting purchases in one response, from one cached source read. Starting items are normalized purchases at or before 0:00; repeated buys are retained and missing purchase logs remain unavailable. Builds uses one shared starting-slot count for the match (6–10 columns), aligning every player's panels while keeping starting and final icons equal in size. Extra starting purchases wrap.
 - `/matches/:matchId/analysis/events`: timed hero kills from the cached gameplay archive, with victim icons assigned opposite their own side.
 - `/matches/:matchId/analysis/draft?scope=season|patch&period=full|before`: final lineups, hero familiarity, league hero pick/ban counts and opposing-player experience for banned heroes. Full season is the default.
 - `/matches/:matchId/analysis/draft/views`: all available season/patch and full/before views in one response for the Picks & bans tab.
