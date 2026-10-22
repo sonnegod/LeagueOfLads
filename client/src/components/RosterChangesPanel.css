@@ -1,0 +1,12 @@
+.roster-management-cards { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; gap: 18px; }
+.roster-management-cards > .betting-admin-widget { min-width: 0; max-width: none; margin: 0; }
+.roster-team-details-card form { display: grid; gap: 12px; }
+.roster-team-details-card label { display: grid; gap: 6px; min-width: 0; }
+.roster-team-details-card input, .roster-team-details-card select { width: 100%; min-width: 0; box-sizing: border-box; }
+.roster-team-details-form { margin-top: 12px; }
+.roster-captain-fields { margin-top: 18px; padding-top: 16px; border-top: 1px solid #334155; }
+.roster-team-details-note { color: #94a3b8; }
+.roster-captain-current { margin: 0; color: #94a3b8; overflow-wrap: anywhere; }
+.roster-captain-current strong { color: #e2e8f0; }
+.roster-change-card .betting-admin-form label { min-width: 0; }
+@media (max-width: 1000px) { .roster-management-cards { grid-template-columns: minmax(0, 1fr); } }

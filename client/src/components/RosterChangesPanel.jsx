@@ -2,9 +2,11 @@ import {useEffect,useState} from 'react';
 import PendingRosterSlotsPanel from './PendingRosterSlotsPanel';
 import AddRosterTeamCard from './AddRosterTeamCard';
 import RosterOrderCard from './RosterOrderCard';
+import CurrentLeagueTeams from './CurrentLeagueTeams';
 import '../css/BettingV2.css';
+import './RosterChangesPanel.css';
 
-const initialChange={playerId:'',fromTeamKey:'',toTeamKey:'',replacementPlayerId:'',slot:0,localTime:'',kind:'permanent',reason:''};
+const initialChange={playerId:'',playerName:'',fromTeamKey:'',toTeamKey:'',replacementPlayerId:'',replacementPlayerName:'',slot:0,localTime:'',kind:'permanent',reason:''};
 function parserTime(value){const [day,time]=value.split('T');const [hour,minute]=time.split(':');const h=Number(hour);return `${day} ${h%12||12}:${minute} ${h>=12?'PM':'AM'} EST`;}
 
 export default function RosterChangesPanel({refreshKey,onChanged}) {
@@ -30,23 +32,30 @@ export default function RosterChangesPanel({refreshKey,onChanged}) {
     <div className="sportsbook-heading"><h2>Roster Changes</h2><button type="button" disabled={busy} onClick={()=>{setError('');setRefresh(value=>value+1);}}>Refresh view</button></div>
     {error&&<p role="alert" className="sportsbook-error">{error}</p>}{message&&<p role="status">{message}</p>}
     {!data&&!error&&<p>Loading roster administration…</p>}
-    {data&&['signup_closed','active'].includes(data.season?.status)&&<AddRosterTeamCard key={data.season.seasonId} season={data.season}
-      onChanged={()=>{setRefresh(value=>value+1);onChanged?.();}} />}
-    {data&&['signup_closed','active'].includes(data.season?.status)&&<RosterOrderCard data={data}
-      onChanged={()=>{setRefresh(value=>value+1);onChanged?.();}} />}
+    {data&&['signup_closed','active'].includes(data.season?.status)&&<div className="roster-management-cards">
+      <RosterOrderCard data={data} onChanged={()=>{setRefresh(value=>value+1);onChanged?.();}} />
+      <CurrentLeagueTeams key={data.season.seasonId} data={data} refreshKey={`${refreshKey}:${refresh}`}
+        onTeamUpdated={()=>{setRefresh(value=>value+1);onChanged?.();}} />
+    </div>}
     {data?.season?.status==='signup_closed'&&<PendingRosterSlotsPanel data={data}
       onChanged={()=>{setRefresh(value=>value+1);onChanged?.();}} />}
-    {data&&(data.season?.status!=='active'?<p>Roster changes are available during an active league.</p>:<section className="betting-admin-widget">
-      <h3>{data.season.name}</h3><p>Permanent changes refund affected preseason player bets. Effective dates preserve earlier appearances on the original team.</p>
+    {data&&(data.season?.status!=='active'?<p>Roster changes are available during an active league.</p>:<section className="betting-admin-widget roster-change-card">
+      <h3>Replace player</h3><p>Permanent changes refund affected preseason player bets. Effective dates preserve earlier appearances on the original team.</p>
       <form className="betting-admin-form" onSubmit={save}>
-        <label>Player account ID<input required type="number" min="1" value={rosterChange.playerId} onChange={e=>setRosterChange(r=>({...r,playerId:e.target.value}))} /></label>
+        <label>Player account ID<input required type="number" min="1" value={rosterChange.playerId} onChange={e=>setRosterChange(r=>({...r,playerId:e.target.value,playerName:''}))} /></label>
         {['fromTeamKey','toTeamKey'].map((key,i)=><label key={key}>{i?'Move to team (optional)':'Remove from team (optional)'}<select value={rosterChange[key]} onChange={e=>setRosterChange(r=>({...r,[key]:e.target.value}))}><option value="">None</option>{data.teams.map(t=><option key={t.teamKey} value={t.teamKey}>{t.name}</option>)}</select></label>)}
-        <label>Replacement account ID (optional)<input type="number" min="1" value={rosterChange.replacementPlayerId} onChange={e=>setRosterChange(r=>({...r,replacementPlayerId:e.target.value}))} /></label>
+        {rosterChange.toTeamKey&&!rosterChange.fromTeamKey&&<label>Player name (optional)<input maxLength="40" value={rosterChange.playerName}
+          onChange={e=>setRosterChange(r=>({...r,playerName:e.target.value}))} /></label>}
+        <label>Replacement account ID (optional)<input type="number" min="1" value={rosterChange.replacementPlayerId} onChange={e=>setRosterChange(r=>({...r,replacementPlayerId:e.target.value,replacementPlayerName:''}))} /></label>
+        {rosterChange.replacementPlayerId&&<label>Replacement name (optional)<input maxLength="40" value={rosterChange.replacementPlayerName}
+          onChange={e=>setRosterChange(r=>({...r,replacementPlayerName:e.target.value}))} /></label>}
         <label>Destination slot<select value={rosterChange.slot} onChange={e=>setRosterChange(r=>({...r,slot:Number(e.target.value)}))}>{[0,1,2,3,4].map(n=><option key={n} value={n}>{n+1}</option>)}</select></label>
         <label>Effective time (New York)<input required type="datetime-local" value={rosterChange.localTime} onChange={e=>setRosterChange(r=>({...r,localTime:e.target.value}))} /></label>
         <label>Change type<select value={rosterChange.kind} onChange={e=>setRosterChange(r=>({...r,kind:e.target.value}))}><option value="permanent">Permanent change</option><option value="data_correction">Data correction</option></select></label>
         <label>Reason<input required maxLength="500" value={rosterChange.reason} onChange={e=>setRosterChange(r=>({...r,reason:e.target.value}))} /></label><button disabled={busy}>Record roster change</button>
       </form>
     </section>)}
+    {data&&['signup_closed','active'].includes(data.season?.status)&&<AddRosterTeamCard key={data.season.seasonId} season={data.season}
+      onChanged={()=>{setRefresh(value=>value+1);onChanged?.();}} />}
   </section>;
 }

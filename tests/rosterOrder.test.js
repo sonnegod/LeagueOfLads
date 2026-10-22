@@ -4,7 +4,7 @@ import express from 'express';
 import {preseasonFixture} from './helpers/bettingFixture.js';
 import {ScheduleStore} from '../betting/scheduleStore.js';
 import {readRosterOrder} from '../config/rosterDisplayOrder.js';
-import {createBettingRoutes} from '../routes/bettingRoutes.js';
+import {createAdminRosterRouter} from '../routes/rosterRoutes.js';
 import {mutationRefresh} from '../betting/runtime.js';
 import {runBetting} from '../betting/engine.js';
 
@@ -48,7 +48,7 @@ test('roster administration reads and saves order including TBD positions withou
     f.league.prepare('INSERT INTO SeasonPendingRosterSlots(TeamSubmissionId,Slot,EstimatedMMR,CreatedAtUtc,UpdatedAtUtc) VALUES(21,2,6500,?,?)')
       .run(now.toISOString(),now.toISOString());
     const app=express();app.use(express.json());app.use((req,res,next)=>{req.user={id:'76561197960265827'};req.isAuthenticated=()=>true;next();});
-    app.use('/rosters',createBettingRoutes({...f,analyticsPath:'unused'}).rosterRoutes);
+    app.use('/rosters',createAdminRosterRouter({league:f.league,schedules:f.schedules}));
     server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
     const base=`http://127.0.0.1:${server.address().port}/rosters`;
     const get=async()=>{const response=await fetch(`${base}/status?seasonId=2`);assert.equal(response.status,200);return response.json();};

@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import MatchEditorPanel from "../components/MatchEditorPanel";
 import MatchTeamIdReplacementCard from "../components/MatchTeamIdReplacementCard";
-import CurrentLeagueTeams from "../components/CurrentLeagueTeams";
 import LeagueSetupTable from "../components/LeagueSetupTable";
 import GroupHeadToHeadEditor from "../components/GroupHeadToHeadEditor";
 import DeleteMatchCard from "../components/DeleteMatchCard";
@@ -29,7 +28,7 @@ export default function AdminPage() {
 
   const [activeTab, setActiveTab] = useState("league");
   const [activeLeagueTab, setActiveLeagueTab] = useState("overview");
-  const [activeEditorTab, setActiveEditorTab] = useState("teams");
+  const [activeEditorTab, setActiveEditorTab] = useState("results");
   const [activeAdminTab, setActiveAdminTab] = useState("requests");
   const [seasonStatus, setSeasonStatus] = useState(null);
   const [seasonId, setSeasonId] = useState(null);
@@ -120,18 +119,6 @@ export default function AdminPage() {
           <div style={pageContainer}>
             <div role="tablist" aria-label="Editor sections" className="ui-tabs" style={editorTabBarStyle}>
               <button
-                id="admin-team-changes-tab"
-                type="button"
-                role="tab"
-                aria-controls="admin-team-changes-panel"
-                aria-selected={activeEditorTab === "teams"}
-                className="ui-tab"
-                style={activeEditorTab === "teams" ? editorTabActiveStyle : editorTabButtonStyle}
-                onClick={() => setActiveEditorTab("teams")}
-              >
-                Team Changes
-              </button>
-              <button
                 id="admin-result-changes-tab"
                 type="button"
                 role="tab"
@@ -155,10 +142,6 @@ export default function AdminPage() {
               >
                 Match Changes
               </button>
-            </div>
-            <div id="admin-team-changes-panel" role="tabpanel" aria-labelledby="admin-team-changes-tab"
-              hidden={activeEditorTab !== "teams"} style={activeEditorTab === "teams" ? pageContainer : hiddenPanelStyle}>
-              <CurrentLeagueTeams refreshKey={refreshKey} onTeamUpdated={triggerRefresh} />
             </div>
             <div id="admin-result-changes-panel" role="tabpanel" aria-labelledby="admin-result-changes-tab"
               hidden={activeEditorTab !== "results"} style={activeEditorTab === "results" ? pageContainer : hiddenPanelStyle}>

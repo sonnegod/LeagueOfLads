@@ -299,7 +299,16 @@ development test mode does not make those validation results pass.
    cancellation from missing data.
 
 Effective roster replacements/transfers and roster data corrections are under
-**Admin → League → Roster Changes** during an active league. The Betting panel
+**Admin → League → Roster Changes** during an active league. The roster-change
+form accepts a completely new replacement account ID, with an optional name;
+without a name, the player is initially displayed as `Player <account ID>`. Existing
+player names and the original signup submission stay unchanged. Effective
+membership intervals retain earlier appearances on the outgoing roster.
+The **Team details** card beside **Roster order** edits a selected team's
+name and Dota team ID. Its captain control selects a confirmed
+current teammate. Captain changes update public team/roster displays and are
+audited separately; they do not create roster transfers or refresh betting odds.
+The Betting panel
 records official/remake/abandoned match classifications, Discord team-role mappings,
 unresolved scheduling posts, and verified legacy ticket outcomes. A replay must
 be linked to the same actual series before settlement. Raw Discord messages and

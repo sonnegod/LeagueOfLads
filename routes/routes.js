@@ -16,6 +16,7 @@ import { isDraftGodOwner } from '../middleware/checkDraftGod.js';
 import { publicSeasonRoutes, adminSeasonRoutes } from './seasonRoutes.js';
 import { createAnalyticsRoutes } from './analyticsRoutes.js';
 import { createBettingRoutes } from './bettingRoutes.js';
+import { createAdminRosterRouter, createRosterChangeHandler } from './rosterRoutes.js';
 import { createBettingRuntime, mutationRefresh } from '../betting/runtime.js';
 import { classifyStandings, DEFAULT_LEAGUE_RULES,qualificationPools } from '../config/leagueRules.js';
 import {
@@ -39,9 +40,11 @@ dotenv.config();
 
 const router = express.Router();
 const bettingRuntime = createBettingRuntime(db.db, dbBet.db, (type, message) => db.recordAdminAudit(type, message));
-const { publicRoutes: publicBettingRoutes, adminRoutes: adminBettingRoutes, rosterRoutes } = createBettingRoutes({
+const { publicRoutes: publicBettingRoutes, adminRoutes: adminBettingRoutes } = createBettingRoutes({
   ...bettingRuntime, league: db.db, playerName: id => db.getPlayerInfo(id)?.[0]?.PlayerName || `Player ${id}`,
 });
+const rosterRoutes = createAdminRosterRouter({league: db.db, schedules: bettingRuntime.schedules});
+adminBettingRoutes.post('/seasons/:seasonId/roster-changes', createRosterChangeHandler({schedules: bettingRuntime.schedules}));
 const { adminRoutes: adminAnalyticsRoutes, publicRoutes: publicAnalyticsRoutes, highlightRoutes } = createAnalyticsRoutes({
   audit: (type, message) => db.recordAdminAudit(type, message),
 });

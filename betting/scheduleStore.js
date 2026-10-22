@@ -221,6 +221,31 @@ export class ScheduleStore {
         pending:!!tbd,estimatedMMR:tbd?.EstimatedMMR??null};
     }));
   }
+  teamCaptains(seasonId) {
+    if(!this.db.pragma('table_info(SeasonTeams)').some(c=>c.name==='CaptainId'))return [];
+    return this.db.prepare(`SELECT t.TeamSubmissionId,t.CaptainId,p.PlayerName FROM SeasonTeams t
+      LEFT JOIN PlayerInfo p ON p.PlayerId=t.CaptainId WHERE t.SeasonId=? ORDER BY t.TeamSubmissionId`).all(seasonId)
+      .map(t=>({teamKey:t.TeamSubmissionId,captainId:id(t.CaptainId),
+        captainName:id(t.CaptainId)?t.PlayerName||`Player ${t.CaptainId}`:null}));
+  }
+  changeCaptain(seasonId,{teamKey,captainId,expectedCaptainId},actor=null,now=new Date()) {
+    teamKey=id(teamKey);captainId=id(captainId);
+    if(!teamKey||!captainId||expectedCaptainId===undefined||expectedCaptainId!==null&&!id(expectedCaptainId))
+      fail('Choose a team and captain using the current captain details');
+    return this.db.transaction(()=>{
+      const season=this.db.prepare('SELECT Status FROM LeagueSeasons WHERE SeasonId=?').get(seasonId);
+      const team=this.db.prepare('SELECT CaptainId FROM SeasonTeams WHERE TeamSubmissionId=? AND SeasonId=?').get(teamKey,seasonId);
+      if(!['signup_closed','active'].includes(season?.Status)||!team)fail('Choose a team in the current season',409);
+      if(id(team.CaptainId)!==id(expectedCaptainId))fail('The captain changed. Refresh before saving',409);
+      if(!currentSeasonRoster(this.db,seasonId,season.Status).some(p=>p.TeamSubmissionId===teamKey&&p.PlayerId===captainId))
+        fail('Choose a confirmed player on this team');
+      if(id(team.CaptainId)!==captainId) {
+        this.db.prepare('UPDATE SeasonTeams SET CaptainId=?,UpdatedAt=? WHERE TeamSubmissionId=?').run(captainId,now.toISOString(),teamKey);
+        this.audit('Team Captain Changed',`Changed captain of team ${teamKey} in season ${seasonId} from ${team.CaptainId??'none'} to ${captainId}${actor==null?'':` by ${actor}`}`);
+      }
+      return {saved:true,captainId};
+    }).immediate();
+  }
   reorderRoster(seasonId,{teamKey,order,expectedRoster},actor=null) {
     teamKey=id(teamKey);
     if(!teamKey||!validRosterOrder(order)||!Array.isArray(expectedRoster)||expectedRoster.length!==5)fail('Provide all five roster positions once');
@@ -345,17 +370,20 @@ export class ScheduleStore {
       this.changed(seasonId); return this.setup(seasonId);
     })();
   }
-  changeRoster(seasonId,{playerId,fromTeamKey=null,toTeamKey=null,replacementPlayerId=null,slot=null,effectiveAtUtc,kind='permanent',reason},actor=null,now=new Date()) {
+  changeRoster(seasonId,{playerId,playerName='',fromTeamKey=null,toTeamKey=null,replacementPlayerId=null,replacementPlayerName='',slot=null,effectiveAtUtc,kind='permanent',reason},actor=null,now=new Date()) {
     this.syncRosterHistory();
+    if([fromTeamKey,toTeamKey,replacementPlayerId].some(value=>value!==null&&value!==''&&!id(value)))fail('Enter valid player and team account IDs');
     playerId=id(playerId);fromTeamKey=id(fromTeamKey);toTeamKey=id(toTeamKey);replacementPlayerId=id(replacementPlayerId);
     const at=utc(effectiveAtUtc);
     if(!playerId||(!fromTeamKey&&!toTeamKey)||!at||Date.parse(at)>now.getTime()||!['permanent','data_correction'].includes(kind)
       ||typeof reason!=='string'||!reason.trim()||reason.length>500)fail('Select the player, effective time, change type and reason');
+    if([playerName,replacementPlayerName].some(name=>typeof name!=='string'||name.trim().length>40))fail('Player names must be at most 40 characters');
+    if(replacementPlayerId&&(!fromTeamKey||replacementPlayerId===playerId))fail('Choose a different replacement player for the outgoing team');
     const result=this.db.transaction(()=>{
       const season=this.db.prepare('SELECT Status FROM LeagueSeasons WHERE SeasonId=?').get(seasonId);
       if(season?.Status!=='active')fail('Roster changes require an active season',409);
       const teams=this.teams(seasonId);if([fromTeamKey,toTeamKey].filter(Boolean).some(key=>!teams.some(t=>t.TeamSubmissionId===key))||fromTeamKey&&fromTeamKey===toTeamKey)fail('Invalid roster teams');
-      const player=this.db.prepare('SELECT PlayerId FROM PlayerInfo WHERE PlayerId=?').get(playerId);if(!player)fail('Player not found',404);
+      const player=this.db.prepare('SELECT PlayerId FROM PlayerInfo WHERE PlayerId=?').get(playerId);if(!player&&fromTeamKey)fail('Player not found',404);
       const active=this.db.prepare(`SELECT h.* FROM TeamRosterMembershipHistory h JOIN SeasonTeams t ON t.TeamSubmissionId=h.TeamSubmissionId
         WHERE t.SeasonId=? AND h.PlayerId=? AND h.EffectiveToUtc IS NULL`).all(seasonId,playerId);
       if(active.length>1||fromTeamKey&&!active.some(r=>r.TeamSubmissionId===fromTeamKey)||!fromTeamKey&&active.length)fail('Resolve the current roster membership before changing it',409);
@@ -364,17 +392,17 @@ export class ScheduleStore {
         this.db.prepare('UPDATE TeamRosterMembershipHistory SET EffectiveToUtc=? WHERE MembershipId=?').run(at,membership.MembershipId);
         this.db.prepare('DELETE FROM TeamRosterPlayers WHERE TeamSubmissionId=? AND PlayerId=?').run(membership.TeamSubmissionId,playerId);
       }
-      const add=(key,player,position)=>{
+      const add=(key,player,position,name)=>{
         if(!Number.isInteger(position)||position<0||position>4)fail('Select a roster slot from 1 to 5');
         if(this.db.prepare('SELECT 1 FROM TeamRosterPlayers WHERE TeamSubmissionId=? AND Slot=?').get(key,position))fail('The destination roster slot is occupied',409);
-        if(!this.db.prepare('SELECT 1 FROM PlayerInfo WHERE PlayerId=?').get(player))fail('Replacement player not found',404);
         if(this.db.prepare(`SELECT 1 FROM TeamRosterMembershipHistory h JOIN SeasonTeams t ON t.TeamSubmissionId=h.TeamSubmissionId
           WHERE t.SeasonId=? AND h.PlayerId=? AND h.EffectiveToUtc IS NULL`).get(seasonId,player))fail('Player is already on a roster',409);
+        this.db.prepare('INSERT OR IGNORE INTO PlayerInfo(PlayerId,PlayerName) VALUES(?,?)').run(player,name.trim()||`Player ${player}`);
         this.db.prepare('INSERT INTO TeamRosterPlayers (TeamSubmissionId,PlayerId,Slot,FinalizedAt) VALUES (?,?,?,?)').run(key,player,position,now.toISOString());
         this.db.prepare('INSERT INTO TeamRosterMembershipHistory (TeamSubmissionId,PlayerId,Slot,EffectiveFromUtc,FromEstimated) VALUES (?,?,?,?,0)').run(key,player,position,at);
       };
-      if(toTeamKey)add(toTeamKey,playerId,Number(slot));
-      if(replacementPlayerId&&fromTeamKey)add(fromTeamKey,replacementPlayerId,active.find(r=>r.TeamSubmissionId===fromTeamKey).Slot);
+      if(toTeamKey)add(toTeamKey,playerId,Number(slot),playerName);
+      if(replacementPlayerId&&fromTeamKey)add(fromTeamKey,replacementPlayerId,active.find(r=>r.TeamSubmissionId===fromTeamKey).Slot,replacementPlayerName);
       const changed=this.db.prepare('INSERT INTO SeasonRosterChanges (SeasonId,PlayerId,FromTeamKey,ToTeamKey,EffectiveAtUtc,Kind,Reason,ActorId,CreatedAtUtc) VALUES (?,?,?,?,?,?,?,?,?)')
         .run(seasonId,playerId,fromTeamKey,toTeamKey,at,kind,reason.trim(),actor==null?null:String(actor),now.toISOString());
       this.audit('Roster Changed',`${kind==='permanent'?'Permanent roster change':'Roster data correction'} for player ${playerId}, season ${seasonId}: ${reason.trim()}`);
