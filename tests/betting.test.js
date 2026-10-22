@@ -92,6 +92,39 @@ test('Discord formatted role mentions and bold times parse without altering time
   assert.equal(parseScheduleTime('Sunday **8 EST** or **9 EST**',authoredAt).error,'conflicting_times');
 });
 
+test('Discord prefers a full numeric date and time over surrounding prose, weekday and duplicate clock text',()=>{
+  const authoredAt='2026-10-22T12:00:00Z';
+  const teams=[{TeamSubmissionId:11,TeamName:"Sock's Warriors"},{TeamSubmissionId:12,TeamName:'Initiative'}];
+  const message={authoredAt,roleNames:{'111111111111111111':"Sock's Warriors",'222222222222222222':'Initiative'},
+    content:"1. **<@&111111111111111111>** vs **<@&222222222222222222>** Sunday, October 25th, 8pm EDT (10/25/2026 8:00 PM)"};
+  const parsed=parseScheduleMessage(message,teams);
+  assert.equal(parsed.scheduledStartUtc,'2026-10-26T00:00:00.000Z');
+  assert.equal(parsed.timezone,'America/New_York');assert.equal(parsed.team1Key,11);assert.equal(parsed.team2Key,12);
+  assert.equal(parsed.status,'scheduled');assert.equal(parsed.bestOf,2);
+  assert.ok(parsed.assumptions.includes('Explicit numeric date and time used'));
+  for(const text of ['Monday, October 26th, 9pm EDT (10/25/2026 8:00 PM)',
+    'Sunday or Monday 8pm or 9pm (10/25/2026 8:00 PM)',
+    '10/25/2026 8:00 PM', 'Sunday 8pm (**10/25/2026 8:00 PM**)']) {
+    assert.equal(parseScheduleTime(text,authoredAt).scheduledStartUtc,'2026-10-26T00:00:00.000Z',text);
+  }
+  assert.equal(parseScheduleTime('Sunday 8pm PDT (10/25/2026 8:00 PM)',authoredAt).scheduledStartUtc,'2026-10-26T03:00:00.000Z');
+  assert.equal(parseScheduleTime('Sunday 8pm UTC+02:00 (10/25/2026 8:00 PM)',authoredAt).scheduledStartUtc,'2026-10-25T18:00:00.000Z');
+  assert.equal(parseScheduleTime('Monday 8pm EST (11/02/2026 8:00 AM)',authoredAt).scheduledStartUtc,'2026-11-02T13:00:00.000Z');
+});
+
+test('authoritative numeric timestamps keep invalid dates, DST, retrospective and conflicting explicit timestamps on hold',()=>{
+  const authoredAt='2026-10-22T12:00:00Z';
+  const parse=text=>parseScheduleTime(text,authoredAt,60,{weekdayFallback:true});
+  assert.equal(parse('Sunday 8pm (2/30/2027 8:00 PM)').error,'invalid_date');
+  assert.equal(parse('Sunday 8pm (10/20/2026 8:00 PM)').error,'outside_scheduling_horizon');
+  assert.equal(parse('Sunday 8pm (11/1/2026 1:30 AM)').error,'ambiguous_dst_time');
+  assert.equal(parse('Sunday 8pm (10/25/2026 13:00 PM)').error,'invalid_hour');
+  assert.ok(parse('Sunday 8pm (10/25/2026 8:99 PM)').error);
+  assert.equal(parse('played Sunday 8pm (10/25/2026 8:00 PM)').error,'retrospective_post');
+  assert.ok(parse('10/25/2026 8:00 PM or 10/26/2026 8:00 PM').error);
+  assert.ok(parse('10/25/2026 8:00 PM or 10/25/2026 9:00 PM').error);
+});
+
 test('BO1/BO2/BO3/BO5 score distributions are coherent and wager prices remain anchored',()=>{
   for(const bestOf of [1,2,3,5]) {
     const scores=seriesDistribution(.6,bestOf);assert.ok(Math.abs(scores.reduce((s,p)=>s+p.probability,0)-1)<1e-12);

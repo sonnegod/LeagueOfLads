@@ -570,6 +570,11 @@ permissions, and the message-content intent. It only reads posts, pages at most
 posts, and ignores posts authored before the season's creation. No live Discord
 network run or production load test has been performed in local verification.
 Scheduling posts use numeric dates and weekday abbreviations such as `weds`.
+A complete numeric timestamp such as `10/25/2026 8:00 PM` takes precedence over
+surrounding weekday/date prose and repeated times, including when it appears in
+parentheses. The post's timezone still applies, defaulting to New York. Invalid
+explicit timestamps and multiple complete timestamps need review; they do not
+fall back to a different weekday.
 If the date cannot be verified but one weekday is clear, Discord uses its next
 occurrence at the posted time (including today if that time has not passed).
 Month names and typos are not interpreted: `weds oc 21st 9 est` uses the next

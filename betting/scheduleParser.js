@@ -1,4 +1,4 @@
-export const PARSER_VERSION = 6;
+export const PARSER_VERSION = 7;
 export const LEAGUE_TIMEZONE = 'America/New_York';
 const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const weekdayAliases = {sun:'sunday',mon:'monday',tue:'tuesday',tues:'tuesday',wed:'wednesday',weds:'wednesday',
@@ -43,6 +43,13 @@ export function parseScheduleTime(text, authoredAt, horizonDays = 60, {allowPast
     est: LEAGUE_TIMEZONE, edt: LEAGUE_TIMEZONE, et: LEAGUE_TIMEZONE };
   if (explicitZone) timezone = zones[explicitZone] || explicitZone.replace(/^america\//, 'America/').replace(/^europe\//, 'Europe/');
   try { formatter(timezone).format(reference); } catch { return { error: 'unknown_timezone' }; }
+  // A complete numeric timestamp is authoritative over human-readable prose
+  // that may repeat its clock or name a different weekday. Keep the post's
+  // timezone, but never fall back to a weekday if this explicit value is invalid.
+  const offset = text.match(/(?:utc|gmt)\s*([+-])(\d{1,2})(?::?(\d{2}))?\b/i);
+  const numericTimes = [...text.matchAll(/\b\d{1,2}\/\d{1,2}\/\d{4}[\s,]+\d{1,2}:\d{2}\s*(?:a\.m\.|p\.m\.|am|pm)(?!\w)/g)];
+  if(numericTimes.length>1)return {error:'conflicting_times'};
+  if(numericTimes.length===1){text=numericTimes[0][0];weekdayFallback=false;}
   const times = [...text.matchAll(/(?:^|[\s,@])([01]?\d|2[0-3])(?::([0-5]\d))?\s*(am|pm|a\.m\.|p\.m\.|est|edt|et|pst|pdt|pt|cst|cdt|ct|mst|mdt|mt|utc|gmt)(?=\b|\s|$)/g)];
   if (!times.length) {
     const bare = [...text.matchAll(/(?:^|\s)([01]?\d|2[0-3])(?::([0-5]\d))?(?=\s*$)/g)];
@@ -58,14 +65,13 @@ export function parseScheduleTime(text, authoredAt, horizonDays = 60, {allowPast
   const clock24 = !isMeridiem && (hour===0 || hour>12 || !!time[2]&&time[1].length===2&&time[1].startsWith('0'));
   if (!isMeridiem && !clock24) hour = hour % 12 + 12;
   // Numeric offsets are authoritative; colloquial EST is deliberately New York.
-  const offset = text.match(/(?:utc|gmt)\s*([+-])(\d{1,2})(?::?(\d{2}))?\b/i);
   const dates = [...text.matchAll(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b|\b(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\b/g)];
   const days = weekdays.filter(d => new RegExp(`\\b${d}\\b`).test(text));
   if (days.length > 1 || (dates.length > 1 && (!weekdayFallback || !days.length))) return { error: 'conflicting_dates' };
   if (!dates.length && !days.length) return { error: 'missing_date' };
   const offsetMinutes=offset?(Number(offset[2])*60+Number(offset[3]||0))*(offset[1]==='+'?1:-1):null;
   const current = offset?parts(new Date(reference.getTime()+offsetMinutes*60000),'UTC'):parts(reference, timezone); let year; let month; let day;
-  const assumptions = [];
+  const assumptions = numericTimes.length ? ['Explicit numeric date and time used'] : [];
   let dateAssumptions = [];
   if (!isMeridiem && !clock24) assumptions.push('PM assumed');
   if (!explicitZone && !offset) assumptions.push('New York timezone assumed');

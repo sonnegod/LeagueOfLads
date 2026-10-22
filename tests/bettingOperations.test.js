@@ -123,6 +123,25 @@ test('Discord ignores bots and old/unrelated posts; explicit BO3 tiebreakers kee
   }finally{f.close();}
 });
 
+test('Discord reparses a previously rejected numeric timestamp after a parser update without creating duplicate fixtures',async()=>{
+  const post=message(100,"1. **<@&111111111111111111>** vs **<@&222222222222222222>** Sunday, October 25th, 8pm EDT (10/25/2026 8:00 PM)",
+    {mentions:{roles:new Map([['111111111111111111',{name:'A'}],['222222222222222222',{name:'B'}]])}});
+  const f=pollFixture([post]);try {
+    // Store the unchanged post, then recreate its pre-fix parser failure below
+    // the Discord cursor to exercise reconciliation rather than new-post fetches.
+    await f.poll();
+    f.league.exec(`DELETE FROM ScheduleEventRevisions;DELETE FROM ScheduledEvents;
+      UPDATE ScheduleMessages SET EventId=NULL,ParseStatus='needs_review',IssueCode='conflicting_times',ParserVersion=6;`);
+    const result=await f.poll();assert.equal(result.changed,1);
+    const row=f.league.prepare("SELECT * FROM ScheduleMessages WHERE MessageId='100'").get();
+    assert.equal(row.ParseStatus,'parsed');assert.equal(row.IssueCode,null);
+    const events=f.store.list(1);assert.equal(events.length,1);
+    assert.equal(events[0].ScheduledStartUtc,'2026-10-26T00:00:00.000Z');
+    assert.equal(row.EventId,events[0].EventId);
+    assert.equal((await f.poll()).changed,0);assert.equal(f.store.list(1).length,1);
+  }finally{f.close();}
+});
+
 test('role-tagged post with an unverifiable month uses its weekday, publishes markets and preserves admin corrections',async()=>{
   const postedAt=new Date('2026-10-20T12:00:00.000Z');
   const roles=new Map([['111111111111111111',{name:'6 OR 7'}],['222222222222222222',{name:"This Cowboy Wasn't Made For Modern Love"}]]);
