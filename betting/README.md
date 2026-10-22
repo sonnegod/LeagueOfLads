@@ -55,6 +55,9 @@ approved historical features saved with the preseason generation, price upcoming
 matchups and settle verified results. Saved historical inputs must still match
 the canonical setup and import fingerprint; a mismatch waits for the scheduled
 data refresh rather than reconstructing historical Analytics in a scheduling job.
+The scheduled refresh saves current approved inputs even when no fixtures are
+scheduled. Later scheduling jobs use those inputs independently of the frozen
+preseason forecasts, so refreshing matchup inputs does not reprice preseason.
 
 Published preseason prices, lines and selections stay fixed across routine and
 nightly refreshes. Later Analytics timestamps or pending fixture updates do not

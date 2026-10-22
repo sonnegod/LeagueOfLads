@@ -344,7 +344,7 @@ export function settleSeason(book,league,inputs,setup,events) {
 
 export function runBetting({book,league,analytics,schedules,seasonId=null,now=new Date(),simulations=2000,
   lookaheadDays=Number(process.env.BETTING_FIXTURE_LOOKAHEAD_DAYS||7),localTestInputBuilder=null,historicalInputBuilder=null,lockOwner=null,
-  preservePreseason=false}) {
+  preservePreseason=false,refreshSavedInputs=false}) {
   const localTesting=localBettingTestMode(book.env);
   if(localTesting!==book.localTesting)throw new Error('Betting test mode changed; reopen the correct database');
   if(localTesting&&typeof localTestInputBuilder!=='function')throw new Error('Local test pricing inputs are required');
@@ -397,7 +397,9 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
       if(!['active','signup_closed'].includes(season.Status)) {
         book.db.prepare("UPDATE BettingMarkets SET Status='held',HoldReason='season_not_open' WHERE SeasonId=? AND Status='open'").run(season.SeasonId);continue;
       }
-      if(keepPreseason&&!events.some(event=>event.Status==='scheduled'&&!event.StartedAtUtc
+      // Scheduled data jobs also prepare inputs for fixtures that arrive later.
+      // Routine scheduling jobs can stay idle when no upcoming fixture needs odds.
+      if(keepPreseason&&!refreshSavedInputs&&!events.some(event=>event.Status==='scheduled'&&!event.StartedAtUtc
         &&Date.parse(event.ScheduledStartUtc)>now.getTime()&&Date.parse(event.ScheduledStartUtc)<=now.getTime()+lookaheadDays*86400000))continue;
       const publicSource=inputs.sources.find(s=>s.SourceName==='public_matches');
       if(publicSource&&!publicSource.IsStale&&publicSource.LatestStatus==='complete')for(const feature of inputs.privatePlayerFeatures) {

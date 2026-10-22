@@ -71,7 +71,7 @@ try {
       if(!existsSync(paths.analytics))throw new Error('Build Analytics before running Betting');
       analytics=new Database(paths.analytics,{readonly:true,fileMustExist:true});
     }
-    const result=runBetting({book,league,analytics,schedules,seasonId,lockOwner,preservePreseason:!rebuildPreseason,
+    const result=runBetting({book,league,analytics,schedules,seasonId,lockOwner,preservePreseason:!rebuildPreseason,refreshSavedInputs:refresh,
       historicalInputBuilder:localTesting?null:(inputs,now)=>{
         const cached=readCachedHistoricalPricing(book,league,inputs.season.SeasonId,schedules.setup(inputs.season.SeasonId));
         if(cached&&!rebuildPreseason)return cached;

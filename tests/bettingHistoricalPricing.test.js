@@ -201,6 +201,41 @@ test('saved historical matchup inputs reject source, setup or validation changes
   }finally{f.close();}
 });
 
+for(const withUpcoming of [true,false])test(`scheduled refresh saves reusable matchup inputs ${withUpcoming?'with':'without'} an upcoming fixture and preserves preseason prices`,()=>{
+  const f=coldStart();
+  try {
+    if(!withUpcoming)f.league.exec('DELETE FROM ScheduledEvents WHERE SeasonId=2');
+    runBetting({...f,now,seasonId:2,simulations:100,historicalInputBuilder:f.builder});
+    const preseason=()=>f.betting.prepare(`SELECT MarketId,Line,ForecastId FROM BettingMarkets
+      WHERE SeasonId=2 AND EventId IS NULL ORDER BY MarketId`).all();
+    const prices=()=>f.betting.prepare(`SELECT s.* FROM BettingSelections s JOIN BettingMarkets m USING(MarketId)
+      WHERE m.SeasonId=2 AND m.EventId IS NULL ORDER BY SelectionId`).all();
+    const originalMarkets=preseason(),originalPrices=prices(),setup=f.schedules.setup(2);
+    f.league.exec("CREATE TABLE MatchSourceDetails(MatchId INTEGER PRIMARY KEY,ObservedAtUtc TEXT); INSERT INTO MatchSourceDetails VALUES(1,'2026-10-13T12:00:01Z');");
+    assert.equal(readCachedHistoricalPricing(f.book,f.league,2,setup),null);
+    let builds=0;
+    const refreshed=runBetting({...f,now,seasonId:2,simulations:100,preservePreseason:true,refreshSavedInputs:true,
+      historicalInputBuilder:(inputs,at)=>{builds++;return f.builder(inputs,at);}});
+    assert.equal(builds,1);
+    assert.deepEqual(refreshed.issues,[]);
+    const cached=readCachedHistoricalPricing(f.book,f.league,2,setup);
+    assert.ok(cached,'The scheduled refresh must replace stale cached matchup inputs');
+    assert.equal(cached.sourceFingerprint,historicalSourceFingerprint(f.league));
+    assert.deepEqual(preseason(),originalMarkets);assert.deepEqual(prices(),originalPrices);
+    if(!withUpcoming)assert.equal(f.betting.prepare('SELECT COUNT(*) n FROM BettingMarkets WHERE EventId IS NOT NULL').get().n,0);
+    const event=f.schedules.save(2,{team1Key:23,team2Key:24,stage:'regular',bestOf:2,
+      scheduledStartUtc:'2026-10-18T01:00:00Z'},'1',now);
+    const routine=runBetting({...f,now,seasonId:2,simulations:100,preservePreseason:true,
+      historicalInputBuilder:()=>{
+        const saved=readCachedHistoricalPricing(f.book,f.league,2,setup);
+        assert.ok(saved);return saved;
+      }});
+    assert.deepEqual(routine.issues,[]);
+    assert.ok(f.betting.prepare("SELECT 1 FROM BettingMarkets WHERE EventId=? AND Status='open'").get(event.EventId));
+    assert.deepEqual(preseason(),originalMarkets);assert.deepEqual(prices(),originalPrices);
+  }finally{f.close();}
+});
+
 test('the routine CLI repairs the preseason book and prices a new matchup under a bounded heap without rebuilding Analytics',async t=>{
   const f=coldStart(),scratch=mkdtempSync(join(tmpdir(),'lads-cached-pricing-worker-'));let betting,analytics;
   try {

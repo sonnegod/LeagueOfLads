@@ -1,15 +1,14 @@
 import {HISTORICAL_PRICING_VERSION,historicalSourceFingerprint} from './historicalPricing.js';
 
-// Scheduling reuses approved preseason inputs instead of reconstructing
-// historical Analytics. Current identities still come from canonical Analytics.
+// Scheduling reuses the latest approved historical inputs instead of rebuilding
+// Analytics. A data refresh can save newer inputs without repricing preseason.
 export function readCachedHistoricalPricing(book,league,seasonId,setup) {
   if(!setup)return null;
   const cached=book.db.prepare(`SELECT s.SnapshotId,f.ValidationJson,
-    json_extract(m.RulesJson,'$.historicalPricing.sourceFingerprint') AS SourceFingerprint
-    FROM BettingMarkets m JOIN BettingForecasts f ON f.ForecastId=m.ForecastId
-    JOIN BettingInputSnapshots s ON s.SnapshotId=f.SnapshotId
-    WHERE m.SeasonId=? AND m.EventId IS NULL AND f.ModelVersion=?
-      AND json_extract(m.RulesJson,'$.setupJson')=?
+    json_extract(s.InputJson,'$.inputs.historicalPricing.sourceFingerprint') AS SourceFingerprint
+    FROM BettingForecasts f JOIN BettingInputSnapshots s ON s.SnapshotId=f.SnapshotId
+    WHERE s.SeasonId=? AND f.ModelVersion=? AND f.ForecastKey IS NOT NULL
+      AND json_extract(s.InputJson,'$.setup.SetupJson')=?
     ORDER BY f.ForecastId DESC LIMIT 1`).get(seasonId,HISTORICAL_PRICING_VERSION,setup.SetupJson);
   if(!cached)return null;
   const validation=JSON.parse(cached.ValidationJson);
