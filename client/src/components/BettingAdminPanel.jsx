@@ -16,6 +16,7 @@ const issues={insufficient_temporal_samples:'More verified league history is nee
   historical_pricing_validation_failed:'Historical pricing did not pass validation. Check the validation report.',
   historical_source_changed:'Historical imports changed during pricing. Retry after the data refresh finishes.',
   saved_pricing_inputs_need_refresh:'Saved matchup pricing inputs need a scheduled data refresh. Existing preseason odds remain available.',
+  fixture_series_link_needs_review:'Multiple fixtures or played series match the same teams and date. Review the fixture and link its actual series.',
   conflicting_roster_memberships:'Setup and Analytics are available; betting is held until each player belongs to one team in this season.',
   local_test_only:'Development test pricing is enabled; historical publication gates are bypassed only for this separate test Betting database.',
   league_source_not_ready:'Refresh the league sources before publishing new prices.',analytics_not_available:'Build Analytics for this season.',
@@ -84,7 +85,7 @@ export default function BettingAdminPanel({refreshKey}) {
           {j.IssueCode&&<span> · {j.IssueCode.split(',').map(code=>issues[code]||'A market is awaiting verified inputs.').join(' ')}</span>}</p>)}</div>
       </section>
       <section className="betting-admin-widget"><h3>{fixture.eventId?`Edit fixture #${fixture.eventId}`:'Add a fixture'}</h3>
-        <p className="admin-help">A fixture is one scheduled series between two teams. Add one if Discord did not capture it, or edit an existing fixture to correct its time or link the played result. Kickoff closes betting. Use BO2 for groups, BO3 for playoffs and BO5 for the final. Tiebreakers are tracked separately and have no betting markets.</p>
+        <p className="admin-help">A fixture is one scheduled series between two teams. Betting refreshes automatically link imported results by league, teams, stage and New York match date. Edit a fixture to correct its time or resolve an ambiguous series link. Kickoff closes betting. Use BO2 for groups, BO3 for playoffs and BO5 for the final. Tiebreakers are tracked separately and have no betting markets.</p>
         <form className="betting-admin-form" onSubmit={e=>{e.preventDefault();const body={...fixture,team1Key:Number(fixture.team1Key),team2Key:Number(fixture.team2Key),bestOf:Number(fixture.bestOf),
           ...(fixture.utcTime?{scheduledStartUtc:fixture.utcTime,timezone:'UTC'}:{localTime:parserTime(fixture.localTime)}),...(fixture.seriesId?{seriesId:Number(fixture.seriesId)}:{})};if(fixture.utcTime)delete body.localTime;if(!fixture.seriesId)delete body.seriesId;
           if(fixture.eventId&&!fixture.seriesId)body.seriesId=null;
@@ -96,7 +97,7 @@ export default function BettingAdminPanel({refreshKey}) {
           <label>Kickoff (New York time)<input required={!fixture.utcTime} type="datetime-local" value={fixture.localTime} onChange={e=>setFixture(f=>({...f,localTime:e.target.value}))} /></label>
           <label>Exact UTC kickoff (optional)<input placeholder="2026-11-01T06:00:00Z" value={fixture.utcTime} onChange={e=>setFixture(f=>({...f,utcTime:e.target.value}))} /><small>Use for an ambiguous daylight-saving time.</small></label>
           <label>Status<select value={fixture.status} onChange={e=>setFixture(f=>({...f,status:e.target.value}))}>{['scheduled','started','completed','needs_review','cancelled','forfeit'].map(s=><option key={s} value={s}>{s.replace('_',' ')}</option>)}</select></label>
-          <label>Actual series ID<input type="number" min="1" disabled={!fixture.eventId} value={fixture.seriesId} onChange={e=>setFixture(f=>({...f,seriesId:e.target.value}))} /><small>After the games load, enter the ID from their series page. Save a new fixture before linking it. Settlement waits for this link and complete verified results.</small></label>
+          <label>Actual series ID<input type="number" min="1" disabled={!fixture.eventId} value={fixture.seriesId} onChange={e=>setFixture(f=>({...f,seriesId:e.target.value}))} /><small>Normally linked automatically after the games load. For an ambiguous match or a different played date, enter the ID from its series page. Settlement requires complete verified results.</small></label>
           <button disabled={busy||data.season.status==='ended'&&!fixture.eventId}>Save fixture</button><button type="button" onClick={()=>setFixture(blank)}>Clear</button>
         </form><p className="admin-help">Reschedule by editing this fixture to preserve tickets. Changing teams, stage or format replaces it and refunds its bets. Cancellations and forfeits also refund affected series bets.</p>
         <div className="betting-admin-events"><table className="sportsbook-table"><thead><tr><th>Fixture</th><th>Teams</th><th>Kickoff (NY)</th><th>Stage / Format</th><th>Status</th><th>Series</th><th /></tr></thead><tbody>

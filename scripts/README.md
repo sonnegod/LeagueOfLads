@@ -21,7 +21,7 @@ admin/Discord scheduling changes queue a lighter worker using the existing
 Analytics generation and saved historical pricing inputs. Routine workers keep
 published preseason prices; an explicit `node scripts/betting/run.js --rebuild-preseason`
 regenerates them after setup changes. See
-[betting/README.md](../betting/README.md) for explicit actual-series links,
+[betting/README.md](../betting/README.md) for automatic actual-series links and manual review,
 validation holds, season wallets, and Discord/locking cron configuration.
 Read-only checks: `npm run betting:validate -- --season-id 3` reports model/source
 readiness; `npm run betting:benchmark -- --season-id 3 --concurrency 5 --requests 100`

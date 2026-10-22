@@ -2,6 +2,15 @@
   min-width: 0;
 }
 
+.series-overview-header { padding-bottom: 22px; border-bottom: 1px solid #334155; margin-bottom: 20px; }
+.series-matchup-title { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 18px; text-align: center; }
+.series-matchup-title > a { min-width: 0; overflow-wrap: anywhere; }
+.series-overview-score { color: #e2e8f0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.series-game-navigation { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+.series-game-tabs.ui-tabs { margin: 0; }
+.series-match-link { color: #94a3b8; font-size: .78rem; }
+.series-match-details { min-width: 0; }
+
 @media (max-width: 767px) {
   .match-detail-page,
   .series-detail-page {
@@ -39,6 +48,7 @@
     font-size: 1.35rem !important;
     line-height: 1.35 !important;
     overflow-wrap: anywhere;
+    gap: 10px;
   }
 
   .series-detail-page > hr {

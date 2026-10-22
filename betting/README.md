@@ -285,9 +285,14 @@ development test mode does not make those validation results pass.
    schedule. Without a known kickoff, preseason quotes have no scheduled expiry.
 3. Refresh matchup odds. Job status explains missing sources/history or
    unsupported formats. Eligible validated outputs publish automatically.
-4. After matches load, edit the fixture to link its **actual SeriesId**. This is
-   an explicit admin verification step; a matching pair of names or teams is
-   insufficient to settle repeated fixtures. Incomplete/unmatched results wait.
+4. After matches load, Betting refreshes automatically link an unlinked fixture
+   to a unique played series with the same league, external team IDs (either
+   order), stage and New York match date. Different nights remain separate.
+   Existing links are preserved; a series cannot be reused by another fixture.
+   Duplicate fixtures or played series on the same night enter review. For
+   those cases, or a match played on a different date, edit the fixture and link
+   its **actual SeriesId** manually. Complete verified results mark the fixture
+   completed and settle eligible bets; an incomplete BO2 still waits for both games.
 5. Verify regular-season completion and official upper/lower/eliminated outcomes
    in this panel. The existing league-stage widget supplies the official league
    champion. Mark shortened/canceled seasons explicitly rather than inferring

@@ -9,6 +9,7 @@ export const digest = value => createHash('sha256').update(typeof value === 'str
 export function fail(message, status = 400, code = 'INVALID_REQUEST') { const error = new Error(message); error.status = status; error.code = code; throw error; }
 const id = value => Number.isSafeInteger(Number(value)) && Number(value) > 0 ? Number(value) : null;
 const utc = value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/i.test(value) && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : null;
+const matchDay=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
 
 export class ScheduleStore {
   constructor(db, { audit = () => {}, changed = () => {} } = {}) {
@@ -55,6 +56,55 @@ export class ScheduleStore {
     const event = this.get(eventId);
     this.db.prepare('INSERT INTO ScheduleEventRevisions VALUES (?, ?, ?, ?, ?, ?)')
       .run(eventId, event.Revision, JSON.stringify(event), actor == null ? null : String(actor), reason, event.UpdatedAtUtc);
+  }
+  linkPlayedSeries(seasonId,now=new Date()) {
+    // Older/minimal source schemas cannot provide a trustworthy played date.
+    if(!this.db.pragma('table_info(SeriesInfo)').some(c=>c.name==='DateCreated'))return {linked:0,needsReview:0};
+    return this.db.transaction(()=>{
+      const fixtures=this.db.prepare(`SELECT e.*,s.ExternalLeagueId,a.ExternalTeamId AS Team1Id,b.ExternalTeamId AS Team2Id
+        FROM ScheduledEvents e JOIN LeagueSeasons s USING(SeasonId)
+        JOIN SeasonTeams a ON a.TeamSubmissionId=e.Team1Key AND a.SeasonId=e.SeasonId
+        JOIN SeasonTeams b ON b.TeamSubmissionId=e.Team2Key AND b.SeasonId=e.SeasonId
+        WHERE e.SeasonId=? AND e.Status IN ('scheduled','started','completed','needs_review')
+          AND (e.SourceMessageId IS NULL OR e.SourceMessageId NOT LIKE 'local-test:%')`).all(seasonId);
+      const dated=fixtures.filter(e=>e.ExternalLeagueId&&e.Team1Id&&e.Team2Id&&e.Team1Id!==e.Team2Id
+        &&Number.isFinite(Date.parse(e.ScheduledStartUtc))).map(e=>({...e,day:matchDay.format(new Date(e.ScheduledStartUtc))}));
+      const key=e=>JSON.stringify([e.ExternalLeagueId,e.Stage,e.day,...[e.Team1Id,e.Team2Id].sort((a,b)=>a-b)]);
+      const counts=new Map();
+      for(const event of dated)counts.set(key(event),(counts.get(key(event))||0)+1);
+      const candidates=this.db.prepare(`SELECT SeriesId FROM SeriesInfo s WHERE LeagueId=? AND Stage=? AND DateCreated=?
+        AND ((Team1=? AND Team2=?) OR (Team1=? AND Team2=?))
+        AND EXISTS(SELECT 1 FROM SeriesMatch m WHERE m.SeriesId=s.SeriesId) ORDER BY SeriesId LIMIT 2`);
+      const claimed=this.db.prepare('SELECT 1 FROM ScheduledEvents WHERE SeriesId=? LIMIT 1');
+      let linked=0,needsReview=0;
+      for(const event of dated) {
+        if(event.SeriesId||event.Status==='needs_review'||Date.parse(event.ScheduledStartUtc)>now.getTime())continue;
+        const stage={regular:'g',playoff:'p'}[event.Stage];if(!stage)continue;
+        const matches=candidates.all(event.ExternalLeagueId,stage,event.day,event.Team1Id,event.Team2Id,event.Team2Id,event.Team1Id);
+        if(!matches.length)continue;
+        if(matches.length>1||counts.get(key(event))>1) {
+          this.db.prepare("UPDATE ScheduledEvents SET Status='needs_review',Revision=Revision+1,UpdatedAtUtc=? WHERE EventId=?")
+            .run(now.toISOString(),event.EventId);
+          this.revision(event.EventId,null,'Automatic series linking needs review: multiple matching fixtures or played series');
+          needsReview++;continue;
+        }
+        if(claimed.get(matches[0].SeriesId))continue;
+        this.db.prepare('UPDATE ScheduledEvents SET SeriesId=?,Revision=Revision+1,UpdatedAtUtc=? WHERE EventId=?')
+          .run(matches[0].SeriesId,now.toISOString(),event.EventId);
+        this.revision(event.EventId,null,'Played series linked automatically by league, teams, stage and New York match date');
+        linked++;
+      }
+      return {linked,needsReview};
+    }).immediate();
+  }
+  recordVerifiedCompletion(eventId,startedAt,now=new Date()) {
+    return this.db.transaction(()=>{
+      const changed=this.db.prepare(`UPDATE ScheduledEvents SET Status='completed',StartedAtUtc=COALESCE(StartedAtUtc,?),
+        Revision=Revision+1,UpdatedAtUtc=? WHERE EventId=? AND Status IN ('scheduled','started')`)
+        .run(startedAt,now.toISOString(),eventId);
+      if(changed.changes)this.revision(eventId,null,'Played series completed with verified results');
+      return this.get(eventId);
+    })();
   }
   save(seasonId, input, actor = null, now = new Date()) {
     const result = this.db.transaction(() => {

@@ -360,6 +360,8 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
     const seasons=league.prepare('SELECT * FROM LeagueSeasons WHERE (? IS NULL OR SeasonId=?) ORDER BY SeasonId').all(seasonId,seasonId);
     for(const season of seasons) {
       book.registerSeason(season);
+      const links=schedules.linkPlayedSeries(season.SeasonId,now);
+      if(links.needsReview)issues.push('fixture_series_link_needs_review');
       const setup=schedules.setup(season.SeasonId);const events=schedules.list(season.SeasonId,{includeLocalTests:localTesting});
       const savedPreseason=book.db.prepare("SELECT * FROM BettingMarkets WHERE SeasonId=? AND EventId IS NULL AND Status IN ('open','held','locked')").all(season.SeasonId);
       const keepPreseason=preservePreseason&&savedPreseason.length>0;
@@ -392,6 +394,10 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
         &&conflictingRosterPlayers(currentSeasonRoster(league,season.SeasonId,season.Status)).length) {
         book.db.prepare("UPDATE BettingMarkets SET Status='held',HoldReason='conflicting_roster_memberships' WHERE SeasonId=? AND Status IN ('open','held')").run(season.SeasonId);
         issues.push('conflicting_roster_memberships');continue;
+      }
+      for(const event of events)if(event.SeriesId&&['scheduled','started'].includes(event.Status)) {
+        const verified=verifiedFixtureGames(league,inputs,event);
+        if(verified)Object.assign(event,schedules.recordVerifiedCompletion(event.EventId,verified.games[0].StartedAtUtc,now));
       }
       settled+=settleSeason(book,league,inputs,setup,events);
       if(!['active','signup_closed'].includes(season.Status)) {

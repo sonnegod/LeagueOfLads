@@ -81,11 +81,11 @@
   .match-unified-scoreboard .performance-table td:first-child, .match-unified-scoreboard .performance-table th:first-child { position: sticky; left: 0; z-index: 1; border-right: 1px solid #334155; background: #0f172a; }
 }
 @media (max-width: 600px) {
-  .match-detail-page .match-overview-header { display: flex; flex-direction: column; gap: 16px; }
-  .match-detail-page .match-overview-main { width: 100%; padding: 0; }
-  .match-detail-page .match-overview-header h1 { gap: 10px; }
-  .match-detail-page .match-overview-team > a { font-size: 1.05rem; }
-  .match-detail-page .match-overview-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; text-align: center; }
+  .match-details .match-overview-header { display: flex; flex-direction: column; gap: 16px; }
+  .match-details .match-overview-main { width: 100%; padding: 0; }
+  .match-details .match-overview-score { gap: 10px; }
+  .match-details .match-overview-team > a { font-size: 1.05rem; }
+  .match-details .match-overview-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; text-align: center; }
   .match-view-navigation.ui-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .match-view-navigation.ui-tabs .ui-tab { padding: 10px !important; }
   .match-comparison-metric { padding: 12px; }

@@ -171,7 +171,7 @@
 .performance-item:hover, .performance-item:focus-visible { border-color: #93c5fd; outline: 2px solid #60a5fa; outline-offset: 1px; }
 .match-overview-header { --match-meta-width: 200px; --match-header-gap: 16px; display: grid; grid-template-columns: minmax(0,1fr) var(--match-meta-width); align-items: start; gap: 18px var(--match-header-gap); margin-bottom: 24px; }
 .match-overview-main { grid-column: 1 / -1; grid-row: 1; min-width: 0; padding-inline: calc(var(--match-meta-width) + var(--match-header-gap)); }
-.match-overview-header h1 { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: start; gap: 16px; margin: 0; font-size: clamp(1.2rem,2.2vw,1.65rem); font-weight: 700; line-height: 1.3; }
+.match-overview-score { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: start; gap: 16px; margin: 0; font-size: clamp(1.2rem,2.2vw,1.65rem); font-weight: 700; line-height: 1.3; }
 .match-overview-meta { grid-column: 2; grid-row: 1; display: grid; justify-items: end; gap: 5px; color: #94a3b8; font-size: .75rem; line-height: 1.5; text-align: right; }
 .match-overview-score strong { color: #e2e8f0; font-size: clamp(2rem,3vw,2.75rem); white-space: nowrap; }
 .match-overview-score-block { display: grid; justify-items: center; gap: 4px; }
