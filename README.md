@@ -23,7 +23,7 @@ concurrency fix; run `npm install` after updating the checkout.
    fetch the signed-in user's Steam profile after authentication; the example
    ports match the Vite API proxy and Steam login callback.
 
-3. Populate `db/` from the backups as described below **before** starting the
+3. Populate `db/` from the backup databases as described below **before** starting the
    server. `ENVIRONMENT=DEV` selects the local database paths; without it the code
    uses production paths. SQLite can create missing local files as empty databases,
    so do not mistake those for restored data.
@@ -40,20 +40,29 @@ concurrency fix; run `npm install` after updating the checkout.
 
 ## Restore backup databases for local use
 
-The timestamped files in `backups/` are SQLite-safe snapshots, not the live paths
-used by the app. Create `db/`, then **copy** the newest backup for each available
-database to the corresponding filename below. Leave the originals in `backups/`.
+Database backups are distributed separately from Git. Obtain the current
+sanitized LadsData backup from a maintainer, decompress it if supplied as
+`.db.gz`, and copy it from `backups/LadsData/` to `db/LadsData.db`. Create `db/`
+if needed, stop the app, and preserve any existing database before replacing it.
+See [backups/README.md](backups/README.md) for backup details.
 
-| Backup folder | Local file required by the app |
-| --- | --- |
-| `backups/LadsData/` | `db/LadsData.db` |
-| `backups/public/` | `db/public.db` |
-| `backups/Betting/` | `db/Betting.db` |
+Betting and Analytics databases do not need to be included in the backup. With
+`ENVIRONMENT=DEV` configured in `.env`, initialize them locally:
 
-The Betting database is stale, and this checkout does not include a current
-Betting backup. Ask a maintainer for an up-to-date copy if you need betting data.
-If a local database already exists, stop the server and preserve it before
-replacing it. Local copies in `db/` are git-ignored.
+```bash
+npm run betting:init
+npm run analytics:init
+```
+
+Run `npm run analytics:build` to populate derived analytics from the available
+data. Public-match data is separate: restore a suitable public database to
+`db/public.db` if needed. The current creation script creates only LadsData;
+there is no bundled initializer for the base public database schema.
+
+The sanitized LadsData backup retains match history and public rosters but removes
+private signup MMR/screenshots, account activity and production permissions.
+Developers must configure their own admin access. Local databases and backups
+are ignored by Git.
 
 Finalized signup rosters are stored in `TeamRosterPlayers` when a league starts.
 Server startup creates this table and fills it from submissions for leagues that

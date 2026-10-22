@@ -9,8 +9,9 @@ LadsData.db
 *.db
 *.db-shm
 *.db-wal
-!backups/
-!backups/**/*.db
+# Local backups and collaborator exports are distributed separately from Git.
+/backups/**
+!/backups/README.md
 Logs/
 # Temporary local verification scripts and artifacts
 /.scratch/
