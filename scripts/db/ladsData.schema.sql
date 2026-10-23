@@ -27,7 +27,7 @@ CREATE TABLE AdjustedPlayers (
 );
 
 -- table: Comments
-CREATE TABLE Comments (ProblemId INTEGER PRIMARY KEY AUTOINCREMENT, UserId INTEGER, Comment VARCHAR (128));
+CREATE TABLE Comments (ProblemId INTEGER PRIMARY KEY AUTOINCREMENT, UserId INTEGER, Comment VARCHAR (128), CreatedAtUtc TEXT);
 
 -- table: ChampionshipRosterPlayers
 CREATE TABLE ChampionshipRosterPlayers (

@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+const entryDate = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York', dateStyle: 'short', timeStyle: 'short',
+});
+
 export default function AdminRequestsPanel() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +54,10 @@ export default function AdminRequestsPanel() {
         <p>No requests have been submitted.</p>
       ) : (
         <div className="admin-requests-list">
-          {requests.map((request) => (
+          {requests.map((request) => {
+            const submittedAt = request.CreatedAtUtc ? new Date(request.CreatedAtUtc) : null;
+            const hasDate = submittedAt && Number.isFinite(submittedAt.getTime());
+            return (
             <article className="admin-request-card" key={request.ProblemId}>
               <div className="admin-request-content">
                 <div className="admin-request-meta">
@@ -60,6 +67,8 @@ export default function AdminRequestsPanel() {
                   ) : (
                     <Link to={`/player/${request.UserId}`}>{request.PlayerName} · ID {request.UserId}</Link>
                   )}
+                  {hasDate ? <time dateTime={submittedAt.toISOString()}>Submitted {entryDate.format(submittedAt)} NY</time>
+                    : <span>Date unavailable</span>}
                 </div>
                 <p>{request.Comment}</p>
               </div>
@@ -69,7 +78,8 @@ export default function AdminRequestsPanel() {
                 {deletingId === request.ProblemId ? 'Deleting...' : 'Delete'}
               </button>
             </article>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>

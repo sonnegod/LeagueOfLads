@@ -311,8 +311,9 @@ audited separately; they do not create roster transfers or refresh betting odds.
 The Betting panel
 records official/remake/abandoned match classifications, Discord team-role mappings,
 unresolved scheduling posts, and verified legacy ticket outcomes. A replay must
-be linked to the same actual series before settlement. Raw Discord messages and
-private model inputs are never returned to the website.
+be linked to the same actual series before settlement. Scheduling posts needing
+review include their saved text in the site-manager panel. Public betting pages
+do not receive Discord message text or private model inputs.
 Roster administration uses the separate league-admin `/api/admin/rosters` routes,
 which expose season/team choices and roster changes without Betting controls.
 Use its season selector to verify older fixtures/results. Ended seasons permit

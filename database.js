@@ -10,6 +10,7 @@ import SeasonStore from './config/seasonStore.js';
 import { getLeaguePlayerRecords } from './config/leaguePlayerRecords.js';
 import { getPlayerDashboard, changePlayerDisplayName } from './config/playerDashboard.js';
 import { ensurePlayerLoginSchema, recordPlayerLogin, getPlayerLoginState } from './config/playerLogin.js';
+import { ensureRequestSchema, readRequests, recordRequest } from './config/requests.js';
 import { getLeagueRegisteredTeams, includeRegisteredTeams, includeRegisteredPlayers, saveRegisteredLeagueTeam } from './config/leagueParticipants.js';
 import { getPlayerTeammates } from './config/playerTeammates.js';
 import { getHeadToHeadMatches } from './config/playerHeadToHead.js';
@@ -36,6 +37,7 @@ class DBInstance {
             configureWarehouseConnection(this.db);
             initializeWarehouse(this.db);
             ensurePlayerLoginSchema(this.db);
+            ensureRequestSchema(this.db);
             this.ensureAdminsSchema();
             this.auditLog = new AdminAuditStore(this.db);
             this.adjustedPlayers = new AdjustedPlayersStore(this.db);
@@ -3311,12 +3313,7 @@ class DBInstance {
 
 
     getRequests(){
-        return this.db.prepare(`SELECT c.ProblemId, c.UserId,
-                COALESCE(CAST(pi.PlayerName AS TEXT), 'Unknown player') AS PlayerName,
-                c.Comment
-            FROM Comments c
-            LEFT JOIN PlayerInfo pi ON pi.PlayerId = c.UserId
-            ORDER BY c.ProblemId DESC`).all();
+        return readRequests(this.db);
     }
 
     deleteRequest(problemId, adminPlayerId){
@@ -3334,17 +3331,7 @@ class DBInstance {
 
     insertRequest(userId, message){
         try {
-            this.db.prepare(`
-                INSERT INTO Comments (
-                         UserId,
-                         Comment
-                     )
-                     VALUES (
-                         ?,
-                         ?
-                     );
-
-            `).run(userId,message);
+            recordRequest(this.db,userId,message);
 
             return { success: true, message: 'Comment updated successfully!' };
         } catch (err) {

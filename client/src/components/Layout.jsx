@@ -6,11 +6,13 @@ import { useAuth } from '../context/AuthContext';
 import './Layout.css';
 import SiteAnalyticsTracker from './SiteAnalyticsTracker';
 import PlayerNameConfirmation from './PlayerNameConfirmation';
+import useUpcomingGames from '../hooks/useUpcomingGames';
 
 export default function Layout() {
   const { user, loading } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
+  const upcomingGames = useUpcomingGames();
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -30,10 +32,11 @@ export default function Layout() {
   if (loading) return <div>Loading...</div>;
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${upcomingGames.length ? ' has-upcoming-games' : ''}`}>
       <SiteAnalyticsTracker />
       {user&&<PlayerNameConfirmation key={user.accountId} />}
       <Navbar
+        upcomingGames={upcomingGames}
         mobileNavOpen={mobileNavOpen}
         onMenuToggle={() => setMobileNavOpen((open) => !open)}
       />

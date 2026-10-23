@@ -4,10 +4,11 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import './Navbar.css';
 import steamLogin from '../assets/steamLogin.png';
 import logo from '../assets/League_of_lads_logo.png';
+import UpcomingGamesTicker from './UpcomingGamesTicker';
 
 
 
-export default function Navbar({ mobileNavOpen, onMenuToggle }) {
+export default function Navbar({ mobileNavOpen, onMenuToggle, upcomingGames = [] }) {
   const { user, logout } = useAuth();
   const [query, setQuery] = useState("");
   const [liveMatchCount, setLiveMatchCount] = useState(0);
@@ -93,6 +94,8 @@ export default function Navbar({ mobileNavOpen, onMenuToggle }) {
             />
           </form>
         </div>
+
+        <UpcomingGamesTicker games={upcomingGames} />
 
         <div className="navbar-right" ref={dropdownRef}>
           <NavLink to="/live" className={({ isActive }) => `live-match-button${isActive ? ' is-active' : ''}`}>

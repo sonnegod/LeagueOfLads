@@ -12,7 +12,8 @@
   --primary: #60a5fa;
   --border: #334155;
   --button-bg: #17243a;
-  --navbar-height: 68px;
+  --navbar-main-height: 68px;
+  --navbar-height: var(--navbar-main-height);
   --sidebar-width: 220px;
 
   color-scheme: light dark;
@@ -84,7 +85,7 @@ main {
 
 @media (max-width: 767px) {
   :root {
-    --navbar-height: 108px;
+    --navbar-main-height: 108px;
   }
 
   h1 {

@@ -1,8 +1,13 @@
 .app-shell {
+  --navbar-height: var(--navbar-main-height);
   width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
   background: transparent;
+}
+
+@media (min-width: 768px) and (max-width: 1099px) {
+  .app-shell.has-upcoming-games { --navbar-height: calc(var(--navbar-main-height) + 52px); }
 }
 
 .app-body,
@@ -19,6 +24,7 @@
 }
 
 @media (max-width: 767px) {
+  .app-shell.has-upcoming-games { --navbar-height: calc(var(--navbar-main-height) + 64px); }
   .sidebar-backdrop {
     position: fixed;
     inset: var(--navbar-height) 0 0;

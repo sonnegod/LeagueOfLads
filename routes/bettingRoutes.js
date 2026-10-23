@@ -194,7 +194,7 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
     const sid=seasonId(req);const season=sid?register(sid):null;const setup=sid?schedules.setup(sid):null;
     const jobs=db.prepare('SELECT JobId,StartedAtUtc,CompletedAtUtc,Status,MarketsOpened,MarketsSettled,IssueCode FROM BettingJobs ORDER BY JobId DESC LIMIT 5').all();
     const refreshState=league.prepare('SELECT * FROM BettingRefreshState WHERE Id=1').get();
-    const messages=league.prepare(`SELECT MessageId,ChannelId,AuthoredAtUtc,EditedAtUtc,ParseStatus,IssueCode,EventId,Deleted FROM ScheduleMessages
+    const messages=league.prepare(`SELECT MessageId,ChannelId,AuthoredAtUtc,EditedAtUtc,Content,ParseStatus,IssueCode,EventId,Deleted FROM ScheduleMessages
       WHERE ParseStatus='needs_review' AND SeasonId=? ORDER BY LastSeenAtUtc DESC LIMIT 50`).all(sid);
     return res.json({localTesting:book.localTesting,season:season?{seasonId:sid,name:season.LeagueName,status:season.Status,leagueId:season.ExternalLeagueId}:null,
       rosterConflicts:season?conflictingRosterPlayers(currentSeasonRoster(league,sid,season.Status)):[],

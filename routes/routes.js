@@ -17,6 +17,8 @@ import { publicSeasonRoutes, adminSeasonRoutes } from './seasonRoutes.js';
 import { createAnalyticsRoutes } from './analyticsRoutes.js';
 import { createBettingRoutes } from './bettingRoutes.js';
 import { createAdminRosterRouter, createRosterChangeHandler } from './rosterRoutes.js';
+import { createUpcomingGamesRouter } from './upcomingGamesRoutes.js';
+import { readUpcomingSweepOdds } from '../betting/upcomingOdds.js';
 import { createBettingRuntime, mutationRefresh } from '../betting/runtime.js';
 import { classifyStandings, DEFAULT_LEAGUE_RULES,qualificationPools } from '../config/leagueRules.js';
 import {
@@ -49,6 +51,8 @@ const { adminRoutes: adminAnalyticsRoutes, publicRoutes: publicAnalyticsRoutes, 
   audit: (type, message) => db.recordAdminAudit(type, message),
 });
 router.use(createWarehouseReportingRouter(db.db));
+router.use(createUpcomingGamesRouter({league: db.db,
+  readOdds: (games, now) => readUpcomingSweepOdds({...bettingRuntime, league: db.db}, games, now)}));
 router.use(createPlayerLoginRouter(db.db, steamId => db.steamId64ToAccountId(steamId)));
 router.use(createPlayerAwardsRouter(playerId => db.getPlayerAwards(playerId), () => db.getAwardsCatalog()));
 router.use('/site-analytics', createSiteAnalyticsRouter({
