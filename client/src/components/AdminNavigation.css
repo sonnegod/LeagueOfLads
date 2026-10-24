@@ -1,0 +1,69 @@
+﻿.admin-navigation {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  min-width: 0;
+  margin-bottom: 1.25rem;
+}
+.admin-navigation .admin-workspaces.ui-tabs {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  width: auto;
+  margin: 0;
+}
+.admin-navigation-connector {
+  display: grid;
+  align-self: center;
+  place-items: center;
+  flex: 0 0 16px;
+  color: var(--muted-text, #94a3b8);
+}
+.admin-navigation-connector svg { animation: admin-navigation-connect .4s ease-out both; }
+.admin-navigation .admin-navigation-secondary.ui-tabs {
+  position: relative;
+  display: block;
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+.admin-navigation-secondary::-webkit-scrollbar { height: 4px; }
+.admin-navigation-secondary::-webkit-scrollbar-thumb { border-radius: 8px; background: #334155; }
+.admin-section-list {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  width: max-content;
+  min-width: 100%;
+  animation: admin-navigation-reveal .36s cubic-bezier(.22, 1, .36, 1) both;
+}
+.admin-section-tab {
+  animation: admin-navigation-tab .28s cubic-bezier(.22, 1, .36, 1) backwards;
+  animation-delay: calc(var(--admin-section-index) * 24ms);
+}
+@keyframes admin-navigation-connect {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes admin-navigation-reveal {
+  from { clip-path: inset(-5px 100% -5px 0); }
+  to { clip-path: inset(-5px -5px); }
+}
+@keyframes admin-navigation-tab {
+  from { opacity: 0; transform: translateX(-10px) scale(.97); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+@media (max-width: 600px) {
+  .admin-navigation { overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+  .admin-navigation .admin-navigation-secondary.ui-tabs { flex: 0 0 auto; width: max-content; max-width: none; overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-navigation *, .admin-navigation *::before, .admin-navigation *::after { animation: none !important; transition: none !important; }
+}

@@ -1,0 +1,19 @@
+.match-scheduling-panel { display: grid; gap: 1rem; min-width: 0; }
+.match-scheduling-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+.match-scheduling-card.ui-panel { padding: 1rem; }
+.match-scheduling-card h3 { margin: 0 0 .8rem; }
+.match-scheduling-help { font-size: .85rem; line-height: 1.5; color: var(--muted-text, #94a3b8); margin: .5rem 0 .85rem; }
+.match-scheduling-error { color: #fca5a5; }
+.match-scheduling-test-notice { padding: .75rem 1rem; border: 1px solid #a16207; border-radius: 8px; background: #422006; color: #fde68a; }
+.match-scheduling-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .8rem; align-items: end; }
+.match-scheduling-form label { display: grid; gap: .4rem; min-width: 0; }
+.match-scheduling-form input, .match-scheduling-form select { min-width: 0; width: 100%; box-sizing: border-box; }
+.match-scheduling-events { overflow: auto; }
+.match-scheduling-table { width: 100%; }
+.match-scheduling-table th, .match-scheduling-table td { padding: .7rem; text-align: left; }
+.match-review-post + .match-review-post { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #334155; }
+.match-review-text { margin: .75rem 0; padding: .75rem 1rem; border-left: 3px solid #60a5fa; border-radius: 0 6px 6px 0; background: #020617; color: #e2e8f0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }
+.match-scheduling-form.match-review-actions { grid-template-columns: minmax(0, 1fr) auto; max-width: 48rem; }
+@media (max-width: 480px) {
+  .match-scheduling-form.match-review-actions { grid-template-columns: minmax(0, 1fr); }
+}

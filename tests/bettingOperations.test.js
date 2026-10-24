@@ -74,6 +74,52 @@ function pollFixture(messages) {
   return {...f,store,posts,errors,calls,channel,poll};
 }
 
+test('review posts save readable Discord role names and refresh them without changing parsing or betting inputs',async()=>{
+  const content="**<@&111111111111111111>** vs **<@&222222222222222222>** Sunday 8pm EST\nKeep the original text.";
+  const roles=new Map([['111111111111111111',{name:"Sock's Warriors"}],['222222222222222222',{name:'Initiative'}]]);
+  const f=pollFixture([message(100,content,{mentions:{roles}})]);try {
+    await f.poll();
+    const read=()=>f.league.prepare("SELECT * FROM ScheduleMessages WHERE MessageId='100'").get();
+    const original=read(),revision=state(f).RequestedRevision;
+    assert.equal(original.Content,content);
+    assert.equal(original.DisplayContent,"**@Sock's Warriors** vs **@Initiative** Sunday 8pm EST\nKeep the original text.");
+    assert.equal(original.IssueCode,'unresolved_team_role');
+    // Existing review rows get populated even when the same parse error returns.
+    f.league.exec('UPDATE ScheduleMessages SET DisplayContent=NULL');
+    assert.equal((await f.poll()).changed,0);assert.equal(read().DisplayContent,original.DisplayContent);
+    roles.get('111111111111111111').name="Sock's renamed team";
+    assert.equal((await f.poll()).changed,0);
+    assert.match(read().DisplayContent,/\*\*@Sock's renamed team\*\*/);
+    roles.delete('222222222222222222');
+    await f.poll();assert.ok(read().DisplayContent.includes('<@&222222222222222222>'));
+    assert.equal(read().ContentHash,original.ContentHash);assert.equal(read().ParserVersion,original.ParserVersion);
+    assert.equal(read().IssueCode,original.IssueCode);assert.equal(state(f).RequestedRevision,revision);
+    assert.equal(f.store.list(1).length,0);
+  }finally{f.close();}
+});
+
+test('display migration and role-name updates preserve resolved posts and admin fixture corrections',async()=>{
+  const roles=new Map([['111111111111111111',{name:'A'}],['222222222222222222',{name:'B'}]]);
+  const f=pollFixture([message(100,'<@&111111111111111111> vs <@&222222222222222222> Saturday 9est',{mentions:{roles}})]);try {
+    await f.poll();const original=f.league.prepare("SELECT * FROM ScheduleMessages WHERE MessageId='100'").get();
+    const event=f.store.get(original.EventId),start='2026-10-18T02:00:00.000Z';
+    f.store.save(1,{eventId:event.EventId,revision:event.Revision,team1Key:11,team2Key:12,stage:'regular',bestOf:2,scheduledStartUtc:start},'admin',instant);
+    f.league.exec("UPDATE ScheduleMessages SET ParseStatus='resolved';ALTER TABLE ScheduleMessages DROP COLUMN DisplayContent;");
+    new ScheduleStore(f.league);new ScheduleStore(f.league);
+    assert.equal(f.league.prepare('SELECT DisplayContent FROM ScheduleMessages').get().DisplayContent,null);
+    roles.get('111111111111111111').name='Renamed role';
+    const revision=state(f).RequestedRevision;
+    assert.equal((await f.poll()).changed,0);
+    const saved=f.league.prepare('SELECT * FROM ScheduleMessages').get();
+    assert.equal(saved.DisplayContent,'@Renamed role vs @B Saturday 9est');
+    assert.equal(saved.Content,original.Content);assert.equal(saved.ContentHash,original.ContentHash);
+    assert.equal(saved.ParseStatus,'resolved');assert.equal(saved.EventId,original.EventId);
+    assert.equal(f.store.get(event.EventId).ScheduledStartUtc,start);assert.equal(state(f).RequestedRevision,revision);
+    assert.equal(f.store.ingest({messageId:'100',content:'wrong season'},2,instant).issue,'belongs_to_another_season');
+    assert.equal(f.league.prepare('SELECT DisplayContent FROM ScheduleMessages').get().DisplayContent,saved.DisplayContent);
+  }finally{f.close();}
+});
+
 test('Discord catch-up cannot jump a history gap and handles snowflake digit boundaries and posts arriving during backfill',async()=>{
   const f=pollFixture([98,99,100,101,102].map(id=>message(id)));try {
     assert.equal((await f.poll({maxPages:1,pageSize:2})).catchupComplete,false);
