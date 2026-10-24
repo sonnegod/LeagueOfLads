@@ -17,6 +17,7 @@ import { publicSeasonRoutes, adminSeasonRoutes } from './seasonRoutes.js';
 import { createAnalyticsRoutes } from './analyticsRoutes.js';
 import { createBettingRoutes } from './bettingRoutes.js';
 import { createAdminRosterRouter, createRosterChangeHandler } from './rosterRoutes.js';
+import { createAdminMatchRouter } from './adminMatchRoutes.js';
 import { createUpcomingGamesRouter } from './upcomingGamesRoutes.js';
 import { readUpcomingSweepOdds } from '../betting/upcomingOdds.js';
 import { createBettingRuntime, mutationRefresh } from '../betting/runtime.js';
@@ -243,6 +244,8 @@ router.use('/admin', createLeagueGroupBoardRouter({db:db.db,
   },
   audit:(type,message)=>db.recordAdminAudit(type,message)}));
 router.use('/admin/rosters', rosterRoutes);
+router.use('/admin/matches', createAdminMatchRouter({league:db.db,schedules:bettingRuntime.schedules,
+  includeLocalTests:bettingRuntime.book.localTesting}));
 router.use('/admin/seasons', adminSeasonRoutes);
 router.use('/admin/analytics', highlightRoutes);
 

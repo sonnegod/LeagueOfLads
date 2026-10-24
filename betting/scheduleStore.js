@@ -22,7 +22,9 @@ export class ScheduleStore {
       if(!refreshColumns.includes(name))db.exec(`ALTER TABLE BettingRefreshState ADD COLUMN ${name} ${type}`);
     const cursorColumns=db.pragma('table_info(DiscordScheduleCursors)').map(c=>c.name);
     for(const name of ['BackfillBefore','NewestBoundary'])if(!cursorColumns.includes(name))db.exec(`ALTER TABLE DiscordScheduleCursors ADD COLUMN ${name} TEXT`);
-    if(!db.pragma('table_info(ScheduleMessages)').some(c=>c.name==='SeasonId'))db.exec('ALTER TABLE ScheduleMessages ADD COLUMN SeasonId INTEGER');
+    const messageColumns=db.pragma('table_info(ScheduleMessages)').map(c=>c.name);
+    for(const [name,type] of Object.entries({SeasonId:'INTEGER',DisplayContent:'TEXT'}))
+      if(!messageColumns.includes(name))db.exec(`ALTER TABLE ScheduleMessages ADD COLUMN ${name} ${type}`);
     db.exec('CREATE INDEX IF NOT EXISTS idx_ScheduleMessages_Review ON ScheduleMessages(SeasonId,ParseStatus,LastSeenAtUtc)');
     db.prepare('UPDATE ScheduleMessages SET SeasonId=(SELECT SeasonId FROM ScheduledEvents e WHERE e.EventId=ScheduleMessages.EventId) WHERE SeasonId IS NULL AND EventId IS NOT NULL').run();
     this.syncRosterHistory();
@@ -172,6 +174,15 @@ export class ScheduleStore {
       const hash = digest({ content: message.content, editedAt: message.editedAt || null, deleted: !!message.deleted });
       const previous = this.db.prepare('SELECT * FROM ScheduleMessages WHERE MessageId = ?').get(String(message.messageId));
       if(previous?.SeasonId&&previous.SeasonId!==seasonId)return {unchanged:true,eventId:previous.EventId,issue:'belongs_to_another_season'};
+      const content=String(message.content||'').slice(0,10000);
+      const displayContent=content.replace(/<@&(\d+)>/g,(mention,roleId)=>{
+        const name=message.roleNames?.[roleId];
+        return typeof name==='string'&&name.trim()?`@${name}`:mention;
+      });
+      // Refresh readable role names even for unchanged or manually resolved
+      // posts, without reparsing fixtures or dirtying betting quotes.
+      if(previous&&previous.DisplayContent!==displayContent)
+        this.db.prepare('UPDATE ScheduleMessages SET DisplayContent=? WHERE MessageId=?').run(displayContent,String(message.messageId));
       if (previous?.ContentHash === hash && previous.ParserVersion === PARSER_VERSION
         && (previous.ParseStatus!=='needs_review'||previous.Deleted)) return { unchanged: true, eventId: previous.EventId };
       let parsed = message.deleted ? { error: 'message_deleted' } : parseScheduleMessage(message, this.teams(seasonId),
@@ -198,13 +209,13 @@ export class ScheduleStore {
         try { eventId = this.save(seasonId, { ...parsed, eventId, revision: event?.Revision, sourceMessageId: String(message.messageId) }, null, now).EventId; }
         catch (error) { parsed = { error: error.code === 'REVISION_CONFLICT' ? 'revision_conflict' : 'fixture_needs_review' }; if (eventId) this.markReview(eventId, parsed.error, now); }
       }
-      this.db.prepare(`INSERT INTO ScheduleMessages (ChannelId,MessageId,AuthoredAtUtc,EditedAtUtc,Content,ContentHash,ParserVersion,ParseStatus,IssueCode,AssumptionsJson,EventId,LastSeenAtUtc,Deleted,SeasonId)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(MessageId) DO UPDATE SET
-        EditedAtUtc=excluded.EditedAtUtc, Content=excluded.Content, ContentHash=excluded.ContentHash, ParserVersion=excluded.ParserVersion,
+      this.db.prepare(`INSERT INTO ScheduleMessages (ChannelId,MessageId,AuthoredAtUtc,EditedAtUtc,Content,ContentHash,ParserVersion,ParseStatus,IssueCode,AssumptionsJson,EventId,LastSeenAtUtc,Deleted,SeasonId,DisplayContent)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(MessageId) DO UPDATE SET
+        EditedAtUtc=excluded.EditedAtUtc, Content=excluded.Content, DisplayContent=excluded.DisplayContent, ContentHash=excluded.ContentHash, ParserVersion=excluded.ParserVersion,
         ParseStatus=excluded.ParseStatus, IssueCode=excluded.IssueCode, AssumptionsJson=excluded.AssumptionsJson,
         EventId=excluded.EventId, LastSeenAtUtc=excluded.LastSeenAtUtc, Deleted=excluded.Deleted,SeasonId=excluded.SeasonId`)
-        .run(String(message.channelId), String(message.messageId), message.authoredAt, message.editedAt || null, String(message.content || '').slice(0, 10000),
-          hash, PARSER_VERSION, parsed.error ? 'needs_review' : 'parsed', parsed.error || null, JSON.stringify(parsed.assumptions || []), eventId, now.toISOString(), message.deleted ? 1 : 0,seasonId);
+        .run(String(message.channelId), String(message.messageId), message.authoredAt, message.editedAt || null, content,
+          hash, PARSER_VERSION, parsed.error ? 'needs_review' : 'parsed', parsed.error || null, JSON.stringify(parsed.assumptions || []), eventId, now.toISOString(), message.deleted ? 1 : 0,seasonId,displayContent);
       return { eventId, status: parsed.error ? 'needs_review' : 'parsed', issue: parsed.error || null };
     })();
   }

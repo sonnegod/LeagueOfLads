@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SOURCE_DIR="$ROOT_DIR/db"
 BACKUP_ROOT="$ROOT_DIR/backups"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+BACKUP_DAY="${TIMESTAMP%%_*}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-3}"
 
 usage() {
@@ -12,10 +13,11 @@ usage() {
 Usage:
   ./scripts/db/backupDatabases.sh [all|LadsData|Betting|public|Analytics|SiteAnalytics|prune]
 
-Creates SQLite-safe timestamped backups under:
+Creates at most one SQLite-safe backup per database per server calendar day under:
   backups/<database-name>/
 
-Backup files older than three days are removed after a backup run. Use `prune`
+Existing timestamped backups from today also satisfy the daily backup.
+Backup files older than three days are removed before a backup run. Use `prune`
 to apply retention without creating a new backup.
 
 Examples:
@@ -25,11 +27,13 @@ Examples:
 USAGE
 }
 
-backup_db() {
+backup_db() (
     local name="$1"
     local source="$SOURCE_DIR/$name.db"
     local dest_dir="$BACKUP_ROOT/$name"
-    local dest="$dest_dir/${name}_${TIMESTAMP}.db"
+    local dest="$dest_dir/${name}_${BACKUP_DAY}.db"
+    local existing
+    local temporary
 
     if [ ! -f "$source" ]; then
         echo "Skipping $name: $source not found"
@@ -37,9 +41,22 @@ backup_db() {
     fi
 
     mkdir -p "$dest_dir"
-    sqlite3 "$source" ".backup '$dest'"
+    # Recognize both daily names and the older per-run timestamped names.
+    for existing in "$dest" "$dest_dir/${name}_${BACKUP_DAY}_"*.db; do
+        if [ -s "$existing" ]; then
+            echo "Skipping $name: today's backup already exists ($existing)"
+            return
+        fi
+    done
+
+    # Publish only completed backups so a failed or interrupted attempt can retry.
+    temporary="$(mktemp "${dest}.tmp.XXXXXX")"
+    trap 'rm -f -- "$temporary"' EXIT
+    sqlite3 "$source" ".backup '$temporary'"
+    test -s "$temporary"
+    mv -- "$temporary" "$dest"
     echo "Created $dest"
-}
+)
 
 prune_backups() {
     local retention_days="$BACKUP_RETENTION_DAYS"
@@ -69,20 +86,20 @@ prune_backups() {
 target="${1:-all}"
 
 case "$target" in
-    all)
-        backup_db "LadsData"
-        backup_db "Betting"
-        backup_db "public"
-        backup_db "Analytics"
-        backup_db "SiteAnalytics"
+    all|LadsData|Betting|public|Analytics|SiteAnalytics|prune)
+        # Deployments and the nightly job may overlap. Serialize their backup
+        # checks, writes and pruning; flock releases automatically on process exit.
+        mkdir -p "$BACKUP_ROOT"
+        exec 9>"$BACKUP_ROOT/.backup.lock"
+        flock 9
         prune_backups
-        ;;
-    LadsData|Betting|public|Analytics|SiteAnalytics)
-        backup_db "$target"
-        prune_backups
-        ;;
-    prune)
-        prune_backups
+        if [ "$target" = all ]; then
+            for name in LadsData Betting public Analytics SiteAnalytics; do
+                backup_db "$name"
+            done
+        elif [ "$target" != prune ]; then
+            backup_db "$target"
+        fi
         ;;
     -h|--help|help)
         usage

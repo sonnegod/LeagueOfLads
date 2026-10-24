@@ -59,9 +59,16 @@ GitHub source, so server-only frontend edits are not included in that build.
 
 ## Scheduled database backups
 
-`db/backupDatabases.sh` keeps timestamped database backups for three days (72 hours)
-by default. `nightlyRun.sh` prunes expired backups before ingestion and after its
-final backup. An exported `BACKUP_RETENTION_DAYS` overrides the default; any existing
+`db/backupDatabases.sh` creates at most one backup per server calendar day for each
+of LadsData, Betting, public, Analytics and SiteAnalytics. Deployments and the nightly
+job share this limit; an existing timestamped backup from today also counts. New
+backups use `<database>_YYYYMMDD.db`. Completed backups are published only after
+SQLite succeeds, and a shared `flock` prevents overlapping runs from making duplicates.
+The server needs the `sqlite3` and `flock` commands.
+
+Backups are kept for three days (72 hours) by default. Expired files are pruned before
+creating backups, so a full disk does not prevent retention cleanup. `nightlyRun.sh`
+also prunes before ingestion. An exported `BACKUP_RETENTION_DAYS` overrides the default; any existing
 server override should be set to `3` for this policy. To apply retention immediately
 after deployment without creating another backup:
 

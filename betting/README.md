@@ -308,11 +308,17 @@ The **Team details** card beside **Roster order** edits a selected team's
 name and Dota team ID. Its captain control selects a confirmed
 current teammate. Captain changes update public team/roster displays and are
 audited separately; they do not create roster transfers or refresh betting odds.
-The Betting panel
-records official/remake/abandoned match classifications, Discord team-role mappings,
-unresolved scheduling posts, and verified legacy ticket outcomes. A replay must
-be linked to the same actual series before settlement. Scheduling posts needing
-review include their saved text in the site-manager panel. Public betting pages
+The Site Management Betting panel records official/remake/abandoned match
+classifications and verified legacy ticket outcomes. A replay must be linked to
+the same actual series before settlement. Admin → League → Match manages scheduled
+fixtures, Discord team-role mappings and unresolved scheduling posts through the
+league-admin `/api/admin/matches` routes. Scheduling posts needing
+review include their saved text in that panel, with Discord role
+mentions displayed as `@Role name` using names captured by the bot. Original
+mention IDs remain intact for parsing and team matching. Existing review posts
+gain readable names when the bot next fetches them; unknown roles retain their
+original mention. Display-only updates do not refresh odds or change fixtures.
+Public betting pages
 do not receive Discord message text or private model inputs.
 Roster administration uses the separate league-admin `/api/admin/rosters` routes,
 which expose season/team choices and roster changes without Betting controls.

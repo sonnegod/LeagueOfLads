@@ -1,6 +1,5 @@
 import express from 'express';
 import { fail } from '../betting/scheduleStore.js';
-import { parseScheduleTime } from '../betting/scheduleParser.js';
 import { ODDS_SCALE } from '../betting/pricing.js';
 import { fixtureGuard,seasonGuard } from '../betting/engine.js';
 import { queueBettingRefresh } from '../betting/runtime.js';
@@ -194,8 +193,6 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
     const sid=seasonId(req);const season=sid?register(sid):null;const setup=sid?schedules.setup(sid):null;
     const jobs=db.prepare('SELECT JobId,StartedAtUtc,CompletedAtUtc,Status,MarketsOpened,MarketsSettled,IssueCode FROM BettingJobs ORDER BY JobId DESC LIMIT 5').all();
     const refreshState=league.prepare('SELECT * FROM BettingRefreshState WHERE Id=1').get();
-    const messages=league.prepare(`SELECT MessageId,ChannelId,AuthoredAtUtc,EditedAtUtc,Content,ParseStatus,IssueCode,EventId,Deleted FROM ScheduleMessages
-      WHERE ParseStatus='needs_review' AND SeasonId=? ORDER BY LastSeenAtUtc DESC LIMIT 50`).all(sid);
     return res.json({localTesting:book.localTesting,season:season?{seasonId:sid,name:season.LeagueName,status:season.Status,leagueId:season.ExternalLeagueId}:null,
       rosterConflicts:season?conflictingRosterPlayers(currentSeasonRoster(league,sid,season.Status)):[],
       pendingRosterSlots:season?currentPendingSlots(league,sid).length:0,
@@ -205,8 +202,7 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
       refresh:{pending:refreshState.RequestedRevision>refreshState.CompletedRevision,lastAttemptAt:refreshState.LastAttemptAtUtc,
         lastCompletedAt:refreshState.LastCompletedAtUtc,failures:refreshState.ConsecutiveFailures,
         error:['refresh_failed','refresh_retry_exhausted'].includes(refreshState.LastErrorCode)?refreshState.LastErrorCode:null,nextRetryAt:refreshState.NextRetryAtUtc},
-      events:sid?schedules.list(sid,{includeLocalTests:book.localTesting}):[],jobs,messages,legacyIssues:db.prepare('SELECT LegacyTicketId,IssueCode FROM BettingLegacyImportIssues ORDER BY LegacyTicketId LIMIT 50').all(),
-      aliases:sid?league.prepare('SELECT RoleId,TeamSubmissionId FROM TeamDiscordAliases WHERE SeasonId=?').all(sid):[]});
+      jobs,legacyIssues:db.prepare('SELECT LegacyTicketId,IssueCode FROM BettingLegacyImportIssues ORDER BY LegacyTicketId LIMIT 50').all()});
   }));
   adminRoutes.post('/refresh',endpoint((req,res)=>{refresh();return res.status(202).json({queued:true});}));
   adminRoutes.post('/seasons/:seasonId/preview',endpoint(async(req,res)=>{
@@ -224,25 +220,6 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
     schedules.completion(sid,req.body||{},bettingActor(req));return res.json({saved:true});}));
   adminRoutes.post('/seasons/:seasonId/matches/classify',endpoint((req,res)=>{const sid=positive(req.params.seasonId);if(!sid)fail('Invalid season');
     return res.json(schedules.classifyMatch(sid,req.body||{},bettingActor(req)));}));
-  adminRoutes.post('/seasons/:seasonId/events',endpoint((req,res)=>{
-    const sid=positive(req.params.seasonId);if(!sid)fail('Invalid season');let parsed={};
-    if(req.body?.localTime) {parsed=parseScheduleTime(req.body.localTime,new Date().toISOString(),60,{allowPast:!!req.body.eventId});if(parsed.error)fail(`Schedule needs correction: ${parsed.error}`);}
-    const event=schedules.save(sid,{...req.body,...parsed},bettingActor(req));return res.status(201).json({event});
-  }));
-  adminRoutes.put('/seasons/:seasonId/aliases',endpoint((req,res)=>{
-    const sid=positive(req.params.seasonId);const team=positive(req.body?.teamKey);const role=String(req.body?.roleId||'');
-    if(!sid||!/^\d{15,22}$/.test(role)||!schedules.teams(sid).some(t=>t.TeamSubmissionId===team))fail('Select a season team and valid Discord role ID');
-    league.prepare(`INSERT INTO TeamDiscordAliases VALUES (?,?,?) ON CONFLICT(SeasonId,RoleId) DO UPDATE SET TeamSubmissionId=excluded.TeamSubmissionId`).run(sid,role,team);
-    schedules.audit('Schedule Role Linked',`Linked Discord role ${role} to team ${team}`);return res.json({saved:true});
-  }));
-  adminRoutes.post('/messages/:messageId/resolve',endpoint((req,res)=>{
-    const event=schedules.get(positive(req.body?.eventId));if(!event)fail('Select a fixture');
-    const post=league.prepare('SELECT SeasonId FROM ScheduleMessages WHERE MessageId=?').get(req.params.messageId);
-    if(post?.SeasonId&&post.SeasonId!==event.SeasonId)fail('The fixture must belong to the scheduling post’s season');
-    const changed=league.prepare("UPDATE ScheduleMessages SET EventId=?,SeasonId=?,ParseStatus='resolved',IssueCode=NULL WHERE MessageId=?").run(event.EventId,event.SeasonId,req.params.messageId);
-    if(!changed.changes)fail('Scheduling post not found',404);
-    schedules.audit('Schedule Resolved',`Linked scheduling post ${req.params.messageId} to fixture ${event.EventId}`);return res.json({saved:true});
-  }));
   adminRoutes.get('/legacy',endpoint((req,res)=>{
     const rows=db.prepare("SELECT MarketId,Title,RulesJson,Status FROM BettingMarkets WHERE SeasonId=0 AND MarketType='legacy' ORDER BY MarketId LIMIT 200").all();
     return res.json({markets:rows.map(m=>{const rules=JSON.parse(m.RulesJson);const selection=db.prepare('SELECT Label FROM BettingSelections WHERE MarketId=?').get(m.MarketId);
