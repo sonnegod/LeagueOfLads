@@ -143,6 +143,8 @@ function LiveMatchCard({ match, snapshots, variant = 'live' }) {
         </div>
       </div>
 
+      {Number(match.MatchId)>0&&<div className="live-match-id">Match ID: <span>{match.MatchId}</span></div>}
+
       <div className="live-overview-grid" style={liveOverviewGridStyle}>
         <div className="live-radiant-players" style={sidePlayersStyle}>
           <div style={sidePlayersTitleStyle}>Radiant Players</div>

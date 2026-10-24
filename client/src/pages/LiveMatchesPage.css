@@ -1,3 +1,12 @@
+.live-match-id {
+  margin-top: .5rem;
+  color: var(--muted-text, #94a3b8);
+  font-size: .78rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.live-match-id span { font-variant-numeric: tabular-nums; user-select: all; }
+
 @media (max-width: 767px) {
   .live-matches-page {
     padding: 12px !important;
