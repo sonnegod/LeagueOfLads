@@ -26,6 +26,7 @@ export class ScheduleStore {
     for(const [name,type] of Object.entries({SeasonId:'INTEGER',DisplayContent:'TEXT'}))
       if(!messageColumns.includes(name))db.exec(`ALTER TABLE ScheduleMessages ADD COLUMN ${name} ${type}`);
     db.exec('CREATE INDEX IF NOT EXISTS idx_ScheduleMessages_Review ON ScheduleMessages(SeasonId,ParseStatus,LastSeenAtUtc)');
+    db.prepare("UPDATE ScheduleMessages SET ParseStatus='deleted' WHERE Deleted=1 AND ParseStatus='needs_review'").run();
     db.prepare('UPDATE ScheduleMessages SET SeasonId=(SELECT SeasonId FROM ScheduledEvents e WHERE e.EventId=ScheduleMessages.EventId) WHERE SeasonId IS NULL AND EventId IS NOT NULL').run();
     this.syncRosterHistory();
   }
@@ -209,14 +210,15 @@ export class ScheduleStore {
         try { eventId = this.save(seasonId, { ...parsed, eventId, revision: event?.Revision, sourceMessageId: String(message.messageId) }, null, now).EventId; }
         catch (error) { parsed = { error: error.code === 'REVISION_CONFLICT' ? 'revision_conflict' : 'fixture_needs_review' }; if (eventId) this.markReview(eventId, parsed.error, now); }
       }
+      const parseStatus=message.deleted?'deleted':parsed.error?'needs_review':'parsed';
       this.db.prepare(`INSERT INTO ScheduleMessages (ChannelId,MessageId,AuthoredAtUtc,EditedAtUtc,Content,ContentHash,ParserVersion,ParseStatus,IssueCode,AssumptionsJson,EventId,LastSeenAtUtc,Deleted,SeasonId,DisplayContent)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(MessageId) DO UPDATE SET
         EditedAtUtc=excluded.EditedAtUtc, Content=excluded.Content, DisplayContent=excluded.DisplayContent, ContentHash=excluded.ContentHash, ParserVersion=excluded.ParserVersion,
         ParseStatus=excluded.ParseStatus, IssueCode=excluded.IssueCode, AssumptionsJson=excluded.AssumptionsJson,
         EventId=excluded.EventId, LastSeenAtUtc=excluded.LastSeenAtUtc, Deleted=excluded.Deleted,SeasonId=excluded.SeasonId`)
         .run(String(message.channelId), String(message.messageId), message.authoredAt, message.editedAt || null, content,
-          hash, PARSER_VERSION, parsed.error ? 'needs_review' : 'parsed', parsed.error || null, JSON.stringify(parsed.assumptions || []), eventId, now.toISOString(), message.deleted ? 1 : 0,seasonId,displayContent);
-      return { eventId, status: parsed.error ? 'needs_review' : 'parsed', issue: parsed.error || null };
+          hash, PARSER_VERSION, parseStatus, parsed.error || null, JSON.stringify(parsed.assumptions || []), eventId, now.toISOString(), message.deleted ? 1 : 0,seasonId,displayContent);
+      return { eventId, status: parseStatus, issue: parsed.error || null };
     })();
   }
   setup(seasonId) { return this.db.prepare('SELECT * FROM SeasonBettingSetup WHERE SeasonId = ?').get(seasonId) || null; }

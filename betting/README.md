@@ -318,6 +318,12 @@ mentions displayed as `@Role name` using names captured by the bot. Original
 mention IDs remain intact for parsing and team matching. Existing review posts
 gain readable names when the bot next fetches them; unknown roles retain their
 original mention. Display-only updates do not refresh odds or change fixtures.
+When Discord confirms that a scheduling post was deleted, it is marked deleted
+and removed from the posts-needing-review list. It cannot be resolved from a
+stale admin page and no longer consumes old-post reconciliation slots. Existing
+deleted review rows are repaired on startup. The stored message identity is
+retained; any linked fixture remains held for review under the existing deletion
+policy. Network or permission failures never count as confirmed deletions.
 Public betting pages
 do not receive Discord message text or private model inputs.
 Roster administration uses the separate league-admin `/api/admin/rosters` routes,

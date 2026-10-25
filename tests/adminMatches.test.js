@@ -87,6 +87,27 @@ test('review resolution stays within the post season and readable role names rem
   });
 });
 
+test('deleted scheduling posts disappear from review and stale pages cannot resolve them',async()=>{
+  await fixture(async f=>{
+    const post={messageId:'100',channelId:'99',authoredAt:'2026-10-23T12:00:00.000Z',content:'1011111 vs 9999999 Sunday 8pm EST'};
+    f.schedules.ingest(post,1);
+    assert.equal((await(await f.request('/status')).json()).messages.length,1);
+    f.schedules.ingest({...post,content:'',deleted:true},1);
+    const deleted=f.league.prepare("SELECT * FROM ScheduleMessages WHERE MessageId='100'").get();
+    assert.equal(deleted.ParseStatus,'deleted');assert.equal(deleted.EventId,null);
+    assert.deepEqual((await(await f.request('/status')).json()).messages,[]);
+    const event=f.schedules.save(1,eventBody),changes=f.changes(),audits=f.audits.length;
+    const response=await f.request('/messages/100/resolve','admin','POST',{eventId:event.EventId});
+    assert.equal(response.status,409);assert.match((await response.json()).error,/deleted/);
+    assert.deepEqual(f.league.prepare("SELECT * FROM ScheduleMessages WHERE MessageId='100'").get(),deleted);
+    assert.equal(f.changes(),changes);assert.equal(f.audits.length,audits);
+    // The API also filters legacy deleted rows before a worker's startup repair.
+    f.league.exec("UPDATE ScheduleMessages SET ParseStatus='needs_review' WHERE MessageId='100'");
+    assert.deepEqual((await(await f.request('/status')).json()).messages,[]);
+    assert.equal((await f.request('/messages/100/resolve','admin','POST',{eventId:event.EventId})).status,409);
+  });
+});
+
 test('test fixtures remain excluded unless development inclusion is explicitly enabled',async()=>{
   for(const includeLocalTests of [false,true])await fixture(async f=>{
     f.schedules.save(1,{...eventBody,sourceMessageId:'local-test:match-tab'});

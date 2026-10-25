@@ -30,7 +30,7 @@ export function createAdminMatchRouter({league,schedules,includeLocalTests=false
       teams:sid?schedules.teams(sid).map(t=>({teamKey:t.TeamSubmissionId,name:t.TeamName,teamId:t.ExternalTeamId})):[],
       events:sid?schedules.list(sid,{includeLocalTests}):[],
       messages:sid?league.prepare(`SELECT MessageId,ChannelId,AuthoredAtUtc,EditedAtUtc,Content,DisplayContent,ParseStatus,IssueCode,EventId,Deleted
-        FROM ScheduleMessages WHERE ParseStatus='needs_review' AND SeasonId=? ORDER BY LastSeenAtUtc DESC LIMIT 50`).all(sid):[],
+        FROM ScheduleMessages WHERE ParseStatus='needs_review' AND Deleted=0 AND SeasonId=? ORDER BY LastSeenAtUtc DESC LIMIT 50`).all(sid):[],
       aliases:sid?league.prepare('SELECT RoleId,TeamSubmissionId FROM TeamDiscordAliases WHERE SeasonId=?').all(sid):[]});
   }));
   router.post('/seasons/:seasonId/events',endpoint((req,res)=>{
@@ -51,11 +51,13 @@ export function createAdminMatchRouter({league,schedules,includeLocalTests=false
   }));
   router.post('/messages/:messageId/resolve',endpoint((req,res)=>{
     const event=schedules.get(positive(req.body?.eventId));if(!event)fail('Select a fixture');
-    const post=league.prepare('SELECT SeasonId FROM ScheduleMessages WHERE MessageId=?').get(req.params.messageId);
-    if(post?.SeasonId&&post.SeasonId!==event.SeasonId)fail('The fixture must belong to the scheduling post’s season');
-    const changed=league.prepare("UPDATE ScheduleMessages SET EventId=?,SeasonId=?,ParseStatus='resolved',IssueCode=NULL WHERE MessageId=?")
+    const post=league.prepare('SELECT SeasonId,Deleted FROM ScheduleMessages WHERE MessageId=?').get(req.params.messageId);
+    if(!post)fail('Scheduling post not found',404);
+    if(post.Deleted)fail('This scheduling post was deleted. Refresh the review list.',409);
+    if(post.SeasonId&&post.SeasonId!==event.SeasonId)fail('The fixture must belong to the scheduling post’s season');
+    const changed=league.prepare("UPDATE ScheduleMessages SET EventId=?,SeasonId=?,ParseStatus='resolved',IssueCode=NULL WHERE MessageId=? AND Deleted=0")
       .run(event.EventId,event.SeasonId,req.params.messageId);
-    if(!changed.changes)fail('Scheduling post not found',404);
+    if(!changed.changes)fail('Scheduling post changed. Refresh the review list.',409);
     schedules.audit('Schedule Resolved',`Linked scheduling post ${req.params.messageId} to fixture ${event.EventId}`);
     return res.json({saved:true});
   }));

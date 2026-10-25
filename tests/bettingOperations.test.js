@@ -133,6 +133,25 @@ test('Discord catch-up cannot jump a history gap and handles snowflake digit bou
   }finally{f.close();}
 });
 
+test('deleted unresolved posts leave review and reconciliation without creating fixtures or dirtying quotes',async()=>{
+  const f=pollFixture([message(100,'1011111 vs 9999999 Saturday 9est')]);try {
+    await f.poll();
+    const read=()=>f.league.prepare("SELECT * FROM ScheduleMessages WHERE MessageId='100'").get();
+    assert.equal(read().ParseStatus,'needs_review');assert.equal(read().EventId,null);
+    const revision=state(f).RequestedRevision;
+    f.posts.delete('100');await f.poll({maxPages:0});
+    const deleted=read();assert.equal(deleted.ParseStatus,'deleted');assert.equal(deleted.Deleted,1);
+    assert.equal(deleted.IssueCode,'message_deleted');assert.equal(deleted.EventId,null);
+    assert.equal(f.store.list(1).length,0);assert.equal(state(f).RequestedRevision,revision);
+    f.calls.length=0;await f.poll({maxPages:0});assert.deepEqual(f.calls,[]);
+    // Old deployments stored deleted messages as needs_review. Startup removes
+    // those from the queue too, without losing their persisted message identity.
+    f.league.exec("UPDATE ScheduleMessages SET ParseStatus='needs_review' WHERE MessageId='100'");
+    new ScheduleStore(f.league);new ScheduleStore(f.league);
+    assert.deepEqual(read(),deleted);
+  }finally{f.close();}
+});
+
 test('tracked role-free edits enter review; permission failures cannot masquerade as deletions and real deletions dirty affected quotes',async()=>{
   const f=pollFixture([message(100),message(101)]);try {
     await f.poll();const original=f.league.prepare("SELECT EventId FROM ScheduleMessages WHERE MessageId='101'").get().EventId;
@@ -143,8 +162,12 @@ test('tracked role-free edits enter review; permission failures cannot masquerad
     await assert.rejects(f.poll(),error=>error.code===50013);assert.equal(f.league.prepare("SELECT Deleted FROM ScheduleMessages WHERE MessageId='100'").get().Deleted,0);
     assert.equal(f.league.prepare('SELECT COUNT(*) AS n FROM DiscordSchedulePollLocks').get().n,0);
     f.errors.delete('100');await f.poll();assert.equal(f.league.prepare("SELECT Deleted FROM ScheduleMessages WHERE MessageId='100'").get().Deleted,1);
+    const deleted=f.league.prepare("SELECT ParseStatus,EventId FROM ScheduleMessages WHERE MessageId='100'").get();
+    assert.equal(deleted.ParseStatus,'deleted');assert.equal(f.store.get(deleted.EventId).Status,'needs_review');
     assert.ok(state(f).RequestedRevision>revision);
+    f.calls.length=0;
     const afterDeletion=state(f).RequestedRevision;await f.poll();assert.equal(state(f).RequestedRevision,afterDeletion);
+    assert.equal(f.calls.includes('100'),false);
   }finally{f.close();}
 });
 
