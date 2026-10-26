@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from "react-router-dom";
 import HeroDisplay from "./HeroDisplay";
 import DotabuffLink from './DotabuffLink';
@@ -102,9 +103,32 @@ export default function TeamHomeTab({
 }
 
 function RosterCard({ roster }) {
-  return <FeatureCard title="Roster">
+  const [copyResult,setCopyResult]=useState(null);
+  const members=roster?rosterDisplayMembers(roster):[];
+  const copyText=members.map((player,index)=>[
+    index+1,
+    player.pending?'Player TBD':String(player.PlayerName||`Player ${player.PlayerId}`).replace(/[\t\r\n]+/g,' '),
+    !player.pending&&Number.isSafeInteger(Number(player.PlayerId))&&Number(player.PlayerId)>0
+      ?`https://www.dotabuff.com/players/${player.PlayerId}`:'',
+  ].join('\t')).join('\n');
+  const copyStatus=copyResult?.text===copyText?copyResult.status:null;
+  async function copyRoster() {
+    setCopyResult({text:copyText,status:'copying'});
+    try {
+      await navigator.clipboard.writeText(copyText);
+      setCopyResult({text:copyText,status:'copied'});
+    }catch {
+      setCopyResult({text:copyText,status:'error'});
+    }
+  }
+  return <FeatureCard title="Roster" action={<button type="button" className="team-roster-copy"
+    aria-label="Copy roster" aria-live="polite" title="Copy row numbers, player names and Dotabuff links"
+    disabled={!members.length||copyStatus==='copying'} onClick={copyRoster}>
+    {copyStatus==='copied'?'Copied!':copyStatus==='copying'?'Copying…':'Copy'}
+  </button>}>
+    {copyStatus==='error'&&<p className="team-roster-copy-error" role="alert">Could not copy the roster. Please try again.</p>}
     {roster ?
-      <ul className="team-home-roster-players">{rosterDisplayMembers(roster).map((player,index) => <li key={player.pending?`pending:${player.Slot}`:player.PlayerId}>
+      <ul className="team-home-roster-players">{members.map((player,index) => <li key={player.pending?`pending:${player.Slot}`:player.PlayerId}>
         {roster.Source==='signup'&&roster.SeasonStatus==='active'&&<span className="team-roster-position">Pos {index+1}</span>}
         {player.pending?<span>Player TBD</span>:<><Link to={`/player/${player.PlayerId}`} target="_blank" rel="noopener noreferrer">{player.PlayerName}</Link>
         <DotabuffLink playerId={player.PlayerId} name={player.PlayerName} /></>}
@@ -158,10 +182,11 @@ function MetricCard({ label, value }) {
   );
 }
 
-function FeatureCard({ title, children }) {
+function FeatureCard({ title, children, action }) {
   return (
     <section style={panelStyle}>
-      <h3 style={sectionHeaderStyle}>{title}</h3>
+      {action?<div className="detail-feature-heading"><h3 style={{...sectionHeaderStyle,marginBottom:0}}>{title}</h3>{action}</div>
+        :<h3 style={sectionHeaderStyle}>{title}</h3>}
       {children}
     </section>
   );
