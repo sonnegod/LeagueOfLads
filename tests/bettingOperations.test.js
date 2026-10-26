@@ -45,6 +45,23 @@ test('failed children retry with backoff once per process result, keep quotes he
   }finally{f.close();}
 });
 
+test('Analytics rebuild requirements survive lightweight requests, restarts and failed attempts until their revision completes',()=>{
+  const f=queueFixture();try {
+    markBettingDirty(f.league,instant,{refreshAnalytics:true});
+    assert.equal(state(f).AnalyticsRequestedRevision,1);
+    f.queue.request();assert.equal(state(f).RequestedRevision,2);assert.equal(state(f).AnalyticsRequestedRevision,1);
+    f.fire().emit('close',1);assert.equal(state(f).CompletedRevision,0);assert.equal(state(f).AnalyticsRequestedRevision,1);
+    new ScheduleStore(f.league);assert.equal(state(f).AnalyticsRequestedRevision,1);
+    markBettingDirty(f.league,instant,{refreshAnalytics:true});assert.equal(state(f).AnalyticsRequestedRevision,3);
+    const before=state(f);
+    assert.throws(()=>f.league.transaction(()=>{markBettingDirty(f.league,instant,{refreshAnalytics:true});throw new Error('correction failed');})(),/correction failed/);
+    assert.deepEqual(state(f),before);
+    f.complete(f.fire());assert.equal(state(f).CompletedRevision,3);assert.equal(state(f).AnalyticsRequestedRevision,3);
+    f.queue.request();assert.equal(state(f).RequestedRevision,4);assert.equal(state(f).AnalyticsRequestedRevision,3);
+    f.complete(f.fire());assert.equal(state(f).CompletedRevision,4);
+  }finally{f.close();}
+});
+
 test('competing workers defer without exhausting automatic retries and newer pending revisions remain queued',()=>{
   const f=queueFixture();try {
     f.queue.request();

@@ -59,6 +59,15 @@ The scheduled refresh saves current approved inputs even when no fixtures are
 scheduled. Later scheduling jobs use those inputs independently of the frozen
 preseason forecasts, so refreshing matchup inputs does not reprice preseason.
 
+Saving a correction in Admin Match Editor queues a canonical Analytics rebuild
+before Betting rechecks the corrected series and settles its results. This handles
+a BO2 initially split across two team identities: correcting the second game can
+merge its series link, rebuild the formerly missing facts and resolve pending
+tickets. Winner-only edits also reconcile previous payouts. The rebuild requirement
+is durable across busy workers, failures, restarts and newer scheduling requests;
+ordinary scheduling refreshes remain lightweight when no rebuild is pending.
+Existing validation/result checks, accepted odds and frozen preseason prices apply.
+
 Published preseason prices, lines and selections stay fixed across routine and
 nightly refreshes. Later Analytics timestamps or pending fixture updates do not
 hold that book. Setup, roster, TBD leader, season cancellation and kickoff/live

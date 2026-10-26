@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import dotenv from 'dotenv';
 import { classifyStandings, DEFAULT_LEAGUE_RULES } from './config/leagueRules.js';
 import { buildGroupResults } from './config/groupResults.js';
+import { rebuildLeagueGroupStandings } from './config/groupStandings.js';
 import { planRosterLinks } from './config/rosterMatching.js';
 import SiteRulesStore from './config/siteRulesStore.js';
 import AdminAuditStore from './config/adminAuditStore.js';
@@ -2146,28 +2147,7 @@ class DBInstance {
     }
 
     rebuildLeagueGroupStandings(leagueId){
-        const groups = this.queryDatabase(`SELECT GroupId FROM GroupNames WHERE LeagueId = ?`, [leagueId]);
-        if (groups.length === 0) return;
-        const update = this.db.transaction(() => {
-            this.db.prepare('UPDATE LeagueStandings SET Wins = 0, Losses = 0 WHERE LeagueId = ?').run(leagueId);
-            this.db.prepare('UPDATE Neustadtl SET Score = 0 WHERE LeagueId = ?').run(leagueId);
-            const standing = this.db.prepare(`
-                INSERT INTO LeagueStandings (LeagueId, TeamId, Wins, Losses) VALUES (?, ?, ?, ?)
-                ON CONFLICT(LeagueId, TeamId) DO UPDATE SET Wins = excluded.Wins, Losses = excluded.Losses
-            `);
-            const neustadtl = this.db.prepare(`
-                INSERT INTO Neustadtl (LeagueId, TeamId, Score) VALUES (?, ?, ?)
-                ON CONFLICT(TeamId, LeagueId) DO UPDATE SET Score = excluded.Score
-            `);
-            for (const group of groups) {
-                const result = this.getLeagueGroupResults(leagueId, group.GroupId);
-                for (const row of result.standings) {
-                    standing.run(leagueId, row.TeamId, row.Wins, row.Losses);
-                    neustadtl.run(leagueId, row.TeamId, row.Score);
-                }
-            }
-        });
-        update();
+        return rebuildLeagueGroupStandings(this.db, leagueId);
     }
 
     getRecentMatches(numMatches) {

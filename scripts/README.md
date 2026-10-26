@@ -81,6 +81,23 @@ and repair `.bak` files beside the source databases are managed separately.
 
 ## Match deletion and orphan repair
 
+Admin Match Editor saves recalculate wins, losses and Neustadtl scores for every
+league linked to the corrected match before reporting success. Corrections and
+derived standings share a transaction, so a rebuild or audit failure rolls back
+the entire edit. The calculation uses the same group membership, group-stage
+cutoff and head-to-head overrides as scheduled standings updates. To rebuild the
+active league after a correction saved before this behavior was deployed, run
+`node scripts/league/updateNeustadtl.js` from the repository root.
+
+Match Editor corrections also queue an Analytics rebuild and Betting settlement.
+The rebuild requirement commits with the source edit and survives worker locks,
+failures, restarts and later scheduling changes. The ordinary queued worker sees
+that requirement and rebuilds canonical match/series facts before resolving bets;
+unrelated scheduling-only refreshes stay lightweight. Published preseason prices
+and accepted ticket odds remain fixed. A corrected BO2 settles once both games
+pass the existing result checks. To reconcile betting after an already-saved
+correction, run `node scripts/betting/run.js --refresh-analytics` once.
+
 Admin match deletion and remake removal share one transaction that deletes draft
 actions, series links, dependent telemetry, participation, player stats and league
 membership before deleting the match. Admin audit recording is part of that

@@ -48,11 +48,19 @@ try {
   league=new Database(paths.league,{fileMustExist:true});league.pragma('busy_timeout = 5000');
   const schedules=new ScheduleStore(league);
   if(prepareTest)prepared=prepareLocalTestSeason(schedules,seasonId);
+  let requestedRevision;
   if(!status&&!init&&!seasonId) {
-    markBettingDirty(league);trackedRefresh=true;
-    league.prepare('UPDATE BettingRefreshState SET LastAttemptAtUtc=? WHERE Id=1').run(new Date().toISOString());
-  }
-  const requestedRevision=league.prepare('SELECT RequestedRevision FROM BettingRefreshState WHERE Id=1').get().RequestedRevision;
+    const state=league.transaction(()=>{
+      markBettingDirty(league,new Date(),{refreshAnalytics:refresh});
+      league.prepare('UPDATE BettingRefreshState SET LastAttemptAtUtc=? WHERE Id=1').run(new Date().toISOString());
+      return league.prepare('SELECT RequestedRevision,AnalyticsRequestedRevision,CompletedRevision FROM BettingRefreshState WHERE Id=1').get();
+    }).immediate();
+    // Corrections require fresh canonical facts, even when this worker was
+    // launched without a flag. Capture both the mode and covered revision in one
+    // transaction so a concurrent correction cannot be acknowledged unseen.
+    refresh ||= state.AnalyticsRequestedRevision>state.CompletedRevision;
+    requestedRevision=state.RequestedRevision;trackedRefresh=true;
+  }else requestedRevision=league.prepare('SELECT RequestedRevision FROM BettingRefreshState WHERE Id=1').get().RequestedRevision;
   betting=new Database(bettingPath);betting.pragma('journal_mode = WAL');
   const book=new BettingStore(betting);
   if(status)console.log(JSON.stringify({localTesting,jobs:betting.prepare('SELECT JobId,Status,StartedAtUtc,CompletedAtUtc,MarketsOpened,MarketsSettled,IssueCode FROM BettingJobs ORDER BY JobId DESC LIMIT 5').all(),

@@ -18,7 +18,7 @@ export class ScheduleStore {
     ensureRosterDisplayOrderSchema(db);
     db.exec(readFileSync(new URL('../scripts/db/schedules.schema.sql', import.meta.url), 'utf8'));
     const refreshColumns=db.pragma('table_info(BettingRefreshState)').map(c=>c.name);
-    for(const [name,type] of Object.entries({LastAttemptAtUtc:'TEXT',LastCompletedAtUtc:'TEXT',ConsecutiveFailures:'INTEGER NOT NULL DEFAULT 0',LastErrorCode:'TEXT',NextRetryAtUtc:'TEXT'}))
+    for(const [name,type] of Object.entries({LastAttemptAtUtc:'TEXT',LastCompletedAtUtc:'TEXT',ConsecutiveFailures:'INTEGER NOT NULL DEFAULT 0',LastErrorCode:'TEXT',NextRetryAtUtc:'TEXT',AnalyticsRequestedRevision:'INTEGER NOT NULL DEFAULT 0'}))
       if(!refreshColumns.includes(name))db.exec(`ALTER TABLE BettingRefreshState ADD COLUMN ${name} ${type}`);
     const cursorColumns=db.pragma('table_info(DiscordScheduleCursors)').map(c=>c.name);
     for(const name of ['BackfillBefore','NewestBoundary'])if(!cursorColumns.includes(name))db.exec(`ALTER TABLE DiscordScheduleCursors ADD COLUMN ${name} TEXT`);

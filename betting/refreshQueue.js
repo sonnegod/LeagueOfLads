@@ -1,7 +1,9 @@
 import {WORKER_BUSY_EXIT_CODE} from './workerLock.js';
 
-export function markBettingDirty(db,now=new Date()) {
-  db.prepare('UPDATE BettingRefreshState SET RequestedRevision=RequestedRevision+1,RequestedAtUtc=? WHERE Id=1').run(now.toISOString());
+export function markBettingDirty(db,now=new Date(),{refreshAnalytics=false}={}) {
+  db.prepare(`UPDATE BettingRefreshState SET RequestedRevision=RequestedRevision+1,RequestedAtUtc=?,
+    AnalyticsRequestedRevision=CASE WHEN ? THEN RequestedRevision+1 ELSE AnalyticsRequestedRevision END WHERE Id=1`)
+    .run(now.toISOString(),Number(refreshAnalytics));
 }
 
 // One child per API process, with durable pending revisions across restarts.

@@ -1,3 +1,6 @@
+import { rebuildLeagueGroupStandings } from './groupStandings.js';
+import { markBettingDirty } from '../betting/refreshQueue.js';
+
 function invalid(message,status=400){throw Object.assign(new Error(message),{status});}
 
 // Manual correction only. Read the original sides inside the transaction rather
@@ -42,6 +45,12 @@ export function updateMatchRecord(db,values,audit=()=>{}){
         // Empty series parents may be referenced by brackets; keep them intact.
       }
     }
+    for(const {LeagueId} of db.prepare('SELECT DISTINCT LeagueId FROM MatchLeague WHERE MatchId=?').all(id)) {
+      rebuildLeagueGroupStandings(db,LeagueId);
+    }
+    // Commit the rebuild requirement with the source correction. A routine
+    // scheduling worker must not settle against the previous Analytics facts.
+    markBettingDirty(db,new Date(),{refreshAnalytics:true});
     audit('MatchTeam Update',`Updated Match ${id} with values Team1 = ${rad}, Team2 = ${dire}, Winner = ${winner}; previous teams ${before.TeamRad},${before.TeamDire}`);
     return {success:true,message:'Match updated successfully!'};
   }).immediate();

@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS BettingRefreshState (
   Id INTEGER PRIMARY KEY CHECK(Id=1),RequestedRevision INTEGER NOT NULL DEFAULT 0,
   CompletedRevision INTEGER NOT NULL DEFAULT 0,RequestedAtUtc TEXT,
   LastAttemptAtUtc TEXT,LastCompletedAtUtc TEXT,ConsecutiveFailures INTEGER NOT NULL DEFAULT 0,
-  LastErrorCode TEXT,NextRetryAtUtc TEXT
+  LastErrorCode TEXT,NextRetryAtUtc TEXT,AnalyticsRequestedRevision INTEGER NOT NULL DEFAULT 0
 );
 INSERT OR IGNORE INTO BettingRefreshState(Id) VALUES(1);
 CREATE TABLE IF NOT EXISTS DiscordSchedulePollLocks (
