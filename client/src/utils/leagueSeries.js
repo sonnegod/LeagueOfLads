@@ -1,3 +1,14 @@
+export function seriesMatchesForDisplay(series) {
+  return series.flatMap(item => (item.seriesMatches || []).map(match => ({
+    ...match,
+    SeriesId: item.SeriesId,
+    RadiantTeamId: match.rad_team_id,
+    RadiantTeamName: match.rad_team_name,
+    DireTeamId: match.dire_team_id,
+    DireTeamName: match.dire_team_name,
+  })));
+}
+
 export function groupLeagueSeries(series, matches) {
   const byId = new Map(series.map(item => [String(item.SeriesId), { ...item, matches: [] }]));
   const ungroupedMatches = [];

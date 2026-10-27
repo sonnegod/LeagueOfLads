@@ -16,7 +16,7 @@ import { getLeagueRegisteredTeams, includeRegisteredTeams, includeRegisteredPlay
 import { getPlayerTeammates } from './config/playerTeammates.js';
 import { getHeadToHeadMatches } from './config/playerHeadToHead.js';
 import { getUnmatchedMatchTeams } from './config/unmatchedMatchTeams.js';
-import { getLeagueSeries } from './config/leagueSeries.js';
+import { getLeagueSeries, getTeamSeries } from './config/leagueSeries.js';
 import PlayerAwardsStore from './config/playerAwards.js';
 import { deleteMatchRecords } from './config/matchMaintenance.js';
 import { getReportingPlayers } from './config/warehouseReporting.js';
@@ -1724,6 +1724,10 @@ class DBInstance {
 
     getLeagueSeries(leagueId){
         return getLeagueSeries(this.db, leagueId);
+    }
+
+    getTeamSeries(teamId, leagueId){
+        return getTeamSeries(this.db, teamId, leagueId);
     }
 
     getLeagueSeriesGroupstage(leagueId){

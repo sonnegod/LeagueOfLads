@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
-import { getLeagueSeries } from '../config/leagueSeries.js';
+import { getLeagueSeries, getTeamSeries } from '../config/leagueSeries.js';
 
 test('recent league series include every stage once and stay scoped to the requested league', () => {
   const db = new Database(':memory:');
@@ -43,4 +43,27 @@ test('recent league series include every stage once and stay scoped to the reque
   } finally {
     db.close();
   }
+});
+
+test('team series include either side across seasons, exclude empty series and sort by played date', () => {
+  const db = new Database(':memory:');
+  try {
+    db.exec(`
+      CREATE TABLE SeriesInfo (SeriesId INTEGER PRIMARY KEY, Team1 INTEGER, Team2 INTEGER, DateCreated TEXT);
+      CREATE TABLE TeamInfo (TeamId INTEGER PRIMARY KEY, TeamName TEXT);
+      CREATE TABLE SeriesMatch (SeriesId INTEGER, MatchId INTEGER);
+      CREATE TABLE MatchLeague (MatchId INTEGER, LeagueId INTEGER);
+      INSERT INTO TeamInfo VALUES (10,'First'),(20,'Second'),(30,'Third');
+      INSERT INTO SeriesInfo VALUES (1,10,20,'2026-10-25'),(2,30,10,'2026-10-24'),
+        (3,20,30,'2026-10-26'),(4,10,20,'2026-10-26'),(5,10,30,'2026-09-01');
+      INSERT INTO SeriesMatch VALUES (1,100),(1,101),(2,200),(3,300),(5,500);
+      INSERT INTO MatchLeague VALUES (100,22),(101,22),(200,22),(300,22),(500,21);
+    `);
+    assert.deepEqual(getTeamSeries(db, 10, 'all').map(row => row.SeriesId), [1,2,5]);
+    assert.deepEqual(getTeamSeries(db, '10', '22').map(row => row.SeriesId), [1,2]);
+    assert.deepEqual(getTeamSeries(db, 10, 21).map(row => row.SeriesId), [5]);
+    assert.deepEqual(getTeamSeries(db, 10).map(row => row.SeriesId), [1,2,5]);
+    assert.deepEqual(getTeamSeries(db, 10, 99), []);
+    assert.deepEqual(getTeamSeries(db, 99, 'all'), []);
+  } finally { db.close(); }
 });

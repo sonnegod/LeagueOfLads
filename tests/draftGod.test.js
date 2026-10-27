@@ -62,6 +62,19 @@ test('signup teams and five-player rosters are available before team IDs or matc
   } finally { f.close(); }
 });
 
+test('Draft God signup lineups follow the saved roster display order', () => {
+  const f = fixture();
+  try {
+    f.db.prepare('INSERT INTO TeamRosterDisplayOrder VALUES (?, ?)').run(1, JSON.stringify([3, 0, 4, 1, 2]));
+    const roster = () => f.store.setup(3).teams.find(team => team.key === 's1').roster.players.map(player => player.id);
+    assert.deepEqual(roster(), [4, 1, 5, 2, 3]);
+    for (let slot = 0; slot < 5; slot++) {
+      f.db.prepare("INSERT INTO TeamRosterPlayers (TeamSubmissionId, Slot, PlayerId, FinalizedAt) VALUES (1, ?, ?, '2026-01-01')").run(slot, 5 - slot);
+    }
+    assert.deepEqual(roster(), [2, 5, 1, 4, 3]);
+  } finally { f.close(); }
+});
+
 test('history is deduplicated, bounded by the cutoff, excludes same-day date-only/undated/remade games, and uses games as pick denominator', () => {
   const f = fixture(); try {
     f.game(1, '2026-01-01', 10); f.game(2, '2026-01-02T12:00:00Z');

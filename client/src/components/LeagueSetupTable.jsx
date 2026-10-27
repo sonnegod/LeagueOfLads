@@ -134,7 +134,7 @@ export default function LeagueSetupTable({refreshKey,onUpdated}) {
             if(!canEdit||event.target.closest('input,select,button,a,summary')){event.preventDefault();return;}
             event.dataTransfer.setData('text/plain',team.key);setDragged(team.key);
           }} onDragEnd={()=>setDragged(null)}>
-            <strong title={team.name}>{href?<Link to={href} target="_blank" rel="noopener noreferrer" draggable={false}>{team.name}</Link>:team.name}</strong>
+            <strong title={team.name}>{href?<Link to={href} draggable={false}>{team.name}</Link>:team.name}</strong>
             <small>{team.unregistered?'Awaiting group assignment':team.teamId?`Team ID ${team.teamId}`:'Awaiting Team ID'}</small>
             {!team.key.startsWith('new-team:')&&<div className="league-setup-players">
               <button type="button" className="league-setup-players-toggle" aria-expanded={playersOpen}

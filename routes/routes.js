@@ -2071,6 +2071,9 @@ router.get('/teams/:teamId', async (req, res) => {
   try {
     const teamName = await db.getTeamInfo(teamId);
     const teamMatches = await db.getTeamRecentMatches(teamId, leagueId);
+    const teamSeries = await Promise.all(db.getTeamSeries(teamId, leagueId).map(async series => ({
+      ...series, seriesMatches: await db.getSeriesMatches(series.SeriesId),
+    })));
     const teamLeagues = await db.getLeaguesByTeam(teamId);
     const teamHeroes = await db.getTeamHeroData(teamId, leagueId);
 
@@ -2080,6 +2083,7 @@ router.get('/teams/:teamId', async (req, res) => {
     res.json({
       teamName,
       teamMatches,
+      teamSeries,
       teamLeagues,
       teamHeroes,
       roster,

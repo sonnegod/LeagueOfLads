@@ -65,7 +65,7 @@ export default function LeagueTeamRosterPreview({ team, roster, report, onReques
         setPinned(false); clearTimeout(closeTimer.current); closeTimer.current = setTimeout(() => setOpen(false), 160);
       }
     }}>
-    {href ? <Link to={href} target="_blank" rel="noopener noreferrer">{team.TeamName}</Link> : <span>{team.TeamName}</span>}
+    {href ? <Link to={href}>{team.TeamName}</Link> : <span>{team.TeamName}</span>}
     <button ref={button} type="button" className="league-team-roster-button" aria-label={`View ${team.TeamName} roster`}
       aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined}
       style={{ minHeight: 23, height: 23, padding: 3, border: 0, background: 'transparent' }}

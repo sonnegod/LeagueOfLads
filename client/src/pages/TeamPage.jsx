@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import TeamRecentMatches from '../components/TeamRecentMatches';
+import LeagueSeriesTab from '../components/LeagueSeriesTab';
+import { seriesMatchesForDisplay } from '../utils/leagueSeries';
 import TeamPlayers from '../components/TeamPlayers';
 import LeagueFilter from '../components/LeagueFilter';
 import HeroDisplay from '../components/HeroDisplay';
@@ -21,6 +22,7 @@ export default function TeamPage() {
   const [latestLineup, setLatestLineup] = useState(null);
   const [error, setError] = useState('');
   const [matches, setMatches] = useState([]);
+  const [series, setSeries] = useState([]);
   const [heroes, setHeroes] = useState([]); // New: hero stats
   const [players, setPlayers] = useState([]);
   const [draftData, setDraftData] = useState({ matches: [], topPicks: [], topBans: [] });
@@ -63,6 +65,7 @@ export default function TeamPage() {
           setLatestLineup(null);
           setTeamName(signupRoster.TeamName);
           setMatches([]);
+          setSeries([]);
           setTeamLeagues([]);
           setHeroes([]);
           setPlayers([]);
@@ -84,6 +87,7 @@ export default function TeamPage() {
         setLatestLineup(data.latestLineup || null);
         setTeamName(selectedRoster?.TeamName || data.teamName[0]?.TeamName || `Team ${effectiveTeamId}`);
         setMatches(data.teamMatches);
+        setSeries(data.teamSeries || []);
         setTeamLeagues(data.teamLeagues);
         setHeroes(data.teamHeroes || []);
         setPlayers(playersData || []);
@@ -136,7 +140,7 @@ export default function TeamPage() {
       {teamId && <div className="detail-page-tabs ui-tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
         <button className="ui-tab" aria-pressed={activeTab === 'home'} onClick={() => setActiveTab('home')}>Home</button>
         <button className="ui-tab" aria-pressed={activeTab === 'performance'} onClick={() => setActiveTab('performance')}>Performance</button>
-        <button className="ui-tab" aria-pressed={activeTab === 'recent'} onClick={() => setActiveTab('recent')}>Recent Matches</button>
+        <button className="ui-tab" aria-pressed={activeTab === 'recent'} onClick={() => setActiveTab('recent')}>Recent Series</button>
         <button className="ui-tab" aria-pressed={activeTab === 'players'} onClick={() => setActiveTab('players')}>Players</button>
         {/*<button onClick={() => setActiveTab('averages')}>Averages</button>*/}
         <button className="ui-tab" aria-pressed={activeTab === 'heroes'} onClick={() => setActiveTab('heroes')}>Heroes</button>
@@ -152,11 +156,13 @@ export default function TeamPage() {
           teamId={teamId}
           roster={roster || latestLineup}
           matches={matches}
+          series={series}
           heroes={heroes}
           players={players}
         />
       )}
-      {teamId && activeTab === 'recent' && <div className="detail-table-scroll"><TeamRecentMatches matches={matches} leagueId={selectedLeague} /></div>}
+      {teamId && activeTab === 'recent' && <LeagueSeriesTab key={`${teamId}:${selectedLeague}`}
+        series={series} matches={seriesMatchesForDisplay(series)} />}
       {teamId && activeTab === 'players' && <div className="detail-table-scroll"><TeamPlayers teamId={teamId} leagueId={selectedLeague} /></div>}
       {/*activeTab === 'averages' && <TeamAverages teamId={teamId} />*/}
       {teamId && activeTab === 'heroes' && (

@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import HeroDisplay from "./HeroDisplay";
 import DotabuffLink from './DotabuffLink';
 import {rosterDisplayMembers} from '../utils/rosterDisplayMembers';
+import LeagueSeriesTab from './LeagueSeriesTab';
+import { seriesMatchesForDisplay } from '../utils/leagueSeries';
 
 const PLAYER_LEADER_MIN_GAMES = 5;
 
@@ -10,6 +12,7 @@ export default function TeamHomeTab({
   teamId,
   roster = null,
   matches = [],
+  series = [],
   heroes = [],
   players = []
 }) {
@@ -22,7 +25,7 @@ export default function TeamHomeTab({
   const topGpmPlayers = getStatLeaders(teamPlayers, "AvgGPM");
   const topHeroes = getTopHeroes(teamHeroes);
   const bestWinRateHeroes = getBestWinRateHeroes(teamHeroes);
-  const recentMatches = teamMatches.slice(0, 6);
+  const recentSeries = series.slice(0, 6);
 
   if (!teamId) return <RosterCard roster={roster} />;
 
@@ -83,19 +86,11 @@ export default function TeamHomeTab({
       </div>
 
       <section style={panelStyle}>
-        <h3 style={sectionHeaderStyle}>Recent Matches</h3>
-        {recentMatches.length > 0 ? (
-          <div style={{ display: "grid", gap: "0.6rem" }}>
-            {recentMatches.map(match => (
-              <div className="detail-recent-match" key={match.MatchId} style={recentMatchStyle}>
-                <TeamResult match={match} side="r" />
-                <TeamResult match={match} side="d" />
-                <Link to={`/league/${match.LeagueId}`} style={smallLinkStyle}>{match.LeagueName}</Link>
-              </div>
-            ))}
-          </div>
+        <h3 style={sectionHeaderStyle}>Recent Series</h3>
+        {recentSeries.length > 0 ? (
+          <LeagueSeriesTab series={recentSeries} matches={seriesMatchesForDisplay(recentSeries)} />
         ) : (
-          <EmptyState>No recent matches available.</EmptyState>
+          <EmptyState>No recent series available.</EmptyState>
         )}
       </section>
     </div>
@@ -135,20 +130,6 @@ function RosterCard({ roster }) {
       </li>)}</ul>
       : <EmptyState>No roster recorded yet.</EmptyState>}
   </FeatureCard>;
-}
-
-function TeamResult({ match, side }) {
-  const isRadiant = side === "r";
-  const teamId = isRadiant ? match.rad_team_id : match.dire_team_id;
-  const teamName = isRadiant ? match.rad_team_name : match.dire_team_name;
-  const won = match.WinnerSide === side;
-
-  return (
-    <div style={teamLineStyle}>
-      <Link to={`/team/${teamId}`} style={featureLinkStyle}>{teamName}</Link>
-      {won && <span style={winnerMarkStyle}>Winner</span>}
-    </div>
-  );
 }
 
 function HeroList({ heroes, detailMode }) {
@@ -302,7 +283,6 @@ const panelStyle = {
 const sectionHeaderStyle = { marginTop: 0, marginBottom: "0.75rem" };
 const subtleTextStyle = { color: "#cbd5e1", fontSize: "0.92rem" };
 const featureLinkStyle = { fontSize: "1rem", fontWeight: "700", color: "#bfdbfe" };
-const smallLinkStyle = { color: "#bfdbfe", fontSize: "0.9rem" };
 const leaderListStyle = { display: "grid", gap: "0.65rem" };
 const leaderRowStyle = {
   display: "grid",
@@ -320,24 +300,5 @@ const rankBadgeStyle = {
   background: "#312e81",
   color: "#e0e7ff",
   fontSize: "0.8rem",
-  fontWeight: "700"
-};
-const recentMatchStyle = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr minmax(130px, 0.6fr)",
-  gap: "0.75rem",
-  alignItems: "center",
-  padding: "0.65rem",
-  border: "1px solid #334155",
-  borderRadius: "8px",
-  background: "#0f172a"
-};
-const teamLineStyle = { display: "flex", gap: "0.5rem", alignItems: "center", minWidth: 0 };
-const winnerMarkStyle = {
-  padding: "0.15rem 0.4rem",
-  borderRadius: "999px",
-  background: "#dcfce7",
-  color: "#166534",
-  fontSize: "0.75rem",
   fontWeight: "700"
 };

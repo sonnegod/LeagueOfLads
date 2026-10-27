@@ -31,7 +31,7 @@ const initialConfig = setup => ({ seasonId: setup.seasonId, ourTeam: setup.ourTe
   firstPick: true, radiant: true, asOf: new Date().toISOString(), format: DEFAULT_FORMAT,
   lineups: Object.fromEntries(['our', 'opponent'].map(side => {
     const team = setup.teams.find(t => t.key === (side === 'our' ? setup.ourTeam : setup.opponentTeam));
-    return [side, (team?.roster.players || []).slice(0, 5).map(p => ({ id: p.id, role: 0 }))];
+    return [side, (team?.roster.players || []).slice(0, 5).map((p, index) => ({ id: p.id, role: index + 1 }))];
   })) });
 
 function LineupEditor({ side, config, setup, onChange, disabled, knownPlayers }) {
@@ -40,9 +40,10 @@ function LineupEditor({ side, config, setup, onChange, disabled, knownPlayers })
   const [extra, setExtra] = useState([]);
   const candidates = [...new Map([...roster, ...extra, ...knownPlayers.filter(p => lineup.some(l => l.id === p.id))].map(p => [p.id, p])).values()];
   const setLineup = next => onChange({ ...config, lineups: { ...config.lineups, [side]: next } });
+  const nextRole = [1, 2, 3, 4, 5].find(role => !lineup.some(player => player.role === role)) || 0;
   const search = async query => query.trim().length < 2 ? [] : (await request(`/players?search=${encodeURIComponent(query)}`)).players.map(option);
   return <section className="dg-panel dg-lineup"><h3>{side === 'our' ? 'Your lineup' : 'Opponent lineup'} <span>{lineup.length}/5</span></h3>
-    <p className="dg-muted">{team?.roster.source === 'signup' ? 'Signup roster: confirm who is playing today.' : 'Historical appearances: confirm the actual players and stand-ins.'}</p>
+    <p className="dg-muted">{team?.roster.source === 'signup' ? 'Signup roster: confirm who is playing today.' : 'Historical appearances: confirm the actual players and stand-ins.'} Positions default to player order; adjust them as needed.</p>
     <div className="dg-lineup-rows">{lineup.map((player, index) => {
       const name = candidates.find(p => p.id === player.id)?.name || `Player ${player.id}`;
       return <div key={player.id} className="dg-lineup-row"><span><strong>{name}</strong><small>{player.id}</small></span>
@@ -52,14 +53,14 @@ function LineupEditor({ side, config, setup, onChange, disabled, knownPlayers })
         <button type="button" disabled={disabled} aria-label={`Remove ${name} from ${side} lineup`} onClick={() => setLineup(lineup.filter(p => p.id !== player.id))}>Remove</button></div>;
     })}</div>
     {lineup.length < 5 && <><label>Add team member<select disabled={disabled} value="" onChange={e => {
-      if (e.target.value) setLineup([...lineup, { id: Number(e.target.value), role: 0 }]);
+      if (e.target.value) setLineup([...lineup, { id: Number(e.target.value), role: nextRole }]);
     }}><option value="">Choose a player</option>{candidates.filter(p => !lineup.some(l => l.id === p.id)).map(p =>
       <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}</select></label>
       <label htmlFor={`dg-standin-${side}`}>Find a stand-in by name or account ID</label>
       <AsyncSelect inputId={`dg-standin-${side}`} styles={styles} loadOptions={search} cacheOptions
         placeholder="Type at least two characters…" noOptionsMessage={() => 'Search players in PlayerInfo'} isDisabled={disabled} value={null}
         onChange={v => { if (!v || lineup.some(p => p.id === v.value)) return;
-          setExtra(current => [...current, { id: v.value, name: v.label.replace(/ \(\d+\)$/, '') }]); setLineup([...lineup, { id: v.value, role: 0 }]); }} />
+          setExtra(current => [...current, { id: v.value, name: v.label.replace(/ \(\d+\)$/, '') }]); setLineup([...lineup, { id: v.value, role: nextRole }]); }} />
     </>}
   </section>;
 }
@@ -184,7 +185,7 @@ export default function DraftGodPage() {
     catch (e) { setError(e.message); } finally { setBusy(false); }
   }
   function chooseTeam(side, key) { const team = setup.teams.find(t => t.key === key); setConfig(current => ({ ...current,
-    [side === 'our' ? 'ourTeam' : 'opponentTeam']: key, lineups: { ...current.lineups, [side]: (team?.roster.players || []).slice(0, 5).map(p => ({ id: p.id, role: 0 })) } })); }
+    [side === 'our' ? 'ourTeam' : 'opponentTeam']: key, lineups: { ...current.lineups, [side]: (team?.roster.players || []).slice(0, 5).map((p, index) => ({ id: p.id, role: index + 1 })) } })); }
   async function startDraft(e) {
     e.preventDefault(); if (!canLeave()) return; setBusy(true); setError(''); const token = ++generation.current;
     try {

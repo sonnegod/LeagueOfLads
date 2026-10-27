@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { groupLeagueSeries } from '../client/src/utils/leagueSeries.js';
+import { groupLeagueSeries, seriesMatchesForDisplay } from '../client/src/utils/leagueSeries.js';
 
 const series = [
   { SeriesId: 3, Team1: 10, Team2: 20, team_one: 'Old name', team_two: 'Second' },
@@ -43,4 +43,20 @@ test('unknown results stay pending and matches without saved series remain visib
   assert.equal(grouped.series[0].hasPendingResults, true);
   assert.deepEqual(grouped.ungroupedMatches.map(item => item.MatchId), [401, 402]);
   assert.deepEqual(groupLeagueSeries([], []), { series: [], ungroupedMatches: [] });
+});
+
+test('recent series API games use the shared card format and score correctly across side swaps', () => {
+  const data = [{ ...series[0], seriesMatches: [
+    { MatchId: 301, rad_team_id: 10, dire_team_id: 20, rad_team_name: 'First', dire_team_name: 'Second', WinnerSide: 'r', Duration: 1800 },
+    { MatchId: 302, rad_team_id: 20, dire_team_id: 10, rad_team_name: 'Second', dire_team_name: 'First', WinnerSide: 'r', Duration: 2400 },
+  ] }];
+  const matches = seriesMatchesForDisplay(data);
+  const result = groupLeagueSeries(data, matches).series[0];
+  assert.deepEqual([result.team1Wins, result.team2Wins], [1,1]);
+  assert.deepEqual(matches.map(match => match.SeriesId), [3,3]);
+  assert.equal(matches[1].RadiantTeamName, 'Second');
+  assert.equal(matches[1].DireTeamId, 10);
+  assert.equal(matches[0].Duration, 1800);
+  assert.equal(data[0].seriesMatches[0].SeriesId, undefined);
+  assert.deepEqual(seriesMatchesForDisplay([{ SeriesId: 99 }]), []);
 });

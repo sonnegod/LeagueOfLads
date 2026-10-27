@@ -3,11 +3,13 @@ import { buildDraftHistory } from './draftHistory.js';
 import { buildDraftIntelligence } from './draftIntelligence.js';
 import { metaWeight, patchAt } from '../shared/metaPolicy.js';
 import { DEFAULT_FORMAT, MODEL_VERSION, TRAITS, validateDraftState } from '../shared/draftModel.js';
+import { ensureRosterDisplayOrderSchema, readRosterOrder } from './rosterDisplayOrder.js';
 
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
 export default class DraftGodStore {
   constructor(db, publicDb, { now = () => Date.now() } = {}) {
     this.db = db; this.publicDb = publicDb; this.now = now; this.cache = new Map();
+    ensureRosterDisplayOrderSchema(db);
     seedDraftPatches(db);
     db.exec(`CREATE TABLE IF NOT EXISTS DraftGodDrafts (
       DraftId INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT NOT NULL,
@@ -54,8 +56,10 @@ export default class DraftGodStore {
 
   roster(season, team) {
     if (team.submissionId) {
-      let rows = this.db.prepare('SELECT PlayerId FROM TeamRosterPlayers WHERE TeamSubmissionId = ? ORDER BY Slot').all(team.submissionId);
-      if (!rows.length) rows = this.db.prepare('SELECT PlayerId FROM SeasonTeamPlayers WHERE TeamSubmissionId = ? ORDER BY Slot').all(team.submissionId);
+      let rows = this.db.prepare('SELECT PlayerId, Slot FROM TeamRosterPlayers WHERE TeamSubmissionId = ? ORDER BY Slot').all(team.submissionId);
+      if (!rows.length) rows = this.db.prepare('SELECT PlayerId, Slot FROM SeasonTeamPlayers WHERE TeamSubmissionId = ? ORDER BY Slot').all(team.submissionId);
+      const order = readRosterOrder(this.db, team.submissionId);
+      rows.sort((a, b) => order.indexOf(a.Slot) - order.indexOf(b.Slot));
       if (rows.length) return { source: 'signup', players: this.names(rows.map(p => p.PlayerId)) };
     }
     if (!team.teamId || !season.ExternalLeagueId) return { source: 'unknown', players: [] };
