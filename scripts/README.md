@@ -98,6 +98,44 @@ and accepted ticket odds remain fixed. A corrected BO2 settles once both games
 pass the existing result checks. To reconcile betting after an already-saved
 correction, run `node scripts/betting/run.js --refresh-analytics` once.
 
+### Held remake drafts
+
+Admin → League → Match includes Held drafts. Import a draft-only match by its
+OpenDota match ID to recover an older remake. Picks/bans from a 0–0 Captains Mode
+response are saved separately from played games; incomplete drafts stay held
+and can be deleted. Normal nightly
+ingestion also preserves these drafts before removing the remake's game records.
+
+Automatic linking requires the same league, the same two team IDs, exactly the
+same five picked heroes for each team, a later played match within two hours,
+and an unambiguous source. Radiant/Dire reversal is remapped; stand-ins and
+player-to-hero swaps do not invalidate identical team hero sets. Existing draft
+data is never replaced. Ambiguous sources stay held so an admin can choose a
+compatible imported game missing draft data. Deleting a held draft removes its
+draft payload and retains only its identity/deletion metadata so a later import
+does not restore it. Linked drafts cannot be deleted through the held list.
+
+Links populate `PickInfo` under the real game's ID, with provenance in
+`MatchDraftSources`; the source draft remains in `RemakeDraftSources`, outside
+`MatchTeam`, `MatchLeague`, player stats and series results. Match draft views,
+team ban statistics and Draft God therefore see one played game with its draft.
+No game results, standings or ticket payouts are changed by linking a draft.
+
+For the October 23 example, import `9058891793` in Held drafts. If the played
+game `9058901325` is already imported and uniquely compatible, it links
+automatically. An explicit repair command is also available:
+
+```bash
+node scripts/db/linkRemakeDraft.js db/LadsData.db --draft-match-id 9058891793 --match-id 9058901325
+node scripts/db/linkRemakeDraft.js db/LadsData.db --draft-match-id 9058891793 --match-id 9058901325 --apply
+```
+
+The first command previews without writes; `--apply` archives the source and
+attaches the draft atomically. Repeated application is safe. Both commands
+retrieve the source and target from OpenDota and verify the stored played match;
+`--draft-json file` and `--match-json file` support saved responses for offline
+repair. The command does not import a missing played game or replace its draft.
+
 Admin match deletion and remake removal share one transaction that deletes draft
 actions, series links, dependent telemetry, participation, player stats and league
 membership before deleting the match. Admin audit recording is part of that

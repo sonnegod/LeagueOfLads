@@ -1,5 +1,6 @@
 import {useEffect,useState} from 'react';
 import './MatchSchedulingPanel.css';
+import HeldMatchDrafts from './HeldMatchDrafts';
 
 const blank={eventId:null,revision:null,team1Key:'',team2Key:'',stage:'regular',bestOf:2,localTime:'',utcTime:'',status:'scheduled',seriesId:''};
 async function request(url,body,method='POST'){const response=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -46,6 +47,7 @@ export default function MatchSchedulingPanel({seasonId,refreshKey}) {
             <label>Fixture<select required value={resolveEvent[m.MessageId]||''} onChange={e=>setResolveEvent(old=>({...old,[m.MessageId]:e.target.value}))}><option value="">Select fixture</option>{data.events.filter(e=>!['cancelled','replaced','forfeit'].includes(e.Status)).map(e=><option key={e.EventId} value={e.EventId}>#{e.EventId} {e.Team1Name} vs {e.Team2Name}</option>)}</select></label><button disabled={busy}>Resolve</button>
           </form>
         </article>)}</section>}
+      <HeldMatchDrafts key={sid} seasonId={sid} refreshKey={`${refreshKey}:${refresh}`}/>
       <section className="ui-panel match-scheduling-card"><h3>{fixture.eventId?`Edit fixture #${fixture.eventId}`:'Add a fixture'}</h3>
         <p className="match-scheduling-help">A fixture records an upcoming series between two teams. Set its kickoff time, stage and format, and update it here when plans change. Groups use BO2; playoffs and tiebreakers use BO3 or BO5.</p>
         <form className="match-scheduling-form" onSubmit={e=>{e.preventDefault();const body={...fixture,team1Key:Number(fixture.team1Key),team2Key:Number(fixture.team2Key),bestOf:Number(fixture.bestOf),

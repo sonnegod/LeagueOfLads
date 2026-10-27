@@ -1,4 +1,14 @@
 .match-scheduling-panel { display: grid; gap: 1rem; min-width: 0; }
+.held-match-draft { padding-top: 1rem; margin-top: 1rem; border-top: 1px solid var(--border, #334155); min-width: 0; }
+.held-match-draft header { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem; overflow-wrap: anywhere; }
+.held-match-draft header a { font-size: .85rem; }
+.held-match-draft-picks { display: flex; flex-wrap: wrap; gap: 1rem 2rem; margin: .7rem 0 1rem; }
+.held-match-draft-picks > div { display: grid; gap: .5rem; min-width: 0; }
+.held-match-draft-picks span { color: var(--muted-text, #94a3b8); font-size: .8rem; }
+.held-match-draft-picks > div > div { display: flex; flex-wrap: wrap; gap: .35rem; }
+.held-match-draft-actions { display: flex; flex-wrap: wrap; align-items: end; gap: .6rem; }
+.held-match-draft-actions label { display: grid; gap: .4rem; min-width: 0; max-width: 100%; font-size: .85rem; }
+.held-match-draft-actions select { max-width: 100%; min-width: 0; }
 .match-scheduling-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
 .match-scheduling-card.ui-panel { padding: 1rem; }
 .match-scheduling-card h3 { margin: 0 0 .8rem; }

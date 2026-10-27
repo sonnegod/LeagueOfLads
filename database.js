@@ -23,6 +23,7 @@ import { getReportingPlayers } from './config/warehouseReporting.js';
 import { updateMatchRecord } from './config/matchRecordAdmin.js';
 import { initializeWarehouse } from './config/warehouseIngestion.js';
 import { configureWarehouseConnection } from './config/warehouseConnection.js';
+import { ensureRemakeDraftSchema } from './config/remakeDrafts.js';
 import { ensureQualificationSchema, saveQualificationRules } from './config/qualificationStore.js';
 dotenv.config();
 
@@ -37,6 +38,7 @@ class DBInstance {
             this.db = new Database(dbPath);
             configureWarehouseConnection(this.db);
             initializeWarehouse(this.db);
+            ensureRemakeDraftSchema(this.db);
             ensurePlayerLoginSchema(this.db);
             ensureRequestSchema(this.db);
             this.ensureAdminsSchema();

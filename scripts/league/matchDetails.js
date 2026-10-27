@@ -1,6 +1,7 @@
 import { ingestWarehouseMatch } from '../../config/warehouseIngestion.js';
 import { ingestDraftTelemetry } from '../../config/draftTelemetry.js';
 import { withSqliteBusyRetry } from '../../config/warehouseConnection.js';
+import { archiveRemakeDraft, linkMatchingRemakeDraft } from '../../config/remakeDrafts.js';
 import db from '../../database.js';
 import apiUrl from '../../apiURL.js';
 import { startSourceLoad, finishSourceLoad, recordMatchStart } from '../../analytics/sourceMetadata.js';
@@ -66,7 +67,10 @@ async function getMatchDetails(matches, currentStage, leagueId){
 
             //indicates that this match got remade
             if(data.radiant_score === 0 && data.dire_score === 0){
-                db.deleteRemakeMatch(match.MatchId);
+                db.db.transaction(() => {
+                    if(data.game_mode === 2 && data.picks_bans?.length) archiveRemakeDraft(db.db, data);
+                    if(db.deleteRemakeMatch(match.MatchId) !== 1) throw new Error('Could not exclude remake match');
+                })();
             }
             else{
               let committedPlayers = [];
@@ -174,6 +178,9 @@ async function getMatchDetails(matches, currentStage, leagueId){
                     console.error(`Series link failed for match ${match.MatchId}.`);
                     throw err;
                 }
+                const draftLink = linkMatchingRemakeDraft(db.db, matchId, data);
+                if(draftLink.status === 'linked') console.log(`Draft ${draftLink.sourceMatchId} linked to played match ${matchId}.`);
+                if(draftLink.status === 'ambiguous') console.warn(`Multiple remake drafts match ${matchId}; review Held drafts in Admin → League → Match.`);
               })();
               for (const player of committedPlayers) knownPlayers.add(player.player_id);
               // Enrichment owns its transactions; retry only after the core match has committed.

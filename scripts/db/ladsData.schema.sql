@@ -299,6 +299,18 @@ CREATE TABLE NeustadtlLegacy (
 -- table: PickInfo
 CREATE TABLE PickInfo (MatchId INTEGER NOT NULL, IsPick BOOLEAN NOT NULL, Hero_Id INTEGER NOT NULL, OrderNum INTEGER NOT NULL, Team INTEGER);
 
+-- Draft-only remakes stay outside played-match tables. Picks/bans are attached
+-- to the real game in PickInfo, with the original source ID retained here.
+CREATE TABLE IF NOT EXISTS RemakeDraftSources (
+    SourceMatchId INTEGER PRIMARY KEY, LeagueId INTEGER NOT NULL, StartTime INTEGER NOT NULL,
+    TeamRad INTEGER NOT NULL, TeamDire INTEGER NOT NULL, DraftJson TEXT NOT NULL, CollectedAtUtc TEXT NOT NULL, DiscardedAtUtc TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_RemakeDraftSources_LeagueTime ON RemakeDraftSources(LeagueId, StartTime);
+CREATE TABLE IF NOT EXISTS MatchDraftSources (
+    MatchId INTEGER PRIMARY KEY, SourceMatchId INTEGER NOT NULL UNIQUE,
+    SideSwapped INTEGER NOT NULL CHECK (SideSwapped IN (0, 1)), LinkedAtUtc TEXT NOT NULL
+);
+
 -- table: PlayerInfo
 CREATE TABLE PlayerInfo (PlayerId INTEGER UNIQUE PRIMARY KEY, PlayerName STRING (40) NOT NULL, LastDateChanged TEXT);
 

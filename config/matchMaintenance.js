@@ -2,7 +2,7 @@ import { WAREHOUSE_CHILDREN } from './warehouseSchema.js';
 
 // Live observations may precede warehouse ingestion, so they are not orphans
 // merely because their MatchTeam row is absent.
-const MATCH_CHILDREN = [...WAREHOUSE_CHILDREN, 'PickInfo', 'SeriesMatch', 'DraftGodMatchTelemetry',
+const MATCH_CHILDREN = [...WAREHOUSE_CHILDREN, 'PickInfo', 'MatchDraftSources', 'SeriesMatch', 'DraftGodMatchTelemetry',
   'MatchTeamPlayer', 'MatchPlayer', 'MatchLeague'];
 
 const positiveId = value => {
