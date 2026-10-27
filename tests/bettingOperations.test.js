@@ -169,6 +169,20 @@ test('deleted unresolved posts leave review and reconciliation without creating 
   }finally{f.close();}
 });
 
+test('admin-dismissed review entries are skipped during reconciliation and stay ignored during channel catch-up',async()=>{
+  const f=pollFixture([message(100,'1011111 vs 9999999 Saturday 9est')]);try{
+    await f.poll();
+    f.league.prepare("UPDATE ScheduleMessages SET ParseStatus='dismissed',DismissedAtUtc=? WHERE MessageId='100'").run(instant.toISOString());
+    const revision=state(f).RequestedRevision;
+    f.calls.length=0;await f.poll({maxPages:0});assert.deepEqual(f.calls,[]);
+    f.posts.set('100',message(100,'1011111 vs 1022222 Sunday 8pm EST',{editedAt:new Date(instant.getTime()+1000)}));
+    assert.equal((await f.poll()).changed,0);
+    assert.equal(f.store.list(1).length,0);assert.equal(state(f).RequestedRevision,revision);
+    const row=f.league.prepare("SELECT ParseStatus,DismissedAtUtc FROM ScheduleMessages WHERE MessageId='100'").get();
+    assert.deepEqual(row,{ParseStatus:'dismissed',DismissedAtUtc:instant.toISOString()});
+  }finally{f.close();}
+});
+
 test('tracked role-free edits enter review; permission failures cannot masquerade as deletions and real deletions dirty affected quotes',async()=>{
   const f=pollFixture([message(100),message(101)]);try {
     await f.poll();const original=f.league.prepare("SELECT EventId FROM ScheduleMessages WHERE MessageId='101'").get().EventId;

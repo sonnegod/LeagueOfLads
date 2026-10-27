@@ -27,6 +27,11 @@ export default function MatchSchedulingPanel({seasonId,refreshKey}) {
     return()=>controller.abort();
   },[refresh,refreshKey,requestedSeason]);
   async function run(action,text){setBusy(true);setError('');setMessage('');try{await action();setMessage(text);setRefresh(r=>r+1);return true;}catch(err){setError(err.message);return false;}finally{setBusy(false);}}
+  function deleteReview(post){
+    if(busy||!window.confirm('Delete this scheduling review entry? The Discord post and any existing fixture will remain.'))return;
+    run(()=>request(`/api/admin/matches/messages/${post.MessageId}`,undefined,'DELETE'),'Scheduling review entry deleted.')
+      .then(deleted=>{if(deleted)setData(current=>current?{...current,messages:current.messages.filter(message=>message.MessageId!==post.MessageId)}:current);});
+  }
   function edit(event){setFixture({eventId:event.EventId,revision:event.Revision,team1Key:String(event.Team1Key),team2Key:String(event.Team2Key),stage:event.Stage,
     bestOf:event.BestOf,localTime:localInput(event.ScheduledStartUtc),utcTime:'',status:event.Status==='replaced'?'needs_review':event.Status,seriesId:event.SeriesId||''});}
   const sid=data?.season?.seasonId;
@@ -44,7 +49,9 @@ export default function MatchSchedulingPanel({seasonId,refreshKey}) {
           <p className="match-scheduling-help">{date(m.AuthoredAtUtc)} NY · {m.IssueCode?.replaceAll('_',' ')}{m.Deleted?' · Deleted post':''}{m.EditedAtUtc?` · Edited ${date(m.EditedAtUtc)} NY`:''}</p>
           <blockquote className="match-review-text">{m.DisplayContent||m.Content||'No saved text is available for this post.'}</blockquote>
           <form className="match-scheduling-form match-review-actions" onSubmit={e=>{e.preventDefault();run(()=>request(`/api/admin/matches/messages/${m.MessageId}/resolve`,{eventId:Number(resolveEvent[m.MessageId])}),'Scheduling post linked.');}}>
-            <label>Fixture<select required value={resolveEvent[m.MessageId]||''} onChange={e=>setResolveEvent(old=>({...old,[m.MessageId]:e.target.value}))}><option value="">Select fixture</option>{data.events.filter(e=>!['cancelled','replaced','forfeit'].includes(e.Status)).map(e=><option key={e.EventId} value={e.EventId}>#{e.EventId} {e.Team1Name} vs {e.Team2Name}</option>)}</select></label><button disabled={busy}>Resolve</button>
+            <label>Fixture<select required value={resolveEvent[m.MessageId]||''} onChange={e=>setResolveEvent(old=>({...old,[m.MessageId]:e.target.value}))}><option value="">Select fixture</option>{data.events.filter(e=>!['cancelled','replaced','forfeit'].includes(e.Status)).map(e=><option key={e.EventId} value={e.EventId}>#{e.EventId} {e.Team1Name} vs {e.Team2Name}</option>)}</select></label>
+            <div className="match-review-buttons"><button disabled={busy}>Resolve</button>
+              <button type="button" className="match-review-delete" disabled={busy} onClick={()=>deleteReview(m)}>Delete</button></div>
           </form>
         </article>)}</section>}
       <HeldMatchDrafts key={sid} seasonId={sid} refreshKey={`${refreshKey}:${refresh}`}/>

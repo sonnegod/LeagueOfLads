@@ -50,7 +50,7 @@ export async function pollSchedules({store,channel,channelId,season,now=()=>new 
       BackfillBefore=excluded.BackfillBefore,NewestBoundary=excluded.NewestBoundary`)
       .run(channelId,reached?newest:cursor||null,now().toISOString(),reached?null:before,reached?null:newest);
     const rows=db.prepare(`SELECT m.MessageId,m.AuthoredAtUtc FROM ScheduleMessages m LEFT JOIN ScheduledEvents e ON e.EventId=m.EventId
-      WHERE m.ChannelId=? AND m.SeasonId=? AND m.Deleted=0
+      WHERE m.ChannelId=? AND m.SeasonId=? AND m.Deleted=0 AND m.DismissedAtUtc IS NULL
         AND (e.Status IN ('scheduled','started','needs_review') OR m.ParseStatus='needs_review')
       ORDER BY m.LastSeenAtUtc,m.MessageId LIMIT ?`).all(channelId,season.SeasonId,reconcileLimit);
     for(const row of rows) {

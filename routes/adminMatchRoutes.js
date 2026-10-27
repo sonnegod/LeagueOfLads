@@ -90,7 +90,7 @@ export function createAdminMatchRouter({league,schedules,includeLocalTests=false
       teams:sid?schedules.teams(sid).map(t=>({teamKey:t.TeamSubmissionId,name:t.TeamName,teamId:t.ExternalTeamId})):[],
       events:sid?schedules.list(sid,{includeLocalTests}):[],
       messages:sid?league.prepare(`SELECT MessageId,ChannelId,AuthoredAtUtc,EditedAtUtc,Content,DisplayContent,ParseStatus,IssueCode,EventId,Deleted
-        FROM ScheduleMessages WHERE ParseStatus='needs_review' AND Deleted=0 AND SeasonId=? ORDER BY LastSeenAtUtc DESC LIMIT 50`).all(sid):[],
+        FROM ScheduleMessages WHERE ParseStatus='needs_review' AND Deleted=0 AND DismissedAtUtc IS NULL AND SeasonId=? ORDER BY LastSeenAtUtc DESC LIMIT 50`).all(sid):[],
       aliases:sid?league.prepare('SELECT RoleId,TeamSubmissionId FROM TeamDiscordAliases WHERE SeasonId=?').all(sid):[]});
   }));
   router.post('/seasons/:seasonId/events',endpoint((req,res)=>{
@@ -109,13 +109,28 @@ export function createAdminMatchRouter({league,schedules,includeLocalTests=false
     schedules.audit('Schedule Role Linked',`Linked Discord role ${role} to team ${team}`);
     return res.json({saved:true});
   }));
+  router.delete('/messages/:messageId',endpoint((req,res)=>{
+    const messageId=req.params.messageId;if(!/^\d{1,22}$/.test(messageId))fail('Invalid scheduling post ID');
+    league.transaction(()=>{
+      const post=league.prepare('SELECT ParseStatus,Deleted,DismissedAtUtc FROM ScheduleMessages WHERE MessageId=?').get(messageId);
+      if(!post)fail('Scheduling post not found',404);
+      if(post.DismissedAtUtc)return;
+      if(post.ParseStatus!=='needs_review'||post.Deleted)fail('This post is no longer awaiting review. Refresh the list.',409);
+      const changed=league.prepare(`UPDATE ScheduleMessages SET ParseStatus='dismissed',DismissedAtUtc=?
+        WHERE MessageId=? AND ParseStatus='needs_review' AND Deleted=0 AND DismissedAtUtc IS NULL`).run(new Date().toISOString(),messageId);
+      if(!changed.changes)fail('Scheduling post changed. Refresh the review list.',409);
+      schedules.audit('Schedule Review Deleted',`Removed scheduling post ${messageId} from review`);
+    }).immediate();
+    return res.json({deleted:true});
+  }));
   router.post('/messages/:messageId/resolve',endpoint((req,res)=>{
     const event=schedules.get(positive(req.body?.eventId));if(!event)fail('Select a fixture');
-    const post=league.prepare('SELECT SeasonId,Deleted FROM ScheduleMessages WHERE MessageId=?').get(req.params.messageId);
+    const post=league.prepare('SELECT SeasonId,Deleted,DismissedAtUtc FROM ScheduleMessages WHERE MessageId=?').get(req.params.messageId);
     if(!post)fail('Scheduling post not found',404);
     if(post.Deleted)fail('This scheduling post was deleted. Refresh the review list.',409);
+    if(post.DismissedAtUtc)fail('This scheduling review entry was deleted. Refresh the review list.',409);
     if(post.SeasonId&&post.SeasonId!==event.SeasonId)fail('The fixture must belong to the scheduling post’s season');
-    const changed=league.prepare("UPDATE ScheduleMessages SET EventId=?,SeasonId=?,ParseStatus='resolved',IssueCode=NULL WHERE MessageId=? AND Deleted=0")
+    const changed=league.prepare("UPDATE ScheduleMessages SET EventId=?,SeasonId=?,ParseStatus='resolved',IssueCode=NULL WHERE MessageId=? AND Deleted=0 AND DismissedAtUtc IS NULL")
       .run(event.EventId,event.SeasonId,req.params.messageId);
     if(!changed.changes)fail('Scheduling post changed. Refresh the review list.',409);
     schedules.audit('Schedule Resolved',`Linked scheduling post ${req.params.messageId} to fixture ${event.EventId}`);

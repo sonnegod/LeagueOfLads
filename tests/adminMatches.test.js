@@ -4,6 +4,7 @@ import express from 'express';
 import {engineFixture} from './helpers/bettingFixture.js';
 import {createAdminMatchRouter} from '../routes/adminMatchRoutes.js';
 import {getAuditActor,runWithAuditActor} from '../config/adminAuditContext.js';
+import {ScheduleStore} from '../betting/scheduleStore.js';
 
 async function fixture(run,{includeLocalTests=false}={}) {
   const f=engineFixture(),audits=[];let changes=0;
@@ -28,7 +29,7 @@ const eventBody={team1Key:11,team2Key:12,stage:'regular',bestOf:2,scheduledStart
 
 test('league match administration restricts reads and writes without exposing betting controls',async()=>{
   await fixture(async f=>{
-    const actions=[['/status','GET'],['/seasons/1/events','POST'],['/seasons/1/aliases','PUT'],['/messages/100/resolve','POST']];
+    const actions=[['/status','GET'],['/seasons/1/events','POST'],['/seasons/1/aliases','PUT'],['/messages/100/resolve','POST'],['/messages/100','DELETE']];
     for(const [path,method] of actions) {
       assert.equal((await f.request(path,null,method,method==='GET'?null:{})).status,401);
       assert.equal((await f.request(path,'player',method,method==='GET'?null:{})).status,403);
@@ -105,6 +106,51 @@ test('deleted scheduling posts disappear from review and stale pages cannot reso
     f.league.exec("UPDATE ScheduleMessages SET ParseStatus='needs_review' WHERE MessageId='100'");
     assert.deepEqual((await(await f.request('/status')).json()).messages,[]);
     assert.equal((await f.request('/messages/100/resolve','admin','POST',{eventId:event.EventId})).status,409);
+  });
+});
+
+test('admins delete review entries once without removing fixtures, and polling cannot restore or resolve them',async()=>{
+  await fixture(async f=>{
+    const post={messageId:'100',channelId:'99',authoredAt:'2026-10-23T12:00:00.000Z',content:'1011111 vs 9999999 Sunday 8pm EST'};
+    f.schedules.ingest(post,1);
+    const event=f.schedules.save(1,eventBody);
+    f.league.prepare("UPDATE ScheduleMessages SET EventId=? WHERE MessageId='100'").run(event.EventId);
+    const saved=f.schedules.get(event.EventId),changes=f.changes(),audits=f.audits.length;
+    const response=await f.request('/messages/100','admin','DELETE');assert.equal(response.status,200);
+    assert.deepEqual(await response.json(),{deleted:true});
+    assert.deepEqual((await(await f.request('/status')).json()).messages,[]);
+    const row=f.league.prepare("SELECT * FROM ScheduleMessages WHERE MessageId='100'").get();
+    assert.equal(row.ParseStatus,'dismissed');assert.ok(Number.isFinite(Date.parse(row.DismissedAtUtc)));
+    assert.equal(row.Deleted,0);assert.equal(row.Content,post.content);assert.equal(row.EventId,event.EventId);
+    assert.deepEqual(f.schedules.get(event.EventId),saved);assert.equal(f.changes(),changes);
+    assert.equal(f.audits.length,audits+1);assert.equal(f.audits.at(-1).actor.AdminPlayerId,42);
+    assert.equal((await f.request('/messages/100','admin','DELETE')).status,200);assert.equal(f.audits.length,audits+1);
+    f.league.exec("UPDATE ScheduleMessages SET ParserVersion=-1 WHERE MessageId='100'");
+    const restarted=new ScheduleStore(f.league);
+    for(const update of [post,{...post,content:'1011111 vs 1022222 Sunday 9pm EST',editedAt:'2026-10-24T12:00:00Z'},{...post,content:'',deleted:true}])
+      assert.equal(restarted.ingest(update,1).unchanged,true);
+    assert.deepEqual(f.schedules.get(event.EventId),saved);
+    assert.equal((await f.request('/messages/100/resolve','admin','POST',{eventId:event.EventId})).status,409);
+    f.league.exec("UPDATE ScheduleMessages SET ParseStatus='needs_review' WHERE MessageId='100'");
+    assert.deepEqual((await(await f.request('/status')).json()).messages,[]);
+    assert.equal((await f.request('/messages/999','admin','DELETE')).status,404);
+    assert.equal((await f.request('/messages/bad','admin','DELETE')).status,400);
+  });
+});
+
+test('stale review deletes reject resolved posts and audit failure rolls dismissal back',async()=>{
+  await fixture(async f=>{
+    f.schedules.ingest({messageId:'100',channelId:'99',authoredAt:'2026-10-23T12:00:00.000Z',content:'1011111 vs 9999999 Sunday 8pm EST'},1);
+    const before=f.league.prepare("SELECT * FROM ScheduleMessages WHERE MessageId='100'").get();
+    const audit=f.schedules.audit;
+    f.schedules.audit=()=>{throw Error('test audit failure');};
+    assert.equal((await f.request('/messages/100','admin','DELETE')).status,500);
+    assert.deepEqual(f.league.prepare("SELECT * FROM ScheduleMessages WHERE MessageId='100'").get(),before);
+    f.schedules.audit=audit;
+    const event=f.schedules.save(1,eventBody);
+    assert.equal((await f.request('/messages/100/resolve','admin','POST',{eventId:event.EventId})).status,200);
+    assert.equal((await f.request('/messages/100','admin','DELETE')).status,409);
+    assert.equal(f.league.prepare("SELECT ParseStatus FROM ScheduleMessages WHERE MessageId='100'").get().ParseStatus,'resolved');
   });
 });
 

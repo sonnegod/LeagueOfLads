@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS ScheduleMessages (
   ChannelId TEXT NOT NULL, MessageId TEXT PRIMARY KEY, AuthoredAtUtc TEXT NOT NULL,
   EditedAtUtc TEXT, Content TEXT NOT NULL, ContentHash TEXT NOT NULL, ParserVersion INTEGER NOT NULL,
   ParseStatus TEXT NOT NULL, IssueCode TEXT, AssumptionsJson TEXT, EventId INTEGER,
-  LastSeenAtUtc TEXT NOT NULL, Deleted INTEGER NOT NULL DEFAULT 0,SeasonId INTEGER,DisplayContent TEXT
+  LastSeenAtUtc TEXT NOT NULL, Deleted INTEGER NOT NULL DEFAULT 0,SeasonId INTEGER,DisplayContent TEXT,DismissedAtUtc TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_ScheduleMessages_Channel ON ScheduleMessages(ChannelId,MessageId);
 CREATE TABLE IF NOT EXISTS DiscordScheduleCursors (ChannelId TEXT PRIMARY KEY, LastMessageId TEXT, UpdatedAtUtc TEXT NOT NULL);

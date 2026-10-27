@@ -23,7 +23,7 @@ export class ScheduleStore {
     const cursorColumns=db.pragma('table_info(DiscordScheduleCursors)').map(c=>c.name);
     for(const name of ['BackfillBefore','NewestBoundary'])if(!cursorColumns.includes(name))db.exec(`ALTER TABLE DiscordScheduleCursors ADD COLUMN ${name} TEXT`);
     const messageColumns=db.pragma('table_info(ScheduleMessages)').map(c=>c.name);
-    for(const [name,type] of Object.entries({SeasonId:'INTEGER',DisplayContent:'TEXT'}))
+    for(const [name,type] of Object.entries({SeasonId:'INTEGER',DisplayContent:'TEXT',DismissedAtUtc:'TEXT'}))
       if(!messageColumns.includes(name))db.exec(`ALTER TABLE ScheduleMessages ADD COLUMN ${name} ${type}`);
     db.exec('CREATE INDEX IF NOT EXISTS idx_ScheduleMessages_Review ON ScheduleMessages(SeasonId,ParseStatus,LastSeenAtUtc)');
     db.prepare("UPDATE ScheduleMessages SET ParseStatus='deleted' WHERE Deleted=1 AND ParseStatus='needs_review'").run();
@@ -175,6 +175,9 @@ export class ScheduleStore {
       const hash = digest({ content: message.content, editedAt: message.editedAt || null, deleted: !!message.deleted });
       const previous = this.db.prepare('SELECT * FROM ScheduleMessages WHERE MessageId = ?').get(String(message.messageId));
       if(previous?.SeasonId&&previous.SeasonId!==seasonId)return {unchanged:true,eventId:previous.EventId,issue:'belongs_to_another_season'};
+      // An admin removed this review entry. Keep the identity so edits, parser
+      // updates and Discord catch-up cannot recreate it or alter its fixture.
+      if(previous?.DismissedAtUtc)return {unchanged:true,eventId:previous.EventId};
       const content=String(message.content||'').slice(0,10000);
       const displayContent=content.replace(/<@&(\d+)>/g,(mention,roleId)=>{
         const name=message.roleNames?.[roleId];
