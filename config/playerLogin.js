@@ -13,8 +13,14 @@ export function ensurePlayerLoginSchema(db) {
       NameConfirmationRequired:'INTEGER NOT NULL DEFAULT 0 CHECK(NameConfirmationRequired IN (0,1))'})) {
       if(!columns.has(column))db.exec(`ALTER TABLE Logins ADD COLUMN ${column} ${type}`);
     }
-    // Existing logins predate this feature. Their real first login is unknown;
-    // leave it null and reserve the welcome prompt for newly seen accounts.
+    db.exec(`CREATE TABLE IF NOT EXISTS PlayerLoginMigrations (
+      Version INTEGER PRIMARY KEY,AppliedAtUtc TEXT NOT NULL
+    )`);
+    // Roll out the popup to existing users once per database. Keep their real
+    // first-login date unknown and leave already confirmed names alone.
+    const migration=db.prepare('INSERT OR IGNORE INTO PlayerLoginMigrations VALUES (1,?)').run(new Date().toISOString());
+    if(migration.changes)db.prepare(`UPDATE Logins SET NameConfirmationRequired=1
+      WHERE NameConfirmedAtUtc IS NULL AND NameConfirmationRequired=0`).run();
   })();
 }
 

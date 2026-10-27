@@ -247,6 +247,12 @@ CREATE TABLE Logins (
     NameConfirmationRequired INTEGER NOT NULL DEFAULT 0 CHECK (NameConfirmationRequired IN (0, 1))
 );
 
+-- table: PlayerLoginMigrations
+CREATE TABLE IF NOT EXISTS PlayerLoginMigrations (
+    Version INTEGER PRIMARY KEY,
+    AppliedAtUtc TEXT NOT NULL
+);
+
 -- table: SourceLoadRuns
 -- Ingestion provenance is additive; the jobs create these tables/indexes on
 -- existing databases without modifying old match dates or inventing load times.

@@ -16,16 +16,54 @@ function fixture() {
   ensurePlayerLoginSchema(db);return db;
 }
 
-test('migration preserves existing logins without inventing a first-login date or prompting returning users',()=>{
+test('existing users get the same confirmation popup once, without inventing a first-login date',()=>{
   const db=fixture();try {
     ensurePlayerLoginSchema(db);
     const before=getPlayerLoginState(db,77);
-    assert.equal(before.leagueName,'Existing player');assert.equal(before.nameConfirmation.required,false);
+    assert.equal(before.leagueName,'Existing player');assert.equal(before.nameConfirmation.required,true);
     assert.equal(before.nameConfirmation.firstLoginAtUtc,null);assert.equal(before.nameConfirmation.confirmedAtUtc,null);
     recordPlayerLogin(db,77,'Updated Steam name',first);
     assert.equal(db.prepare('SELECT UID FROM Logins WHERE SteamID=77').get().UID,77);
     assert.equal(getPlayerLoginState(db,77).nameConfirmation.firstLoginAtUtc,null);
+    assert.equal(getPlayerLoginState(db,77).nameConfirmation.required,true);
+    const confirmed=confirmPlayerName(db,77,'Existing player',new Date(first));
+    assert.equal(confirmed.success,true);assert.equal(confirmed.confirmedAtUtc,first);
+    assert.equal(db.prepare('SELECT LastDateChanged FROM PlayerInfo WHERE PlayerId=77').get().LastDateChanged,null);
+    ensurePlayerLoginSchema(db);
+    recordPlayerLogin(db,77,'Returning again',later);
     assert.equal(getPlayerLoginState(db,77).nameConfirmation.required,false);
+    assert.equal(getPlayerLoginState(db,77).nameConfirmation.firstLoginAtUtc,null);
+    assert.equal(getPlayerLoginState(db,77).nameConfirmation.confirmedAtUtc,first);
+  }finally{db.close();}
+});
+
+test('returning-user rollout runs only once per database and new logins still require confirmation',()=>{
+  const db=fixture();try {
+    const migration=db.prepare('SELECT * FROM PlayerLoginMigrations').all();
+    assert.equal(migration.length,1);assert.equal(migration[0].Version,1);
+    assert.equal(Number.isFinite(Date.parse(migration[0].AppliedAtUtc)),true);
+    assert.equal(getPlayerLoginState(db,77).nameConfirmation.required,true);
+    db.prepare('UPDATE Logins SET NameConfirmationRequired=0 WHERE SteamID=77').run();
+    ensurePlayerLoginSchema(db);ensurePlayerLoginSchema(db);
+    assert.equal(getPlayerLoginState(db,77).nameConfirmation.required,false);
+    assert.deepEqual(db.prepare('SELECT * FROM PlayerLoginMigrations').all(),migration);
+    recordPlayerLogin(db,1,'New Steam login',first);
+    assert.equal(getPlayerLoginState(db,1).nameConfirmation.required,true);
+  }finally{db.close();}
+});
+
+test('failed returning-user rollout rolls back its marker and can finish on the next startup',()=>{
+  const db=fixture();try {
+    db.exec(`DELETE FROM PlayerLoginMigrations;
+      UPDATE Logins SET NameConfirmationRequired=0 WHERE SteamID=77;
+      CREATE TRIGGER reject_confirmation BEFORE UPDATE ON Logins BEGIN SELECT RAISE(ABORT,'test migration failure'); END;`);
+    assert.throws(()=>ensurePlayerLoginSchema(db),/test migration failure/);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM PlayerLoginMigrations').get().n,0);
+    assert.equal(getPlayerLoginState(db,77).nameConfirmation.required,false);
+    db.exec('DROP TRIGGER reject_confirmation');
+    ensurePlayerLoginSchema(db);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM PlayerLoginMigrations').get().n,1);
+    assert.equal(getPlayerLoginState(db,77).nameConfirmation.required,true);
   }finally{db.close();}
 });
 
@@ -50,7 +88,7 @@ test('keeping a recorded name confirms once without consuming a name change',()=
     assert.equal(getPlayerLoginState(db,1).nameConfirmation.required,false);
     const replay=confirmPlayerName(db,1,'A different name',new Date(later));
     assert.equal(replay.name,'Recorded league name');assert.equal(replay.confirmedAtUtc,first);
-    assert.equal(confirmPlayerName(db,77,'Cannot bypass dashboard rules',new Date(first)).status,409);
+    assert.equal(confirmPlayerName(db,88,'Cannot bypass dashboard rules',new Date(first)).status,409);
   }finally{db.close();}
 });
 
