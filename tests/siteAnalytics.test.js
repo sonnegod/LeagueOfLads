@@ -35,6 +35,70 @@ test('daily aggregation deduplicates browsers and preserves source, features, an
   } finally { store.close(); }
 });
 
+test('Today reports 24 New York hours, deduplicates hourly visitors, and preserves daily unique totals', () => {
+  let time = new Date('2026-10-26T04:20:00Z');
+  const store = new SiteAnalyticsStore(':memory:', { now: () => time });
+  const visit = { name: 'page_view', page: 'home', source: 'Direct' };
+  try {
+    store.record('a'.repeat(64), [visit, visit, { name: 'series_expanded' }]);
+    time = new Date('2026-10-26T05:10:00Z');
+    store.record('a'.repeat(64), [visit]);
+    store.record('b'.repeat(64), [visit]);
+    let report = store.report(1);
+    assert.equal(report.hourly.length, 24);
+    assert.deepEqual(report.hourly[0], { date: '2026-10-26', hour: 0, visitors: 1, pageViews: 2 });
+    assert.deepEqual(report.hourly[1], { date: '2026-10-26', hour: 1, visitors: 2, pageViews: 2 });
+    assert.equal(report.hourly[2].visitors, null); // Future hours are not plotted as zero traffic.
+    assert.equal(report.summary.visitors, 2);
+    assert.equal(report.summary.pageViews, 4);
+    assert.equal(report.hourlyStartedAt, '2026-10-26T04:20:00.000Z');
+    assert.deepEqual(store.report(7).hourly, []);
+    time = new Date('2026-10-27T03:30:00Z'); // Still the previous New York day.
+    store.record('a'.repeat(64), [visit]);
+    report = store.report(1);
+    assert.equal(report.hourly[22].pageViews, 0);
+    assert.equal(report.hourly[23].pageViews, 1);
+    assert.equal(report.summary.pageViews, 5);
+    time = new Date('2026-10-27T04:00:00Z');
+    store.record('b'.repeat(64), [visit]);
+    report = store.report(1);
+    assert.equal(report.period.from, '2026-10-27');
+    assert.equal(report.hourly[0].pageViews, 1);
+    assert.equal(report.summary.pageViews, 1);
+    assert.equal(report.daily[0].pageViews, 1);
+  } finally { store.close(); }
+});
+
+test('hourly collection keeps existing daily totals without inventing past hourly history', () => {
+  const store = new SiteAnalyticsStore(':memory:', { now: () => new Date('2026-10-26T19:00:00Z') });
+  try {
+    store.db.exec(`INSERT INTO SiteVisitorDays VALUES ('2026-10-26','old','Direct');
+      INSERT INTO SitePageDays VALUES ('2026-10-26','old','home',10)`);
+    assert.equal(store.report(1).hourly.every(row => row.visitors === null), true);
+    store.record('new', [{ name: 'page_view', page: 'home', source: 'Direct' }]);
+    const report = store.report(1);
+    assert.equal(report.summary.pageViews, 11);
+    assert.equal(report.hourly[14].pageViews, null);
+    assert.equal(report.hourly[15].pageViews, 1);
+    assert.equal(report.hourly[16].pageViews, null);
+  } finally { store.close(); }
+});
+
+test('the repeated daylight-saving hour stays in its New York clock-hour bucket', () => {
+  let time = new Date('2026-11-01T05:15:00Z');
+  const store = new SiteAnalyticsStore(':memory:', { now: () => time });
+  const visit = { name: 'page_view', page: 'home', source: 'Direct' };
+  try {
+    store.record('a', [visit]);
+    time = new Date('2026-11-01T06:15:00Z');
+    store.record('a', [visit]);
+    store.record('b', [visit]);
+    const report = store.report(1);
+    assert.equal(report.hourly.length, 24);
+    assert.deepEqual(report.hourly[1], { date: '2026-11-01', hour: 1, visitors: 2, pageViews: 3 });
+  } finally { store.close(); }
+});
+
 test('health uses bounded aggregates, counts errors, and old usage is pruned after 90 days', () => {
   let time = new Date('2026-06-01T15:00:00Z');
   const store = new SiteAnalyticsStore(':memory:', { now: () => time });
@@ -54,7 +118,7 @@ test('health uses bounded aggregates, counts errors, and old usage is pruned aft
     assert.equal(report.health.apiErrorPercent, 3);
     assert.deepEqual(report.health.issues.map(row => row.count), [1, 2, 1]);
     assert.equal(report.summary.visitors, 0);
-    for (const table of ['SiteVisitors', 'SiteVisitorDays', 'SitePageDays']) {
+    for (const table of ['SiteVisitors', 'SiteVisitorDays', 'SitePageDays', 'SiteTrafficHours']) {
       assert.equal(store.db.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0);
     }
     assert.equal(store.db.prepare('SELECT MIN(Day) day FROM SiteApiDays').get().day, '2026-10-16');

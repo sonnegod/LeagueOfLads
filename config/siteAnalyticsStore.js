@@ -25,6 +25,10 @@ const dayFormatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
 });
 export const localDay = date => dayFormatter.format(date);
+const hourFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York', hour: '2-digit', hourCycle: 'h23',
+});
+const localHour = date => Number(hourFormatter.format(date));
 const percent = (part, total) => total ? Math.round(part / total * 1000) / 10 : 0;
 const shiftDay = (day, offset) => {
   const value = new Date(`${day}T12:00:00Z`);
@@ -51,6 +55,10 @@ export class SiteAnalyticsStore {
       CREATE TABLE IF NOT EXISTS SitePageDays (
         Day TEXT NOT NULL, Visitor TEXT NOT NULL, Page TEXT NOT NULL, Views INTEGER NOT NULL,
         PRIMARY KEY (Day, Visitor, Page));
+      CREATE TABLE IF NOT EXISTS SiteTrafficHours (
+        Day TEXT NOT NULL, Hour INTEGER NOT NULL CHECK (Hour BETWEEN 0 AND 23),
+        Visitor TEXT NOT NULL, Views INTEGER NOT NULL,
+        PRIMARY KEY (Day, Hour, Visitor));
       CREATE TABLE IF NOT EXISTS SiteEventDays (
         Day TEXT NOT NULL, Visitor TEXT NOT NULL, Event TEXT NOT NULL, Count INTEGER NOT NULL,
         PRIMARY KEY (Day, Visitor, Event));
@@ -62,12 +70,15 @@ export class SiteAnalyticsStore {
       .run('salt', randomBytes(32).toString('hex'));
     this.salt = this.db.prepare("SELECT Value FROM SiteMetadata WHERE Key = 'salt'").get().Value;
     this.pendingApi = new Map();
-    this.writeEvents = this.db.transaction((visitor, events, day) => {
+    this.writeEvents = this.db.transaction((visitor, events, day, hour, timestamp) => {
       this.beginCollection();
       this.db.prepare(`INSERT INTO SiteVisitors VALUES (?, ?, ?) ON CONFLICT(Visitor)
         DO UPDATE SET LastDay = excluded.LastDay`).run(visitor, day, day);
       for (const event of events) {
         if (event.name === 'page_view') {
+          this.db.prepare('INSERT OR IGNORE INTO SiteMetadata VALUES (?, ?)').run('hourlyStartedAt', timestamp);
+          this.db.prepare(`INSERT INTO SiteTrafficHours VALUES (?, ?, ?, 1)
+            ON CONFLICT(Day, Hour, Visitor) DO UPDATE SET Views = Views + 1`).run(day, hour, visitor);
           this.db.prepare('INSERT OR IGNORE INTO SiteVisitorDays VALUES (?, ?, ?)')
             .run(day, visitor, Object.hasOwn(SOURCES, event.source) ? event.source : 'Direct');
           this.db.prepare(`INSERT INTO SitePageDays VALUES (?, ?, ?, 1)
@@ -90,10 +101,10 @@ export class SiteAnalyticsStore {
   }
 
   record(token, events) {
-    const day = localDay(this.now());
+    const now = this.now(), day = localDay(now);
     this.prune(day);
     const visitor = createHmac('sha256', this.salt).update(token).digest('hex');
-    this.writeEvents(visitor, events, day);
+    this.writeEvents(visitor, events, day, localHour(now), now.toISOString());
   }
 
   recordApi(status, duration) {
@@ -123,7 +134,7 @@ export class SiteAnalyticsStore {
     if (day === this.prunedDay) return;
     const cutoff = shiftDay(day, -89);
     this.db.transaction(() => {
-      for (const table of ['SiteVisitorDays', 'SitePageDays', 'SiteEventDays', 'SiteApiDays']) {
+      for (const table of ['SiteVisitorDays', 'SitePageDays', 'SiteTrafficHours', 'SiteEventDays', 'SiteApiDays']) {
         this.db.prepare(`DELETE FROM ${table} WHERE Day < ?`).run(cutoff);
       }
       this.db.prepare('DELETE FROM SiteVisitors WHERE LastDay < ?').run(cutoff);
@@ -135,7 +146,7 @@ export class SiteAnalyticsStore {
   report(days = 7, enabled = true) {
     if (![1, 7, 30].includes(days)) throw new RangeError('Choose 1, 7, or 30 days');
     this.flush();
-    const to = localDay(this.now()), from = shiftDay(to, 1 - days);
+    const now = this.now(), to = localDay(now), from = shiftDay(to, 1 - days);
     const rows = (sql, ...args) => this.db.prepare(sql).all(...args);
     const count = (sql, ...args) => this.db.prepare(sql).get(...args).n;
     const visitors = count('SELECT COUNT(DISTINCT Visitor) n FROM SiteVisitorDays WHERE Day BETWEEN ? AND ?', from, to);
@@ -151,6 +162,16 @@ export class SiteAnalyticsStore {
       return { date, visitors: dailyRows.find(row => row.date === date)?.visitors || 0,
         pageViews: dailyViews.find(row => row.date === date)?.pageViews || 0 };
     });
+    const hourlyStartedAt = this.db.prepare("SELECT Value FROM SiteMetadata WHERE Key = 'hourlyStartedAt'").get()?.Value || null;
+    const hourlyRows = days === 1 ? rows(`SELECT Hour hour, COUNT(*) visitors, SUM(Views) pageViews
+      FROM SiteTrafficHours WHERE Day = ? GROUP BY Hour`, to) : [];
+    const hourly = days === 1 ? Array.from({ length: 24 }, (_, hour) => {
+      const available = hourlyStartedAt && hour <= localHour(now)
+        && (localDay(new Date(hourlyStartedAt)) < to || hour >= localHour(new Date(hourlyStartedAt)));
+      const row = hourlyRows.find(row => row.hour === hour);
+      return { date: to, hour, visitors: available ? row?.visitors || 0 : null,
+        pageViews: available ? row?.pageViews || 0 : null };
+    }) : [];
     const events = rows(`SELECT Event name, SUM(Count) count FROM SiteEventDays
       WHERE Day BETWEEN ? AND ? GROUP BY Event`, from, to);
     // Cumulative stages per browser in the period; later stages imply earlier stages.
@@ -178,7 +199,7 @@ export class SiteAnalyticsStore {
     return {
       isPreview: false, collectionEnabled: enabled,
       startedAt: this.db.prepare("SELECT Value FROM SiteMetadata WHERE Key = 'startedAt'").get()?.Value || null,
-      retentionDays: 90, days, timezone: 'America/New_York', period: { from, to }, daily,
+      retentionDays: 90, days, timezone: 'America/New_York', period: { from, to }, daily, hourly, hourlyStartedAt,
       summary: { visitors, pageViews, returningPercent: percent(returning, visitors),
         completionPercent: percent(steps[3].count, steps[2].count) },
       pages: rows(`SELECT Page, SUM(Views) views, COUNT(DISTINCT Visitor) visitors

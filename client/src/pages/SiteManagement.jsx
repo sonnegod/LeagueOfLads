@@ -19,7 +19,7 @@ function Metric({ icon, label, value, detail }) {
   </section>;
 }
 
-function TrafficChart({ daily, metric }) {
+function TrafficChart({ daily, metric, hourly = false }) {
   const chartId = useId().replaceAll(':', '');
   const width = 840, height = 230, left = 48, right = 18, top = 14, bottom = 32;
   const plotWidth = width - left - right;
@@ -29,14 +29,16 @@ function TrafficChart({ daily, metric }) {
     x: left + (daily.length > 1 ? index / (daily.length - 1) : .5) * plotWidth,
     y: top + (1 - day[metric] / maximum) * plotHeight,
   }));
-  const line = points.map((point, index) => `${index ? 'L' : 'M'}${point.x},${point.y}`).join(' ');
-  const area = `${line} L${points.at(-1).x},${top + plotHeight} L${points[0].x},${top + plotHeight} Z`;
+  const observed = points.filter(point => point[metric] != null);
+  const line = observed.map((point, index) => `${index ? 'L' : 'M'}${point.x},${point.y}`).join(' ');
+  const area = observed.length ? `${line} L${observed.at(-1).x},${top + plotHeight} L${observed[0].x},${top + plotHeight} Z` : '';
   const label = metric === 'visitors' ? 'Visitors' : 'Page views';
-  const labelIndexes = [...new Set([0, Math.floor((daily.length - 1) / 2), daily.length - 1])];
+  const labelIndexes = hourly ? [0, 6, 12, 18, 23] : [...new Set([0, Math.floor((daily.length - 1) / 2), daily.length - 1])];
+  const pointLabel = point => hourly ? `${String(point.hour).padStart(2, '0')}:00` : formatDate(point.date);
 
   return <svg className="site-analytics-traffic-chart" viewBox={`0 0 ${width} ${height}`}
     role="img" aria-labelledby={`${chartId}-title`}>
-    <title id={`${chartId}-title`}>Daily {label.toLowerCase()} from {daily[0].date} to {daily.at(-1).date}</title>
+    <title id={`${chartId}-title`}>{hourly ? 'Hourly' : 'Daily'} {label.toLowerCase()} from {daily[0].date} to {daily.at(-1).date}{hourly ? ' · 00:00–23:59 New York time' : ''}</title>
     <defs><linearGradient id={`${chartId}-fill`} x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stopColor="#38bdf8" stopOpacity=".24" />
       <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
@@ -48,14 +50,14 @@ function TrafficChart({ daily, metric }) {
     </g>)}
     <path d={area} fill={`url(#${chartId}-fill)`} />
     <path d={line} fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinejoin="round" />
-    {points.map(point => <g key={point.date}>
-      <title>{formatDate(point.date)}: {formatCount(point[metric])} {label.toLowerCase()}</title>
+    {observed.map(point => <g key={`${point.date}:${point.hour ?? ''}`}>
+      <title>{pointLabel(point)}: {formatCount(point[metric])} {label.toLowerCase()}</title>
       <rect x={point.x - 10} y={top} width="20" height={plotHeight} fill="transparent" />
       <circle cx={point.x} cy={point.y} r="3.5" fill="#0f172a" stroke="#38bdf8" strokeWidth="2" />
     </g>)}
     {labelIndexes.map(index => <text key={index} x={points[index].x} y={height - 8}
       textAnchor={index === 0 && daily.length > 1 ? 'start' : index === daily.length - 1 && daily.length > 1 ? 'end' : 'middle'}>
-      {formatDate(daily[index].date)}
+      {pointLabel(daily[index])}
     </text>)}
   </svg>;
 }
@@ -83,7 +85,9 @@ function AnalyticsDashboard({ data }) {
                 onClick={() => setMetric(key)}>{label}</button>)}
           </div>
         </div>
-        <TrafficChart daily={data.daily} metric={metric} />
+        <TrafficChart daily={data.days === 1 ? data.hourly : data.daily} hourly={data.days === 1} metric={metric} />
+        {data.days === 1 && <p className="site-analytics-note">Hourly activity · 00:00–23:59 New York time. Visitors are unique within each hour.
+          {' '}{data.hourlyStartedAt ? `Hourly collection began ${new Date(data.hourlyStartedAt).toLocaleString('en-US', { timeZone: 'America/New_York' })}. Earlier daily totals remain included above.` : 'Hourly activity will appear as new visits are recorded.'}</p>}
       </section>
       <section className="site-analytics-panel">
         <div className="site-analytics-panel-heading"><div><h2>Where visitors come from</h2><p>Traffic sources</p></div></div>
@@ -209,7 +213,7 @@ export default function SiteManagement() {
     <div className="site-analytics-preview"><Info size={18} aria-hidden="true" />
       <p>{data ? <><strong>{data.collectionEnabled ? 'Live first-party analytics.' : 'Collection disabled in this environment.'}</strong>{' '}
         {data.startedAt ? `Data since ${new Date(data.startedAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}. ` : 'No activity recorded yet. '}
-        Public usage excludes signed-in league admins and site managers, known bots, and opted-out browsers. Anonymous daily records are retained for 90 days; visitor counts are estimates.</> : 'Loading collection status...'}</p>
+        Public usage excludes signed-in league admins and site managers, known bots, and opted-out browsers. Anonymous usage records are retained for 90 days; visitor counts are estimates.</> : 'Loading collection status...'}</p>
     </div>
     {currentError ? <div className="site-analytics-panel" role="alert"><p>{currentError}</p>
       <button type="button" onClick={() => setAttempt(value => value + 1)}>Retry</button>

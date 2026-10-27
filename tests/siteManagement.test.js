@@ -65,6 +65,7 @@ test('site-management API enforces its own role, independently of league admins 
       assert.equal(result.collectionEnabled, true);
       assert.equal(result.days, days);
       assert.equal(result.daily.length, days);
+      assert.equal(result.hourly.length, days === 1 ? 24 : 0);
       assert.ok(result.summary.pageViews >= result.summary.visitors);
     }
     assert.equal((await (await request('owner')).json()).days, 7);
