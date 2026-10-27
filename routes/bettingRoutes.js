@@ -189,6 +189,34 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
     res.set('Cache-Control','no-store');return res.json(payload);
   }));
 
+  adminRoutes.get('/tickets',readEndpoint((req,res)=>{
+    const status=req.query.status??'all';
+    if(!['all','pending','won','lost','refunded'].includes(status))fail('Invalid ticket status');
+    const rawSeason=req.query.seasonId,rawBefore=req.query.before;
+    const sid=rawSeason===undefined||rawSeason==='all'?null:rawSeason==='0'?0:positive(rawSeason);
+    const before=rawBefore===undefined?null:positive(rawBefore);
+    if(rawSeason!==undefined&&rawSeason!=='all'&&sid===null||rawBefore!==undefined&&before===null)fail('Invalid ticket filter');
+    const rows=db.prepare(`SELECT t.*,s.LeagueName FROM BettingTickets t
+      LEFT JOIN BettingSeasons s ON s.SeasonId=t.SeasonId
+      WHERE (? IS NULL OR t.SeasonId=?) AND (?='all' OR t.Status=?) AND (? IS NULL OR t.TicketId<?)
+      ORDER BY t.TicketId DESC LIMIT 51`).all(sid,sid,status,status,before,before);
+    const counts=Object.fromEntries(db.prepare(`SELECT Status,COUNT(*) Count FROM BettingTickets
+      WHERE (? IS NULL OR SeasonId=?) GROUP BY Status`).all(sid,sid).map(row=>[row.Status,row.Count]));
+    const legs=db.prepare(`SELECT l.MarketId,l.AcceptedMicros,l.Result,l.Divisor,m.Title,m.Status,m.CloseAtUtc,m.EventId,s.Label
+      FROM BettingTicketLegs l LEFT JOIN BettingMarkets m ON m.MarketId=l.MarketId
+      LEFT JOIN BettingSelections s ON s.SelectionId=l.SelectionId WHERE l.TicketId=? ORDER BY l.MarketId`);
+    return res.json({localTesting:book.localTesting,counts,
+      seasons:db.prepare('SELECT SeasonId seasonId,LeagueName name FROM BettingSeasons ORDER BY SeasonId DESC').all(),
+      tickets:rows.slice(0,50).map(ticket=>({ticketId:ticket.TicketId,userId:ticket.UserId,name:playerName(ticket.UserId),
+        seasonId:ticket.SeasonId,seasonName:ticket.LeagueName||`Season ${ticket.SeasonId}`,
+        stake:ticket.StakeCents/100,status:ticket.Status,payout:ticket.PayoutCents/100,placedAt:ticket.PlacedAtUtc,
+        legs:legs.all(ticket.TicketId).map(leg=>({marketId:leg.MarketId,title:leg.Title||`Market #${leg.MarketId}`,
+          selection:leg.Label||'Selection unavailable',odds:leg.AcceptedMicros/ODDS_SCALE,result:leg.Result,tieDivisor:leg.Divisor,
+          marketStatus:['open','held'].includes(leg.Status)&&marketHasClosed(leg,book.now())?'locked':leg.Status||'unknown',
+          closeAt:leg.CloseAtUtc||null,eventId:leg.EventId||null}))})),
+      nextBefore:rows.length>50?rows[49].TicketId:null});
+  }));
+
   adminRoutes.get('/status',endpoint((req,res)=>{
     const sid=seasonId(req);const season=sid?register(sid):null;const setup=sid?schedules.setup(sid):null;
     const jobs=db.prepare('SELECT JobId,StartedAtUtc,CompletedAtUtc,Status,MarketsOpened,MarketsSettled,IssueCode FROM BettingJobs ORDER BY JobId DESC LIMIT 5').all();

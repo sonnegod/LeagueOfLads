@@ -183,6 +183,74 @@ test('Betting and league Analytics require the site role while league admins ret
   }
 });
 
+test('site managers review all users tickets with status/season filters, bounded pages and immutable accepted odds', async () => {
+  const f=engineFixture();let server;
+  try {
+    f.book.registerSeason({SeasonId:1,LeagueName:'Current',Status:'active'});
+    f.book.registerSeason({SeasonId:2,LeagueName:'Previous',Status:'ended'});
+    const market=f.book.publish({seasonId:1,eventId:91,stage:'regular',type:'exact_score',title:'First vs Second',rules:{localTesting:f.book.localTesting}},
+      [{key:'2-0',label:'First 2–0',probability:.5},{key:'0-2',label:'Second 2–0',probability:.5}],1,'2026-10-14T01:00:00Z');
+    const selection=f.betting.prepare('SELECT SelectionId FROM BettingSelections WHERE MarketId=? ORDER BY SelectionId').get(market).SelectionId;
+    const insert=f.betting.prepare(`INSERT INTO BettingTickets (SeasonId,UserId,StakeCents,RequestKey,Status,PayoutCents,PlacedAtUtc)
+      VALUES (?,?,?,?,?,?,?)`);
+    for(let id=1;id<=61;id++){
+      const status=id===57?'won':id===58?'lost':id===59?'refunded':'pending';
+      insert.run(id===60?2:id===61?0:1,id%2?'99':'100',12345,`private-key-${id}`,status,status==='won'?24690:status==='refunded'?12345:0,'2026-10-12T21:00:00Z');
+      f.betting.prepare(`INSERT INTO BettingTicketLegs
+        (TicketId,MarketId,SelectionId,OutcomeKey,QuoteVersion,AcceptedMicros,DefinitionJson,Result)
+        VALUES (?,?,?,'2-0',1,2000000,'{}',?)`).run(id,market,selection,status==='pending'?'pending':status==='refunded'?'void':status);
+    }
+    f.betting.prepare("UPDATE BettingMarkets SET CloseAtUtc='2026-10-12T21:00:00Z' WHERE MarketId=?").run(market);
+    f.betting.prepare('UPDATE BettingSelections SET OfferedMicros=5000000 WHERE SelectionId=?').run(selection);
+    const routes=createBettingRoutes({...f,playerName:id=>id==='99'?'Alice':'Bob'});
+    const app=express();app.use((req,res,next)=>{
+      const user=req.get('x-test-user');req.isAuthenticated=()=>Boolean(user);
+      if(user)req.user={id:steamId(user==='owner'?49219700:99)};
+      if(user==='league-admin')req.admin={AdminPlayerId:99,HeadAdmin:1};
+      next();
+    });
+    app.use('/api/site-management',createSiteManagementRouter({bettingRoutes:routes.adminRoutes}));
+    app.use('/api/betting',routes.publicRoutes);
+    server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
+    const base=`http://127.0.0.1:${server.address().port}`;
+    const request=(query='',user='owner')=>fetch(`${base}/api/site-management/betting/tickets${query}`,{
+      headers:{...(user?{'x-test-user':user}:{}),Connection:'close'}});
+    const changes=f.betting.prepare('SELECT total_changes() n').get().n;
+    assert.equal((await request('',null)).status,401);
+    assert.equal((await request('','league-admin')).status,403);
+    assert.equal((await request('','player')).status,403);
+    const response=await request('?status=pending&seasonId=1');assert.equal(response.status,200);
+    assert.match(response.headers.get('cache-control'),/private, no-store/);
+    const page=await response.json();
+    assert.equal(page.tickets.length,50);assert.equal(page.nextBefore,7);
+    assert.deepEqual(page.tickets.slice(0,2).map(ticket=>[ticket.ticketId,ticket.name]),[[56,'Bob'],[55,'Alice']]);
+    assert.deepEqual(page.counts,{lost:1,pending:56,refunded:1,won:1});
+    assert.equal(page.tickets[0].stake,123.45);assert.equal(page.tickets[0].legs[0].odds,2);
+    assert.equal(page.tickets[0].legs[0].marketStatus,'locked');assert.equal(page.tickets[0].legs[0].eventId,91);
+    assert.equal(page.tickets[0].legs[0].result,'pending');
+    const next=await(await request(`?status=pending&seasonId=1&before=${page.nextBefore}`)).json();
+    assert.deepEqual(next.tickets.map(ticket=>ticket.ticketId),[6,5,4,3,2,1]);assert.equal(next.nextBefore,null);
+    for(const [status,id] of [['won',57],['lost',58],['refunded',59]]){
+      const filtered=await(await request(`?status=${status}&seasonId=1`)).json();
+      assert.deepEqual(filtered.tickets.map(ticket=>ticket.ticketId),[id]);
+    }
+    assert.equal((await(await request('?status=won')).json()).tickets[0].payout,246.9);
+    assert.deepEqual((await(await request('?seasonId=2')).json()).tickets.map(ticket=>ticket.ticketId),[60]);
+    assert.deepEqual((await(await request('?seasonId=0')).json()).tickets.map(ticket=>ticket.ticketId),[61]);
+    assert.deepEqual((await(await request('?seasonId=999')).json()).tickets,[]);
+    const all=await(await request()).json();assert.equal(all.tickets[0].ticketId,61);
+    for(const query of ['?status=invalid','?status=pending&status=won','?seasonId=bad','?seasonId=-1','?before=0','?before=bad'])assert.equal((await request(query)).status,400,query);
+    assert.equal(f.betting.prepare('SELECT total_changes() n').get().n,changes);
+    assert.equal(JSON.stringify(all).includes('private-key-'),false);
+    assert.equal((await fetch(`${base}/api/betting/admin/tickets`)).status,404);
+    const own=await(await fetch(`${base}/api/betting/tickets?seasonId=1`,{headers:{'x-test-user':'player'}})).json();
+    assert.ok(own.tickets.every(ticket=>ticket.ticketId%2===1));
+  } finally {
+    if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+    f.close();
+  }
+});
+
 test('real reporting uses New York dates and truthful empty ranges', () => {
   const store = new SiteAnalyticsStore(':memory:', { now: () => new Date('2026-10-16T02:00:00Z') });
   try {

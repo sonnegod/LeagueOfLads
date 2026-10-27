@@ -1,4 +1,25 @@
 .site-management-page { display: grid; gap: 18px; }
+.site-ticket-review { display: grid; gap: 16px; min-width: 0; }
+.site-ticket-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; }
+.site-ticket-filters label { display: grid; gap: 6px; color: #cbd5e1; font-size: .85rem; }
+.site-ticket-filters select { min-width: 150px; max-width: 100%; padding: 8px; color: #e2e8f0; background: #111827; border: 1px solid #334155; border-radius: 6px; }
+.site-ticket-filters p { margin: 0 0 8px; color: #94a3b8; font-size: .85rem; }
+.site-ticket-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.site-ticket-heading h3 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
+.site-ticket-heading p { margin: 6px 0 0; color: #94a3b8; font-size: .8rem; }
+.site-ticket-status { flex-shrink: 0; padding: 4px 10px; border: 1px solid #475569; border-radius: 20px; color: #cbd5e1; font-size: .8rem; }
+.site-ticket-status[data-status='pending'] { border-color: #0369a1; color: #7dd3fc; }
+.site-ticket-status[data-status='won'] { border-color: #047857; color: #6ee7b7; }
+.site-ticket-status[data-status='lost'] { border-color: #b91c1c; color: #fca5a5; }
+.site-ticket-values { display: flex; flex-wrap: wrap; gap: 32px; margin: 18px 0; }
+.site-ticket-values dt { font-size: .75rem; color: #94a3b8; }
+.site-ticket-values dd { margin: 4px 0 0; font-weight: 600; }
+.site-ticket-legs { display: grid; gap: 12px; padding: 0; margin: 0; list-style: none; }
+.site-ticket-legs li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 12px; border-top: 1px solid #334155; }
+.site-ticket-legs li > div { display: grid; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+.site-ticket-legs span { font-size: .85rem; color: #cbd5e1; }
+.site-ticket-legs small, .site-ticket-legs a { font-size: .75rem; color: #94a3b8; }
+.site-ticket-pagination { display: flex; justify-content: end; gap: 12px; }
 .site-management-page > [role='tabpanel'] { display: grid; gap: 18px; min-width: 0; }
 .site-management-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
 .site-management-title { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }

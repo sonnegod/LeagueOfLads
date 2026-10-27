@@ -4,6 +4,7 @@ import { Activity, ClipboardCheck, Eye, Info, Repeat, ShieldCheck, Users } from 
 import { useAuth } from '../context/AuthContext';
 import AnalyticsStatusPanel from '../components/AnalyticsStatusPanel';
 import BettingAdminPanel from '../components/BettingAdminPanel';
+import BettingTicketsAdmin from '../components/BettingTicketsAdmin';
 import './SiteManagement.css';
 
 const formatCount = value => value == null ? '\u2014' : Number(value).toLocaleString('en-US');
@@ -151,7 +152,7 @@ function AnalyticsDashboard({ data }) {
 export default function SiteManagement() {
   const { user, loading } = useAuth();
   const [params, setParams] = useSearchParams();
-  const tabs = [['traffic', 'Traffic'], ['analytics', 'Analytics'], ['betting', 'Betting']];
+  const tabs = [['traffic', 'Traffic'], ['analytics', 'Analytics'], ['betting', 'Betting'], ['tickets', 'Bet tickets']];
   const activeTab = tabs.some(([key]) => key === params.get('tab')) ? params.get('tab') : 'traffic';
   const [days, setDays] = useState(7);
   const [result, setResult] = useState(null);
@@ -209,6 +210,7 @@ export default function SiteManagement() {
     <section id={`site-management-${activeTab}-panel`} role="tabpanel" aria-labelledby={`site-management-${activeTab}-tab`}>
     {activeTab === 'analytics' && <AnalyticsStatusPanel />}
     {activeTab === 'betting' && <BettingAdminPanel />}
+    {activeTab === 'tickets' && <BettingTicketsAdmin />}
     {activeTab === 'traffic' && <>
     <div className="site-analytics-preview"><Info size={18} aria-hidden="true" />
       <p>{data ? <><strong>{data.collectionEnabled ? 'Live first-party analytics.' : 'Collection disabled in this environment.'}</strong>{' '}
