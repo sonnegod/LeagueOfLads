@@ -6,7 +6,7 @@
   width: var(--sidebar-width);
   height: calc(100vh - var(--navbar-height));
   height: calc(100dvh - var(--navbar-height));
-  padding: 18px 12px;
+  padding: 18px var(--space-4, 1rem);
   border-right: 1px solid #334155;
   box-sizing: border-box;
   overflow-y: auto;
@@ -19,7 +19,7 @@
 .sidebar-nav { display: flex; flex-direction: column; gap: 4px; }
 
 .sidebar-section-label {
-  margin: 8px 12px 6px;
+  margin: 8px var(--space-4, 1rem) 6px;
   color: #94a3b8;
   font-size: .68rem;
   font-weight: 800;
@@ -37,7 +37,7 @@
   display: flex;
   align-items: center;
   min-height: 40px;
-  padding: .55rem .75rem;
+  padding: .55rem var(--space-4, 1rem);
   border: 1px solid transparent;
   border-radius: 10px;
   box-sizing: border-box;
@@ -69,7 +69,7 @@
 @media (max-width: 767px) {
   .sidebar {
     width: min(86vw, 320px);
-    padding: 16px 12px;
+    padding: 16px var(--space-4, 1rem);
     box-shadow: 8px 0 30px rgba(2, 6, 23, .5);
     transform: translateX(-105%);
     visibility: hidden;

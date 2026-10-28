@@ -1,23 +1,27 @@
-.sportsbook-heading,.sportsbook-toolbar,.sportsbook-filters,.sportsbook-market-meta,.sportsbook-paging {display:flex;flex-wrap:wrap;align-items:center;gap:1rem;justify-content:space-between;}
-.sportsbook-heading p {color:#94a3b8;margin:0;}.sportsbook-wallet {display:grid;text-align:right;}.sportsbook-wallet strong {font-size:1.7rem;color:#86efac;}.sportsbook-wallet span {font-size:.8rem;color:#94a3b8;}
-.sportsbook-toolbar {justify-content:flex-start;margin:1.2rem 0;}.sportsbook-page label {display:grid;gap:.4rem;font-size:.85rem;}.sportsbook-filters {align-items:end;justify-content:flex-start;margin-bottom:1rem;}.sportsbook-filters label:last-child {flex:1;min-width:180px;}
-.sportsbook-heading-actions {display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:1rem;margin-left:auto;}
-.sportsbook-layout {display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:1.5rem;align-items:start;}.sportsbook-markets {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:1rem;}
-.sportsbook-market,.sportsbook-slip,.betting-admin-widget {padding:1rem;border:1px solid #334155;border-radius:12px;background:#0f172a;min-width:0;}.sportsbook-market h2 {font-size:1.05rem;margin:.7rem 0;}.sportsbook-market-meta,.sportsbook-market small,.sportsbook-notice {color:#94a3b8;font-size:.75rem;}.sportsbook-market small {display:block;margin-top:.75rem;}
-.sportsbook-selections {display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.5rem;margin-top:.8rem;}.sportsbook-selections button {display:flex;justify-content:space-between;align-items:center;gap:.8rem;text-align:left;font-size:.82rem;padding:.7rem;}.sportsbook-selections button[aria-pressed=true] {background:#1d4ed8!important;border-color:#60a5fa!important;}.sportsbook-selections strong {color:#93c5fd;}
-.sportsbook-slip {position:sticky;top:calc(var(--navbar-height) + 1rem);}.sportsbook-slip h2 {font-size:1.1rem;margin:0 0 .8rem;}.sportsbook-slip-selection {display:grid;gap:.35rem;border-top:1px solid #334155;padding:.8rem 0;font-size:.83rem;}.sportsbook-slip-selection button {justify-self:end;}.sportsbook-slip form {display:grid;gap:.75rem;}.sportsbook-slip p {margin:0;}.sportsbook-slip small {color:#94a3b8;font-size:.75rem;}.sportsbook-error {color:#fca5a5;}.sportsbook-empty {padding:2rem;border:1px dashed #334155;border-radius:12px;color:#94a3b8;}.sportsbook-empty h2 {font-size:1.2rem;}.sportsbook-paging {justify-content:flex-end;margin-top:1rem;font-size:.85rem;}.sportsbook-table {width:100%;}.sportsbook-table th,.sportsbook-table td {padding:.7rem;text-align:left;}.sportsbook-tickets {display:grid;gap:1rem;}
-.betting-admin-panel {display:grid;gap:1rem;}.betting-admin-widget h3 {margin:0 0 .8rem;}.betting-admin-form {display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.8rem;align-items:end;}.betting-admin-form label {display:grid;gap:.4rem;}.betting-admin-events {overflow:auto;}.betting-admin-jobs {font-size:.83rem;color:#94a3b8;}.betting-admin-form .betting-admin-check {display:flex;align-items:center;gap:.5rem;}
+.sportsbook-heading,.sportsbook-toolbar,.sportsbook-filters,.sportsbook-market-meta,.sportsbook-paging {display:flex;flex-wrap:wrap;align-items:center;gap: var(--space-4);justify-content:space-between;}
+.sportsbook-heading {margin-bottom:var(--ui-content-gap);}
+.content .sportsbook-heading h1 {margin:0;}
+.sportsbook-heading p {color:#94a3b8;margin:var(--space-2) 0 0;}.sportsbook-wallet {display:grid;text-align:right;}.sportsbook-wallet strong {font-size:1.7rem;color:#86efac;}.sportsbook-wallet span {font-size:.8rem;color:#94a3b8;}
+.sportsbook-toolbar {justify-content:flex-start;margin: var(--space-6) 0;}.sportsbook-page label {display:grid;gap: var(--space-2);font-size:.85rem;}.sportsbook-filters {align-items:end;justify-content:flex-start;gap:var(--ui-control-gap);margin-bottom:var(--ui-content-gap);}
+.sportsbook-filters:empty {display:none;}.sportsbook-filters label:last-child {flex:1;min-width:180px;}
+.sportsbook-heading-actions {display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap: var(--space-4);margin-left:auto;}
+.sportsbook-layout {display:grid;grid-template-columns:minmax(0,1fr) 300px;gap: var(--ui-content-gap);align-items:start;}.sportsbook-markets {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:var(--ui-content-gap);}
+.sportsbook-market,.sportsbook-slip,.betting-admin-widget {padding: var(--space-4);border:1px solid #334155;border-radius:12px;background:#0f172a;min-width:0;}.sportsbook-market h2 {font-size:1.05rem;margin: var(--space-3) 0;}.sportsbook-market-meta,.sportsbook-market small,.sportsbook-notice {color:#94a3b8;font-size:.75rem;}.sportsbook-market small {display:block;margin-top: var(--space-3);}
+.sportsbook-selections {display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap: var(--space-2);margin-top: var(--space-3);}.sportsbook-selections button {display:flex;justify-content:space-between;align-items:center;gap: var(--space-3);text-align:left;font-size:.82rem;padding: var(--space-3);}.sportsbook-selections button[aria-pressed=true] {background:#1d4ed8!important;border-color:#60a5fa!important;}.sportsbook-selections strong {color:#93c5fd;}
+.sportsbook-slip {position:sticky;top:calc(var(--navbar-height) + 1rem);}.sportsbook-slip h2 {font-size:1.1rem;margin: 0 0 var(--space-3);}.sportsbook-slip-selection {display:grid;gap: var(--space-1);border-top:1px solid #334155;padding: var(--space-3) 0;font-size:.83rem;}.sportsbook-slip-selection button {justify-self:end;}.sportsbook-slip form {display:grid;gap: var(--space-3);}.sportsbook-slip p {margin:0;}.sportsbook-slip small {color:#94a3b8;font-size:.75rem;}.sportsbook-error {color:#fca5a5;}.sportsbook-empty {padding: var(--space-8);border:1px dashed #334155;border-radius:12px;color:#94a3b8;}.sportsbook-empty h2 {font-size:1.2rem;}.sportsbook-paging {justify-content:flex-end;margin-top: var(--space-4);font-size:.85rem;}.sportsbook-table {width:100%;}.sportsbook-table th,.sportsbook-table td {padding:var(--ui-table-inset);text-align:left;}.sportsbook-tickets {display:grid;gap: var(--space-4);}
+.betting-admin-panel {display:grid;gap:var(--ui-content-gap);}
+.betting-admin-widget {padding:var(--ui-card-inset);}.betting-admin-widget h3 {margin: 0 0 var(--space-3);}.betting-admin-form {display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap: var(--space-3);align-items:end;}.betting-admin-form label {display:grid;gap: var(--space-2);}.betting-admin-events {overflow:auto;}.betting-admin-jobs {font-size:.83rem;color:#94a3b8;}.betting-admin-form .betting-admin-check {display:flex;align-items:center;gap: var(--space-2);}
 @media(max-width:1000px){.sportsbook-layout{grid-template-columns:1fr;}.sportsbook-slip{position:static;}.sportsbook-toolbar select,.sportsbook-filters select{max-width:100%;}}
 .betting-admin-form label {min-width:0;}.betting-admin-form input:not([type=checkbox]),.betting-admin-form select {min-width:0;width:100%;box-sizing:border-box;}
-.historical-betting-summary {margin:1.2rem 0;}.historical-betting-preview>.ui-tabs {margin-bottom:1rem;}.historical-betting-fixtures {overflow:auto;}.historical-betting-prices {display:flex;flex-wrap:wrap;gap:.5rem 1rem;}.historical-betting-prices span {padding:.3rem .5rem;border:1px solid #334155;border-radius:6px;}.historical-betting-prices strong {color:#93c5fd;margin-left:.5rem;}.historical-betting-preview details {margin-top:1.2rem;}.historical-betting-preview .sportsbook-toolbar input {max-width:100%;}
-.historical-player-list {display:grid;gap:.5rem;}.historical-betting-preview .historical-player-odds {margin-top:0;border:1px solid #334155;border-radius:8px;background:#0f172a;min-width:0;}.historical-player-odds>summary {display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;cursor:pointer;list-style:none;padding:.8rem 1rem;}.historical-player-odds>summary::before {content:'\25B8';color:#93c5fd;}.historical-player-odds[open]>summary::before {content:'\25BE';}.historical-player-odds>summary::-webkit-details-marker {display:none;}.historical-player-team {color:#94a3b8;font-size:.85rem;}.historical-player-count {margin-left:auto;color:#94a3b8;font-size:.8rem;}.historical-player-content {border-top:1px solid #334155;padding:.5rem 1rem 1rem;}.historical-player-content .sportsbook-table th {white-space:nowrap;}.historical-player-content>a {display:inline-block;margin-top:.5rem;}
-.historical-player-stats {table-layout:fixed;min-width:52rem;}.historical-line-odds {display:grid;grid-template-columns:minmax(5.5rem,.8fr) repeat(2,minmax(0,1fr));align-items:center;gap:.5rem;font-variant-numeric:tabular-nums;}.historical-market-line {text-align:right;padding-right:.25rem;font-weight:600;white-space:nowrap;}.historical-line-odds button {display:flex;align-items:center;justify-content:space-between;gap:.4rem;padding:.4rem .5rem;min-width:0;font-size:.78rem;white-space:nowrap;}.historical-line-odds button:disabled {opacity:1;cursor:default;}.historical-line-odds button strong {color:#93c5fd;}
+.historical-betting-summary {margin: var(--space-6) 0;}.historical-betting-preview>.ui-tabs {margin-bottom: var(--space-4);}.historical-betting-fixtures {overflow:auto;}.historical-betting-prices {display:flex;flex-wrap:wrap;gap: var(--space-2) var(--space-4);}.historical-betting-prices span {padding: var(--space-1) var(--space-2);border:1px solid #334155;border-radius:6px;}.historical-betting-prices strong {color:#93c5fd;margin-left: var(--space-2);}.historical-betting-preview details {margin-top: var(--space-6);}.historical-betting-preview .sportsbook-toolbar input {max-width:100%;}
+.historical-player-list {display:grid;gap: var(--space-2);}.historical-betting-preview .historical-player-odds {margin-top:0;border:1px solid #334155;border-radius:8px;background:#0f172a;min-width:0;}.historical-player-odds>summary {display:flex;align-items:center;gap: var(--space-3);flex-wrap:wrap;cursor:pointer;list-style:none;padding: var(--space-3) var(--space-4);}.historical-player-odds>summary::before {content:'\25B8';color:#93c5fd;}.historical-player-odds[open]>summary::before {content:'\25BE';}.historical-player-odds>summary::-webkit-details-marker {display:none;}.historical-player-team {color:#94a3b8;font-size:.85rem;}.historical-player-count {margin-left:auto;color:#94a3b8;font-size:.8rem;}.historical-player-content {border-top:1px solid #334155;padding: var(--space-2) var(--space-4) var(--space-4);}.historical-player-content .sportsbook-table th {white-space:nowrap;}.historical-player-content>a {display:inline-block;margin-top: var(--space-2);}
+.historical-player-stats {table-layout:fixed;min-width:52rem;}.historical-line-odds {display:grid;grid-template-columns:minmax(5.5rem,.8fr) repeat(2,minmax(0,1fr));align-items:center;gap: var(--space-2);font-variant-numeric:tabular-nums;}.historical-market-line {text-align:right;padding-right: var(--space-1);font-weight:600;white-space:nowrap;}.historical-line-odds button {display:flex;align-items:center;justify-content:space-between;gap: var(--space-2);padding: var(--space-2) var(--space-2);min-width:0;font-size:.78rem;white-space:nowrap;}.historical-line-odds button:disabled {opacity:1;cursor:default;}.historical-line-odds button strong {color:#93c5fd;}
 .team-odds-board {container-type:inline-size;container-name:team-odds;min-width:0;border:1px solid #334155;border-radius:10px;overflow:hidden;background:#0f172a;}
-.team-odds-heading {padding:1rem;}
-.team-odds-heading h2 {margin:0 0 .4rem;font-size:1rem;}
+.team-odds-heading {padding: var(--space-4);}
+.team-odds-heading h2 {margin: 0 0 var(--space-2);font-size:1rem;}
 .team-odds-heading p {margin:0;color:#94a3b8;font-size:.75rem;}
 .team-odds-table {table-layout:fixed;width:100%;min-width:0;}
-.team-odds-table :is(th,td) {padding:.65rem .45rem;font-size:.8rem;overflow-wrap:anywhere;}
+.team-odds-table :is(th,td) {padding: var(--space-3) var(--space-2);font-size:.8rem;overflow-wrap:anywhere;}
 .team-odds-table td,.team-odds-columns th:not(:first-child) {text-align:center;font-variant-numeric:tabular-nums;}
 .team-odds-table tbody {--team-group-hue:210;}
 .team-odds-table tbody:nth-of-type(6n+2) {--team-group-hue:270;}
@@ -25,22 +29,23 @@
 .team-odds-table tbody:nth-of-type(6n+4) {--team-group-hue:25;}
 .team-odds-table tbody:nth-of-type(6n+5) {--team-group-hue:335;}
 .team-odds-table tbody:nth-of-type(6n+6) {--team-group-hue:65;}
-.team-odds-table .team-odds-group-heading th {padding:.7rem 1rem;text-align:left;border-top:1px solid #475569;background:hsl(var(--team-group-hue) 38% 20%);color:hsl(var(--team-group-hue) 75% 85%);box-shadow:inset 4px 0 hsl(var(--team-group-hue) 75% 65%);}
-.team-odds-group-heading small {margin-left:.75rem;color:inherit;font-weight:400;white-space:nowrap;}
+.team-odds-table .team-odds-group-heading th {padding: var(--space-3) var(--space-4);text-align:left;border-top:1px solid #475569;background:hsl(var(--team-group-hue) 38% 20%);color:hsl(var(--team-group-hue) 75% 85%);box-shadow:inset 4px 0 hsl(var(--team-group-hue) 75% 65%);}
+.team-odds-group-heading small {margin-left: var(--space-3);color:inherit;font-weight:400;white-space:nowrap;}
 .team-odds-team>th {text-align:left;line-height:1.4;}
-.team-odds-team>th small {display:block;margin-top:.3rem;}
+.team-odds-team>th small {display:block;margin-top: var(--space-1);}
 .team-odds-price {color:#93c5fd;white-space:nowrap;}
 .team-odds-label {display:none;}
 .sportsbook-page .historical-player-odds {margin-top:0;border:1px solid #334155;border-radius:8px;background:#0f172a;min-width:0;}
-.sportsbook-layout>section {min-width:0;}.sportsbook-layout>section>.ui-tabs {margin-bottom:.8rem;}
+.sportsbook-layout>section {min-width:0;}.sportsbook-layout>section>.ui-tabs {margin-bottom:var(--ui-content-gap);}
+.sportsbook-layout>section>.ui-tabs:has(+.ui-tabs) {margin-bottom:var(--space-3);}
 .historical-line-odds button[aria-pressed=true],.team-odds-table button[aria-pressed=true] {background:#1d4ed8!important;border-color:#60a5fa!important;}
-.team-odds-table td button {width:100%;min-width:0;padding:.4rem .15rem;font-size:.78rem;white-space:nowrap;}.team-odds-table td button strong {color:#93c5fd;}
+.team-odds-table td button {width:100%;min-width:0;padding: var(--space-2) .15rem;font-size:.78rem;white-space:nowrap;}.team-odds-table td button strong {color:#93c5fd;}
 .historical-line-odds button:disabled[aria-pressed],.team-odds-table td button:disabled {opacity:.5;cursor:not-allowed;}
 .sportsbook-layout>section {container-type:inline-size;container-name:betting-markets;}
-.team-odds-wins .historical-line-odds {grid-template-columns:2.3rem repeat(2,minmax(0,1fr));gap:.25rem;}
-.team-odds-wins .historical-line-odds button {flex-direction:column;gap:.1rem;padding:.3rem .1rem;}
+.team-odds-wins .historical-line-odds {grid-template-columns:2.3rem repeat(2,minmax(0,1fr));gap: var(--space-1);}
+.team-odds-wins .historical-line-odds button {flex-direction:column;gap:.1rem;padding: var(--space-1) .1rem;}
 .team-odds-wins .historical-line-odds button:disabled:not([aria-pressed]) {opacity:1;cursor:default;}
-.sportsbook-test-banner {padding:.8rem 1rem;border:1px solid #a16207;border-radius:8px;background:#422006;color:#fef3c7;font-size:.85rem;line-height:1.5;}
+.sportsbook-test-banner {padding: var(--space-3) var(--space-4);border:1px solid #a16207;border-radius:8px;background:#422006;color:#fef3c7;font-size:.85rem;line-height:1.5;}
 .team-odds-table thead th {font-size:.7rem;letter-spacing:0;}
 .sportsbook-page :is(.historical-player-stats,.team-odds-table,.historical-matchup-table) {
   border:0 !important;
@@ -54,72 +59,72 @@
 .sportsbook-page :is(.historical-player-stats,.team-odds-table,.historical-matchup-table) tbody>tr:last-child>:is(th,td) {border-bottom:0;}
 .historical-matchup-table {table-layout:fixed;min-width:55rem;}
 .historical-matchup-table :is(th,td):nth-child(n+3) {text-align:center;font-variant-numeric:tabular-nums;}
-.historical-matchup-table small {display:block;margin-top:.35rem;color:#94a3b8;font-size:.7rem;}
+.historical-matchup-table small {display:block;margin-top: var(--space-1);color:#94a3b8;font-size:.7rem;}
 @container team-odds (max-width:680px) {
   .team-odds-table,.team-odds-table tbody {display:block;}
   .team-odds-table colgroup {display:none;}
   .team-odds-columns {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
   .team-odds-group-heading {display:block;}
   .team-odds-group-heading th {display:block;}
-  .team-odds-team {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:.5rem;border-bottom:1px solid #334155;}
-  .sportsbook-page .team-odds-team>:is(th,td) {padding:.4rem .2rem;border:0;}
+  .team-odds-team {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding: var(--space-2);border-bottom:1px solid #334155;}
+  .sportsbook-page .team-odds-team>:is(th,td) {padding: var(--space-2) .2rem;border:0;}
   .team-odds-team>th,.team-odds-team>.team-odds-wins {grid-column:1 / -1;}
-  .team-odds-label {display:block;margin-bottom:.3rem;color:#94a3b8;font-size:.7rem;font-weight:600;}
-  .team-odds-wins {margin-top:.4rem;}
-  .team-odds-wins .historical-line-odds {grid-template-columns:minmax(2.3rem,.6fr) repeat(2,minmax(0,1fr));gap:.5rem;}
-  .team-odds-wins .historical-line-odds button {flex-direction:row;padding:.4rem .5rem;}
+  .team-odds-label {display:block;margin-bottom: var(--space-1);color:#94a3b8;font-size:.7rem;font-weight:600;}
+  .team-odds-wins {margin-top: var(--space-2);}
+  .team-odds-wins .historical-line-odds {grid-template-columns:minmax(2.3rem,.6fr) repeat(2,minmax(0,1fr));gap: var(--space-2);}
+  .team-odds-wins .historical-line-odds button {flex-direction:row;padding: var(--space-2) var(--space-2);}
 }
-.admin-help {font-size:.85rem;line-height:1.5;color:var(--muted-text,#94a3b8);margin:.5rem 0 .85rem;}
-.scheduled-fixtures {display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:.75rem;align-items:start;}
-.scheduled-fixture-card {position:relative;display:grid;gap:.45rem;padding:.75rem;max-width:360px;box-sizing:border-box;border-radius:10px;color:inherit;text-decoration:none;transition:border-color .15s,background .15s;}
+.admin-help {font-size:.85rem;line-height:1.5;color:var(--muted-text,#94a3b8);margin: var(--space-2) 0 var(--space-4);}
+.scheduled-fixtures {display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:var(--space-4);align-items:start;}
+.scheduled-fixture-card {position:relative;display:grid;gap: var(--space-2);padding: var(--space-3);max-width:360px;box-sizing:border-box;border-radius:10px;color:inherit;text-decoration:none;transition:border-color .15s,background .15s;}
 .scheduled-fixture-card:hover {border-color:#60a5fa;background:#17233a;text-decoration:none;}
 .scheduled-card-link::after {content:"";position:absolute;inset:0;z-index:1;border-radius:10px;cursor:pointer;}
 .scheduled-card-link:focus-visible::after {outline:2px solid #60a5fa;outline-offset:3px;}
 .scheduled-fixture-card :is(button,a:not(.scheduled-card-link)) {position:relative;z-index:2;}
 .scheduled-fixture-card h2 {margin:0;}
-.scheduled-fixture-card .scheduled-team-heading {margin:0;gap:.35rem;min-height:2.5rem;font-size:.9rem;line-height:1.3;}
+.scheduled-fixture-card .scheduled-team-heading {margin:0;gap: var(--space-1);min-height:2.5rem;font-size:.9rem;line-height:1.3;}
 .scheduled-fixture-card .scheduled-team-heading>span:not(.scheduled-vs) {display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-.scheduled-fixture-card .sportsbook-market-meta {font-size:.7rem;gap:.4rem;}
-.scheduled-card-prices {display:grid;gap:.4rem;}
-.scheduled-card-prices>button {display:grid;gap:.3rem;padding:.5rem .2rem;border-radius:6px;background:#1e293b;text-align:center;justify-content:center;font-size:.75rem;font-variant-numeric:tabular-nums;}
+.scheduled-fixture-card .sportsbook-market-meta {font-size:.7rem;gap: var(--space-2);}
+.scheduled-card-prices {display:grid;gap: var(--space-2);}
+.scheduled-card-prices>button {display:grid;gap: var(--space-1);padding: var(--space-2) .2rem;border-radius:6px;background:#1e293b;text-align:center;justify-content:center;font-size:.75rem;font-variant-numeric:tabular-nums;}
 .scheduled-card-prices strong {color:#93c5fd;font-size:.9rem;}
 .scheduled-card-prices small {font-size:.65rem;color:#94a3b8;}
-.scheduled-fixture-card .scheduled-card-prices {margin-top:0;gap:.3rem;}
-.scheduled-fixture-card .scheduled-card-prices>button {padding:.35rem .2rem;gap:.15rem;}
+.scheduled-fixture-card .scheduled-card-prices {margin-top:0;gap: var(--space-1);}
+.scheduled-fixture-card .scheduled-card-prices>button {padding: var(--space-1) .2rem;gap:.15rem;}
 .scheduled-fixture-card .scheduled-card-prices strong {font-size:.85rem;}
 .scheduled-fixture-card .scheduled-card-prices small {margin-top:0;font-size:.62rem;}
-.scheduled-card-footer {display:flex;justify-content:space-between;gap:.5rem;font-size:.75rem;color:#94a3b8;}
+.scheduled-card-footer {display:flex;justify-content:space-between;gap: var(--space-2);font-size:.75rem;color:#94a3b8;}
 .scheduled-card-footer>a {color:#93c5fd;}
-.scheduled-back {display:inline-block;margin-bottom:1rem;}
+.scheduled-back {display:inline-block;margin-bottom: var(--space-4);}
 .scheduled-player-matchup {font-size:.75rem;color:#94a3b8;}
-.scheduled-player-link {margin-right:1rem;}
+.scheduled-player-link {margin-right: var(--space-4);}
 .sportsbook-prop-offer {max-width:32rem;margin:auto;}
-.sportsbook-bettors {display:block;font-size:.7rem;color:#94a3b8;text-align:center;margin-top:.35rem;}
-.scheduled-team-heading {display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:1rem;text-align:center;}
+.sportsbook-bettors {display:block;font-size:.7rem;color:#94a3b8;text-align:center;margin-top: var(--space-1);}
+.scheduled-team-heading {display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap: var(--space-4);text-align:center;}
 .scheduled-team-heading>span {min-width:0;overflow-wrap:anywhere;}
 .scheduled-team-heading .scheduled-vs {color:#94a3b8;font-size:.8rem;font-weight:400;}
 .scheduled-fixture .scheduled-score-options {grid-template-columns:repeat(3,minmax(0,1fr));}
 .scheduled-score-options button {flex-direction:column;justify-content:center;text-align:center;font-variant-numeric:tabular-nums;}
 .scheduled-score-options button strong {font-size:1rem;}
-.scheduled-fixture h3 {font-size:.85rem;margin:1rem 0 .5rem;}
-.scheduled-props {margin-top:1rem;border-top:1px solid #334155;}
-.scheduled-props>summary {padding:.8rem 0;cursor:pointer;color:#93c5fd;font-weight:600;}
+.scheduled-fixture h3 {font-size:.85rem;margin: var(--space-4) 0 var(--space-2);}
+.scheduled-props {margin-top: var(--space-4);border-top:1px solid #334155;}
+.scheduled-props>summary {padding: var(--space-3) 0;cursor:pointer;color:#93c5fd;font-weight:600;}
 .scheduled-props>summary:hover {color:#bfdbfe;}
-.scheduled-props-content {display:grid;gap:.6rem;}
-.scheduled-prop-scope {max-width:12rem;margin:.5rem 0 1rem;}
+.scheduled-props-content {display:grid;gap: var(--space-3);}
+.scheduled-prop-scope {max-width:12rem;margin: var(--space-2) 0 var(--space-4);}
 .scheduled-fixture .historical-player-stats thead th:not(:first-child),.scheduled-fixture .historical-player-stats td {text-align:center;}
 .scheduled-fixture .historical-player-stats td .historical-line-odds {max-width:32rem;margin:auto;}
 .sportsbook-page button[data-signin-required] {opacity:1!important;cursor:not-allowed;}
 details.admin-help>summary {cursor:pointer;color:var(--text,#e2e8f0);}
-details.admin-help li+li {margin-top:.45rem;}
-.sportsbook-cancel-ticket {margin-top:.8rem;}
-.sportsbook-cancel-ticket p {margin:.5rem 0;}
-.sportsbook-cancel-ticket>div {display:flex;flex-wrap:wrap;gap:.5rem;}
-.season-account-ticket>.sportsbook-cancel-ticket {padding:0 1rem 1rem;}
+details.admin-help li+li {margin-top: var(--space-2);}
+.sportsbook-cancel-ticket {margin-top: var(--space-3);}
+.sportsbook-cancel-ticket p {margin: var(--space-2) 0;}
+.sportsbook-cancel-ticket>div {display:flex;flex-wrap:wrap;gap: var(--space-2);}
+.season-account-ticket>.sportsbook-cancel-ticket {padding: 0 var(--space-4) var(--space-4);}
 .sportsbook-leaderboard-table {overflow-x:auto;}
 .sportsbook-leaderboard-table td:not(:first-child) {white-space:nowrap;font-variant-numeric:tabular-nums;}
-.sportsbook-leaderboard-controls {display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:.75rem;margin:1rem 0;}
+.sportsbook-leaderboard-controls {display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:var(--ui-control-gap);margin:0 0 var(--ui-content-gap);}
 .sportsbook-leaderboard-controls label {width:min(100%,24rem);min-width:0;}
 .sportsbook-leaderboard-controls input {width:100%;min-width:0;box-sizing:border-box;}
-.sportsbook-leaderboard-table th button {display:inline-flex;align-items:center;gap:.4rem;padding:.25rem 0!important;border:0!important;background:transparent!important;box-shadow:none!important;color:inherit!important;font:inherit;text-align:left;}
+.sportsbook-leaderboard-table th button {display:inline-flex;align-items:center;gap: var(--space-2);padding: var(--space-1) 0!important;border:0!important;background:transparent!important;box-shadow:none!important;color:inherit!important;font:inherit;text-align:left;}
 .sportsbook-leaderboard-table th button:hover {color:#93c5fd!important;}

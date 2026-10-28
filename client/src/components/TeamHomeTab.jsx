@@ -246,16 +246,16 @@ function formatNumber(value, fractionDigits = 0) {
   });
 }
 
-const homeStyle = { display: "grid", gap: "1rem" };
+const homeStyle = { display: "grid", gap: "var(--ui-content-gap)" };
 
 const metricGridStyle = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-  gap: "0.75rem"
+  gap: "var(--space-4)"
 };
 
 const metricCardStyle = {
-  padding: "1rem",
+  padding: "var(--space-4)",
   border: "1px solid #334155",
   borderRadius: "10px",
   background: "#111827",
@@ -268,11 +268,11 @@ const metricValueStyle = { fontSize: "1.8rem", fontWeight: "700", lineHeight: 1 
 const featureGridStyle = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "0.75rem"
+  gap: "var(--space-4)"
 };
 
 const panelStyle = {
-  padding: "1rem",
+  padding: "var(--ui-card-inset)",
   border: "1px solid #334155",
   borderRadius: "10px",
   background: "#111827",
@@ -280,14 +280,14 @@ const panelStyle = {
   boxShadow: "0 8px 20px rgba(15, 23, 42, 0.16)"
 };
 
-const sectionHeaderStyle = { marginTop: 0, marginBottom: "0.75rem" };
+const sectionHeaderStyle = { marginTop: 0, marginBottom: "var(--space-4)" };
 const subtleTextStyle = { color: "#cbd5e1", fontSize: "0.92rem" };
 const featureLinkStyle = { fontSize: "1rem", fontWeight: "700", color: "#bfdbfe" };
-const leaderListStyle = { display: "grid", gap: "0.65rem" };
+const leaderListStyle = { display: "grid", gap: "var(--space-3)" };
 const leaderRowStyle = {
   display: "grid",
   gridTemplateColumns: "28px 1fr",
-  gap: "0.6rem",
+  gap: "var(--space-3)",
   alignItems: "center"
 };
 const rankBadgeStyle = {

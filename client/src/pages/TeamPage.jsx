@@ -126,7 +126,7 @@ export default function TeamPage() {
       {!teamId && <p>No matches recorded yet.</p>}
 
       {teamId && (activeTab === 'home' || activeTab === 'recent' || activeTab === 'players' || activeTab === 'heroes' || activeTab === 'drafts') && (
-        <div className="detail-page-filter" style={{ marginBottom: '1rem' }}>
+        <div className="detail-page-filter">
           <LeagueFilter
             leagues={teamLeagues}
             value={selectedLeague}
