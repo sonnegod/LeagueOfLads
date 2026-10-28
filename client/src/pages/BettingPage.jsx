@@ -114,8 +114,11 @@ function SportsbookPage() {
         <CancelBetButton ticket={t} onCancelled={()=>setRefresh(value=>value+1)}/>
       </article>)}<div className="sportsbook-paging"><button type="button" disabled={!ticketPages.length} onClick={()=>{setTicketBefore(ticketPages.at(-1));setTicketPages(p=>p.slice(0,-1));}}>Previous</button><span>Page {ticketPages.length+1}</span>
         <button type="button" disabled={!tickets.nextBefore} onClick={()=>{setTicketPages(p=>[...p,ticketBefore]);setTicketBefore(tickets.nextBefore);}}>Next</button></div></section>)}
-    {tab==='leaderboard'&&<section><h2>Season leaderboard</h2><table className="sportsbook-table"><thead><tr><th>Player</th><th>Net points</th><th>Balance</th></tr></thead><tbody>
-      {leaderboard.map(p=><tr key={p.userId}><td><Link to={`/player/${p.userId}`}>{p.name}</Link></td><td>{points(p.net)}</td><td>{points(p.balance)}</td></tr>)}</tbody></table></section>}
+    {tab==='leaderboard'&&<section><h2>Season leaderboard</h2>
+      <p className="sportsbook-notice">Currently wagered is tied up in unsettled tickets. Net points shows settled profit or loss.</p>
+      <div className="sportsbook-leaderboard-table" role="region" aria-label="Season leaderboard" tabIndex={0}><table className="sportsbook-table"><thead><tr>
+        <th scope="col">Player</th><th scope="col">Currently wagered</th><th scope="col">Net points</th><th scope="col">Balance</th></tr></thead><tbody>
+      {leaderboard.map(p=><tr key={p.userId}><td><Link to={`/player/${p.userId}`}>{p.name}</Link></td><td>{points(p.wagered)}</td><td>{points(p.net)}</td><td>{points(p.balance)}</td></tr>)}</tbody></table></div></section>}
   </div>;
 }
 

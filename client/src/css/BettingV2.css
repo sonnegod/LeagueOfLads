@@ -116,3 +116,5 @@ details.admin-help li+li {margin-top:.45rem;}
 .sportsbook-cancel-ticket p {margin:.5rem 0;}
 .sportsbook-cancel-ticket>div {display:flex;flex-wrap:wrap;gap:.5rem;}
 .season-account-ticket>.sportsbook-cancel-ticket {padding:0 1rem 1rem;}
+.sportsbook-leaderboard-table {overflow-x:auto;}
+.sportsbook-leaderboard-table td:not(:first-child) {white-space:nowrap;font-variant-numeric:tabular-nums;}

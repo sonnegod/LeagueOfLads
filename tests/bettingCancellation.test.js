@@ -175,3 +175,43 @@ test('the API exposes eligibility, protects ownership and refunds concurrent dup
     assert.equal((await cancel('99',fresh.ticketId)).status,409);
   }finally{if(server)await new Promise(resolve=>server.close(resolve));f.close();}
 });
+
+test('leaderboard separates pending stakes from settled profit across parlays, refunds, cancellations, corrections and seasons',async()=>{
+  const f=fixture();let server;
+  try{
+    f.place(); // Two legs, but only one 123.45-point stake.
+    const single=f.place({stake:200,ids:[f.markets[0]]});
+    f.place({user:'100',stake:12.34,ids:[f.markets[0]]});
+    f.book.accept('101',{seasonId:1,stake:25.67,requestKey:'leaderboard_losing_single',legs:[f.leg(f.markets[0],1)]});
+    const cancelled=f.place({user:'102',stake:7.89,ids:[f.markets[0]]});f.book.cancel('102',cancelled.ticketId,f.guard);
+    f.book.wallet(1,'103'); // No activity still appears with zero exposure and net.
+    f.book.registerSeason({SeasonId:2,LeagueName:'Other season',Status:'active'});
+    const other=f.book.publish({seasonId:2,eventId:99,stage:'regular',type:'series_winner',title:'Other season'},
+      [{key:'team1',label:'A',probability:.5},{key:'team2',label:'B',probability:.5}],1,'2026-10-18T01:00:00Z');
+    f.book.accept('99',{seasonId:2,stake:44.44,requestKey:'leaderboard_other_season',legs:[f.leg(other)]});
+    const app=express();app.use('/betting',createBettingRoutes({...f,analyticsPath:'missing.db'}).publicRoutes);
+    server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
+    const url=`http://127.0.0.1:${server.address().port}/betting/leaderboard`;
+    const read=async(season=1)=>{const response=await fetch(`${url}?seasonId=${season}`);assert.equal(response.status,200);return (await response.json()).players;};
+    const amounts=player=>({wagered:player.wagered,net:player.net,balance:player.balance});
+    let players=await read();
+    assert.deepEqual(amounts(players.find(p=>p.userId==='99')),{wagered:323.45,net:0,balance:9676.55});
+    assert.deepEqual(amounts(players.find(p=>p.userId==='100')),{wagered:12.34,net:0,balance:9987.66});
+    for(const id of ['102','103'])assert.deepEqual(amounts(players.find(p=>p.userId===id)),{wagered:0,net:0,balance:10000});
+    assert.deepEqual(amounts((await read(2))[0]),{wagered:44.44,net:0,balance:9955.56});
+    f.betting.prepare("UPDATE BettingMarkets SET Status='locked' WHERE SeasonId=1").run();
+    assert.deepEqual(amounts((await read()).find(p=>p.userId==='99')),{wagered:323.45,net:0,balance:9676.55});
+    f.book.settle(f.markets[0],{team1:{result:'won'},team2:{result:'lost'}});
+    const won=f.betting.prepare('SELECT PayoutCents-StakeCents NetCents FROM BettingTickets WHERE TicketId=?').get(single.ticketId).NetCents;
+    players=await read();
+    assert.equal(players[0].userId,'99','Ranking uses settled performance, not how many points are currently committed');
+    assert.deepEqual(amounts(players.find(p=>p.userId==='99')),{wagered:123.45,net:won/100,balance:(1000000-12345+won)/100});
+    assert.deepEqual(amounts(players.find(p=>p.userId==='101')),{wagered:0,net:-25.67,balance:9974.33});
+    f.book.settle(f.markets[1],{team1:{result:'lost'},team2:{result:'won'}});
+    assert.deepEqual(amounts((await read()).find(p=>p.userId==='99')),{wagered:0,net:(won-12345)/100,balance:(1000000+won-12345)/100});
+    f.book.settle(f.markets[0],{team1:{result:'pending'},team2:{result:'pending'}},{correction:true});
+    assert.deepEqual(amounts((await read()).find(p=>p.userId==='99')),{wagered:323.45,net:0,balance:9676.55});
+    for(const market of f.markets)f.book.settle(market,{team1:{result:'void'},team2:{result:'void'}},{refund:true});
+    for(const player of await read())assert.deepEqual(amounts(player),{wagered:0,net:0,balance:10000});
+  }finally{if(server)await new Promise(resolve=>server.close(resolve));f.close();}
+});

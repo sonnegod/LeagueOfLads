@@ -163,11 +163,17 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
     res.set('Cache-Control','no-store');return res.json(book.cancel(actor,id,cancelGuard));
   }));
   publicRoutes.get('/leaderboard',readEndpoint((req,res)=>{
-    const sid=seasonId(req);const rows=db.prepare(`SELECT w.UserId,w.BalanceCents,
-      COALESCE(SUM(CASE WHEN l.Kind IN ('settlement','correction','stake','cancellation_refund') THEN l.AmountCents ELSE 0 END),0) AS NetCents
-      FROM BettingWallets w LEFT JOIN BettingLedger l ON l.SeasonId=w.SeasonId AND l.UserId=w.UserId WHERE w.SeasonId=?
-      GROUP BY w.UserId ORDER BY NetCents DESC,w.UserId LIMIT 20`).all(sid);
-    return res.json({players:rows.map(r=>({userId:r.UserId,name:playerName(r.UserId),balance:r.BalanceCents/100,net:r.NetCents/100}))});
+    const sid=seasonId(req);const rows=db.prepare(`WITH wagered AS (
+      SELECT UserId,SUM(StakeCents) Cents FROM BettingTickets WHERE SeasonId=? AND Status='pending' GROUP BY UserId
+    ), movements AS (
+      SELECT UserId,SUM(AmountCents) Cents FROM BettingLedger WHERE SeasonId=?
+      AND Kind IN ('settlement','correction','stake','cancellation_refund') GROUP BY UserId
+    ) SELECT w.UserId,w.BalanceCents,COALESCE(b.Cents,0) WageredCents,
+      COALESCE(l.Cents,0)+COALESCE(b.Cents,0) NetCents FROM BettingWallets w
+      LEFT JOIN movements l ON l.UserId=w.UserId LEFT JOIN wagered b ON b.UserId=w.UserId
+      WHERE w.SeasonId=? ORDER BY NetCents DESC,w.UserId LIMIT 20`).all(sid,sid,sid);
+    return res.json({players:rows.map(r=>({userId:r.UserId,name:playerName(r.UserId),
+      wagered:r.WageredCents/100,net:r.NetCents/100,balance:r.BalanceCents/100}))});
   }));
   publicRoutes.get('/legacy',readEndpoint((req,res)=>{
     const actor=self(req);const exists=db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ParlayTickets'").get();

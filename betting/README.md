@@ -534,6 +534,15 @@ Each account receives 10,000 points once per season. Previous season/legacy
 wallets remain separate, including late credits. All acceptance uses the signed-in
 Steam account; a submitted account ID cannot spend another user's balance.
 
+The season leaderboard shows **Currently wagered**, **Net points**, and **Balance**.
+Currently wagered sums each pending ticket's full stake once, including closed
+markets awaiting results and partially resolved parlays. Net points adds those
+held stakes back to the betting ledger's net movement, so it reflects settled
+profit/loss and ranks players without counting open stakes as losses. Balance
+is available wallet points. Refunds, cancellations and corrections update the
+figures automatically; a correction returning a ticket to pending moves its
+stake back into Currently wagered. All figures stay within the selected season.
+
 Users can stake up to their available season-wallet balance, including repeated
 tickets on the same market. There is no fixed per-ticket or cumulative per-market
 stake cap. The minimum stake is 0.01 points, with at most two decimal places;

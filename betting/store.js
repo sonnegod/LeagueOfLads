@@ -236,8 +236,9 @@ export class BettingStore {
         // Wait for every leg even after a loss, so late corrections never require
         // inventing the unknown result of another fixture.
         if (legs.some(l => l.Result === 'pending')) {
-          if(ticket.PayoutCents) {this.credit(ticket,-ticket.PayoutCents,`hold:${marketId}:${revision}:${ticket.TicketId}`,'correction');
-            this.db.prepare("UPDATE BettingTickets SET Status='pending',PayoutCents=0 WHERE TicketId=?").run(ticket.TicketId);}
+          if(ticket.PayoutCents)this.credit(ticket,-ticket.PayoutCents,`hold:${marketId}:${revision}:${ticket.TicketId}`,'correction');
+          if(ticket.Status!=='pending'||ticket.PayoutCents)
+            this.db.prepare("UPDATE BettingTickets SET Status='pending',PayoutCents=0 WHERE TicketId=?").run(ticket.TicketId);
           continue;
         }
         const payout=exactPayoutCents(ticket.StakeCents,legs);
