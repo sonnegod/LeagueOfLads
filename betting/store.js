@@ -134,7 +134,7 @@ export class BettingStore {
   move(marketId, bump = true) {
     const rows = this.db.prepare('SELECT * FROM BettingSelections WHERE MarketId=? AND IsActive=1 ORDER BY SelectionId').all(marketId);
     const stakes = rows.map(row => this.db.prepare(`SELECT COALESCE(SUM(t.StakeCents),0) AS cents FROM BettingTickets t
-      JOIN BettingTicketLegs l ON l.TicketId=t.TicketId WHERE l.SelectionId=?`).get(row.SelectionId).cents / 100);
+      JOIN BettingTicketLegs l ON l.TicketId=t.TicketId WHERE l.SelectionId=? AND t.Status!='cancelled'`).get(row.SelectionId).cents / 100);
     const policy=JSON.parse(this.db.prepare('SELECT RulesJson FROM BettingMarkets WHERE MarketId=?').get(marketId).RulesJson).pricing||PRICE_POLICY;
     const prices = movedPrices(rows, stakes,policy);
     const changed = rows.some((row,index) => row.OfferedMicros !== prices[index]);
@@ -187,6 +187,33 @@ export class BettingStore {
       return { ticketId, acceptedOdds: odds };
     }).immediate();
   }
+  cancellationIssue(ticket,guard=market=>this.eventGuard(market.EventId,market),now=this.now()) {
+    if(ticket.Status!=='pending'||ticket.PayoutCents!==0)return 'Only unsettled tickets can be cancelled';
+    if(ticket.SeasonId<=0)return 'Legacy tickets cannot be cancelled';
+    const legs=this.db.prepare(`SELECT l.Result,m.*,EXISTS(SELECT 1 FROM BettingMarketSettlements s WHERE s.MarketId=l.MarketId) HasSettlement FROM BettingTicketLegs l
+      LEFT JOIN BettingMarkets m ON m.MarketId=l.MarketId WHERE l.TicketId=?`).all(ticket.TicketId);
+    if(!legs.length||legs.some(leg=>leg.Result!=='pending'||leg.HasSettlement||!leg.MarketId
+      ||!['open','held'].includes(leg.Status)||marketHasClosed(leg,now)))return 'A selection has closed or has a result; this ticket cannot be cancelled';
+    for(const leg of legs){const issue=guard(leg,now);if(issue)return issue;}
+    return null;
+  }
+  cancel(userId,ticketId,guard=market=>this.eventGuard(market.EventId,market)) {
+    if(!/^\d+$/.test(String(userId))||!Number.isSafeInteger(ticketId)||ticketId<=0)fail('Invalid ticket');
+    return this.db.transaction(()=>{
+      const ticket=this.db.prepare('SELECT * FROM BettingTickets WHERE TicketId=? AND UserId=?').get(ticketId,String(userId));
+      if(!ticket)fail('Ticket not found',404);
+      if(ticket.Status==='cancelled')return {ticketId,status:'cancelled',refunded:ticket.StakeCents/100,reused:true};
+      const issue=this.cancellationIssue(ticket,guard);
+      if(issue)fail(issue,409,'TICKET_NOT_CANCELLABLE');
+      if(!this.db.prepare('SELECT 1 FROM BettingWallets WHERE SeasonId=? AND UserId=?').get(ticket.SeasonId,ticket.UserId))
+        fail('Ticket wallet is unavailable',409);
+      this.db.prepare("UPDATE BettingTickets SET Status='cancelled',PayoutCents=StakeCents WHERE TicketId=?").run(ticketId);
+      this.db.prepare("UPDATE BettingTicketLegs SET Result='void',Divisor=1 WHERE TicketId=?").run(ticketId);
+      this.credit(ticket,ticket.StakeCents,`cancel:${ticketId}`,'cancellation_refund');
+      for(const leg of this.db.prepare('SELECT MarketId FROM BettingTicketLegs WHERE TicketId=?').all(ticketId))this.move(leg.MarketId);
+      return {ticketId,status:'cancelled',refunded:ticket.StakeCents/100,reused:false};
+    }).immediate();
+  }
   settle(marketId, outcomes, evidence = {}) {
     return this.db.transaction(() => {
       const market = this.db.prepare('SELECT * FROM BettingMarkets WHERE MarketId=?').get(marketId);
@@ -198,12 +225,13 @@ export class BettingStore {
       if (this.db.prepare('SELECT Digest FROM BettingMarketSettlements WHERE MarketId=? ORDER BY Revision DESC LIMIT 1').get(marketId)?.Digest === fingerprint) return false;
       const revision = this.db.prepare('SELECT COALESCE(MAX(Revision),0)+1 AS n FROM BettingMarketSettlements WHERE MarketId=?').get(marketId).n;
       this.db.prepare('INSERT INTO BettingMarketSettlements VALUES (?,?,?,?,?,?)').run(marketId,revision,fingerprint,JSON.stringify(outcomes),JSON.stringify(evidence),this.now().toISOString());
-      for (const s of selections) this.db.prepare('UPDATE BettingTicketLegs SET Result=?,Divisor=? WHERE MarketId=? AND OutcomeKey=?')
+      for (const s of selections) this.db.prepare(`UPDATE BettingTicketLegs SET Result=?,Divisor=? WHERE MarketId=? AND OutcomeKey=?
+        AND EXISTS (SELECT 1 FROM BettingTickets t WHERE t.TicketId=BettingTicketLegs.TicketId AND t.Status!='cancelled')`)
         .run(outcomes[s.OutcomeKey].result,outcomes[s.OutcomeKey].divisor || 1,marketId,s.OutcomeKey);
       const pending=selections.some(s=>outcomes[s.OutcomeKey].result==='pending');
       this.db.prepare('UPDATE BettingMarkets SET Status=?,UpdatedAtUtc=? WHERE MarketId=?')
         .run(pending?(['settled','void'].includes(market.Status)?'held':market.Status):selections.every(s => outcomes[s.OutcomeKey].result === 'void') ? 'void' : 'settled',this.now().toISOString(),marketId);
-      for (const ticket of this.db.prepare(`SELECT DISTINCT t.* FROM BettingTickets t JOIN BettingTicketLegs l ON l.TicketId=t.TicketId WHERE l.MarketId=?`).all(marketId)) {
+      for (const ticket of this.db.prepare(`SELECT DISTINCT t.* FROM BettingTickets t JOIN BettingTicketLegs l ON l.TicketId=t.TicketId WHERE l.MarketId=? AND t.Status!='cancelled'`).all(marketId)) {
         const legs = this.db.prepare('SELECT * FROM BettingTicketLegs WHERE TicketId=?').all(ticket.TicketId);
         // Wait for every leg even after a loss, so late corrections never require
         // inventing the unknown result of another fixture.

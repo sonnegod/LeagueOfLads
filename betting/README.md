@@ -547,6 +547,24 @@ Every preseason bet is a standalone single and cannot combine with scheduled
 markets or another preseason selection. The slip and API share these checks.
 Idempotent request keys prevent duplicate debits.
 
+Users can cancel their own season tickets from **Betting → Your tickets** or
+**Dashboard → My Bets**, then confirm a full stake refund. Every leg must still
+be pending and its market open or held, before its close time and any known
+fixture start. A result on any leg, including one later put back into review,
+prevents cancellation of the entire ticket. Preseason tickets can be cancelled
+only before the season starts; legacy tickets are excluded. A stale Analytics
+feed alone does not block an otherwise eligible refund.
+
+`POST /api/betting/tickets/:ticketId/cancel` verifies the signed-in owner and
+checks eligibility again inside an immediate transaction. The original season
+wallet receives the exact stake once via a `cancellation_refund` ledger entry.
+The ticket remains in history as `cancelled`, its legs become void, and accepted
+odds remain intact. Repeated requests cannot duplicate the refund; later
+settlements and corrections skip cancelled tickets. Cancelled stakes no longer
+move current prices or count as bettors, and their refund offsets the stake in
+leaderboard net points. Site Management's ticket status filter includes
+**Cancelled**. No database rebuild or manual migration is needed.
+
 Both season total and average selections require ≥5 rostered regular-season
 games and strictly more than half of the team's official games. Ineligible
 players are refunded. Leader ties divide the gross return among tied eligible

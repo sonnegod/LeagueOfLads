@@ -2,15 +2,15 @@ import {fail} from './scheduleStore.js';
 
 export function marketBettors(db,marketId) {
   const rows=db.prepare(`SELECT l.OutcomeKey,COUNT(DISTINCT t.UserId) n FROM BettingTicketLegs l JOIN BettingTickets t ON t.TicketId=l.TicketId
-    WHERE l.MarketId=? AND l.Result!='void' GROUP BY l.OutcomeKey
+    WHERE l.MarketId=? AND l.Result!='void' AND t.Status!='cancelled' GROUP BY l.OutcomeKey
     UNION ALL SELECT NULL,COUNT(DISTINCT t.UserId) FROM BettingTicketLegs l JOIN BettingTickets t ON t.TicketId=l.TicketId
-    WHERE l.MarketId=? AND l.Result!='void'`).all(marketId,marketId);
+    WHERE l.MarketId=? AND l.Result!='void' AND t.Status!='cancelled'`).all(marketId,marketId);
   return {total:rows.find(r=>r.OutcomeKey===null)?.n||0,byOutcome:Object.fromEntries(rows.filter(r=>r.OutcomeKey!==null).map(r=>[r.OutcomeKey,r.n]))};
 }
 
 function playerBettors(db,eventId,playerId) {
   return db.prepare(`SELECT COUNT(DISTINCT t.UserId) n FROM BettingMarkets m JOIN BettingTicketLegs l ON l.MarketId=m.MarketId
-    JOIN BettingTickets t ON t.TicketId=l.TicketId WHERE m.EventId=? AND m.PlayerId=? AND m.MarketType='player_prop' AND l.Result!='void'`).get(eventId,playerId).n;
+    JOIN BettingTickets t ON t.TicketId=l.TicketId WHERE m.EventId=? AND m.PlayerId=? AND m.MarketType='player_prop' AND l.Result!='void' AND t.Status!='cancelled'`).get(eventId,playerId).n;
 }
 
 // Page full player/fixture entries, loading their odds only when expanded.

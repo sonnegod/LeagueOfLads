@@ -1,7 +1,7 @@
 import {useEffect,useState} from 'react';
 import {Link} from 'react-router-dom';
 
-const statuses=[['all','All statuses'],['pending','Open'],['won','Won'],['lost','Lost'],['refunded','Refunded']];
+const statuses=[['all','All statuses'],['pending','Open'],['won','Won'],['lost','Lost'],['refunded','Refunded'],['cancelled','Cancelled']];
 const statusLabel=value=>value==='pending'?'Open':value==='void'?'Voided':value?value[0].toUpperCase()+value.slice(1):'Unknown';
 const points=value=>Number(value).toLocaleString('en-US',{maximumFractionDigits:2});
 const date=value=>value?new Date(value).toLocaleString('en-US',{timeZone:'America/New_York',dateStyle:'short',timeStyle:'short'}):'—';

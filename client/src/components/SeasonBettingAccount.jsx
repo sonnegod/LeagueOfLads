@@ -1,6 +1,7 @@
 import {useEffect,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {ArrowUpRight} from 'lucide-react';
+import CancelBetButton from './CancelBetButton';
 import '../css/BettingV2.css';
 import './SeasonBettingAccount.css';
 
@@ -54,7 +55,7 @@ export default function SeasonBettingAccount({showTickets=false}) {
             <div className="season-account-leg-scroll"><table className="season-account-legs"><thead><tr><th>Selection</th><th>Accepted odds</th><th>Result</th></tr></thead><tbody>
               {ticket.legs.map((leg,i)=><tr key={i}><td><strong>{leg.title}</strong><span>{leg.selection}</span></td><td>{leg.odds.toFixed(2)}×</td>
                 <td>{leg.result}{leg.tieDivisor>1&&<small>Shared winner · payout ÷ {leg.tieDivisor}</small>}</td></tr>)}
-            </tbody></table></div></details>)}
+            </tbody></table></div><CancelBetButton ticket={ticket} onCancelled={()=>setRefresh(value=>value+1)}/></details>)}
         </>}
         {tickets&&(pages.length>0||tickets.nextBefore)&&<div className="sportsbook-paging"><button type="button" disabled={loading||!pages.length} onClick={()=>{setBefore(pages.at(-1));setPages(p=>p.slice(0,-1));}}>Previous</button>
           <span>Page {pages.length+1}</span><button type="button" disabled={loading||!tickets.nextBefore} onClick={()=>{setPages(p=>[...p,before]);setBefore(tickets.nextBefore);}}>Next</button></div>}

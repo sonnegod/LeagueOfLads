@@ -94,6 +94,18 @@ function preseasonWindow(league,seasonId,now,env,events=null) {
   return {closed:false,closeAt:first?.ScheduledStartUtc||null};
 }
 
+// Refunds do not need fresh analytical inputs. They do need authoritative start
+// checks; a pending refresh or a newer fixture revision alone must not block them.
+export function cancellationGuard(league,market,now=new Date(),env=process.env) {
+  const season=league.prepare('SELECT Status FROM LeagueSeasons WHERE SeasonId=?').get(market.SeasonId);
+  if(!season||!['active','signup_closed'].includes(season.Status))return 'This season is closed';
+  if(market.EventId){
+    const event=league.prepare('SELECT Revision FROM ScheduledEvents WHERE EventId=?').get(market.EventId);
+    return fixtureGuard(league,market.EventId,{...market,EventRevision:event?.Revision},now,env);
+  }
+  return preseasonWindow(league,market.SeasonId,now,env).closed?'The season has started; preseason tickets cannot be cancelled':null;
+}
+
 export function seasonGuard(league,analyticsPath,seasonId,market,now=new Date(),sourceState=null,env=process.env) {
   const marketRules=JSON.parse(market.RulesJson||'{}');
   const localMarket=marketRules.localTesting===true;

@@ -8,6 +8,7 @@ import HistoricalBettingPreview from '../components/HistoricalBettingPreview';
 import {PlayerOddsRow,TeamOddsGroups} from '../components/PreseasonOdds';
 import {ScheduledBettingCard,ScheduledPlayerProps} from '../components/ScheduledBettingFixture';
 import SeasonBetSlip from '../components/SeasonBetSlip';
+import CancelBetButton from '../components/CancelBetButton';
 
 const date=value=>new Date(value).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
 const points=value=>Number(value).toLocaleString('en-US',{maximumFractionDigits:2});
@@ -108,9 +109,11 @@ function SportsbookPage() {
         <span>Page {pages.length+1}</span><button type="button" disabled={!data.nextBefore||loading} onClick={()=>{setPages(p=>[...p,before]);setBefore(data.nextBefore);}}>Next</button></div>}
     </section><SeasonBetSlip disabled={loading}/></div>}
     {tab==='tickets'&&(!user?<p>Sign in with Steam to see your tickets.</p>:<section className="sportsbook-tickets"><h2>Your season tickets</h2>
+      <p>Cancel an open ticket before any selection closes to receive your full stake back.</p>
       {!tickets.tickets.length&&<p>No tickets in this season yet.</p>}{tickets.tickets.map(t=><article className="sportsbook-market" key={t.ticketId}>
         <h3>Ticket #{t.ticketId} · {t.status}</h3><p>{points(t.stake)} points staked · {date(t.placedAt)} NY{t.status!=='pending'&&` · ${points(t.payout)} returned`}</p>
         <ul>{t.legs.map((l,i)=><li key={i}>{l.title} — {l.selection} @ {l.odds.toFixed(2)}× · {l.result}{l.tieDivisor>1&&` (${l.tieDivisor} tied winners)`}</li>)}</ul>
+        <CancelBetButton ticket={t} onCancelled={()=>setRefresh(value=>value+1)}/>
       </article>)}<div className="sportsbook-paging"><button type="button" disabled={!ticketPages.length} onClick={()=>{setTicketBefore(ticketPages.at(-1));setTicketPages(p=>p.slice(0,-1));}}>Previous</button><span>Page {ticketPages.length+1}</span>
         <button type="button" disabled={!tickets.nextBefore} onClick={()=>{setTicketPages(p=>[...p,ticketBefore]);setTicketBefore(tickets.nextBefore);}}>Next</button></div></section>)}
     {tab==='leaderboard'&&<section><h2>Season leaderboard</h2><table className="sportsbook-table"><thead><tr><th>Player</th><th>Net points</th><th>Balance</th></tr></thead><tbody>

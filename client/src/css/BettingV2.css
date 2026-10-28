@@ -112,3 +112,7 @@
 .sportsbook-page button[data-signin-required] {opacity:1!important;cursor:not-allowed;}
 details.admin-help>summary {cursor:pointer;color:var(--text,#e2e8f0);}
 details.admin-help li+li {margin-top:.45rem;}
+.sportsbook-cancel-ticket {margin-top:.8rem;}
+.sportsbook-cancel-ticket p {margin:.5rem 0;}
+.sportsbook-cancel-ticket>div {display:flex;flex-wrap:wrap;gap:.5rem;}
+.season-account-ticket>.sportsbook-cancel-ticket {padding:0 1rem 1rem;}

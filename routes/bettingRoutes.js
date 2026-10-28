@@ -1,7 +1,7 @@
 import express from 'express';
 import { fail } from '../betting/scheduleStore.js';
 import { ODDS_SCALE } from '../betting/pricing.js';
-import { fixtureGuard,seasonGuard } from '../betting/engine.js';
+import { fixtureGuard,seasonGuard,cancellationGuard } from '../betting/engine.js';
 import { queueBettingRefresh } from '../betting/runtime.js';
 import { settleLegacy } from '../betting/legacy.js';
 import {historicalPreviewPath,readHistoricalPreview} from '../betting/historicalPreview.js';
@@ -28,6 +28,7 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
   };
   const register=id=>{const season=league.prepare('SELECT * FROM LeagueSeasons WHERE SeasonId=?').get(id);if(!season)fail('Season not found',404);book.registerSeason(season);return season;};
   const self=req=>{const actor=bettingActor(req);if(!actor)fail('Sign in with Steam to access your betting account',401);return actor;};
+  const cancelGuard=(market,now)=>cancellationGuard(league,market,now,book.env);
   const offeredMarket=(m,sid,sourceState,changed,now)=>{
     const guard=fixtureGuard(league,m.EventId,m,now,book.env)||seasonGuard(league,analyticsPath,sid,m,now,sourceState,book.env);
     const locked=marketHasClosed(m,now);
@@ -148,17 +149,22 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
   publicRoutes.get('/wallet',endpoint((req,res)=>{const actor=self(req);const sid=seasonId(req);if(!sid)fail('No season is available',404);register(sid);return res.json(book.wallet(sid,actor));}));
   publicRoutes.get('/tickets',readEndpoint((req,res)=>{
     const actor=self(req);const sid=seasonId(req);const before=positive(req.query.before);
+    res.set('Cache-Control','no-store');
     const rows=db.prepare('SELECT * FROM BettingTickets WHERE UserId=? AND SeasonId=? AND (? IS NULL OR TicketId<?) ORDER BY TicketId DESC LIMIT 51').all(actor,sid,before,before);
     return res.json({tickets:rows.slice(0,50).map(t=>({ticketId:t.TicketId,seasonId:t.SeasonId,stake:t.StakeCents/100,status:t.Status,payout:t.PayoutCents/100,
-      placedAt:t.PlacedAtUtc,legs:db.prepare(`SELECT l.AcceptedMicros,l.Result,l.Divisor,m.Title,s.Label FROM BettingTicketLegs l
+      placedAt:t.PlacedAtUtc,canCancel:!book.cancellationIssue(t,cancelGuard),legs:db.prepare(`SELECT l.AcceptedMicros,l.Result,l.Divisor,m.Title,s.Label FROM BettingTicketLegs l
         JOIN BettingMarkets m ON m.MarketId=l.MarketId JOIN BettingSelections s ON s.SelectionId=l.SelectionId WHERE l.TicketId=?`).all(t.TicketId)
         .map(l=>({title:l.Title,selection:l.Label,odds:l.AcceptedMicros/ODDS_SCALE,result:l.Result,tieDivisor:l.Divisor}))})),nextBefore:rows.length>50?rows[49].TicketId:null});
   }));
   publicRoutes.post('/tickets',endpoint((req,res)=>{const actor=self(req);const sid=positive(req.body?.seasonId);if(!sid)fail('Select a season');register(sid);
     const ticket=book.accept(actor,{...req.body,seasonId:sid});return res.status(ticket.reused?200:201).json(ticket);}));
+  publicRoutes.post('/tickets/:ticketId/cancel',endpoint((req,res)=>{
+    const actor=self(req),id=positive(req.params.ticketId);if(!id)fail('Invalid ticket');
+    res.set('Cache-Control','no-store');return res.json(book.cancel(actor,id,cancelGuard));
+  }));
   publicRoutes.get('/leaderboard',readEndpoint((req,res)=>{
     const sid=seasonId(req);const rows=db.prepare(`SELECT w.UserId,w.BalanceCents,
-      COALESCE(SUM(CASE WHEN l.Kind IN ('settlement','correction','stake') THEN l.AmountCents ELSE 0 END),0) AS NetCents
+      COALESCE(SUM(CASE WHEN l.Kind IN ('settlement','correction','stake','cancellation_refund') THEN l.AmountCents ELSE 0 END),0) AS NetCents
       FROM BettingWallets w LEFT JOIN BettingLedger l ON l.SeasonId=w.SeasonId AND l.UserId=w.UserId WHERE w.SeasonId=?
       GROUP BY w.UserId ORDER BY NetCents DESC,w.UserId LIMIT 20`).all(sid);
     return res.json({players:rows.map(r=>({userId:r.UserId,name:playerName(r.UserId),balance:r.BalanceCents/100,net:r.NetCents/100}))});
@@ -191,7 +197,7 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
 
   adminRoutes.get('/tickets',readEndpoint((req,res)=>{
     const status=req.query.status??'all';
-    if(!['all','pending','won','lost','refunded'].includes(status))fail('Invalid ticket status');
+    if(!['all','pending','won','lost','refunded','cancelled'].includes(status))fail('Invalid ticket status');
     const rawSeason=req.query.seasonId,rawBefore=req.query.before;
     const sid=rawSeason===undefined||rawSeason==='all'?null:rawSeason==='0'?0:positive(rawSeason);
     const before=rawBefore===undefined?null:positive(rawBefore);
