@@ -115,7 +115,7 @@ function SportsbookPage() {
         <CancelBetButton ticket={t} onCancelled={()=>setRefresh(value=>value+1)}/>
       </article>)}<div className="sportsbook-paging"><button type="button" disabled={!ticketPages.length} onClick={()=>{setTicketBefore(ticketPages.at(-1));setTicketPages(p=>p.slice(0,-1));}}>Previous</button><span>Page {ticketPages.length+1}</span>
         <button type="button" disabled={!tickets.nextBefore} onClick={()=>{setTicketPages(p=>[...p,ticketBefore]);setTicketBefore(tickets.nextBefore);}}>Next</button></div></section>)}
-    {season&&<BettingLeaderboard key={season} seasonId={season} active={tab==='leaderboard'} refreshKey={`${refresh}:${revision}`}/>}
+    {season&&<BettingLeaderboard key={season} seasonId={season} active={tab==='leaderboard'} refreshKey={refresh}/>}
   </div>;
 }
 
