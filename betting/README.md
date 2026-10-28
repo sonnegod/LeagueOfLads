@@ -542,6 +542,12 @@ profit/loss and ranks players without counting open stakes as losses. Balance
 is available wallet points. Refunds, cancellations and corrections update the
 figures automatically; a correction returning a ticket to pending moves its
 stake back into Currently wagered. All figures stay within the selected season.
+Search matches player names or account IDs across the whole season, ignoring
+name case. Each column header toggles ascending/descending sort; the default is
+highest net points first. Results are sorted before paging, with 20 players per
+page, a matching-player count, and Previous/Next controls. Search and sort reset
+to page one. Visible leaderboards refresh every thirty seconds without resetting
+filters or the current page; switching seasons starts a new leaderboard view.
 
 Users can stake up to their available season-wallet balance, including repeated
 tickets on the same market. There is no fixed per-ticket or cumulative per-market

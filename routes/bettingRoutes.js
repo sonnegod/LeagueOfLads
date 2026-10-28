@@ -163,6 +163,10 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
     res.set('Cache-Control','no-store');return res.json(book.cancel(actor,id,cancelGuard));
   }));
   publicRoutes.get('/leaderboard',readEndpoint((req,res)=>{
+    const search=req.query.search??'',sort=req.query.sort??'net',direction=req.query.direction??(sort==='name'?'asc':'desc');
+    const requestedPage=positive(req.query.page??1),pageSize=20;
+    if(typeof search!=='string'||search.length>100||!['name','wagered','net','balance'].includes(sort)
+      ||!['asc','desc'].includes(direction)||!requestedPage)fail('Invalid leaderboard filter');
     const sid=seasonId(req);const rows=db.prepare(`WITH wagered AS (
       SELECT UserId,SUM(StakeCents) Cents FROM BettingTickets WHERE SeasonId=? AND Status='pending' GROUP BY UserId
     ), movements AS (
@@ -171,9 +175,22 @@ export function createBettingRoutes({book,schedules,league,analyticsPath,playerN
     ) SELECT w.UserId,w.BalanceCents,COALESCE(b.Cents,0) WageredCents,
       COALESCE(l.Cents,0)+COALESCE(b.Cents,0) NetCents FROM BettingWallets w
       LEFT JOIN movements l ON l.UserId=w.UserId LEFT JOIN wagered b ON b.UserId=w.UserId
-      WHERE w.SeasonId=? ORDER BY NetCents DESC,w.UserId LIMIT 20`).all(sid,sid,sid);
-    return res.json({players:rows.map(r=>({userId:r.UserId,name:playerName(r.UserId),
-      wagered:r.WageredCents/100,net:r.NetCents/100,balance:r.BalanceCents/100}))});
+      WHERE w.SeasonId=?`).all(sid,sid,sid);
+    // Names live in LadsData, outside the wallet database. Resolve the season's
+    // public names before filtering/sorting so results cover more than page one.
+    const needle=search.trim().toLocaleLowerCase();
+    const matches=rows.map(row=>({...row,name:String(playerName(row.UserId)||`Player ${row.UserId}`)}))
+      .filter(row=>!needle||row.name.toLocaleLowerCase().includes(needle)||row.UserId.includes(needle));
+    const names=(a,b)=>a.name.localeCompare(b.name,'en',{sensitivity:'base',numeric:true});
+    const column={wagered:'WageredCents',net:'NetCents',balance:'BalanceCents'}[sort];
+    matches.sort((a,b)=>{
+      const compared=sort==='name'?names(a,b):a[column]-b[column];
+      return compared*(direction==='asc'?1:-1)||names(a,b)||a.UserId.localeCompare(b.UserId,'en',{numeric:true});
+    });
+    const total=matches.length,page=Math.min(requestedPage,Math.max(1,Math.ceil(total/pageSize)));
+    res.set('Cache-Control','no-store');
+    return res.json({players:matches.slice((page-1)*pageSize,page*pageSize).map(r=>({userId:r.UserId,name:r.name,
+      wagered:r.WageredCents/100,net:r.NetCents/100,balance:r.BalanceCents/100})),total,page,pageSize});
   }));
   publicRoutes.get('/legacy',readEndpoint((req,res)=>{
     const actor=self(req);const exists=db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ParlayTickets'").get();

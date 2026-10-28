@@ -9,6 +9,7 @@ import {PlayerOddsRow,TeamOddsGroups} from '../components/PreseasonOdds';
 import {ScheduledBettingCard,ScheduledPlayerProps} from '../components/ScheduledBettingFixture';
 import SeasonBetSlip from '../components/SeasonBetSlip';
 import CancelBetButton from '../components/CancelBetButton';
+import BettingLeaderboard from '../components/BettingLeaderboard';
 
 const date=value=>new Date(value).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
 const points=value=>Number(value).toLocaleString('en-US',{maximumFractionDigits:2});
@@ -20,7 +21,7 @@ function SportsbookPage() {
   const [search,setSearch]=useState('');const [event,setEvent]=useState('');const [data,setData]=useState({markets:[]});
   const [marketView,setMarketView]=useState('series');const [preseasonGroup,setPreseasonGroup]=useState('player');
   const [events,setEvents]=useState([]);const [wallet,setWallet]=useState(null);const [tickets,setTickets]=useState({tickets:[]});
-  const [leaderboard,setLeaderboard]=useState([]);const [tab,setTab]=useState(()=>['tickets','leaderboard'].includes(params.get('tab'))?params.get('tab'):'markets');
+  const [tab,setTab]=useState(()=>['tickets','leaderboard'].includes(params.get('tab'))?params.get('tab'):'markets');
   const [before,setBefore]=useState(null);const [pages,setPages]=useState([]);const [ticketBefore,setTicketBefore]=useState(null);const [ticketPages,setTicketPages]=useState([]);
   const [loading,setLoading]=useState(true),[error,setError]=useState(''),[refresh,setRefresh]=useState(0);
   const [readRevision,setReadRevision]=useState(0);
@@ -42,12 +43,12 @@ function SportsbookPage() {
       clearTimeout(timer);inFlight=true;
       if(!background){setLoading(true);setError('');}
       try {
-        const [markets,fixtures,leaders,balance,history]=await Promise.all([
+        const [markets,fixtures,balance,history]=await Promise.all([
           request(`/api/betting/${view==='props'?'player-props':'markets'}?${params}`,{signal:controller.signal}),
-          request(`/api/betting/events?seasonId=${season}`,{signal:controller.signal}),request(`/api/betting/leaderboard?seasonId=${season}`,{signal:controller.signal}),
+          request(`/api/betting/events?seasonId=${season}`,{signal:controller.signal}),
           ...(user?[request(`/api/betting/wallet?seasonId=${season}`,{signal:controller.signal}),request(`/api/betting/tickets?${ticketParams}`,{signal:controller.signal})]:[])]);
         if(controller.signal.aborted)return;
-        setError('');setData(markets);setEvents(fixtures.events);setLeaderboard(leaders.players);setWallet(balance||null);setTickets(history||{tickets:[]});
+        setError('');setData(markets);setEvents(fixtures.events);setWallet(balance||null);setTickets(history||{tickets:[]});
         setReadRevision(value=>value+1);
       }catch(err){if(!controller.signal.aborted&&err.name!=='AbortError')setError(err.message);}
       finally {
@@ -114,11 +115,7 @@ function SportsbookPage() {
         <CancelBetButton ticket={t} onCancelled={()=>setRefresh(value=>value+1)}/>
       </article>)}<div className="sportsbook-paging"><button type="button" disabled={!ticketPages.length} onClick={()=>{setTicketBefore(ticketPages.at(-1));setTicketPages(p=>p.slice(0,-1));}}>Previous</button><span>Page {ticketPages.length+1}</span>
         <button type="button" disabled={!tickets.nextBefore} onClick={()=>{setTicketPages(p=>[...p,ticketBefore]);setTicketBefore(tickets.nextBefore);}}>Next</button></div></section>)}
-    {tab==='leaderboard'&&<section><h2>Season leaderboard</h2>
-      <p className="sportsbook-notice">Currently wagered is tied up in unsettled tickets. Net points shows settled profit or loss.</p>
-      <div className="sportsbook-leaderboard-table" role="region" aria-label="Season leaderboard" tabIndex={0}><table className="sportsbook-table"><thead><tr>
-        <th scope="col">Player</th><th scope="col">Currently wagered</th><th scope="col">Net points</th><th scope="col">Balance</th></tr></thead><tbody>
-      {leaderboard.map(p=><tr key={p.userId}><td><Link to={`/player/${p.userId}`}>{p.name}</Link></td><td>{points(p.wagered)}</td><td>{points(p.net)}</td><td>{points(p.balance)}</td></tr>)}</tbody></table></div></section>}
+    {season&&<BettingLeaderboard key={season} seasonId={season} active={tab==='leaderboard'} refreshKey={`${refresh}:${revision}`}/>}
   </div>;
 }
 

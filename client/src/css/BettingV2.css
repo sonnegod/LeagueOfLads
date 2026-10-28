@@ -118,3 +118,8 @@ details.admin-help li+li {margin-top:.45rem;}
 .season-account-ticket>.sportsbook-cancel-ticket {padding:0 1rem 1rem;}
 .sportsbook-leaderboard-table {overflow-x:auto;}
 .sportsbook-leaderboard-table td:not(:first-child) {white-space:nowrap;font-variant-numeric:tabular-nums;}
+.sportsbook-leaderboard-controls {display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:.75rem;margin:1rem 0;}
+.sportsbook-leaderboard-controls label {width:min(100%,24rem);min-width:0;}
+.sportsbook-leaderboard-controls input {width:100%;min-width:0;box-sizing:border-box;}
+.sportsbook-leaderboard-table th button {display:inline-flex;align-items:center;gap:.4rem;padding:.25rem 0!important;border:0!important;background:transparent!important;box-shadow:none!important;color:inherit!important;font:inherit;text-align:left;}
+.sportsbook-leaderboard-table th button:hover {color:#93c5fd!important;}
