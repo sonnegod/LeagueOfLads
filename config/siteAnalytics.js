@@ -38,7 +38,8 @@ export function createSiteApiHealth({ enabled = analyticsEnabled,
 } = {}) {
   return (req, res, next) => {
     if (!enabled() || !req.path.startsWith('/api/')
-      || /^\/api\/(site-analytics|site-management)(\/|$)/.test(req.path)) return next();
+      || /^\/api\/(site-analytics|site-management)(\/|$)/.test(req.path)
+      || /^\/api\/liveMatches\/stream\/?$/.test(req.path)) return next();
     const start = performance.now();
     res.once('finish', () => record(res.statusCode, performance.now() - start));
     next();

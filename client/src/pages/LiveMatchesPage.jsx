@@ -1,18 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import DotaMapState from '../components/DotaMapState';
 import HeroDisplay from '../components/HeroDisplay';
+import useLiveResource from '../hooks/useLiveResource';
+import useLiveSnapshots from '../hooks/useLiveSnapshots';
+import {useLiveMatches} from '../context/liveMatches';
 import './LiveMatchesPage.css';
 
 function formatDuration(seconds) {
+  if (seconds === null || seconds === undefined) return 'Draft / pre-game';
   const value = Number(seconds);
   if (!Number.isFinite(value)) return 'Draft / pre-game';
 
-  const minutes = Math.floor(value / 60);
-  const remaining = Math.floor(value % 60).toString().padStart(2, '0');
-  return `${minutes}:${remaining}`;
+  const minutes = Math.floor(Math.abs(value) / 60);
+  const remaining = Math.floor(Math.abs(value) % 60).toString().padStart(2, '0');
+  return `${value < 0 ? '-' : ''}${minutes}:${remaining}`;
 }
 
 function formatStat(value, fallback = '-') {
+  if (value === null || value === undefined) return fallback;
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.round(number).toLocaleString();
@@ -96,7 +101,9 @@ function PlayerRows({ players = [] }) {
   );
 }
 
-function LiveMatchCard({ match, snapshots, variant = 'live' }) {
+function LiveMatchCard({ match, variant = 'live' }) {
+  const [historyOpen,setHistoryOpen]=useState(false);
+  const {snapshots,error:historyError,loading:historyLoading,retry}=useLiveSnapshots(match,historyOpen);
   const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState(null);
   const timeline = snapshots.length ? snapshots : [match];
   const latestIndex = timeline.length - 1;
@@ -144,6 +151,7 @@ function LiveMatchCard({ match, snapshots, variant = 'live' }) {
       </div>
 
       {Number(match.MatchId)>0&&<div className="live-match-id">Match ID: <span>{match.MatchId}</span></div>}
+      <LiveFreshness match={match} variant={variant}/>
 
       <div className="live-overview-grid" style={liveOverviewGridStyle}>
         <div className="live-radiant-players" style={sidePlayersStyle}>
@@ -166,7 +174,12 @@ function LiveMatchCard({ match, snapshots, variant = 'live' }) {
         </div>
       </div>
 
-      {timeline.length > 1 && (
+      <div className="live-timeline-actions"><button type="button" aria-expanded={historyOpen}
+        onClick={()=>{setHistoryOpen(open=>!open);setSelectedSnapshotIndex(null);}}>
+        {historyOpen?'Hide match timeline':'Show match timeline'}
+      </button>{historyOpen&&historyLoading&&<span role="status">Loading timeline…</span>}</div>
+      {historyOpen&&historyError&&<p className="live-update-error" role="status">Timeline unavailable. Live scores keep updating. <button type="button" onClick={retry}>Retry timeline</button></p>}
+      {historyOpen && timeline.length > 1 && (
         <div style={timelineStyle}>
           <label>
             Snapshot {selectedIndex + 1} / {timeline.length}
@@ -202,78 +215,62 @@ function LiveMatchCard({ match, snapshots, variant = 'live' }) {
   );
 }
 
+function liveTimestamp(value) {
+  if (!value) return null;
+  const milliseconds=Date.parse(/(?:Z|[+-]\d\d:\d\d)$/.test(value)?value:value.replace(' ','T')+'Z');
+  return Number.isFinite(milliseconds)?milliseconds:null;
+}
+
+function ageLabel(milliseconds,now) {
+  if(milliseconds===null)return 'unavailable';
+  const seconds=Math.max(0,Math.floor((now-milliseconds)/1000));
+  if(seconds<2)return 'just now';
+  if(seconds<60)return `${seconds}s ago`;
+  return `${Math.floor(seconds/60)}m ago`;
+}
+
+function LiveFreshness({match,variant}) {
+  const [now,setNow]=useState(Date.now);
+  useEffect(()=>{
+    const timer=setInterval(()=>setNow(Date.now()),1000);
+    return()=>clearInterval(timer);
+  },[]);
+  const seen=liveTimestamp(match.LastUpdated);
+  const changed=liveTimestamp(match.LastChangedAt||match.CreatedAt);
+  return <div className="live-freshness" data-delayed={variant==='live'&&seen!==null&&now-seen>20000}>
+    <span title="When the saved game data last changed">{variant==='recent'?'Last tracked':'Game data updated'} {ageLabel(changed,now)}</span>
+    {variant==='live'&&<span title="When the worker last received this match from Steam">Checked {ageLabel(seen,now)}</span>}
+    {Number(match.StreamDelaySeconds)>0&&<span>Broadcast delay {formatDuration(match.StreamDelaySeconds)}</span>}
+  </div>;
+}
+
 export default function LiveMatchesPage() {
-  const [matches, setMatches] = useState([]);
-  const [recentMatches, setRecentMatches] = useState([]);
-  const [snapshotsByMatch, setSnapshotsByMatch] = useState({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadLiveMatches() {
-      try {
-        const [liveRes, recentRes] = await Promise.all([
-          fetch('/api/liveMatches'),
-          fetch('/api/liveMatches/recent?hours=24'),
-        ]);
-        const [liveData, recentData] = await Promise.all([
-          liveRes.json(),
-          recentRes.json(),
-        ]);
-        if (cancelled) return;
-
-        const rows = liveData.matches || [];
-        const recentRows = recentData.matches || [];
-        const currentMatchIds = new Set(rows.map((match) => Number(match.MatchId)));
-        const filteredRecentRows = recentRows.filter(
-          (match) => !currentMatchIds.has(Number(match.MatchId))
-        );
-
-        setMatches(rows);
-        setRecentMatches(filteredRecentRows);
-
-        const snapshotEntries = await Promise.all(
-          [...rows, ...filteredRecentRows].map(async (match) => {
-            const snapRes = await fetch(`/api/liveMatches/${match.MatchId}/snapshots`);
-            const snapData = await snapRes.json();
-            return [match.MatchId, snapData.snapshots || []];
-          })
-        );
-
-        if (!cancelled) setSnapshotsByMatch(Object.fromEntries(snapshotEntries));
-      } catch (err) {
-        console.error(err);
-        if (!cancelled) {
-          setMatches([]);
-          setRecentMatches([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    loadLiveMatches();
-    const interval = setInterval(loadLiveMatches, 10000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
-
-  const recentCount = useMemo(() => recentMatches.length, [recentMatches]);
-
-  if (loading) return <div>Loading live matches...</div>;
+  const live=useLiveMatches();
+  const recent=useLiveResource('/api/liveMatches/recent?hours=24',30000);
+  const matches=live.data?.matches||[];
+  const currentMatchIds=new Set(matches.map(match=>Number(match.MatchId)));
+  const recentMatches=(recent.data?.matches||[]).filter(match=>!currentMatchIds.has(Number(match.MatchId)));
+  const previousIds=useRef([]);
+  const refreshRecent=recent.refresh;
+  useEffect(()=>{
+    const ids=new Set((live.data?.matches||[]).map(match=>Number(match.MatchId)));
+    if(previousIds.current.some(id=>!ids.has(id)))refreshRecent();
+    previousIds.current=[...ids];
+  },[live.data,refreshRecent]);
 
   return (
     <div className="live-matches-page ui-page" style={pageStyle}>
+      <header className="ui-page-heading"><div><h1>Live matches</h1><p style={metaStyle}>Scores, players, and draft updates</p></div>
+        <button type="button" onClick={()=>{live.refresh();recent.refresh();}}>Refresh</button></header>
+      {!live.loading&&<p className="live-connection-status" data-connection={live.connection}>{live.connection==='live'?'Live updates connected':live.connection==='polling'?'Refreshing automatically while live updates reconnect':live.connection==='paused'?'Updates paused while this tab is hidden':'Connecting to live updates…'}</p>}
+      {live.loading&&<p role="status">Loading live matches…</p>}
+      {live.error&&<p className="live-update-error" role="status">{live.data?live.error:'Unable to load live matches. Retrying automatically.'}</p>}
+      {!live.loading&&!live.error&&!matches.length&&<p style={metaStyle}>No matches are live right now.</p>}
       <div style={cardsStyle}>
         {matches.map((match) => (
           <LiveMatchCard
             key={match.MatchId}
             match={match}
-            snapshots={snapshotsByMatch[match.MatchId] || []}
           />
         ))}
       </div>
@@ -283,19 +280,19 @@ export default function LiveMatchesPage() {
           <h2 style={{ margin: 0 }}>Recent Matches</h2>
           <span style={metaStyle}>Last 24 hours</span>
         </div>
-        {recentCount > 0 ? (
+        {recent.error&&<p className="live-update-error" role="status">Recent matches could not be refreshed. Retrying automatically.</p>}
+        {recentMatches.length > 0 ? (
           <div style={cardsStyle}>
             {recentMatches.map((match) => (
               <LiveMatchCard
                 key={`recent-${match.MatchId}`}
                 match={match}
-                snapshots={snapshotsByMatch[match.MatchId] || []}
                 variant="recent"
               />
             ))}
           </div>
         ) : (
-          <p style={metaStyle}>No recently finished live matches tracked.</p>
+          <p style={metaStyle}>{recent.loading?'Loading recent matches…':recent.error?'':'No recently tracked matches.'}</p>
         )}
       </section>
 

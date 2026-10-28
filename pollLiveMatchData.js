@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import db from './database.js';
 import dotenv from 'dotenv';
+import {notifyLiveMatchUpdate} from './config/liveMatchNotifications.js';
 dotenv.config();
 
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
@@ -16,6 +16,7 @@ let lastErrorMessage = null;
 let lastErrorLoggedAt = 0;
 let lastSkippedMatchWarningAt = 0;
 let lastHeartbeatLoggedAt = 0;
+let lastPushErrorAt = 0;
 
 function timestamp() {
   return new Date().toISOString();
@@ -207,10 +208,10 @@ function normalizeLiveMatch(game, activeLeagueId) {
   };
 }
 
-async function getLiveLeagueMatches(leagueId) {
+async function getLiveLeagueMatches(leagueId, { apiKey = STEAM_API_KEY, fetchImpl = fetch } = {}) {
   const requestUrl =
     `https://api.steampowered.com/IDOTA2Match_570/GetLiveLeagueGames/v1/` +
-    `?key=${encodeURIComponent(STEAM_API_KEY)}&league_id=${encodeURIComponent(leagueId)}`;
+    `?key=${encodeURIComponent(apiKey)}&league_id=${encodeURIComponent(leagueId)}`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -219,7 +220,7 @@ async function getLiveLeagueMatches(leagueId) {
   let ok;
 
   try {
-    const response = await fetch(requestUrl, { signal: controller.signal });
+    const response = await fetchImpl(requestUrl, { signal: controller.signal, cache: 'no-store' });
     responseText = await response.text();
     status = response.status;
     ok = response.ok;
@@ -229,18 +230,23 @@ async function getLiveLeagueMatches(leagueId) {
 
   if (!ok) throw new Error(`Steam API returned HTTP ${status}`);
 
+  let payload;
   try {
-    const games = JSON.parse(responseText)?.result?.games;
-    return Array.isArray(games) ? games : [];
+    payload = JSON.parse(responseText);
   } catch (err) {
     throw new Error(`Steam returned invalid JSON: ${err.message}`);
   }
+  if (!Array.isArray(payload?.result?.games)) {
+    throw new Error('Steam returned no live games list');
+  }
+  return payload.result.games;
 }
 
-async function pollLiveMatches() {
-  if (!STEAM_API_KEY) {
+async function pollLiveMatches({ database, apiKey = STEAM_API_KEY, fetchImpl = fetch, notify = notifyLiveMatchUpdate } = {}) {
+  if (!apiKey) {
     throw new Error('Missing STEAM_API_KEY in .env');
   }
+  const db = database || (await import('./database.js')).default;
 
   const activeLeagueId = db.getActiveLeague()?.[0]?.LeagueId;
   if (!activeLeagueId) {
@@ -256,7 +262,7 @@ async function pollLiveMatches() {
     noActiveLeagueLogged = false;
   }
 
-  const games = await getLiveLeagueMatches(activeLeagueId);
+  const games = await getLiveLeagueMatches(activeLeagueId, { apiKey, fetchImpl });
   let changedMatches = 0;
   let skippedMatches = 0;
   const seenMatchIds = [];
@@ -274,8 +280,20 @@ async function pollLiveMatches() {
 
   const removedMatches = db.pruneMissingLiveMatches(
     seenMatchIds,
-    games.length === 0 ? 0 : STALE_LIVE_MATCH_SECONDS
+    STALE_LIVE_MATCH_SECONDS,
+    activeLeagueId
   );
+
+  // Commit all changes before notifying the web process. Successful unchanged
+  // polls also update the viewers' "last checked" time, without new snapshots.
+  let delivered=false;
+  try{delivered=await notify();}catch{/* Saved state remains available through HTTP polling. */}
+  if(!delivered&&Date.now()-lastPushErrorAt>=REPEATED_ERROR_LOG_INTERVAL_MS) {
+    console.warn(`[${timestamp()}] Live push notification unavailable; browser polling remains available.`);
+    lastPushErrorAt=Date.now();
+  }else if(delivered&&lastPushErrorAt) {
+    console.log(`[${timestamp()}] Live push notifications recovered.`);lastPushErrorAt=0;
+  }
 
   if (skippedMatches > 0) {
     const now = Date.now();
@@ -303,14 +321,20 @@ async function pollLiveMatches() {
 }
 
 async function runPollingLoop() {
+  const startedAt = Date.now();
   try {
     await pollLiveMatches();
     logRecovery();
   } catch (err) {
     logRateLimitedError(`Live poll failed: ${err.message}`, err);
   } finally {
-    setTimeout(runPollingLoop, POLL_INTERVAL_MS);
+    setTimeout(runPollingLoop, nextLivePollDelay(startedAt));
   }
+}
+
+// Five seconds between request starts, without overlapping a slow Steam request.
+function nextLivePollDelay(startedAt, now = Date.now()) {
+  return Math.max(100, POLL_INTERVAL_MS - (now - startedAt));
 }
 
 const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
@@ -327,4 +351,5 @@ export {
   getLiveLeagueMatches,
   normalizeLiveMatch,
   pollLiveMatches,
+  nextLivePollDelay,
 };

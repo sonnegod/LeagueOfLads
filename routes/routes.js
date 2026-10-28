@@ -22,12 +22,7 @@ import { createUpcomingGamesRouter } from './upcomingGamesRoutes.js';
 import { readUpcomingSweepOdds } from '../betting/upcomingOdds.js';
 import { createBettingRuntime, mutationRefresh } from '../betting/runtime.js';
 import { classifyStandings, DEFAULT_LEAGUE_RULES,qualificationPools } from '../config/leagueRules.js';
-import {
-  getAppLiveMatchesPayload,
-  toAppLiveMatch,
-  toNullableNumber,
-  withLiveMatchJson,
-} from './utility/liveMatchResponses.js';
+import { createLiveMatchRouter } from './liveMatchRoutes.js';
 import { getAppStandingsPayload } from './utility/standingsResponses.js';
 import { createPlayerAwardsRouter } from './playerAwardsRoutes.js';
 import { createWarehouseReportingRouter } from './warehouseReportingRoutes.js';
@@ -596,85 +591,9 @@ router.post('/admin/leagues', checkAdmin, (req, res) => {
   return res.status(409).json({ error: 'Create a season in League Overview, then start it with an external League ID' });
 });
 
-router.get('/liveMatches/count', (req, res) => {
-  try {
-    res.json({ count: db.getLiveMatchCount() });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to load live match count' });
-  }
-});
-
-router.get('/liveMatches', (req, res) => {
-  try {
-    const matches = db.getLiveMatchCurrentStates().map(withLiveMatchJson);
-    res.json({ matches });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to load live matches' });
-  }
-});
-
-router.get('/liveMatches/recent', (req, res) => {
-  try {
-    const hours = Number(req.query.hours || 4);
-    const matches = db.getRecentLiveMatchSnapshots(hours).map(withLiveMatchJson);
-    res.json({ matches });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to load recent live matches' });
-  }
-});
-
-router.get('/liveMatches/:matchId/snapshots', (req, res) => {
-  try {
-    const snapshots = db.getLiveMatchSnapshots(req.params.matchId).map(withLiveMatchJson);
-    res.json({ snapshots });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to load live match snapshots' });
-  }
-});
-
-router.get('/app/live-matches', (req, res) => {
-  try {
-    const includeRecent = req.query.includeRecent !== 'false';
-    res.json(getAppLiveMatchesPayload(db, { includeRecent }));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to load app live matches' });
-  }
-});
-
-router.get('/app/live-matches/count', (req, res) => {
-  try {
-    res.json({
-      generatedAt: new Date().toISOString(),
-      count: db.getLiveMatchCount(),
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to load app live match count' });
-  }
-});
-
-router.get('/app/live-matches/:matchId/snapshots', (req, res) => {
-  try {
-    const snapshots = db
-      .getLiveMatchSnapshots(req.params.matchId)
-      .map((snapshot) => toAppLiveMatch(snapshot));
-
-    res.json({
-      generatedAt: new Date().toISOString(),
-      matchId: toNullableNumber(req.params.matchId),
-      count: snapshots.length,
-      snapshots,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to load app live match snapshots' });
-  }
-});
+const liveMatchRoutes=createLiveMatchRouter(db);
+export const liveMatchUpdates=liveMatchRoutes.liveUpdates;
+router.use(liveMatchRoutes);
 
 router.get('/app/standings', async (req, res) => {
   try {

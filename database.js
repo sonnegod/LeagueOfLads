@@ -25,6 +25,7 @@ import { initializeWarehouse } from './config/warehouseIngestion.js';
 import { configureWarehouseConnection } from './config/warehouseConnection.js';
 import { ensureRemakeDraftSchema } from './config/remakeDrafts.js';
 import { ensureQualificationSchema, saveQualificationRules } from './config/qualificationStore.js';
+import { readLiveMatchCurrentStates, readLiveMatchSnapshots } from './config/liveMatchReads.js';
 dotenv.config();
 
 class DBInstance {
@@ -400,6 +401,10 @@ class DBInstance {
         this.db.prepare(`
             CREATE INDEX IF NOT EXISTS idx_LiveMatchSnapshots_CreatedAt
             ON LiveMatchSnapshots (CreatedAt)
+        `).run();
+        this.db.prepare(`
+            CREATE INDEX IF NOT EXISTS idx_LiveMatchSnapshots_MatchId_SnapshotId
+            ON LiveMatchSnapshots (MatchId, SnapshotId)
         `).run();
     }
 
@@ -911,17 +916,7 @@ class DBInstance {
     }
 
     getLiveMatchCurrentStates(){
-        const matches = this.queryDatabase(`
-            SELECT *
-            FROM LiveMatchCurrentState
-            ORDER BY LastUpdated DESC
-        `);
-
-        return matches.map((match) => ({
-            ...match,
-            Players: this.getLiveMatchCurrentPlayers(match.MatchId),
-            Draft: this.getLiveMatchCurrentDraft(match.MatchId)
-        }));
+        return readLiveMatchCurrentStates(this.db);
     }
 
     getRecentLiveMatchSnapshots(hours = 4){
@@ -976,19 +971,8 @@ class DBInstance {
         }));
     }
 
-    getLiveMatchSnapshots(matchId){
-        const snapshots = this.queryDatabase(`
-            SELECT *
-            FROM LiveMatchSnapshots
-            WHERE MatchId = ?
-            ORDER BY CreatedAt ASC
-        `, [matchId]);
-
-        return snapshots.map((snapshot) => ({
-            ...snapshot,
-            Players: this.getLiveMatchSnapshotPlayers(snapshot.SnapshotId),
-            Draft: this.getLiveMatchSnapshotDraft(snapshot.SnapshotId)
-        }));
+    getLiveMatchSnapshots(matchId, afterSnapshotId = 0){
+        return readLiveMatchSnapshots(this.db, matchId, afterSnapshotId);
     }
 
     deleteLiveMatchSnapshotsOlderThan(retentionDays = 7){
