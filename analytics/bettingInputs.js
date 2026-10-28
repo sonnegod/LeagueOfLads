@@ -63,7 +63,7 @@ export function readSeasonBettingInputs(db, seasonId, now = new Date()) {
       a.Won AS Team1Won FROM MatchFacts m JOIN TeamGameFacts a ON a.RunId=m.RunId AND a.MatchId=m.MatchId AND a.Side='radiant'
       JOIN TeamGameFacts b ON b.RunId=m.RunId AND b.MatchId=m.MatchId AND b.Side='dire'
       WHERE m.RunId=? AND m.Stage IN ('regular','playoff') AND m.StartedAtUtc IS NOT NULL AND m.StartedAtUtc<=? ORDER BY m.StartedAtUtc,m.MatchId LIMIT 10001`).all(run.RunId,run.AsOfUtc);
-    const metricHistory = db.prepare(`WITH ranked AS (SELECT g.*,m.Stage,m.StartedAtUtc,m.DurationSeconds,m.SourceObservedAtUtc,
+    const metricHistory = db.prepare(`WITH ranked AS (SELECT g.*,m.SeasonId,m.SeriesId,m.Stage,m.StartedAtUtc,m.DurationSeconds,m.SourceObservedAtUtc,
       ROW_NUMBER() OVER(PARTITION BY g.PlayerId ORDER BY m.StartedAtUtc DESC,m.MatchId DESC) AS n FROM PlayerGameFacts g
       JOIN MatchFacts m ON m.RunId=g.RunId AND m.MatchId=g.MatchId WHERE g.RunId=? AND g.Membership='rostered'
       AND m.Stage IN ('regular','playoff') AND m.StartedAtUtc IS NOT NULL AND m.StartedAtUtc<=?) SELECT * FROM ranked WHERE n<=100 LIMIT 100001`).all(run.RunId,run.AsOfUtc);

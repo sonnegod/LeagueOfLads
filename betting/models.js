@@ -3,8 +3,9 @@ import { classifyStandings,normalizeLeagueRules,normalizeQualificationPlan } fro
 import { generatePlayoffBracket } from '../client/src/utils/playoffBracket.js';
 import {activeLineup,lineupPrior,resultAvailableAt} from './rosterStrength.js';
 import {plannedGameCounts} from './seasonFormat.js';
+import {playerStatDistribution,validatePlayerStatHistory} from './playerForm.js';
 
-export const MODEL_VERSION = 'league-lineup-v6';
+export const MODEL_VERSION = 'league-lineup-v7';
 export const LEADER_FIELD_VERSION = 'listed-history-v1';
 export const METRICS = Object.freeze({ kills:'Kills',deaths:'Deaths',assists:'Assists',last_hits:'LastHits',
   hero_damage:'HeroDamage',tower_damage:'TowerDamage',healing:'Healing',gpm:'GPM',xpm:'XPM' });
@@ -108,30 +109,7 @@ export function validateBaseline(history,historyTeams=[],mode='league') {
     reason:samples<20?'insufficient_temporal_samples':score>.27||logLoss>.8?'baseline_validation_failed':null };
 }
 export function validateStatDistributions(history) {
-  const ordered=[...history].sort((a,b)=>a.StartedAtUtc.localeCompare(b.StartedAtUtc)||a.MatchId-b.MatchId);
-  const reports={};
-  const available=ordered.filter(g=>Number.isFinite(availableAt(g))).sort((a,b)=>availableAt(a)-availableAt(b));
-  for(const [stat,column] of Object.entries(METRICS)) {
-    const pooled=[];const personal=new Map();let count=0,brier=0,cursor=0;
-    for(const game of ordered) {
-      while(cursor<available.length&&availableAt(available[cursor])<Date.parse(game.StartedAtUtc)) {
-        const previous=available[cursor++];const value=previous[column];if(!Number.isFinite(value))continue;
-        personal.set(previous.PlayerId,[...(personal.get(previous.PlayerId)||[]),value].slice(-100));
-        pooled.push(value);if(pooled.length>2000)pooled.shift();
-      }
-      const value=game[column];if(!Number.isFinite(value))continue;
-      const past=personal.get(game.PlayerId)||[];
-      if(pooled.length>=50&&past.length>=5) {
-        const weight=past.length/(past.length+10);const expected=weight*mean(past)+(1-weight)*mean(pooled);
-        const line=Math.floor(expected)+.5;
-        const probability=weight*(past.filter(v=>v>line).length+1)/(past.length+2)
-          +(1-weight)*(pooled.filter(v=>v>line).length+1)/(pooled.length+2);
-        brier+=(probability-Number(value>line))**2;count++;
-      }
-    }
-    reports[stat]={samples:count,brier:count?brier/count:null,validated:count>=20&&brier/count<=.30};
-  }
-  return reports;
+  return validatePlayerStatHistory(history,METRICS);
 }
 export function seriesForecast(inputs,event) {
   const p=teamProbability(inputs,event.Team1Key,event.Team2Key); const scores=seriesDistribution(p,event.BestOf);
@@ -157,18 +135,24 @@ export function statSampler(inputs,playerId,stat,random) {
   if(!cache.has(stat)) {
     const pooled=[];const players=new Map();
     for(const game of inputs.metricHistory)if(Number.isFinite(game[column])) {
-      if(inputs.modelMode==='historical_roster') {pooled.push(game[column]);if(pooled.length>2000)pooled.shift();}
-      else if(pooled.length<2000)pooled.push(game[column]);
-      if(!players.has(game.PlayerId))players.set(game.PlayerId,[]);players.get(game.PlayerId).push(game[column]);
-      if(inputs.modelMode==='historical_roster'&&players.get(game.PlayerId).length>100)players.get(game.PlayerId).shift();
+      pooled.push(game);if(pooled.length>2000)pooled.shift();
+      if(!players.has(game.PlayerId))players.set(game.PlayerId,[]);players.get(game.PlayerId).push(game);
+      if(players.get(game.PlayerId).length>100)players.get(game.PlayerId).shift();
     }
     cache.set(stat,{pooled,players});
   }
   const {pooled,players}=cache.get(stat);const personal=players.get(playerId)||[];
   if(inputs.modelMode==='historical_roster'&&(personal.length<5||pooled.length<50))return null;
   if(pooled.length<5) return null;
-  const weight=personal.length/(personal.length+10);
-  return () => { const source=personal.length&&random()<weight ? personal : pooled; return source[Math.floor(random()*source.length)]; };
+  const distributionKey=`distribution:${playerId}:${stat}`;
+  if(!cache.has(distributionKey))cache.set(distributionKey,playerStatDistribution(personal,pooled,column,inputs.season?.SeasonId));
+  const distribution=cache.get(distributionKey);if(!distribution)return null;
+  const sample=()=>{
+    if(distribution.recentWeight&&random()<distribution.recentWeight)return distribution.recent[Math.floor(random()*distribution.recent.length)];
+    const source=distribution.own.length&&random()<distribution.personalWeight?distribution.own:distribution.peers;
+    return source[Math.floor(random()*source.length)];
+  };
+  sample.form=distribution.form;return sample;
 }
 export function statForecast(inputs,{playerId,stat,scope,games=1,event,teamKey,line:fixedLine=null},random,samples=2000) {
   const sampler=statSampler(inputs,playerId,stat,random); if(!sampler) return null;
@@ -180,7 +164,7 @@ export function statForecast(inputs,{playerId,stat,scope,games=1,event,teamKey,l
   }
   const expected=mean(values); const line=fixedLine??Math.floor(expected)+.5;
   const over=(values.filter(v=>v>line).length+1)/(values.length+2);
-  return {line,over,under:1-over,samples,expected,teamKey};
+  return {line,over,under:1-over,samples,expected,teamKey,form:sampler.form||null};
 }
 
 export function simulateSeason(inputs,setup,random,samples=2000,{includeMatchups=false}={}) {

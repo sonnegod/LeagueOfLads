@@ -9,6 +9,8 @@ import { currentSeasonRoster, conflictingRosterPlayers } from './rosterMembershi
 import { currentPendingSlots } from '../config/pendingRosterSlots.js';
 import { HISTORICAL_PRICING_VERSION, historicalSourceFingerprint } from './historicalPricing.js';
 import { marketHasClosed } from './marketTiming.js';
+import {mergePlayerMetricHistory,PLAYER_FORM_VERSION} from './playerForm.js';
+import {readRosterOrder} from '../config/rosterDisplayOrder.js';
 import { MODEL_VERSION,LEADER_FIELD_VERSION,METRICS,metricLabel,seededRandom,validateBaseline,validateLineupModel,validateStatDistributions,seriesForecast,statForecast,leaderForecast,eligibleLeaderRoster,simulateSeason,seasonWinsForecast } from './models.js';
 
 const allVoid = (book,market,reason) => book.void(market.MarketId,reason);
@@ -390,6 +392,8 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
         })();
       }
       const inputs=readSeasonBettingInputs(analytics,season.SeasonId,now);if(!inputs){if(['active','signup_closed'].includes(season.Status))issues.push('analytics_not_available');continue;}
+      const canonicalMetrics=mergePlayerMetricHistory(inputs.metricHistory,[],inputs.season,inputs.asOf);
+      inputs.metricHistory=canonicalMetrics;
       if(['active','signup_closed'].includes(season.Status)
         &&conflictingRosterPlayers(currentSeasonRoster(league,season.SeasonId,season.Status)).length) {
         book.db.prepare("UPDATE BettingMarkets SET Status='held',HoldReason='conflicting_roster_memberships' WHERE SeasonId=? AND Status IN ('open','held')").run(season.SeasonId);
@@ -432,7 +436,8 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
         if(historical) {
           const candidates={...validation.candidates,historical:historical.validation};
           if(historical.validation.validated) {
-            inputs.modelMode=historical.modelMode;inputs.metricHistory=historical.metricHistory;
+            inputs.modelMode=historical.modelMode;
+            inputs.metricHistory=mergePlayerMetricHistory(canonicalMetrics,historical.metricHistory,inputs.season,inputs.asOf);
             inputs.preseasonTeamPriors=historical.preseasonTeamPriors;
             inputs.historicalPricing={version:historical.modelVersion,sourceFingerprint:historical.sourceFingerprint};
             validation={...historical.validation,candidates};
@@ -454,6 +459,13 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
         issues.push('local_test_only');
       }
       const seasonRoster=currentSeasonRoster(league,season.SeasonId,season.Status);
+      // These are today's declared positions only; never label older matches
+      // from a roster order that may have changed since they were played.
+      inputs.currentPositions=season.Status==='active'?seasonRoster.map(player=>{
+        const order=readRosterOrder(league,player.TeamSubmissionId),position=order.indexOf(player.Slot)+1;
+        return {playerId:player.PlayerId,teamKey:player.TeamSubmissionId,position:position||null,
+          role:position?position<=3?'core':'support':null,source:'current_roster_order'};
+      }):[];
       const preseason=preseasonWindow(league,season.SeasonId,now,book.env,events);
       const existing=book.db.prepare("SELECT * FROM BettingMarkets WHERE SeasonId=? AND Status IN ('open','held','locked')").all(season.SeasonId);
       for(const m of existing) {
@@ -483,7 +495,7 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
       const snapshotId=book.db.prepare('SELECT SnapshotId FROM BettingInputSnapshots WHERE Digest=?').get(inputHash).SnapshotId;
       const upcoming=events.filter(e=>Date.parse(e.ScheduledStartUtc)>now.getTime()&&Date.parse(e.ScheduledStartUtc)<=now.getTime()+lookaheadDays*86400000);
       const modelVersion=inputs.historicalPricing?.version||`${MODEL_VERSION}-${inputs.modelMode}`;
-      const forecastKey=digest({inputHash,events,setup,model:modelVersion,leaderField:LEADER_FIELD_VERSION,simulations,policy:book.policy,lookaheadDays,upcoming:upcoming.map(e=>e.EventId)});
+      const forecastKey=digest({inputHash,events,setup,model:modelVersion,playerForm:PLAYER_FORM_VERSION,leaderField:LEADER_FIELD_VERSION,simulations,policy:book.policy,lookaheadDays,upcoming:upcoming.map(e=>e.EventId)});
       if(book.db.prepare('SELECT 1 FROM BettingForecasts WHERE ForecastKey=?').get(forecastKey))continue;
       const semantic=JSON.parse(JSON.stringify({teams:inputs.teams,roster:inputs.roster,stats:inputs.teamStats,metrics:inputs.metricHistory,
         games:inputs.games,mode:inputs.modelMode},(key,value)=>['RunId','SourceObservedAtUtc'].includes(key)?undefined:value));
@@ -494,7 +506,7 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
         AND EventId IS ? AND PlayerId=? AND StatKey=? AND Scope=? AND GameNumber IS ?
         AND Status!='void' ORDER BY MarketId DESC`).all(season.SeasonId,eventId,playerId,stat,scope,gameNumber)
         .find(m=>scope!=='total'||eventId||regularGames===JSON.parse(m.RulesJson).regularGames)?.Line??null;
-      const forecasts=[];
+      const forecasts=[],playerForms=new Map();
       const proposals=[];
       const publish=(definition,probabilities,close)=>{
         const rules={...definition.rules,...(localTesting?{localTesting:true}:{}),
@@ -535,6 +547,8 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
               scope:scope==='game'?'average':scope,event:scope==='game'?null:event,games:1,
               line:fixedLine(event.EventId,player.PlayerId,stat,scope,gameNumber)},random,simulations);
             if(!forecast)continue;
+            if(forecast.form)playerForms.set(`${player.PlayerId}:${stat}`,{playerId:player.PlayerId,stat,
+              position:inputs.currentPositions.find(row=>row.playerId===player.PlayerId&&row.teamKey===player.TeamSubmissionId)?.position||null,...forecast.form});
             publish({...def,type:'player_prop',playerId:player.PlayerId,teamKey:player.TeamSubmissionId,stat,scope,gameNumber,line:forecast.line,
               title:`${player.PlayerName} — ${metricLabel(stat)} ${scope==='game'?`game ${gameNumber}`:scope}`},
               [{key:'over',label:`Over ${forecast.line}`,probability:forecast.over},{key:'under',label:`Under ${forecast.line}`,probability:forecast.under}],event.ScheduledStartUtc);
@@ -596,7 +610,7 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
         const oldCount=book.db.prepare('SELECT COUNT(*) AS n FROM BettingMarkets').get().n;
         const stored=proposals.map(p=>({marketId:book.publish(p.definition,p.probabilities,forecastId,p.close),definition:p.definition,probabilities:p.probabilities}));
         opened+=book.db.prepare('SELECT COUNT(*) AS n FROM BettingMarkets').get().n-oldCount;
-        book.db.prepare('UPDATE BettingForecasts SET ForecastJson=?,ForecastKey=? WHERE ForecastId=?').run(JSON.stringify({events:forecasts,markets:stored}),forecastKey,forecastId);
+        book.db.prepare('UPDATE BettingForecasts SET ForecastJson=?,ForecastKey=? WHERE ForecastId=?').run(JSON.stringify({events:forecasts,markets:stored,playerForm:[...playerForms.values()]}),forecastKey,forecastId);
       })();
     }
     book.db.prepare("UPDATE BettingJobs SET Status='complete',CompletedAtUtc=?,MarketsOpened=?,MarketsSettled=?,IssueCode=? WHERE JobId=?")

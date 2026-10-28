@@ -98,13 +98,15 @@ and accepted ticket odds remain fixed. A corrected BO2 settles once both games
 pass the existing result checks. To reconcile betting after an already-saved
 correction, run `node scripts/betting/run.js --refresh-analytics` once.
 
-### Held remake drafts
+### Scheduling review deletion
 
 Scheduling posts needing review also support an admin Delete action. This
 removes the review entry and records a durable dismissal so Discord edits,
 catch-up and parser upgrades cannot recreate it. The original Discord post and
 any linked fixture remain intact. Dismissals are audited and cannot resolve a
 stale review entry afterward.
+
+### Held remake drafts
 
 Admin → League → Match includes Held drafts. Import a draft-only match by its
 OpenDota match ID to recover an older remake. Picks/bans from a 0–0 Captains Mode

@@ -12,7 +12,7 @@ export function queueBettingRefresh(markDirty=true) {
   refreshQueue?.request(markDirty);
 }
 export function mutationRefresh(req,res,next) {
-  if(req.method==='PUT'&&/^\/rosters\/seasons\/\d+\/(?:roster-order|captain)\/?$/.test(req.path))return next();
+  if(req.method==='PUT'&&/^\/rosters\/seasons\/\d+\/captain\/?$/.test(req.path))return next();
   if(/^\/betting\/seasons\/\d+\/preview\/?$/.test(req.path))return next();
   if(['POST','PUT','PATCH','DELETE'].includes(req.method))res.once('finish',()=>{if(res.statusCode>=200&&res.statusCode<300)queueBettingRefresh();});
   next();

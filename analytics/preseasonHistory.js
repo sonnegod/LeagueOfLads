@@ -18,7 +18,7 @@ export function readPreseasonPreviewHistory(league, { excludeLeagueId, now = new
     try {
       migrateAnalytics(derived);
       const { runId } = buildAnalytics({ league, analytics: derived, previewLeagueId: candidate.LeagueId, now });
-      const rows = derived.prepare(`SELECT g.*,m.LeagueId,m.Stage,m.StartedAtUtc,m.SourceObservedAtUtc,m.DurationSeconds,
+      const rows = derived.prepare(`SELECT g.*,m.SeasonId,m.SeriesId,m.LeagueId,m.Stage,m.StartedAtUtc,m.SourceObservedAtUtc,m.DurationSeconds,
         c.PatchKey,e.LaneRole FROM PlayerGameFacts g JOIN MatchFacts m USING(RunId,MatchId)
         JOIN MatchContextFacts c USING(RunId,MatchId) JOIN PlayerPerformanceFacts e USING(RunId,MatchId,PlayerId)
         WHERE g.RunId=? AND m.Stage IN ('regular','playoff') AND m.StartedAtUtc IS NOT NULL ORDER BY m.StartedAtUtc,g.MatchId,g.PlayerId`).all(runId);

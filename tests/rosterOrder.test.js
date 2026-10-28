@@ -42,7 +42,7 @@ test('reordering is display-only, validates the saved roster and does not republ
   }finally{f.close();}
 });
 
-test('roster administration reads and saves order including TBD positions without queuing a pricing refresh',async()=>{
+test('roster administration saves positions including TBD slots and registers a pricing refresh',async()=>{
   const f=fixture();let server;
   try {
     f.league.prepare('INSERT INTO SeasonPendingRosterSlots(TeamSubmissionId,Slot,EstimatedMMR,CreatedAtUtc,UpdatedAtUtc) VALUES(21,2,6500,?,?)')
@@ -59,7 +59,9 @@ test('roster administration reads and saves order including TBD positions withou
     const saved=await put({teamKey:21,expectedRoster,order:[2,4,3,1,0]});assert.equal(saved.status,200);
     assert.deepEqual((await get()).rosterOrders.find(t=>t.teamKey===21).order,[2,4,3,1,0]);
     assert.equal((await put({teamKey:21,expectedRoster,order:[0,0,1,2,3]})).status,400);
-    let continued=false;mutationRefresh({method:'PUT',path:'/rosters/seasons/2/roster-order'},
-      {once:()=>{throw Error('Display order must not trigger pricing');}},()=>{continued=true;});assert.equal(continued,true);
+    let continued=false,finished;
+    mutationRefresh({method:'PUT',path:'/rosters/seasons/2/roster-order'},
+      {once:(event,callback)=>{assert.equal(event,'finish');finished=callback;}},()=>{continued=true;});
+    assert.equal(continued,true);assert.equal(typeof finished,'function');
   }finally{if(server)await new Promise(resolve=>server.close(resolve));f.close();}
 });

@@ -1,8 +1,9 @@
 import { readPreseasonPreviewHistory } from '../analytics/preseasonHistory.js';
 import { digest } from './scheduleStore.js';
 import { METRICS } from './models.js';
+import {validatePlayerStatHistory} from './playerForm.js';
 
-export const HISTORICAL_PRICING_VERSION = 'historical-roster-v1';
+export const HISTORICAL_PRICING_VERSION = 'historical-roster-v2';
 const mean = values => values.reduce((sum, value) => sum + value, 0) / values.length;
 const completedAt = row => Date.parse(row.StartedAtUtc) + Number(row.DurationSeconds) * 1000;
 const logit = p => Math.log(p / (1 - p));
@@ -87,6 +88,7 @@ export function historicalPricingInputs(inputs, { history, reports = [] }, now =
     }
   }
   const score = samples ? brier / samples : null, logLoss = samples ? loss / samples : null;
+  const adaptive=validatePlayerStatHistory(rows,METRICS,{retrospective:true});
   const validation = { modelVersion: HISTORICAL_PRICING_VERSION, method: 'retrospective_season_holdout',
     lineupSource: 'recorded_match_participants', availabilityAssumption: 'prior_season_results_available_after_completion',
     historicalSignupMMRUsed: false, samples, brier: score, logLoss,
@@ -95,7 +97,7 @@ export function historicalPricingInputs(inputs, { history, reports = [] }, now =
     games: games.length, seasons: reports,
     statDistributions: Object.fromEntries(Object.entries(stats).map(([stat, report]) => [stat, {
       samples: report.samples, brier: report.samples ? report.squaredError / report.samples : null,
-      validated: report.samples >= 20 && report.squaredError / report.samples <= .30,
+      adaptation:adaptive[stat],validated: report.samples >= 20 && report.squaredError / report.samples <= .30&&adaptive[stat].validated,
     }])) };
   const players = playerHistory(rows);
   return { modelMode: 'historical_roster', modelVersion: HISTORICAL_PRICING_VERSION, metricHistory: rows,

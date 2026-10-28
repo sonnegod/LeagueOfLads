@@ -19,7 +19,7 @@ function history({ reversed = false } = {}) {
   for (let season = 0; season < 2; season++) for (let game = 0; game < 30; game++) for (let player = 0; player < 10; player++) {
     const side = player < 5 ? 0 : 1;
     const won = reversed ? (season === 0 ? 1 - side : side) : (game + side) % 2;
-    rows.push({ MatchId: 1000 + season * 100 + game, LeagueId: 300 + season,
+    rows.push({ MatchId: 1000 + season * 100 + game, SeasonId: 10 + season, LeagueId: 300 + season,
       PlayerId: side === 0 ? 210 + player : 220 + player - 5, TeamSubmissionId: 500 + side,
       Stage: 'regular', StartedAtUtc: new Date(Date.parse('2026-09-01T00:00:00Z') + season * 30 * 86400000 + game * 3600000).toISOString(),
       SourceObservedAtUtc: '2026-10-12T00:00:00.000Z', DurationSeconds: 1800, Won: won,
@@ -94,12 +94,12 @@ test('cold-start production markets open from validated history, accept a ticket
     assert.ok(result.marketsOpened > 100); assert.deepEqual(result.issues, []);
     assert.equal(f.betting.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name='BettingLocalTestMetadata'").get().n, 0);
     const forecast = f.betting.prepare('SELECT ModelVersion,ValidationJson FROM BettingForecasts ORDER BY ForecastId DESC LIMIT 1').get();
-    assert.equal(forecast.ModelVersion, 'historical-roster-v1');
+    assert.equal(forecast.ModelVersion, 'historical-roster-v2');
     assert.equal(JSON.parse(forecast.ValidationJson).validated, true);
     const market = f.betting.prepare("SELECT * FROM BettingMarkets WHERE SeasonId=2 AND MarketType='season_player' LIMIT 1").get();
     assert.ok(market); assert.equal(JSON.parse(market.RulesJson).localTesting, undefined);
     assert.equal(market.CloseAtUtc, '');
-    assert.equal(JSON.parse(market.RulesJson).historicalPricing.version, 'historical-roster-v1');
+    assert.equal(JSON.parse(market.RulesJson).historicalPricing.version, 'historical-roster-v2');
     const path = join(scratch, 'Analytics.db'); await f.analytics.backup(path);
     f.book.eventGuard = (id, m) => fixtureGuard(f.league, id, m, now);
     f.book.seasonGuard = (id, m) => seasonGuard(f.league, path, id, m, now);
@@ -198,6 +198,54 @@ test('saved historical matchup inputs reject source, setup or validation changes
     f.league.exec('DROP TABLE MatchSourceDetails');
     f.betting.exec("UPDATE BettingForecasts SET ValidationJson='{\"validated\":false}'");
     assert.equal(readCachedHistoricalPricing(f.book,f.league,2,setup),null);
+  }finally{f.close();}
+});
+
+test('cached historical pricing incorporates newly imported role-shift games and current positions without changing preseason prices or tickets',()=>{
+  const f=coldStart();
+  try{
+    const source=history().map(row=>({...row,GPM:450+(row.MatchId%3)*50}));
+    const build=(inputs,at)=>({...historicalPricingInputs(inputs,{history:source},at),sourceFingerprint:historicalSourceFingerprint(f.league)});
+    runBetting({...f,now,seasonId:2,simulations:500,historicalInputBuilder:build});
+    const preseason=()=>f.betting.prepare(`SELECT s.* FROM BettingSelections s JOIN BettingMarkets m USING(MarketId)
+      WHERE m.SeasonId=2 AND m.EventId IS NULL ORDER BY s.SelectionId`).all();
+    const original=preseason();
+    const market=f.betting.prepare("SELECT * FROM BettingMarkets WHERE SeasonId=2 AND EventId IS NOT NULL AND PlayerId=210 AND StatKey='gpm' AND Scope='game' AND GameNumber=1").get();
+    assert.ok(market);
+    const quote=()=>f.betting.prepare("SELECT * FROM BettingSelections WHERE MarketId=? AND OutcomeKey='under'").get(market.MarketId);
+    const before=quote();
+    const preseasonMarket=f.betting.prepare("SELECT * FROM BettingMarkets WHERE SeasonId=2 AND MarketType='season_player' LIMIT 1").get();
+    const selection=f.betting.prepare('SELECT SelectionId FROM BettingSelections WHERE MarketId=? LIMIT 1').get(preseasonMarket.MarketId);
+    f.book.accept('99',{seasonId:2,stake:100,requestKey:'unchanged_before_role_shift',legs:[{selectionId:selection.SelectionId,quoteVersion:preseasonMarket.QuoteVersion}]});
+    const accepted=f.betting.prepare('SELECT * FROM BettingTicketLegs').all();
+    const fixedPreseason=preseason(); // Includes any stake-based movement before the role shift.
+    f.league.exec("UPDATE LeagueSeasons SET Status='active' WHERE SeasonId=2");
+    f.analytics.exec("UPDATE SeasonFacts SET Status='active' WHERE SeasonId=2");
+    f.league.prepare('INSERT OR REPLACE INTO TeamRosterDisplayOrder VALUES(21,?)').run(JSON.stringify([4,3,2,1,0]));
+    for(let index=0;index<3;index++){
+      const id=9000+index,start=new Date(now.getTime()-(5-index)*3600000).toISOString();
+      const observed=new Date(Date.parse(start)+1800000).toISOString();
+      f.analytics.prepare("INSERT INTO MatchFacts VALUES(1,?,2,200,?,'regular',?,?,'api',1800,2000021,?)").run(id,700+Math.floor(index/2),start,start,observed);
+      for(let player=0;player<10;player++){
+        const team=player<5?21:22,pid=team*10+player%5;
+        f.analytics.prepare("INSERT INTO PlayerGameFacts VALUES(1,?,?,?,?,?,'rostered',10,5,15,200,?,600,10000,20000,1000,100)")
+          .run(id,pid,team,player+1,Number(player<5),pid===210?200:500);
+      }
+    }
+    const cached=(inputs)=>readCachedHistoricalPricing(f.book,f.league,inputs.season.SeasonId,f.schedules.setup(2));
+    runBetting({...f,now,seasonId:2,simulations:500,preservePreseason:true,historicalInputBuilder:cached});
+    assert.deepEqual(preseason(),fixedPreseason);assert.deepEqual(f.betting.prepare('SELECT * FROM BettingTicketLegs').all(),accepted);
+    assert.equal(f.betting.prepare('SELECT Line FROM BettingMarkets WHERE MarketId=?').get(market.MarketId).Line,market.Line);
+    assert.ok(quote().OfferedMicros<before.OfferedMicros,'The new support performances make the under more likely');
+    const forecast=f.betting.prepare('SELECT * FROM BettingForecasts ORDER BY ForecastId DESC LIMIT 1').get();
+    const report=JSON.parse(forecast.ForecastJson).playerForm.find(row=>row.playerId===210&&row.stat==='gpm');
+    assert.equal(report.reason,'recent_stat_change');assert.equal(report.direction,'down');assert.equal(report.position,5);
+    const snapshot=JSON.parse(f.betting.prepare('SELECT InputJson FROM BettingInputSnapshots WHERE SnapshotId=?').get(forecast.SnapshotId).InputJson).inputs;
+    assert.equal(snapshot.metricHistory.filter(row=>row.SeasonId===2).length,30);
+    assert.equal(snapshot.currentPositions.find(row=>row.playerId===210).role,'support');
+    const prices=quote();runBetting({...f,now,seasonId:2,simulations:500,preservePreseason:true,historicalInputBuilder:cached});
+    assert.deepEqual(quote(),prices);assert.deepEqual(preseason(),fixedPreseason);
+    assert.ok(original.length>0);
   }finally{f.close();}
 });
 

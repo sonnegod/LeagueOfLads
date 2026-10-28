@@ -414,7 +414,7 @@ the model is calibrated for a new production dataset. Elo is excluded.
 The worker also reads up to three earlier leagues into temporary in-memory
 Analytics generations. These facts remain separate from canonical signup-era
 ownership and settlement. When canonical validation is unavailable, or cannot
-price new teams, `historical-roster-v1` can publish after its own validation passes.
+price new teams, `historical-roster-v2` can publish after its own validation passes.
 
 This is explicitly a retrospective season holdout using recorded match
 participants. For each scored game, only completed games from other leagues
@@ -450,6 +450,44 @@ not require a current-season match feed to have
 run before that season has any matches. The other live models retain their
 normal source freshness checks. `betting:validate` reports both kinds of model
 readiness, including the retrospective assumption and independent stat scores.
+
+### Current positions and changing player form
+
+During the active season, roster order declares positions 1–5 (1–3 core,
+4–5 support). Pricing snapshots save the current position for each player;
+reordering a roster queues an ordinary matchup refresh. These are current
+declarations, not role labels for historical games. Old matches need no manual
+role backfill, and Analytics keeps its recorded statistics unchanged.
+
+Matchup player props combine canonical current-season games with historical
+samples, including when the worker reuses its saved historical pricing cache.
+Canonical corrections replace cached duplicates; cached target-season rows
+cannot restore removed games. Only completed and observed games enter pricing.
+
+Each statistic checks the latest 1–6 current-season games against at least five
+earlier personal observations. A change must move the median by at least 25%
+and 1.5 robust variability units, with at least 75% of recent games supporting
+that direction. Total statistics are compared per minute for this check;
+GPM/XPM already express rates. This avoids treating a few shorter games alone
+as a role change. Ordinary variation retains the usual historical blend. One
+large deviation can immediately give the latest game 40% weight; two changed
+games receive 50%, three 60%, four 70% and five or six at most 80%. Recent games
+are averaged within that share, smoothing individual results as games accumulate.
+A return to normal performance can restore the historical blend. The remainder
+retains personal history and the league pool. Each statistic adapts independently.
+
+Chronological replay scores this distribution against the historical blend
+using only games available before each kickoff. Each stat must meet the
+existing sample/Brier limits and perform at least as well as the baseline.
+Historical replays explicitly use completion times for backfilled games; live
+validation also requires their original observation times. Forecasts save the
+sample counts, weights and detected direction privately for diagnosis.
+
+After deploying this model version, run `npm run betting:refresh` once, or wait
+for the next successful scheduled full refresh, to replace the old historical
+cache. Later matchup refreshes reuse that cache and incorporate newly imported
+games. Published preseason prices and accepted ticket odds remain fixed;
+existing matchup lines stay fixed while new quotes reflect the updated form.
 
 The `league-lineup-v4` candidates add these private, interpretable priors:
 
