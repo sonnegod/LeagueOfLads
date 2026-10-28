@@ -144,7 +144,7 @@ export default function LeaguePage({
       {showHighlights && <LeagueHighlightsFeed key={leagueId} leagueId={leagueId} />}
 
       {/* Tabs */}
-      <div className="league-page-tabs ui-tabs" style={{ marginBottom: "1rem" }}>
+      <div className="league-page-tabs ui-tabs">
         <button className="ui-tab" aria-pressed={activeTab === "home"} onClick={() => setActiveTab("home")} style={activeTab === "home" ? activeTabStyle : tabStyle}>Home</button>
         {showGroups && <button className="ui-tab" aria-pressed={activeTab === "group"} onClick={() => setActiveTab("group")} style={activeTab === "group" ? activeTabStyle : tabStyle}>Groups</button>}
         <button className="ui-tab" aria-pressed={activeTab === "teams"} onClick={() => setActiveTab("teams")} style={activeTab === "teams" ? activeTabStyle : tabStyle}>Teams</button>

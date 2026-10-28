@@ -1,5 +1,22 @@
 /* Shared page language, based on the Head to Head and profile home panels.
    Keep navigation, standings, and head-to-head matrices in their own stylesheets. */
+:root {
+  /* Compact content uses 4–16px; cards and sections use 24–48px. */
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --ui-page-inset: clamp(var(--space-4), 2.5vw, var(--space-8));
+  --ui-card-inset: var(--space-6);
+  --ui-content-gap: var(--space-6);
+  --ui-section-gap: var(--space-8);
+  --ui-control-gap: var(--space-3);
+  --ui-table-inset: var(--space-3);
+}
+
 .content {
   --bg: #020617;
   --surface: #0f172a;
@@ -32,7 +49,7 @@
 }
 
 .content :where(h1):not(.current-playoff-bracket *):not(.playoff-workspace *):not(.h2h-page *) {
-  margin: 0 0 1.25rem;
+  margin: 0 0 var(--ui-content-gap);
   color: #bfdbfe;
   font-size: clamp(1.65rem, 2.6vw, 2.2rem);
   font-weight: 800;
@@ -73,7 +90,7 @@
   background: #020617;
   color: #f1f5f9;
   min-height: 38px;
-  padding: .55rem .75rem;
+  padding: var(--space-2) var(--space-3);
 }
 
 .content :where(input::placeholder, textarea::placeholder) {
@@ -91,7 +108,7 @@
 .league-page {
   max-width: 1600px;
   margin-inline: auto;
-  padding: clamp(1rem, 2.5vw, 2rem) !important;
+  padding: var(--ui-page-inset) !important;
   box-sizing: border-box;
 }
 
@@ -100,13 +117,16 @@
   flex-wrap: wrap;
   align-items: end;
   justify-content: space-between;
-  gap: .75rem 1.5rem;
-  margin-bottom: 1.25rem;
+  gap: var(--space-3) var(--ui-content-gap);
+  margin-bottom: var(--ui-content-gap);
 }
+
+.content .ui-page-heading h1 { margin: 0; }
+.ui-page-heading p { margin: var(--space-2) 0 0; }
 
 .ui-panel {
   min-width: 0;
-  padding: clamp(1rem, 2vw, 1.5rem);
+  padding: var(--ui-card-inset);
   border: 1px solid #334155;
   border-radius: var(--ui-radius);
   background: #0f172a;
@@ -121,20 +141,21 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: .5rem !important;
-  margin-bottom: 1.25rem;
-  padding: .35rem;
+  gap: var(--space-2) !important;
+  margin-bottom: var(--ui-content-gap);
+  padding: var(--space-1);
   border: 1px solid #334155;
   border-radius: var(--ui-radius);
   background: #0f172a;
   width: fit-content;
   max-width: 100%;
+  box-sizing: border-box;
 }
 
 .ui-tabs .ui-tab {
   flex: 0 0 auto;
   margin: 0 !important;
-  padding: .65rem 1rem !important;
+  padding: var(--space-3) var(--space-4) !important;
   border: 1px solid transparent !important;
   border-radius: 8px !important;
   background: transparent !important;
@@ -176,7 +197,7 @@
 .loser-badge {
   display: inline-flex;
   align-items: center;
-  padding: .15rem .4rem;
+  padding: .15rem var(--space-2);
   border-radius: 999px;
   font-size: .75rem;
   font-weight: 700;
@@ -195,22 +216,22 @@
   color: #991b1b;
 }
 
-.admin-requests-panel { display: grid; gap: 1rem; }
-.admin-requests-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: 1rem; }
-.admin-requests-heading h2 { margin: 0 0 .25rem; }
+.admin-requests-panel { display: grid; gap: var(--space-4); }
+.admin-requests-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: var(--space-4); }
+.admin-requests-heading h2 { margin: 0 0 var(--space-1); }
 .admin-requests-heading p { margin: 0; color: var(--muted-text); }
 .admin-requests-count { color: var(--muted-text); font-size: .85rem; }
 .admin-requests-error { color: #fca5a5; }
-.admin-requests-list { display: grid; gap: .75rem; }
-.admin-request-card { display: flex; align-items: start; justify-content: space-between; gap: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); }
+.admin-requests-list { display: grid; gap: var(--space-3); }
+.admin-request-card { display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); padding: var(--space-4); border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); }
 .admin-request-content { min-width: 0; }
-.admin-request-meta { display: flex; flex-wrap: wrap; gap: .4rem 1rem; color: var(--muted-text); font-size: .8rem; }
-.admin-request-card p { margin: .75rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-request-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); color: var(--muted-text); font-size: .8rem; }
+.admin-request-card p { margin: var(--space-3) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 600px) { .admin-request-card { flex-direction: column; } }
 
-.playoff-workspace { display: grid; gap: 1rem; min-width: 0; }
-.playoff-admin-panel h2 { margin: 0 0 1rem; color: #bfdbfe; }
-.playoff-stage-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
+.playoff-workspace { display: grid; gap: var(--space-4); min-width: 0; }
+.playoff-admin-panel h2 { margin: 0 0 var(--space-4); color: #bfdbfe; }
+.playoff-stage-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .playoff-stage-actions button { margin-right: 0 !important; }
 .playoff-bracket-editor { min-width: 0; min-height: 0 !important; border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--ui-shadow); }
 
@@ -283,7 +304,12 @@
 }
 
 @media (max-width: 767px) {
-  .ui-page, .data-list-page, .detail-page, .league-page { padding: 12px !important; }
+  :root {
+    --ui-page-inset: var(--space-3);
+    --ui-card-inset: var(--space-4);
+    --ui-content-gap: var(--space-4);
+    --ui-section-gap: var(--space-6);
+  }
   .ui-tabs { flex-wrap: nowrap; overflow-x: auto; width: 100%; }
   .ui-tabs .ui-tab { min-height: 44px; }
 }

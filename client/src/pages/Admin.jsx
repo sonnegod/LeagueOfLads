@@ -170,7 +170,7 @@ export default function AdminPage() {
 
 const pageContainer = {
   display: "grid",
-  gap: "20px",
+  gap: "var(--ui-content-gap)",
   minWidth: 0,
 };
 
@@ -179,7 +179,7 @@ const hiddenPanelStyle = { display: "none" };
 const rightGridStyle = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-  gap: "20px",
+  gap: "var(--ui-content-gap)",
   alignItems: "start",
 };
 
@@ -194,6 +194,7 @@ const tabButtonStyle = {
 
 const editorTabBarStyle = {
   display: "flex",
+  marginBottom: 0,
   flexWrap: "wrap",
   gap: "8px",
 };

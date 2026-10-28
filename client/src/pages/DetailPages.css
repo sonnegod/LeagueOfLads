@@ -1,8 +1,9 @@
-.team-page-heading, .player-page-heading { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1.25rem; }
+.team-page-heading, .player-page-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--ui-content-gap); }
+.detail-page-filter {margin-bottom:var(--ui-content-gap);}
 /* Override the shared page heading margins; space belongs to the whole row. */
 .content .detail-page.team-detail-page .team-page-title > h1,
 .content .detail-page.player-detail-page .player-page-heading > h1 { margin: 0; }
-.team-page-captain {margin:.4rem 0 0;color:var(--muted-text,#9ca3af);font-size:.9rem;}
+.team-page-captain {margin: var(--space-2) 0 0;color:var(--muted-text,#9ca3af);font-size:.9rem;}
 .dotabuff-link { display: inline-flex; align-items: center; justify-content: center;
   align-self: center; vertical-align: middle; line-height: 0;
   padding: 0; border: 0; background: transparent; cursor: pointer; flex-shrink: 0; }
@@ -10,42 +11,42 @@
 .team-page-heading .dotabuff-icon { width: 28px; height: 28px; }
 .dotabuff-link:hover { opacity: 0.8; }
 .dotabuff-link:focus-visible { outline: 2px solid var(--primary, #8ab4ff); outline-offset: 3px; border-radius: 4px; }
-.team-active-roster { padding: 1rem; margin-bottom: 1rem; border: 1px solid var(--border, #2a2d33);
+.team-active-roster { padding: var(--space-4); margin-bottom: var(--space-4); border: 1px solid var(--border, #2a2d33);
   border-radius: 8px; background: var(--surface, #121315); }
-.team-active-roster-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 0.7rem; }
+.team-active-roster-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
 .team-active-roster-heading h2 { margin: 0; font-size: 1rem; }
 .team-active-roster-heading > a:not(.dotabuff-link) { font-size: 0.85rem; color: var(--muted-text, #9ca3af); }
-.team-active-roster-players { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; padding: 0;
-  margin: 0.8rem 0 0; list-style: none; }
-.team-active-roster-players li { display: flex; align-items: center; gap: 0.5rem; }
+.team-active-roster-players { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); padding: 0;
+  margin: var(--space-3) 0 0; list-style: none; }
+.team-active-roster-players li { display: flex; align-items: center; gap: var(--space-2); }
 .team-roster-position {min-width:45px;flex-shrink:0;color:var(--muted-text,#9ca3af);font-size:.85rem;}
 .team-standin-label { display: block; margin-top: 0.2rem; font-size: 0.75rem; color: var(--muted-text, #9ca3af); }
-.team-roster-dates { display: block; margin-top: 0.35rem; color: var(--muted-text, #9ca3af); font-size: 0.8rem; }
-.team-roster-history { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border, #2a2d33); }
-.team-detail-page > .team-roster-history { margin-bottom: 1rem; }
+.team-roster-dates { display: block; margin-top: var(--space-1); color: var(--muted-text, #9ca3af); font-size: 0.8rem; }
+.team-roster-history { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--border, #2a2d33); }
+.team-detail-page > .team-roster-history { margin-bottom: var(--space-4); }
 .team-roster-history summary { cursor: pointer; font-weight: 600; }
 .team-roster-history-note { font-size: 0.85rem; color: var(--muted-text, #9ca3af); }
 .team-roster-history-table { width: 100%; min-width: 650px; border-collapse: collapse; }
 .content .team-roster-history-table { border: 0 !important; border-radius: 0 !important; }
 .team-roster-history-table th, .team-roster-history-table td {
-  padding: 0.8rem; text-align: left; border: 0; vertical-align: top; }
+  padding: var(--space-3); text-align: left; border: 0; vertical-align: top; }
 .team-roster-history-table tr > * + * { border-left: 1px solid var(--border, #2a2d33); }
 .team-roster-history-table tbody tr > * { border-top: 1px solid var(--border, #2a2d33); }
 .team-roster-history-table td:not(:first-child) { white-space: nowrap; }
-.team-roster-history-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0.65rem; }
+.team-roster-history-meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
 .team-roster-history-meta small { color: var(--muted-text, #9ca3af); }
-.team-home-roster-players { display: grid; gap: .65rem; list-style: none; margin: 0; padding: 0; }
-.team-home-roster-players li { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.team-home-roster-players { display: grid; gap: var(--space-3); list-style: none; margin: 0; padding: 0; }
+.team-home-roster-players li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .team-home-roster-players li > a:not(.dotabuff-link) { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
-.detail-feature-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
-.detail-feature-heading .team-roster-copy { flex: none; margin: 0; padding: .3rem .6rem; font-size: .8rem; }
-.team-roster-copy-error { margin: 0 0 .75rem; color: #fca5a5; font-size: .85rem; }
+.detail-feature-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+.detail-feature-heading .team-roster-copy { flex: none; margin: 0; padding: var(--space-1) var(--space-3); font-size: .8rem; }
+.team-roster-copy-error { margin: 0 0 var(--space-3); color: #fca5a5; font-size: .85rem; }
 
 .detail-sort-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
+  gap: var(--space-1);
   width: 100%;
   padding: 0;
   border: 0;
@@ -63,47 +64,47 @@
 
 .detail-sort-button span { font-size: 0.75em; }
 
-.detail-kda-sort, .detail-kda-sort-part { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.detail-kda-sort, .detail-kda-sort-part { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1); }
 .detail-kda-sort { white-space: nowrap; font-size: 0.875rem; }
 .detail-kda-sort .detail-sort-button { width: auto; }
 
 @media (max-width: 767px) {
   .detail-page {
     max-width: 100%;
-    padding: 12px !important;
+    padding: var(--space-3) !important;
     box-sizing: border-box;
   }
 
   .detail-page h1 {
-    margin: 8px 0 14px;
+    margin: var(--space-2) 0 var(--space-4);
     overflow-wrap: anywhere;
   }
 
   .detail-page-filter {
     display: flex;
-    gap: 8px;
+    gap: var(--space-2);
     align-items: center;
   }
 
   .detail-page-filter .league-filter {
     width: 100%;
     min-height: 44px;
-    padding: 8px 10px !important;
+    padding: var(--space-2) var(--space-3) !important;
     font-size: 16px;
   }
 
   .detail-page-tabs {
     max-width: 100%;
-    gap: 8px !important;
+    gap: var(--space-2) !important;
     overflow-x: auto;
-    padding-bottom: 5px;
+    padding-bottom: var(--space-1);
     overscroll-behavior-inline: contain;
   }
 
   .detail-page-tabs button {
     min-height: 44px;
     flex: 0 0 auto;
-    padding: 8px 12px !important;
+    padding: var(--space-2) var(--space-3) !important;
     white-space: nowrap;
   }
 
@@ -132,7 +133,7 @@
 
   .detail-recent-match {
     grid-template-columns: minmax(0, 1fr) !important;
-    gap: 6px !important;
+    gap: var(--space-2) !important;
   }
 }
 
@@ -145,13 +146,13 @@
 .team-drafts-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
-  gap: 16px;
+  gap: var(--space-4);
   align-items: start;
 }
 
 .team-drafts-main {
   display: grid;
-  gap: 14px;
+  gap: var(--space-4);
 }
 
 .team-draft-card,
@@ -163,7 +164,7 @@
 }
 
 .team-draft-card {
-  padding: 14px;
+  padding: var(--space-4);
 }
 
 .team-draft-card-header,
@@ -171,12 +172,12 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .team-draft-card-header {
-  margin-bottom: 12px;
-  padding-bottom: 10px;
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--border, #2a2d33);
 }
 
@@ -194,7 +195,7 @@
 
 .team-draft-result {
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: var(--space-1) var(--space-3);
   font-size: 0.8rem;
   font-weight: 700;
 }
@@ -212,13 +213,13 @@
 .team-draft-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .team-draft-side {
   border: 1px solid var(--border, #2a2d33);
   border-radius: 8px;
-  padding: 12px;
+  padding: var(--space-3);
   background: rgba(255, 255, 255, 0.02);
 }
 
@@ -235,23 +236,23 @@
 }
 
 .team-draft-team-name span {
-  margin-left: 6px;
+  margin-left: var(--space-2);
   color: var(--muted, #9ca3af);
   font-size: 0.85rem;
   font-weight: 500;
 }
 
 .team-draft-group {
-  margin-top: 12px;
+  margin-top: var(--space-3);
 }
 
 .team-draft-group.compact {
-  padding-top: 10px;
+  padding-top: var(--space-3);
   border-top: 1px solid var(--border, #2a2d33);
 }
 
 .team-draft-group-label {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
   color: var(--muted, #9ca3af);
   font-size: 0.78rem;
   font-weight: 700;
@@ -261,16 +262,16 @@
 .team-draft-heroes {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .team-draft-hero {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
   min-width: 0;
   border-radius: 6px;
-  padding: 5px 6px;
+  padding: var(--space-1) var(--space-2);
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -287,25 +288,25 @@
   position: sticky;
   top: 12px;
   display: grid;
-  gap: 14px;
+  gap: var(--space-4);
 }
 
 .team-draft-stat-panel {
-  padding: 12px;
+  padding: var(--space-3);
 }
 
 .team-draft-stat-table {
   display: grid;
   gap: 2px;
-  margin-top: 10px;
+  margin-top: var(--space-3);
 }
 
 .team-draft-stat-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 54px 74px;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
-  padding: 7px 0;
+  padding: var(--space-2) 0;
   border-top: 1px solid var(--border, #2a2d33);
   font-size: 0.9rem;
 }
@@ -345,7 +346,7 @@
 }
 
 .stat-empty {
-  padding-top: 8px;
+  padding-top: var(--space-2);
 }
 
 @media (max-width: 900px) {

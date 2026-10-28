@@ -108,7 +108,7 @@ export default function PlayerPage() {
         onViewAll={() => setActiveTab('awards')} />
 
       {(activeTab === 'home' || activeTab === 'season' || activeTab === 'allMatches' || activeTab === 'heroes' || activeTab === 'teammates' || activeTab === 'awards') && (
-        <div className="detail-page-filter" style={{ marginBottom: '1rem' }}>
+        <div className="detail-page-filter">
           <LeagueFilter
             leagues={playerLeagues}
             value={selectedLeague}

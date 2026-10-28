@@ -36,12 +36,14 @@ export default function MatchSchedulingPanel({seasonId,refreshKey}) {
     bestOf:event.BestOf,localTime:localInput(event.ScheduledStartUtc),utcTime:'',status:event.Status==='replaced'?'needs_review':event.Status,seriesId:event.SeriesId||''});}
   const sid=data?.season?.seasonId;
   return <section className="match-scheduling-panel">
+    <div className="match-scheduling-intro">
     <div className="match-scheduling-heading"><h2>Match scheduling</h2><button type="button" disabled={busy} onClick={()=>{setError('');setRefresh(r=>r+1);}}>Refresh view</button></div>
     <p className="match-scheduling-help">Record upcoming series and kickoff times, and review Discord scheduling posts for the selected season.</p>
     {data?.localTesting&&<p className="match-scheduling-test-notice">Local test fixtures are included.</p>}
     {data?.seasons&&<label>Season <select disabled={busy} value={selectedSeason||data.season?.seasonId||''} onChange={e=>{
       setSelectedSeason(e.target.value);setData(null);setFixture(blank);setRole('');setAliasTeam('');setResolveEvent({});setError('');setMessage('');
     }}>{data.seasons.map(s=><option key={s.seasonId} value={s.seasonId}>{s.name}</option>)}</select></label>}
+    </div>
     {error&&<p role="alert" className="match-scheduling-error">{error}</p>}{message&&<p role="status">{message}</p>}
     {!data?(!error&&<p>Loading match scheduling…</p>):!sid?<p>Create a season to begin scheduling.</p>:<>
       {data.messages.length>0&&<section className="ui-panel match-scheduling-card"><h3>Scheduling posts needing review</h3><p className="match-scheduling-help">Review the saved post below, correct or create the fixture in the card below, then select it here and Resolve. Resolving links the post; it does not correct the fixture’s time or teams.</p>

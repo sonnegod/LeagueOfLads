@@ -2,9 +2,9 @@
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: .5rem;
+  gap: var(--space-2);
   min-width: 0;
-  margin-bottom: 1.25rem;
+  margin-bottom:var(--ui-content-gap);
 }
 .admin-navigation .admin-workspaces.ui-tabs {
   flex: 0 0 auto;
@@ -39,7 +39,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: .5rem;
+  gap: var(--space-2);
   width: max-content;
   min-width: 100%;
   animation: admin-navigation-reveal .36s cubic-bezier(.22, 1, .36, 1) both;
@@ -61,7 +61,7 @@
   to { opacity: 1; transform: translateX(0) scale(1); }
 }
 @media (max-width: 600px) {
-  .admin-navigation { overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+  .admin-navigation { overflow-x: auto; padding-bottom: var(--space-1); scrollbar-width: thin; }
   .admin-navigation .admin-navigation-secondary.ui-tabs { flex: 0 0 auto; width: max-content; max-width: none; overflow: visible; }
 }
 @media (prefers-reduced-motion: reduce) {
