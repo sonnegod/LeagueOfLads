@@ -20,7 +20,7 @@ function SportsbookPage() {
   const [search,setSearch]=useState('');const [event,setEvent]=useState('');const [data,setData]=useState({markets:[]});
   const [marketView,setMarketView]=useState('series');const [preseasonGroup,setPreseasonGroup]=useState('player');
   const [events,setEvents]=useState([]);const [wallet,setWallet]=useState(null);const [tickets,setTickets]=useState({tickets:[]});
-  const [leaderboard,setLeaderboard]=useState([]);const [legacy,setLegacy]=useState(null);const [tab,setTab]=useState(()=>['tickets','leaderboard','legacy'].includes(params.get('tab'))?params.get('tab'):'markets');
+  const [leaderboard,setLeaderboard]=useState([]);const [tab,setTab]=useState(()=>['tickets','leaderboard'].includes(params.get('tab'))?params.get('tab'):'markets');
   const [before,setBefore]=useState(null);const [pages,setPages]=useState([]);const [ticketBefore,setTicketBefore]=useState(null);const [ticketPages,setTicketPages]=useState([]);
   const [loading,setLoading]=useState(true),[error,setError]=useState(''),[refresh,setRefresh]=useState(0);
   const [readRevision,setReadRevision]=useState(0);
@@ -59,8 +59,6 @@ function SportsbookPage() {
     load();document.addEventListener('visibilitychange',visible);
     return()=>{controller.abort();clearTimeout(timer);document.removeEventListener('visibilitychange',visible);};
   },[season,marketView,preseasonGroup,search,event,before,ticketBefore,user,refresh,revision]);
-  useEffect(()=>{if(tab!=='legacy'||!user)return;const controller=new AbortController();request('/api/betting/legacy',{signal:controller.signal}).then(setLegacy)
-    .catch(err=>{if(err.name!=='AbortError')setError(err.message);});return()=>controller.abort();},[tab,user,refresh,revision]);
   const playerView=marketView==='preseason'&&preseasonGroup==='player';
   const teamView=marketView==='preseason'&&preseasonGroup==='team';
   const leaderView=marketView==='preseason'&&preseasonGroup==='leaders';
@@ -73,7 +71,7 @@ function SportsbookPage() {
         <button type="button" disabled={loading} onClick={()=>setRefresh(r=>r+1)}>Refresh</button>
       </div></header>
     {meta?.localTesting&&<p className="sportsbook-test-banner" role="status"><strong>Local test betting</strong> · Development only. Test wallets and tickets are separate. Prices are available for testing and have not been approved for production.</p>}
-    <div className="ui-tabs" aria-label="Betting sections">{[['markets','Markets'],['tickets','Your tickets'],['leaderboard','Leaderboard'],['legacy','Legacy history']].map(([key,label])=>
+    <div className="ui-tabs" aria-label="Betting sections">{[['markets','Markets'],['tickets','Your tickets'],['leaderboard','Leaderboard']].map(([key,label])=>
       <button type="button" className="ui-tab" key={key} aria-pressed={tab===key} onClick={()=>setTab(key)}>{label}</button>)}</div>
     {error&&<p role="alert" className="sportsbook-error">{error}</p>}
     {!season&&meta&&<p>No season is available yet.</p>}
@@ -118,10 +116,6 @@ function SportsbookPage() {
         <button type="button" disabled={!tickets.nextBefore} onClick={()=>{setTicketPages(p=>[...p,ticketBefore]);setTicketBefore(tickets.nextBefore);}}>Next</button></div></section>)}
     {tab==='leaderboard'&&<section><h2>Season leaderboard</h2><table className="sportsbook-table"><thead><tr><th>Player</th><th>Net points</th><th>Balance</th></tr></thead><tbody>
       {leaderboard.map(p=><tr key={p.userId}><td><Link to={`/player/${p.userId}`}>{p.name}</Link></td><td>{points(p.net)}</td><td>{points(p.balance)}</td></tr>)}</tbody></table></section>}
-    {tab==='legacy'&&(!user?<p>Sign in with Steam to see your older tickets.</p>:<section><h2>Legacy betting</h2><p>Older balances and tickets remain separate from season points.</p>
-      {legacy&&<><p>Legacy balance: {points(legacy.balance)} points</p><table className="sportsbook-table"><thead><tr><th>Ticket</th><th>Status</th><th>Stake</th><th>Odds</th></tr></thead><tbody>
-        {legacy.tickets.map(t=><tr key={t.ticketId}><td>#{t.ticketId}</td><td>{t.status}</td><td>{points(t.stake)}</td><td>{Number(t.odds).toFixed(2)}×</td></tr>)}</tbody></table></>}
-    </section>)}
   </div>;
 }
 

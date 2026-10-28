@@ -548,7 +548,7 @@ markets or another preseason selection. The slip and API share these checks.
 Idempotent request keys prevent duplicate debits.
 
 Users can cancel their own season tickets from **Betting → Your tickets** or
-**Dashboard → My Bets**, then confirm a full stake refund. Every leg must still
+**Dashboard → Betting**, then confirm a full stake refund. Every leg must still
 be pending and its market open or held, before its close time and any known
 fixture start. A result on any leg, including one later put back into review,
 prevents cancellation of the entire ticket. Preseason tickets can be cancelled

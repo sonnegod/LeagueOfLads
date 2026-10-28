@@ -34,9 +34,9 @@ export default function SeasonBettingAccount({showTickets=false}) {
     <div className="season-account-toolbar"><label>Season<select value={season} onChange={e=>{
       setSeason(e.target.value);setBefore(null);setPages([]);
     }}>{meta?.seasons.map(s=><option key={s.seasonId} value={s.seasonId}>{s.name}</option>)}</select></label>
-      <Link to="/betting?tab=legacy">Legacy account →</Link></div>
+    </div>
     {error&&<p role="alert" className="season-account-error">{error} <button type="button" onClick={()=>{setError('');setRefresh(value=>value+1);}}>Try again</button></p>}
-    {!season&&meta?<p className="season-account-empty">No season is available yet. Your legacy account is still accessible above.</p>:!data&&!error?<p role="status">Loading betting account…</p>:data&&<>
+    {!season&&meta?<p className="season-account-empty">No season is available yet.</p>:!data&&!error?<p role="status">Loading betting account…</p>:data&&<>
       <div className="season-account-wallet"><div><span>Available season points</span><strong>{data.wallet?points(data.wallet.balance):'—'}</strong>
         {data.walletError&&<p role="alert" className="season-account-error">{data.walletError}</p>}</div>
         <p>Each season starts with <strong>10,000 points</strong>. Your wallet and tickets stay with their original season.</p></div>
