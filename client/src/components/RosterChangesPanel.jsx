@@ -1,8 +1,9 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useMemo,useState} from 'react';
 import PendingRosterSlotsPanel from './PendingRosterSlotsPanel';
 import AddRosterTeamCard from './AddRosterTeamCard';
 import RosterOrderCard from './RosterOrderCard';
 import CurrentLeagueTeams from './CurrentLeagueTeams';
+import RosterPlayerPicker from './RosterPlayerPicker';
 import '../css/BettingV2.css';
 import './RosterChangesPanel.css';
 
@@ -12,6 +13,12 @@ function parserTime(value){const [day,time]=value.split('T');const [hour,minute]
 export default function RosterChangesPanel({refreshKey,onChanged}) {
   const [data,setData]=useState(null);const [error,setError]=useState('');const [message,setMessage]=useState('');
   const [busy,setBusy]=useState(false);const [refresh,setRefresh]=useState(0);const [rosterChange,setRosterChange]=useState(initialChange);
+  const playerOptions=useMemo(()=>{
+    const players=new Map();
+    for(const player of data?.rosterSlots||[])if(player.playerId&&!player.pending)players.set(player.playerId,
+      {value:player.playerId,name:player.name||`Player ${player.playerId}`,label:`${player.name||'Player'} (${player.playerId})`});
+    return [...players.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  },[data]);
   useEffect(()=>{
     const controller=new AbortController();
     fetch('/api/admin/rosters/status',{signal:controller.signal}).then(async response=>{
@@ -42,11 +49,13 @@ export default function RosterChangesPanel({refreshKey,onChanged}) {
     {data&&(data.season?.status!=='active'?<p>Roster changes are available during an active league.</p>:<section className="betting-admin-widget roster-change-card">
       <h3>Replace player</h3><p>Permanent changes refund affected preseason player bets. Effective dates preserve earlier appearances on the original team.</p>
       <form className="betting-admin-form" onSubmit={save}>
-        <label>Player account ID<input required type="number" min="1" value={rosterChange.playerId} onChange={e=>setRosterChange(r=>({...r,playerId:e.target.value,playerName:''}))} /></label>
+        <RosterPlayerPicker id="roster-change-player" label="Player" required allowManualEntry={false} disabled={busy} options={playerOptions}
+          accountId={rosterChange.playerId} onChange={(playerId,playerName)=>setRosterChange(r=>({...r,playerId,playerName}))}/>
         {['fromTeamKey','toTeamKey'].map((key,i)=><label key={key}>{i?'Move to team (optional)':'Remove from team (optional)'}<select value={rosterChange[key]} onChange={e=>setRosterChange(r=>({...r,[key]:e.target.value}))}><option value="">None</option>{data.teams.map(t=><option key={t.teamKey} value={t.teamKey}>{t.name}</option>)}</select></label>)}
         {rosterChange.toTeamKey&&!rosterChange.fromTeamKey&&<label>Player name (optional)<input maxLength="40" value={rosterChange.playerName}
           onChange={e=>setRosterChange(r=>({...r,playerName:e.target.value}))} /></label>}
-        <label>Replacement account ID (optional)<input type="number" min="1" value={rosterChange.replacementPlayerId} onChange={e=>setRosterChange(r=>({...r,replacementPlayerId:e.target.value,replacementPlayerName:''}))} /></label>
+        <RosterPlayerPicker id="roster-change-replacement" label="Replacement (optional)" disabled={busy} options={playerOptions}
+          accountId={rosterChange.replacementPlayerId} onChange={(replacementPlayerId,replacementPlayerName)=>setRosterChange(r=>({...r,replacementPlayerId,replacementPlayerName}))}/>
         {rosterChange.replacementPlayerId&&<label>Replacement name (optional)<input maxLength="40" value={rosterChange.replacementPlayerName}
           onChange={e=>setRosterChange(r=>({...r,replacementPlayerName:e.target.value}))} /></label>}
         <label>Destination slot<select value={rosterChange.slot} onChange={e=>setRosterChange(r=>({...r,slot:Number(e.target.value)}))}>{[0,1,2,3,4].map(n=><option key={n} value={n}>{n+1}</option>)}</select></label>
