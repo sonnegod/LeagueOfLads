@@ -204,6 +204,7 @@ test('API monitoring includes polling and parser errors; only verified submissio
   app.use('/api/signup', createSiteSignupProgress({ enabled: () => true,
     record: (token, events) => progress.push({ token, events }) }));
   app.get('/api/poll', (req, res) => res.json({ ok: true }));
+  app.get('/api/liveMatches/stream', (req, res) => res.type('text/event-stream').end('data: {}\n\n'));
   app.get('/api/site-management/analytics', (req, res) => res.json({}));
   app.post('/api/signup/:id/drafts/:draft/submit', (req, res) => res.status(req.body.fail ? 409 : 201).json({}));
   app.post('/api/signup/:id/teams', (req, res) => res.status(201).json({}));
@@ -218,6 +219,7 @@ test('API monitoring includes polling and parser errors; only verified submissio
   });
   try {
     await fetch(base + '/api/poll');
+    await (await fetch(base + '/api/liveMatches/stream')).text();
     await fetch(base + '/api/site-management/analytics');
     await post('/api/signup/1/drafts/draft/submit');
     await post('/api/signup/1/drafts/draft/submit', { fail: true });

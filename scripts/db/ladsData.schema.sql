@@ -501,6 +501,10 @@ ON LiveMatchSnapshots (LeagueId, CreatedAt);
 CREATE INDEX idx_LiveMatchSnapshots_MatchId_CreatedAt
 ON LiveMatchSnapshots (MatchId, CreatedAt);
 
+-- index: idx_LiveMatchSnapshots_MatchId_SnapshotId
+CREATE INDEX idx_LiveMatchSnapshots_MatchId_SnapshotId
+ON LiveMatchSnapshots (MatchId, SnapshotId);
+
 -- index: neustadtl_team_league
 CREATE UNIQUE INDEX neustadtl_team_league ON Neustadtl (TeamId, LeagueId);
 

@@ -5,13 +5,17 @@ import './Navbar.css';
 import steamLogin from '../assets/steamLogin.png';
 import logo from '../assets/League_of_lads_logo.png';
 import UpcomingGamesTicker from './UpcomingGamesTicker';
+import useLiveResource from '../hooks/useLiveResource';
+import {useLiveMatches} from '../context/liveMatches';
 
 
 
 export default function Navbar({ mobileNavOpen, onMenuToggle, upcomingGames = [] }) {
   const { user, logout } = useAuth();
   const [query, setQuery] = useState("");
-  const [liveMatchCount, setLiveMatchCount] = useState(0);
+  const live=useLiveMatches();
+  const {data:liveCount}=useLiveResource('/api/liveMatches/count',5000,!live.active);
+  const liveMatchCount=live.active?(live.data?.matches?.length??(Number(liveCount?.count)||0)):(Number(liveCount?.count)||0);
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -26,28 +30,6 @@ export default function Navbar({ mobileNavOpen, onMenuToggle, upcomingGames = []
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadLiveMatchCount() {
-      try {
-        const res = await fetch('/api/liveMatches/count');
-        const data = await res.json();
-        if (!cancelled) setLiveMatchCount(Number(data.count) || 0);
-      } catch {
-        if (!cancelled) setLiveMatchCount(0);
-      }
-    }
-
-    loadLiveMatchCount();
-    const interval = setInterval(loadLiveMatchCount, 10000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
   }, []);
 
 

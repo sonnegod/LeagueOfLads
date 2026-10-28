@@ -6,7 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import './config/passport.js';              
-import routes from './routes/routes.js';
+import routes, {liveMatchUpdates} from './routes/routes.js';
+import {startLiveMatchNotifications} from './config/liveMatchNotifications.js';
 import { siteApiHealth } from './config/siteAnalytics.js';
 
 import cors from 'cors';
@@ -79,6 +80,27 @@ if(process.env.ENVIRONMENT === 'DEV')
 app.use('/api',routes); // Handles /auth/steam, /auth/steam/return, etc.
 
 
-app.listen(SERVER_PORT, () => {
+let liveNotifications;
+const server=app.listen(SERVER_PORT, () => {
   console.log(`Server running at http://localhost:${SERVER_PORT}`);
+  startLiveMatchNotifications(()=>liveMatchUpdates.publish(),{
+    onUnavailable:()=>liveMatchUpdates.setAvailable(false),
+  }).then(channel=>{
+    if(stopping){channel.close();return;}
+    liveNotifications=channel;liveMatchUpdates.setAvailable(true);
+    console.log('Live match push channel ready.');
+  }).catch(error=>{
+    console.error(`Live match push channel unavailable (${error.code||error.message}); HTTP polling remains available.`);
+  });
 });
+
+let stopping=false;
+function shutdown() {
+  if(stopping)return;stopping=true;
+  liveMatchUpdates.close();
+  liveNotifications?.close();
+  server.close(()=>process.exit(0));
+  setTimeout(()=>process.exit(0),3000).unref();
+}
+process.once('SIGINT',shutdown);
+process.once('SIGTERM',shutdown);

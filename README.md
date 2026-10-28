@@ -175,6 +175,44 @@ pm2 set pm2-logrotate:max_size 10M
 pm2 set pm2-logrotate:retain 14
 ----
 
+Live matches use the existing `dota-live-poller` and web PM2 processes. The poller
+targets five seconds between Steam request starts, including request time, and
+never overlaps requests. After a successful poll is saved, it notifies the web
+process through a local IPC socket. Linux uses `db/live-updates.sock` with mode
+`0600`; Windows development uses a project-specific named pipe. The web process
+creates the channel automatically. Both processes must run under the same OS user.
+No new cron job, service, port, secret, or environment variable is required.
+
+On the visible Live Matches page, one SSE connection at
+`/api/liveMatches/stream` supplies both the cards and navbar badge. A full state is
+sent on connection/reconnection and whenever match data changes. Unchanged Steam
+polls send only observation timestamps, and heartbeats run every 15 seconds.
+Disconnected and slow viewers are removed rather than accumulating buffered data.
+If streaming is unavailable, the browser checks saved state every two seconds and
+stops polling once streaming recovers. A watchdog also detects buffered/stalled
+streams. Leaving the live page or hiding the tab closes the connection. The navbar
+uses its lightweight count endpoint every five seconds on other pages.
+
+Recent matches refresh separately every 30 seconds and when a live match
+disappears. Timeline history loads when opened, then requests only snapshots newer
+than its saved cursor. Background requests pause in hidden tabs. Live and app
+endpoints send `Cache-Control: no-store`.
+
+Cards distinguish when game data changed from when Steam last returned the match.
+Unchanged upstream data will not advance the displayed game clock. A failed
+request retains the last good card and retries automatically. Invalid Steam
+responses do not prune matches; valid omissions retain the two-minute grace period.
+Deploy through the normal workflow, which restarts both PM2 processes and creates
+the snapshot lookup index at startup. No manual analytics refresh is needed.
+The stream sends `X-Accel-Buffering: no` to disable standard Nginx proxy buffering,
+and heartbeats keep the connection active. A custom proxy configuration that
+ignores this header must disable buffering for `/api/liveMatches/stream`.
+Verify `Live match push channel ready.` in the web logs and inspect
+`curl -N https://www.leagueoflads.com/api/liveMatches/stream` for an initial `state`
+event followed by updates or heartbeats (Ctrl+C to disconnect).
+`node --test tests/liveMatches.test.js tests/liveMatchPush.test.js` exercises the
+live reads, worker notification, stream fanout, reconnect state, and cleanup.
+
 FOR UPDATING SeriesInfo when the job doesnt catch all matches
 ----
 1. Find the Duplicate series with only one match id
