@@ -132,6 +132,15 @@ export class InhouseStore {
       JOIN InhousePlayers p USING(PlayerId) WHERE q.InhouseId IS NULL ORDER BY q.JoinedAt,q.PlayerId`).all();
     return {count: players.length, players};
   }
+  playerActivity(playerId) {
+    const row = this.db.prepare(`SELECT q.InhouseId,g.Status,g.Deadline,m.Ready FROM InhouseQueue q
+      LEFT JOIN InhouseGames g USING(InhouseId)
+      LEFT JOIN InhouseMembers m ON m.InhouseId=q.InhouseId AND m.PlayerId=q.PlayerId
+      WHERE q.PlayerId=?`).get(playerId ?? null);
+    return {queued: Boolean(row && !row.InhouseId),
+      readyCheck: row?.Status === 'ready' && row.Ready === 0 && row.Deadline > this.clock()
+        ? {gameId: row.InhouseId, deadline: row.Deadline} : null};
+  }
   activitySummary() {
     return this.db.transaction(() => {
       const queue = this.queueSummary();

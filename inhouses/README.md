@@ -23,6 +23,12 @@ drafting, and playing reservations remain protected. The sidebar's Inhouses
 count bubble shows the waiting players' names on hover, focus, or touch. Its
 live updates use the shared `/api/inhouses/activity/stream` SSE endpoint, not a
 Steam request. Signing out removes the admin-only link and closes the stream.
+When a queued player is selected, their browser tab shows a flashing red dot
+and a ready-check title until they confirm or the check ends. The existing
+activity connection stays open in background tabs, so this also works while
+browsing other site pages. The alert uses a private event for that account;
+reduced-motion preferences show a steady dot instead. No browser notification
+permission or additional Steam requests are needed.
 
 ## Storage and isolation
 

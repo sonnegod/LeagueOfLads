@@ -20,9 +20,20 @@ export function createInhouseActivityStream(store, {intervalMs = 500, maxClients
   function publish() {
     if (closed || !clients.size) return;
     try {
+      const changed = revision !== store.revision();
       if (refreshQueue()) {
         const value = frame('queue', queue);
         for (const client of clients) write(client.res, value);
+      }
+      if (changed) {
+        const players = new Map();
+        for (const client of clients) {
+          if (!players.has(client.playerId)) players.set(client.playerId, store.playerActivity(client.playerId));
+          const player = players.get(client.playerId), next = JSON.stringify(player);
+          if (client.playerFingerprint !== next) {
+            client.playerFingerprint = next; write(client.res, frame('player', player));
+          }
+        }
       }
       for (const [id, room] of rooms) {
         const game = store.db.prepare('SELECT Status FROM InhouseGames WHERE InhouseId=?').get(id);
@@ -55,7 +66,8 @@ export function createInhouseActivityStream(store, {intervalMs = 500, maxClients
       res.set({'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store, no-transform',
         'Connection': 'keep-alive', 'X-Accel-Buffering': 'no'});
       res.socket?.setNoDelay(true); res.socket?.setTimeout(0); res.flushHeaders();
-      const client = {res, gameId}; clients.add(client);
+      const player = store.playerActivity(playerId);
+      const client = {res, gameId, playerId, playerFingerprint: JSON.stringify(player)}; clients.add(client);
       if (chat) {
         if (!rooms.has(gameId)) rooms.set(gameId, {clients: new Set(), cursor: chat.messages.at(-1)?.id || 0, status: chat.status});
         rooms.get(gameId).clients.add(client);
@@ -69,6 +81,7 @@ export function createInhouseActivityStream(store, {intervalMs = 500, maxClients
         if (!clients.size) {clearInterval(timer); timer = null;}
       });
       write(res, 'retry: 2000\n\n'); write(res, frame('queue', queue));
+      write(res, frame('player', player));
       // Reconnects hydrate the latest 100 lines. Clients merge by message ID,
       // avoiding duplicate lines without keeping an unbounded replay buffer.
       if (chat) write(res, frame('chat', chat));

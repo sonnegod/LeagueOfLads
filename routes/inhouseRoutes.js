@@ -78,14 +78,15 @@ export function createInhouseRoutes({store, api, requireAdmin, playerName = (id,
   publicRoutes.get('/state', endpoint((req, res) => res.json(store.snapshot())));
   publicRoutes.get('/queue', endpoint((req, res) => res.json(store.queueSummary())));
   function activityRoom(req) {
-    if (req.query.gameId === undefined) return {gameId: null, playerId: null};
     const playerId = requestAccountId(req);
+    if (req.query.gameId === undefined) return {gameId: null, playerId: playerId ? Number(playerId) : null};
     if (!playerId) fail('Sign in to view lobby chat', 401);
     return {gameId: positiveId(req.query.gameId, 'inhouse'), playerId: Number(playerId)};
   }
   publicRoutes.get('/activity', endpoint((req, res) => {
     const room = activityRoom(req);
-    res.json({queue: store.activitySummary(), ...(room.gameId ? {chat: store.readChat(room.gameId, room.playerId)} : {})});
+    res.json({queue: store.activitySummary(), player: store.playerActivity(room.playerId),
+      ...(room.gameId ? {chat: store.readChat(room.gameId, room.playerId)} : {})});
   }));
   publicRoutes.get('/activity/stream', endpoint((req, res) => activity.subscribe(req, res, activityRoom(req))));
   publicRoutes.get('/stream', endpoint((req, res) => stream.subscribe(req, res)));
