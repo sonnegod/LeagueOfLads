@@ -146,6 +146,10 @@ function InhousesContent() {
         </div>}
         {state.queue.length ? <ol className="inhouse-queue">{state.queue.map(p => <li key={p.playerId}><InhousePlayerRow player={p} /></li>)}</ol>
           : <p className="inhouse-muted">No players waiting. Start the next game.</p>}
+        {user?.isAdmin && state.queue.length === 2 && <div className="inhouse-actions">
+          <button type="button" disabled={busy || !state.settings.leagueId} onClick={() => run('/admin/inhouses/test', 'POST')}>Start 2-player test</button>
+          <small className="inhouse-muted">1v1 using these two players and the configured ticket.</small>
+        </div>}
       </section>
     </div>
     {active.map(card)}

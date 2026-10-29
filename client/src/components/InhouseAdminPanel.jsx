@@ -64,6 +64,10 @@ export default function InhouseAdminPanel({section = 'settings'}) {
     {section === 'games' && <>
       <section className="inhouse-card"><h2>Waiting players</h2>{state.queue.length ? <div className="inhouse-ready-list">{state.queue.map(p =>
         <span key={p.playerId}>{p.name} · {inhouseRoles(p)}</span>)}</div> : <p className="inhouse-muted">No players waiting.</p>}</section>
+      {state.queue.length === 2 && <section className="inhouse-card"><h2>Two-player test</h2>
+        <p>Reserve both queued players for a 1v1. Both confirm readiness, then the game links and resolves through the normal worker. Wins, losses, and ratings are recorded.</p>
+        <button type="button" disabled={busy || !state.settings.leagueId} onClick={() => run('/admin/inhouses/test', 'POST')}>Start 2-player test</button>
+      </section>}
       <section className="inhouse-card"><h2>Games and recovery</h2>
         <div className="inhouse-recovery"><label>Select an inhouse<select value={selectedId} onChange={event => {setSelectedId(event.target.value); setMessage(''); setReason(''); setMatchId('');}}>
           <option value="">Choose a game</option>{state.games.map(g => <option key={g.id} value={g.id}>#{g.id} · {inhouseStatus[g.status]}</option>)}
@@ -77,7 +81,7 @@ export default function InhouseAdminPanel({section = 'settings'}) {
           <label>Reason<textarea required rows="2" maxLength="500" value={reason} onChange={event => setReason(event.target.value)} /></label>
           {['awaiting_game', 'playing', 'completed'].includes(selected.status) && <>
             <label>Correct Dota match ID<input type="number" min="1" value={matchId} onChange={event => setMatchId(event.target.value)} /></label>
-            <p className="inhouse-muted">The ticket, ten players, and teams must match. Correcting a resolved game recalculates affected records and rating history.</p>
+            <p className="inhouse-muted">The ticket, {selected.playerCount ?? 10} players, and teams must match. Correcting a resolved game recalculates affected records and rating history.</p>
             <div><button disabled={busy || !reason.trim() || !matchId} onClick={() => recover('link')}>Verify and link match</button></div>
           </>}
           {selected.status !== 'completed' && <div><button disabled={busy || !reason.trim()} onClick={() => recover('cancel')}>Cancel inhouse and release players</button></div>}

@@ -26,7 +26,7 @@ export function ensureInhouseSchema(db) {
       Turn INTEGER NOT NULL DEFAULT 0, CaptainA INTEGER, CaptainB INTEGER,
       MatchId INTEGER UNIQUE, RadiantSide TEXT CHECK(RadiantSide IN ('A','B')),
       Winner TEXT CHECK(Winner IN ('A','B')), FormedAt INTEGER, StartedAt INTEGER, CompletedAt INTEGER,
-      CancelReason TEXT
+      CancelReason TEXT, PlayerCount INTEGER NOT NULL DEFAULT 10 CHECK(PlayerCount IN (2,10))
     );
     CREATE TABLE IF NOT EXISTS InhouseMembers (
       InhouseId INTEGER NOT NULL REFERENCES InhouseGames(InhouseId), PlayerId INTEGER NOT NULL REFERENCES InhousePlayers(PlayerId),
@@ -61,6 +61,9 @@ export function ensureInhouseSchema(db) {
     INSERT OR IGNORE INTO InhouseWorker(Id) VALUES(1);
   `);
   db.transaction(() => {
+    if (!db.pragma('table_info(InhouseGames)').some(column => column.name === 'PlayerCount')) {
+      db.exec('ALTER TABLE InhouseGames ADD COLUMN PlayerCount INTEGER NOT NULL DEFAULT 10 CHECK(PlayerCount IN (2,10))');
+    }
     if (!db.pragma('table_info(InhousePlayers)').some(column => column.name === 'PreferencesPromptedAt')) {
       db.exec('ALTER TABLE InhousePlayers ADD COLUMN PreferencesPromptedAt INTEGER');
     }
