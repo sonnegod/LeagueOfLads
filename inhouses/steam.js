@@ -1,12 +1,13 @@
 import {fail, positiveId} from './store.js';
 
 function livePlayers(game) {
+  const source = Array.isArray(game.players) ? game.players : [];
   const radiant = game.scoreboard?.radiant?.players, dire = game.scoreboard?.dire?.players;
-  if (Array.isArray(radiant) && Array.isArray(dire) && radiant.length + dire.length === 10) {
+  if (Array.isArray(radiant) && Array.isArray(dire) && (radiant.length + dire.length === 10
+    || radiant.length + dire.length === 2 && source.length < 10)) {
     return [...radiant.map(p => ({playerId: Number(p.account_id), side: 'radiant'})),
       ...dire.map(p => ({playerId: Number(p.account_id), side: 'dire'}))];
   }
-  const source = Array.isArray(game.players) ? game.players : [];
   const teamNumbers = source.some(p => p.team === 0 || p.team === 1) ? [0, 1] : [2, 3];
   return source.map(p => ({playerId: Number(p.account_id),
     side: p.team === teamNumbers[0] ? 'radiant' : p.team === teamNumbers[1] ? 'dire' : null}));

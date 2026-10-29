@@ -67,6 +67,7 @@ function assignRoles(team) {
 // Only 252 partitions of ten players. Captains and picks constrain these further.
 // Return the best complete, feasible draft, also used to reject impossible picks.
 export function bestTeams(players, mode, fixed = {}, seeds = captains(players)) {
+  if (players.length === 2) return {sides: {[seeds.A]: 'A', [seeds.B]: 'B'}, positions: {}};
   if (players.length !== 10) return null;
   const forced = {...fixed, [seeds.A]: 'A', [seeds.B]: 'B'};
   let best = null;
@@ -101,7 +102,10 @@ export function autoPick(players, mode, fixed, turn, seeds) {
 }
 
 export function ratingChanges(players, winner) {
-  const average = side => players.filter(p => p.side === side).reduce((n, p) => n + p.rating, 0) / 5;
+  const average = side => {
+    const team = players.filter(p => p.side === side);
+    return team.reduce((n, p) => n + p.rating, 0) / team.length;
+  };
   const expectedA = 1 / (1 + 10 ** ((average('B') - average('A')) / 400));
   return players.map(p => {
     const expected = p.side === 'A' ? expectedA : 1 - expectedA, k = p.games < INHOUSE_CALIBRATION_GAMES ? 48 : 24;

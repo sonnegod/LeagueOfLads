@@ -104,6 +104,7 @@ export function createInhouseRoutes({store, api, requireAdmin, playerName = (id,
   // The application mounts this router behind checkAdmin, before the general
   // league/betting mutation hook. Inhouse actions never request betting refresh.
   adminRoutes.get('/status', endpoint((req, res) => res.json({...store.snapshot(), audit: store.auditLog()})));
+  adminRoutes.post('/test', endpoint((req, res) => res.json(store.startAdminTest(requestAccountId(req)))));
   adminRoutes.put('/settings', endpoint((req, res) => {
     if (isOfficialTicket(positiveId(req.body?.leagueId, 'inhouse ticket ID'))) fail('Use a dedicated inhouse ticket, separate from official league seasons');
     return res.json({settings: store.saveSettings(req.body || {})});

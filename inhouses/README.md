@@ -93,6 +93,33 @@ node scripts/inhouses/run.js --once
 
 ## Processing behavior
 
+### Two-admin live test
+
+1. Deploy the update and restart both the web app and the existing
+   `inhouse-worker` process. Startup adds the saved `PlayerCount` column; existing
+   games default to ten players. No manual SQL or separate test worker is needed.
+2. Configure the dedicated ticket under Admin > Inhouses > Settings. For the
+   initial live check, the ticket is **18083**. Keep the normal queue/draft rules.
+3. Both admins join the normal queue. With exactly two waiting players, click
+   **Start 2-player test** in the lobby waiting room or Admin > Inhouses > Queue &
+   Games. This admin-only action reserves those two players atomically.
+4. Both confirm the normal 60-second ready check. Each becomes their own team's
+   captain; no remaining players need drafting, so the lobby goes straight to
+   Waiting for game. It is labelled **1v1 admin test**.
+5. Play a real ticketed lobby with those two players on opposite sides within
+   the configured launch window. The existing worker verifies the ticket, both
+   account IDs, sides, and start window, links the match ID, and records Steam's
+   confirmed result. Missing live data or an unknown winner never implies a win.
+
+The player count is saved on that game, not in global settings. Normal queues
+still require ten players. A confirmed 1v1 test with a positive duration can
+resolve below five minutes; ten-player games retain the five-minute remake
+guard. Test wins, losses, calibration games, and ratings are recorded through
+the usual history and standings flow. This verifies the existing workflow with
+two players; a complete ten-player draft still needs its own live check.
+
+### Worker behavior
+
 - Local maintenance runs every second, including while Steam requests await a
   response. It advances 60-second ready checks and draft turns.
 - Steam discovery runs approximately every ten seconds when games are pending.
@@ -150,7 +177,7 @@ games leave these counts automatically. This summary uses the same activity
 stream without another connection or worker.
 
 Lobby chat appears below the assigned game from ready check through play.
-Only its ten participants can read or send messages. Messages use the stored
+Only its participants can read or send messages. Messages use the stored
 player name and plain text (up to 500 characters); Enter sends and Shift+Enter
 adds a line. Five messages per ten seconds per player are allowed, and retried
 sends use an idempotent client identifier. Completed/cancelled lobbies reject

@@ -49,7 +49,7 @@ export function createInhouseWorker(store, api, {clock = Date.now, owner = rando
         try {store.validateMatch(g, match); return true;} catch {return false;}
       })());
       if (eligible.length !== 1) return;
-      try {store.applyMatch(eligible[0].InhouseId, match); eligible[0].MatchId = match.matchId; eligible[0].Status = match.winner && match.duration >= 300 ? 'completed' : 'playing';}
+      try {const outcome = store.applyMatch(eligible[0].InhouseId, match); eligible[0].MatchId = match.matchId; eligible[0].Status = outcome.completed ? 'completed' : 'playing';}
       catch (error) {if (!error.status || error.status >= 500) throw error;}
     }
     try {
@@ -81,7 +81,9 @@ export function createInhouseWorker(store, api, {clock = Date.now, owner = rando
           const match = await matchDetails(g.MatchId);
           if (stopped) break;
           const outcome = store.applyMatch(g.InhouseId, match);
-          if (match.winner && !outcome.completed) errors.push(`Match ${g.MatchId} is shorter than five minutes; cancel or correct its link if it was a remake.`);
+          if (match.winner && !outcome.completed) errors.push(g.PlayerCount === 2
+            ? `Match ${g.MatchId} is awaiting a valid start time and duration.`
+            : `Match ${g.MatchId} is shorter than five minutes; cancel or correct its link if it was a remake.`);
         } catch (error) {errors.push(error.message);}
       }
     } finally {
