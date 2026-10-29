@@ -18,6 +18,8 @@ export default function Navbar({ mobileNavOpen, onMenuToggle, upcomingGames = []
   const liveMatchCount=live.active?(live.data?.matches?.length??(Number(liveCount?.count)||0)):(Number(liveCount?.count)||0);
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState('');
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
@@ -34,10 +36,12 @@ export default function Navbar({ mobileNavOpen, onMenuToggle, upcomingGames = []
 
 
   function handleLogout() {
+    setLoggingOut(true);
+    setLogoutError('');
     logout().then(() => {
     setDropdownOpen(false);
     navigate('/');
-  });
+  }).catch(error => setLogoutError(error.message)).finally(() => setLoggingOut(false));
 }
 
   const handleSearch = (e) => {
@@ -100,7 +104,8 @@ export default function Navbar({ mobileNavOpen, onMenuToggle, upcomingGames = []
               {dropdownOpen && (
                 <div className="dropdown-menu">
                   <button type="button" onClick={() => { setDropdownOpen(false); navigate('/dashboard'); }}>Dashboard</button>
-                  <button type="button" onClick={handleLogout}>Logout</button>
+                  <button type="button" disabled={loggingOut} onClick={handleLogout}>{loggingOut ? 'Signing out…' : 'Logout'}</button>
+                  {logoutError && <p role="alert" className="navbar-logout-error">{logoutError}</p>}
                 </div>
               )}
             </>

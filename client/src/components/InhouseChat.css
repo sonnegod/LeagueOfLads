@@ -1,0 +1,14 @@
+.inhouse-chat { margin-top: 1rem; }
+.inhouse-chat .inhouse-card-heading { margin-bottom: .6rem; }
+.inhouse-chat-log { height: 180px; overflow-y: auto; overscroll-behavior: contain; padding: .25rem .25rem .5rem; }
+.inhouse-chat-line { display: flex; align-items: baseline; gap: .75rem; padding: .3rem 0; font-size: .88rem; }
+.inhouse-chat-line > div { min-width: 0; flex: 1; overflow-wrap: anywhere; white-space: pre-wrap; }
+.inhouse-chat-line strong { color: var(--primary-color, #83baff); }
+.inhouse-chat-line time { flex-shrink: 0; font-size: .7rem; color: var(--muted-text, #9aa0b4); }
+.inhouse-chat-compose { display: flex; align-items: stretch; gap: .6rem; margin-top: .6rem; }
+.inhouse-chat-compose textarea { flex: 1; min-width: 0; resize: vertical; max-height: 120px; padding: .65rem .75rem;
+  font: inherit; font-size: .88rem; border: 1px solid var(--border-color, #34435a); border-radius: 6px;
+  background: var(--input-bg, #111b2d); color: inherit; }
+.inhouse-chat-compose button { align-self: center; }
+.inhouse-chat-error { margin: .5rem 0 0; font-size: .8rem; color: #f5b2a6; }
+@media (max-width: 480px) { .inhouse-chat-line { gap: .4rem; } .inhouse-chat-compose { gap: .4rem; } }

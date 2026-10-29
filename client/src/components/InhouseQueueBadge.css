@@ -1,0 +1,36 @@
+.sidebar-inhouses { position:relative; }
+.sidebar-nav .sidebar-inhouses .sidebar-link { padding-right:102px; }
+.inhouse-activity-badges { position:absolute; right:8px; top:50%; transform:translateY(-50%); display:flex; gap:2px; }
+.inhouse-queue-badge {
+  display:grid; place-items:center; min-width:36px; height:34px; padding:0 2px;
+  border:0; border-radius:50%; background:transparent; color:white; cursor:pointer;
+}
+.inhouse-queue-badge-count,.inhouse-games-badge-count {
+  display:flex; align-items:center; justify-content:center; gap:4px; min-width:32px; height:24px;
+  padding:0 5px; box-sizing:border-box; border:1px solid #60a5fa; border-radius:999px;
+  background:#1d4ed8; font-size:.75rem; font-weight:750; line-height:1; font-variant-numeric:tabular-nums;
+}
+.inhouse-games-badge-count { background:#064e3b; border-color:#34d399; color:#d1fae5; }
+.inhouse-queue-badge.is-empty>span { background:#17243a; border-color:#475569; color:#cbd5e1; }
+.inhouse-queue-badge:hover>span,.inhouse-queue-badge[aria-expanded=true]>span { border-color:#bfdbfe; }
+.inhouse-queue-badge:focus-visible { outline:2px solid #93c5fd; outline-offset:2px; }
+.inhouse-queue-popover {
+  position:fixed; z-index:1200; box-sizing:border-box; padding:14px 16px;
+  max-width:calc(100vw - 24px); max-height:min(320px,calc(100dvh - 24px)); overflow-y:auto;
+  border:1px solid #475569; border-radius:10px; background:#0f172a; color:#e2e8f0;
+  box-shadow:0 12px 32px #02061780; font:14px/1.5 system-ui,sans-serif;
+}
+.inhouse-queue-popover>strong { color:#bfdbfe; font-size:.8rem; }
+.inhouse-queue-popover ul { display:grid; gap:8px; list-style:none; padding:0; margin:12px 0 0; }
+.inhouse-queue-popover li { overflow-wrap:anywhere; }
+.inhouse-queue-popover p { margin:10px 0 0; }
+.inhouse-queue-popover .inhouse-queue-update-note { color:#fcd34d; font-size:.75rem; }
+.inhouse-active-games li { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.inhouse-active-games li>span { display:flex; align-items:center; gap:8px; }
+.inhouse-active-games small { color:#94a3b8; font-size:.7rem; white-space:nowrap; }
+.inhouse-game-stage { color:#cbd5e1; font-size:.78rem; }
+.inhouse-game-stage.is-playing { color:#6ee7b7; }
+.inhouse-game-stage.is-drafting { color:#c4b5fd; }
+.inhouse-player-pool { display:grid; gap:2px; margin-top:14px; padding-top:10px; border-top:1px solid #334155; }
+.inhouse-player-pool strong { font-size:.8rem; color:#e2e8f0; }
+.inhouse-player-pool>span { font-size:.75rem; color:#94a3b8; }

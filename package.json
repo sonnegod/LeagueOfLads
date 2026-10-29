@@ -5,6 +5,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "inhouses:init": "node scripts/inhouses/run.js --init-only",
+    "inhouses:worker": "node scripts/inhouses/run.js",
+    "test:inhouses": "node --test tests/inhouse*.test.js",
     "start": "node index.js",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon index.js",

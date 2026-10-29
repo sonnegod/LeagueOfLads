@@ -21,6 +21,7 @@ import MatchSchedulingPanel from "../components/MatchSchedulingPanel";
 import PastChampionsPanel from "../components/PastChampionsPanel";
 import RecordManagementPanel from "../components/RecordManagementPanel";
 import AdminNavigation from "../components/AdminNavigation";
+import InhouseAdminPanel from "../components/InhouseAdminPanel";
 
 
 export default function AdminPage() {
@@ -32,6 +33,7 @@ export default function AdminPage() {
   const [activeLeagueTab, setActiveLeagueTab] = useState("overview");
   const [activeEditorTab, setActiveEditorTab] = useState("results");
   const [activeAdminTab, setActiveAdminTab] = useState("requests");
+  const [activeInhouseTab, setActiveInhouseTab] = useState("settings");
   const [seasonStatus, setSeasonStatus] = useState(null);
   const [seasonId, setSeasonId] = useState(null);
 
@@ -76,6 +78,8 @@ export default function AdminPage() {
     ...(['signup_closed','active'].includes(seasonStatus)?[['rosterChanges','Roster Changes']]:[]),
     ...(seasonId?[['match','Match']]:[]),
     ...(seasonStatus==='active'?[['schedule','Schedule'],['highlights','Highlights'],['editor','Editor'],['playoffs','Playoffs'],['settings','Settings']]:[]),
+  ]:activeTab==='inhouses'?[
+    ['settings','Settings'],['games','Queue & Games'],['audit','Activity'],
   ]:[
     ['requests','Requests'],['rules','Rules'],['adjustedPlayers','Adjusted Players'],['champions','Champions'],
     ['recordManagement','Record Management'],['adminManagement','Admin Management'],['auditLog','Audit Log'],
@@ -86,8 +90,10 @@ export default function AdminPage() {
       <h1>Admin Panel</h1>
 
       <AdminNavigation workspace={activeTab} onWorkspaceChange={setActiveTab} sections={sections}
-        activeSection={activeTab==='league'?activeLeagueTab:activeAdminTab}
-        onSectionChange={activeTab==='league'?setActiveLeagueTab:setActiveAdminTab} />
+        activeSection={activeTab==='league'?activeLeagueTab:activeTab==='inhouses'?activeInhouseTab:activeAdminTab}
+        onSectionChange={activeTab==='league'?setActiveLeagueTab:activeTab==='inhouses'?setActiveInhouseTab:setActiveAdminTab} />
+
+      {activeTab === 'inhouses' && <InhouseAdminPanel section={activeInhouseTab} />}
 
       {activeTab === "league" && activeLeagueTab === "editor" && (
           <div style={pageContainer}>

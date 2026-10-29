@@ -22,7 +22,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   function logout() {
-    return fetch('/api/auth/logout', { credentials: 'include' }).then(() => {
+    return fetch('/api/auth/logout', { credentials: 'include' }).then(response => {
+      if (!response.ok) throw new Error('Unable to sign out. Please try again.');
       setUser(null);
     });
   }

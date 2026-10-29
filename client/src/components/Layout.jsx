@@ -8,6 +8,7 @@ import SiteAnalyticsTracker from './SiteAnalyticsTracker';
 import PlayerNameConfirmation from './PlayerNameConfirmation';
 import useUpcomingGames from '../hooks/useUpcomingGames';
 import LiveMatchesProvider from '../context/LiveMatchesProvider';
+import InhouseActivityProvider from '../context/InhouseActivityProvider';
 
 export default function Layout() {
   const { user, loading } = useAuth();
@@ -33,7 +34,7 @@ export default function Layout() {
   if (loading) return <div>Loading...</div>;
 
   return (
-    <LiveMatchesProvider><div className={`app-shell${upcomingGames.length ? ' has-upcoming-games' : ''}`}>
+    <LiveMatchesProvider><InhouseActivityProvider><div className={`app-shell${upcomingGames.length ? ' has-upcoming-games' : ''}`}>
       <SiteAnalyticsTracker />
       {user&&<PlayerNameConfirmation key={user.accountId} />}
       <Navbar
@@ -58,7 +59,7 @@ export default function Layout() {
           </footer>
         </main>
       </div>
-    </div></LiveMatchesProvider>
+    </div></InhouseActivityProvider></LiveMatchesProvider>
   );
 }
 

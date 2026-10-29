@@ -4,6 +4,7 @@ import './AdminNavigation.css';
 
 const workspaces=[
   {key:'league',label:'League'},
+  {key:'inhouses',label:'Inhouses'},
   {key:'admin',label:'Admin'},
 ];
 
@@ -35,7 +36,7 @@ export default function AdminNavigation({workspace,onWorkspaceChange,sections,ac
     </div>
     <span key={`connector-${workspace}`} className="admin-navigation-connector" aria-hidden="true"><ChevronRight size={17} /></span>
     <div key={workspace} id="admin-section-navigation" className="ui-tabs admin-navigation-secondary" ref={sectionsRef}
-      role="group" aria-label={`${workspace==='league'?'League':'Admin'} sections`}>
+      role="group" aria-label={`${workspaces.find(item=>item.key===workspace)?.label||'Admin'} sections`}>
       <div className="admin-section-list">
         {sections.map(([key,label],index)=><button key={key} type="button" className="ui-tab admin-section-tab"
           style={{'--admin-section-index':index}} aria-pressed={activeSection===key} onClick={()=>onSectionChange(key)}>

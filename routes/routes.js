@@ -32,11 +32,22 @@ import { refreshQualificationSetup } from '../config/qualificationStore.js';
 import {createQualificationStageRouter} from './qualificationStageRoutes.js';
 import {readQualificationStage,readQualificationMatches,qualificationStageResponse} from '../config/tiebreakerStage.js';
 import { createPlayerLoginRouter } from './playerLoginRoutes.js';
+import {InhouseStore} from '../inhouses/store.js';
+import {createSteamInhouseClient} from '../inhouses/steam.js';
+import {createInhouseRoutes} from './inhouseRoutes.js';
+import {createLogoutHandler} from './authLogout.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
+const inhouseStore = new InhouseStore(db.db);
+const inhouseRoutes = createInhouseRoutes({store: inhouseStore, api: createSteamInhouseClient(), requireAdmin: checkAdmin,
+  isOfficialTicket: id => Boolean(db.db.prepare('SELECT 1 FROM LeagueInfo WHERE LeagueId=? UNION SELECT 1 FROM LeagueSeasons WHERE ExternalLeagueId=? LIMIT 1').get(id, id)),
+  playerName: (id, req) => db.db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId=?').get(id)?.PlayerName || req.user?.displayName || `Player ${id}`});
+export const inhouseUpdates = inhouseRoutes.stream;
+router.use('/inhouses', inhouseRoutes.publicRoutes);
+router.use('/admin/inhouses', checkAdmin, inhouseRoutes.adminRoutes);
 const bettingRuntime = createBettingRuntime(db.db, dbBet.db, (type, message) => db.recordAdminAudit(type, message));
 const { publicRoutes: publicBettingRoutes, adminRoutes: adminBettingRoutes } = createBettingRoutes({
   ...bettingRuntime, league: db.db, playerName: id => db.getPlayerInfo(id)?.[0]?.PlayerName || `Player ${id}`,
@@ -90,7 +101,7 @@ function resolveAccountIdFromSteamId(steamId64) {
 router.get('/auth/steam',
   (req, res, next) => {
     const returnTo = req.query.returnTo;
-    if (typeof returnTo === 'string' && /^\/signup\/\d+$/.test(returnTo) && req.session) {
+    if (typeof returnTo === 'string' && (/^\/signup\/\d+$/.test(returnTo) || returnTo === '/inhouses') && req.session) {
       req.session.signupReturnTo = returnTo;
       return req.session.save(error => error ? next(error) : next());
     }
@@ -157,15 +168,8 @@ router.get('/auth/user', (req, res) => {
   }
 });
 
-router.get('/auth/logout', (req, res, next) => {
-  req.logout(err => {
-    if (err) return next(err);
-    req.session.destroy(err => {
-      res.clearCookie('connect.sid'); 
-      res.redirect('/');
-    });
-  });
-});
+const logoutHandler = createLogoutHandler({removeWaiting: id => inhouseStore.leaveOnLogout(id)});
+router.get('/auth/logout', logoutHandler);
 
 router.post('/nameChange', (req, res) => {
 
@@ -1557,12 +1561,7 @@ router.post('/admin/saveBracket', (req, res) => {
 
 
 
-router.get('/logout', (req, res) => {
-  req.logout(err => {
-    if (err) console.error(err);
-    res.redirect('/');
-  });
-});
+router.get('/logout', logoutHandler);
 
 router.post('/user/request', (req, res) => {
   if (!req.isAuthenticated?.() || !req.user) {

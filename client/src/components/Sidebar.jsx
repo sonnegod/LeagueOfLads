@@ -1,6 +1,7 @@
 // src/components/Sidebar.jsx
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import InhouseQueueBadge from './InhouseQueueBadge';
 import './Sidebar.css';
 
 export default function Sidebar({ open, onClose }) {
@@ -21,6 +22,8 @@ export default function Sidebar({ open, onClose }) {
         {/*<Link to="/match">Matches</Link> removing for performance issues*/}
         <NavLink to="/league" className={navClassName} onClick={onClose}>Leagues</NavLink>
         <NavLink to="/h2h" className={navClassName} onClick={onClose}>Head to Head</NavLink>
+        {user?.isAdmin && <div className="sidebar-inhouses"><NavLink to="/inhouses" className={navClassName} onClick={onClose}>Inhouses</NavLink>
+          <InhouseQueueBadge /></div>}
         <NavLink to="/hero" className={navClassName} onClick={onClose}>Heroes</NavLink>
         <NavLink to="/awards" className={navClassName} onClick={onClose}>Awards</NavLink>
         <NavLink to="/rules" className={navClassName} onClick={onClose}>Rules</NavLink>
