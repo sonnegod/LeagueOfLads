@@ -127,7 +127,7 @@ test('compact group rosters return only player names and signup MMRs within the 
 
 function database() {
   const db = new Database(':memory:');
-  db.exec(`CREATE TABLE PlayerInfo (PlayerId INTEGER PRIMARY KEY, PlayerName TEXT NOT NULL);
+  db.exec(`CREATE TABLE PlayerInfo (PlayerId INTEGER PRIMARY KEY, PlayerName STRING (40) NOT NULL);
     CREATE TABLE LeagueInfo (LeagueId INTEGER PRIMARY KEY, LeagueName TEXT NOT NULL, Active INTEGER NOT NULL);
     CREATE TABLE GroupNames (LeagueId INTEGER, GroupId INTEGER, GroupName TEXT, UNIQUE(LeagueId, GroupId));
     CREATE TABLE LeagueRules (LeagueId INTEGER PRIMARY KEY, UpperBracketTeams INTEGER, LowerBracketTeams INTEGER,
@@ -137,7 +137,7 @@ function database() {
     CREATE TABLE MatchTeam (MatchId INTEGER PRIMARY KEY, TeamRad INTEGER, TeamDire INTEGER, WinnerId INTEGER);
     CREATE TABLE MatchLeague (MatchId INTEGER PRIMARY KEY, LeagueId INTEGER, DatePlayed TEXT);
     CREATE TABLE TeamInfo (TeamId INTEGER PRIMARY KEY, TeamName TEXT);
-    CREATE TABLE HeroInfo (HeroId INTEGER PRIMARY KEY, HeroName TEXT);
+    CREATE TABLE HeroInfo (HeroId INTEGER PRIMARY KEY, HeroName STRING (40));
     CREATE TABLE LeagueTeamNames (LeagueId INTEGER, TeamId INTEGER, DisplayName TEXT);
     CREATE TABLE LeagueStageBoundaries (LeagueId INTEGER PRIMARY KEY, GroupEndMatchId INTEGER, TieBreakerEndMatchId INTEGER);
     CREATE TABLE SeriesInfo (SeriesId INTEGER PRIMARY KEY, Team1 INTEGER, Team2 INTEGER);
@@ -242,6 +242,9 @@ test('season signup, group assignment, MMR snapshot, and champion follow the lif
         matchId: 3, stage: 'Playoffs', opponentName: 'Manual' });
     db.prepare('UPDATE LeagueStageBoundaries SET TieBreakerEndMatchId = NULL WHERE LeagueId = 12345').run();
     assert.equal(store.publicHome().champion.players[0].spotlight.stage, 'Playoffs');
+    db.exec('UPDATE PlayerInfo SET PlayerName=0 WHERE PlayerId=1; UPDATE PlayerInfo SET PlayerName=12345 WHERE PlayerId=3;');
+    assert.equal(store.publicHome().champion.players.find(p=>p.playerId===1).playerName,'0');
+    assert.equal(store.publicHome().champion.players.find(p=>p.playerId===3).playerName,'12345');
     assert.ok(audit.some(([type]) => type === 'League Ended'));
     const nextSeason = store.create('Next Season');
     assert.equal(nextSeason.Status, 'draft');

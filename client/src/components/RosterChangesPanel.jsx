@@ -15,8 +15,10 @@ export default function RosterChangesPanel({refreshKey,onChanged}) {
   const [busy,setBusy]=useState(false);const [refresh,setRefresh]=useState(0);const [rosterChange,setRosterChange]=useState(initialChange);
   const playerOptions=useMemo(()=>{
     const players=new Map();
-    for(const player of data?.rosterSlots||[])if(player.playerId&&!player.pending)players.set(player.playerId,
-      {value:player.playerId,name:player.name||`Player ${player.playerId}`,label:`${player.name||'Player'} (${player.playerId})`});
+    for(const player of data?.rosterSlots||[])if(player.playerId&&!player.pending){
+      const name=String(player.name??'').trim()||`Player ${player.playerId}`;
+      players.set(player.playerId,{value:player.playerId,name,label:`${name} (${player.playerId})`});
+    }
     return [...players.values()].sort((a,b)=>a.name.localeCompare(b.name));
   },[data]);
   useEffect(()=>{

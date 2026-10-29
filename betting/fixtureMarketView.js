@@ -29,7 +29,7 @@ export function readScheduledPlayers({db,league,seasonId,limit,before,eventId,se
   if(rows.length>2000)fail('Narrow the fixture filter for player props',409);
   const names=new Map(),needle=search.toLocaleLowerCase();
   const matches=rows.map(row=>{
-    if(!names.has(row.PlayerId))names.set(row.PlayerId,playerName(row.PlayerId));
+    if(!names.has(row.PlayerId))names.set(row.PlayerId,String(playerName(row.PlayerId)??`Player ${row.PlayerId}`));
     const e=events.find(e=>e.EventId===row.EventId);
     return {...row,name:names.get(row.PlayerId),event:e};
   }).filter(p=>!needle||p.TitleMatch||`${p.name} ${p.PlayerId} ${p.event.Team1Name} ${p.event.Team2Name}`.toLocaleLowerCase().includes(needle));
@@ -68,7 +68,7 @@ export function readFixtureMarketPage({db,league,seasonId,limit,before,eventId,s
     if(rows.length>800)fail('Fixture exceeds the supported market count',409);
     const markets=rows.map(project),players=new Map(),names=new Map();
     for(const m of markets.filter(m=>m.type==='player_prop')) {
-      if(!names.has(m.playerId))names.set(m.playerId,playerName(m.playerId));
+      if(!names.has(m.playerId))names.set(m.playerId,String(playerName(m.playerId)??`Player ${m.playerId}`));
       const name=names.get(m.playerId);
       if(search&&!`${name} ${m.playerId} ${m.title} ${e.Team1Name} ${e.Team2Name}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()))continue;
       if(!players.has(m.playerId))players.set(m.playerId,{playerId:m.playerId,name,teamKey:m.teamKey,bettorCount:playerBettors(db,e.EventId,m.playerId),

@@ -233,7 +233,7 @@ export class ScheduleStore {
       const player=roster.find(p=>p.TeamSubmissionId===team.TeamSubmissionId&&p.Slot===slot);
       const tbd=pending.find(p=>p.TeamSubmissionId===team.TeamSubmissionId&&p.Slot===slot);
       return {teamKey:team.TeamSubmissionId,slot,playerId:player?.PlayerId??null,
-        name:player?this.db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId=?').get(player.PlayerId)?.PlayerName:null,
+        name:player?this.db.prepare('SELECT CAST(PlayerName AS TEXT) AS PlayerName FROM PlayerInfo WHERE PlayerId=?').get(player.PlayerId)?.PlayerName:null,
         pending:!!tbd,estimatedMMR:tbd?.EstimatedMMR??null};
     }));
   }

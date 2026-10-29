@@ -7,7 +7,18 @@ import { join } from 'node:path';
 import { engineFixture,preseasonFixture } from './helpers/bettingFixture.js';
 import { createBettingRoutes } from '../routes/bettingRoutes.js';
 import { runBetting,fixtureGuard,seasonGuard } from '../betting/engine.js';
+import {groupTeamMarkets} from '../betting/marketView.js';
 const now=new Date('2026-10-13T12:00:00.000Z');
+
+test('team market grouping sorts numeric and missing names as text, retaining zero labels',()=>{
+  const teams=[{TeamSubmissionId:1,GroupId:1,TeamName:42},{TeamSubmissionId:2,GroupId:2,TeamName:0},
+    {TeamSubmissionId:3,GroupId:1,TeamName:null},{TeamSubmissionId:4,GroupId:1,TeamName:'Alpha'}];
+  const markets=teams.map(t=>({type:'season_team',stat:'wins',teamKey:t.TeamSubmissionId}));
+  const groups=groupTeamMarkets(markets,teams,{1:23,2:0});
+  assert.deepEqual(groups.map(g=>g.name),['0','23']);
+  assert.deepEqual(groups[0].teams.map(t=>t.name),['0']);
+  assert.deepEqual(groups[1].teams.map(t=>t.name),['','42','Alpha']);
+});
 
 test('scheduled reads page whole fixtures and lazily expose complete player props with guarded, selectable quotes',async()=>{
   const f=engineFixture(),directory=mkdtempSync(join(tmpdir(),'lads-fixture-api-'));let server;
@@ -21,7 +32,8 @@ test('scheduled reads page whole fixtures and lazily expose complete player prop
     const app=express();app.use(express.json());app.use((req,res,next)=>{
       req.isAuthenticated=()=>true;req.user={id:'76561197960265827'};next();
     });
-    app.use('/betting',createBettingRoutes({...f,analyticsPath:path,playerName:id=>`Captain ${id}`,refresh:()=>{}}).publicRoutes);
+    const names=new Map();
+    app.use('/betting',createBettingRoutes({...f,analyticsPath:path,playerName:id=>names.has(id)?names.get(id):`Captain ${id}`,refresh:()=>{}}).publicRoutes);
     server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
     const base=`http://127.0.0.1:${server.address().port}/betting`;
     const get=async query=>{const response=await fetch(`${base}/markets?seasonId=1&view=series&groupFixtures=1&${query}`);assert.equal(response.status,200);return response.json();};
@@ -48,6 +60,13 @@ test('scheduled reads page whole fixtures and lazily expose complete player prop
     assert.deepEqual(detail.fixture,fixture);
     const onlyPlayer=await (await fetch(`${base}/fixtures/${first.EventId}?playerId=1`)).json();
     assert.deepEqual(onlyPlayer.fixture.players.map(p=>p.playerId),[1]);assert.deepEqual(onlyPlayer.fixture.players[0],fixture.players[0]);
+    names.set(1,12345);names.set(2,0);
+    const numericNames=(await get(`eventId=${first.EventId}&includeProps=1`)).fixtures[0].players;
+    assert.equal(numericNames.find(p=>p.playerId===1).name,'12345');
+    assert.equal(numericNames.find(p=>p.playerId===2).name,'0');
+    const numericList=await(await fetch(`${base}/player-props?seasonId=1&eventId=${first.EventId}`)).json();
+    assert.equal(numericList.players.find(p=>p.playerId===2).name,'0');
+    names.clear();
     const props=async query=>{const response=await fetch(`${base}/player-props?seasonId=1&${query}`);assert.equal(response.status,200);return response.json();};
     const propsPage=await props('limit=5');assert.equal(propsPage.players.length,5);assert.ok(propsPage.nextBefore);
     assert.ok(propsPage.players.every(p=>p.fixture.eventId===second.EventId&&p.bettorCount===0&&!Object.hasOwn(p,'markets')));

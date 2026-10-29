@@ -11,7 +11,7 @@ const now=new Date('2026-10-15T12:00:00Z'),effectiveAtUtc='2026-10-14T12:00:00.0
 function fixture() {
   const f=preseasonFixture([4]),audit=[];let refreshes=0;
   f.league.pragma('foreign_keys=ON');
-  f.league.exec(`CREATE TABLE PlayerInfo(PlayerId INTEGER PRIMARY KEY,PlayerName TEXT NOT NULL,LastDateChanged TEXT);
+  f.league.exec(`CREATE TABLE PlayerInfo(PlayerId INTEGER PRIMARY KEY,PlayerName STRING (40) NOT NULL,LastDateChanged TEXT);
     INSERT INTO PlayerInfo(PlayerId,PlayerName) SELECT DISTINCT PlayerId,'Player '||PlayerId FROM SeasonTeamPlayers;
     ALTER TABLE SeasonTeams ADD COLUMN CaptainId INTEGER;
     ALTER TABLE SeasonTeams ADD COLUMN UpdatedAt TEXT;
@@ -31,6 +31,18 @@ function fixture() {
 }
 const replace=(f,body={})=>f.schedules.changeRoster(2,{playerId:210,fromTeamKey:21,replacementPlayerId:999,
   replacementPlayerName:'Newcomer',effectiveAtUtc,reason:'Permanent replacement',...body},'99',now);
+
+test('roster status returns numeric-only legacy player names as text without changing stored data',()=>{
+  const f=fixture();try {
+    f.league.prepare('UPDATE PlayerInfo SET PlayerName=? WHERE PlayerId=?').run('12345',210);
+    f.league.prepare('UPDATE PlayerInfo SET PlayerName=? WHERE PlayerId=?').run('0',211);
+    assert.equal(typeof f.league.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId=210').get().PlayerName,'number');
+    const slots=f.schedules.rosterSlots(2);
+    assert.equal(slots.find(p=>p.playerId===210).name,'12345');
+    assert.equal(slots.find(p=>p.playerId===211).name,'0');
+    assert.equal(f.league.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId=210').get().PlayerName,12345);
+  }finally{f.close();}
+});
 
 test('a replacement can be a new account, preserves past membership and original signup, and appears on the public roster',()=>{
   const f=fixture();try {

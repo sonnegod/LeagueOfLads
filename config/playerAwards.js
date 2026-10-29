@@ -116,7 +116,7 @@ export default class PlayerAwardsStore {
   }
 
   build() {
-    const heroes = new Map(this.db.prepare('SELECT HeroId, HeroName FROM HeroInfo').all()
+    const heroes = new Map(this.db.prepare('SELECT HeroId, CAST(HeroName AS TEXT) AS HeroName FROM HeroInfo').all()
       .map(hero => [hero.HeroId, hero.HeroName]));
     const career = { scope: 'all-time', leagueId: null, leagueName: null,
       provisional: false, players: new Map(), heroes: new Map() };

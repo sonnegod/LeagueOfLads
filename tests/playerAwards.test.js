@@ -11,7 +11,7 @@ function fixture() {
   db.exec(`CREATE TABLE LeagueInfo (LeagueId INTEGER PRIMARY KEY, LeagueName TEXT, Active INTEGER);
     CREATE TABLE LeagueSeasons (SeasonId INTEGER PRIMARY KEY, ExternalLeagueId INTEGER,
       LeagueName TEXT, Status TEXT, ChampionTeamId INTEGER);
-    CREATE TABLE HeroInfo (HeroId INTEGER PRIMARY KEY, HeroName TEXT);
+    CREATE TABLE HeroInfo (HeroId INTEGER PRIMARY KEY, HeroName STRING (40));
     CREATE TABLE MatchTeam (MatchId INTEGER PRIMARY KEY, TeamRad INTEGER, TeamDire INTEGER, WinnerId INTEGER);
     CREATE TABLE MatchLeague (MatchId INTEGER PRIMARY KEY, LeagueId INTEGER);
     CREATE TABLE MatchPlayer (MatchId INTEGER, PlayerId INTEGER, HeroId INTEGER);
@@ -42,6 +42,23 @@ function fixture() {
   };
   return { db, league, game, appearance, games };
 }
+
+test('award names from numeric-affinity columns are text before sorting, including zero',()=>{
+  const f=fixture();
+  try {
+    f.db.exec(`CREATE TABLE PlayerInfo(PlayerId INTEGER PRIMARY KEY,PlayerName STRING (40));
+      INSERT INTO PlayerInfo VALUES(1,12345),(2,67890),(3,0);
+      UPDATE HeroInfo SET HeroName=123 WHERE HeroId=1;
+      UPDATE HeroInfo SET HeroName=456 WHERE HeroId=2;
+      INSERT INTO HeroInfo VALUES(3,0);`);
+    f.league(10);for(const id of [1,2,3])f.games(10,id,10,8,id);
+    const catalog=new PlayerAwardsStore(f.db).catalog();
+    const specialists=catalog.awards.filter(a=>a.type==='hero_specialist');
+    assert.deepEqual(specialists.map(a=>a.heroName),['0','123','456']);
+    assert.ok(specialists.flatMap(a=>a.holders).every(p=>typeof p.name==='string'));
+    assert.equal(specialists[0].holders[0].name,'0');
+  }finally{f.db.close();}
+});
 
 test('hero win rate awards require 10 games, share exact ties, and ignore duplicate/conflicting results', () => {
   const f = fixture();

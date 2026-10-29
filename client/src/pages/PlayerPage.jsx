@@ -177,11 +177,11 @@ function TeammatesTable({ rows }) {
     const aValue = sort.key === 'Losses' ? a.GamesPlayed - a.Wins : a[sort.key];
     const bValue = sort.key === 'Losses' ? b.GamesPlayed - b.Wins : b[sort.key];
     const comparison = sort.key === 'PlayerName'
-      ? aValue.localeCompare(bValue, undefined, { sensitivity: 'base' })
+      ? String(aValue ?? '').localeCompare(String(bValue ?? ''), undefined, { sensitivity: 'base' })
       : aValue - bValue;
     if (comparison) return sort.direction === 'asc' ? comparison : -comparison;
     return b.GamesPlayed - a.GamesPlayed
-      || a.PlayerName.localeCompare(b.PlayerName, undefined, { sensitivity: 'base' })
+      || String(a.PlayerName ?? '').localeCompare(String(b.PlayerName ?? ''), undefined, { sensitivity: 'base' })
       || a.PlayerId - b.PlayerId;
   });
 

@@ -9,7 +9,7 @@ const number = value => Number(value).toLocaleString();
 const categories = [['all', 'All awards'], ['league', 'League records'], ['heroes', 'Hero records'], ['champion', 'Championships']];
 const matchesSearch = (award, query) => !query || [award.title, award.heroName, award.leagueName, award.teamName,
   ...(award.placements?.flatMap(place => place.holders) || award.holders).flatMap(player => [player.name, String(player.playerId)])]
-  .filter(Boolean).some(value => value.toLowerCase().includes(query));
+  .filter(value => value != null).some(value => String(value).toLowerCase().includes(query));
 
 function Holders({ award, sharedLabel = 'Shared record' }) {
   if (!award) return <span className="awards-muted">No qualifying record yet</span>;
@@ -54,7 +54,7 @@ export default function AwardsPage() {
   const heroRecords = useMemo(() => {
     const rows = new Map();
     for (const award of awards) if (award.heroId) {
-      if (!rows.has(award.heroId)) rows.set(award.heroId, { id: award.heroId, name: award.heroName });
+      if (!rows.has(award.heroId)) rows.set(award.heroId, { id: award.heroId, name: String(award.heroName ?? '') });
       rows.get(award.heroId)[award.type] = award;
     }
     return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));

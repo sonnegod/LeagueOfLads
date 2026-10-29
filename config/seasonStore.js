@@ -945,7 +945,7 @@ export default class SeasonStore {
     for (const row of rows) {
       let player = players.get(row.PlayerId);
       if (!player) {
-        player = { playerId: row.PlayerId, playerName: row.PlayerName,
+        player = { playerId: row.PlayerId, playerName: String(row.PlayerName ?? ''),
           games: 0, wins: 0, playoffWins: 0, heroes: new Map(), bestMatches: {} };
         players.set(row.PlayerId, player);
       }
@@ -954,7 +954,7 @@ export default class SeasonStore {
       if (won) player.wins++;
       if (won && stageFor(row.MatchId) === 'Playoffs') player.playoffWins++;
       const hero = player.heroes.get(row.HeroId) || { heroId: row.HeroId,
-        heroName: row.HeroName, games: 0, wins: 0 };
+        heroName: String(row.HeroName ?? ''), games: 0, wins: 0 };
       hero.games++;
       if (won) hero.wins++;
       player.heroes.set(row.HeroId, hero);

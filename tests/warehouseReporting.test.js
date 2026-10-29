@@ -50,6 +50,18 @@ function fixture() {
   return { db, reporting: new WarehouseReporting(db) };
 }
 
+test('reporting exposes numeric-only legacy player names as text for draft and player sorting',()=>{
+  const {db,reporting}=fixture();
+  try {
+    db.exec("UPDATE PlayerInfo SET PlayerName=12345 WHERE PlayerId=1; UPDATE PlayerInfo SET PlayerName=0 WHERE PlayerId=2;");
+    assert.equal(typeof db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId=1').get().PlayerName,'number');
+    const players=getReportingPlayers(db,1);
+    assert.equal(players.find(p=>p.PlayerId===1).PlayerName,'12345');
+    assert.equal(players.find(p=>p.PlayerId===2).PlayerName,'0');
+    assert.ok(reporting.draft(1).teams.flatMap(t=>t.players).every(p=>typeof p.playerName==='string'));
+  }finally{db.close();}
+});
+
 test('match reporting assigns real sides despite duplicate memberships and credits creep objectives without inventing players',()=>{
   const {db,reporting}=fixture();
   try {

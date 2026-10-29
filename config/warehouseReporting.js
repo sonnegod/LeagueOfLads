@@ -46,8 +46,8 @@ export { mean, number, playerMetrics, summarizeTeamGames, groupMatches };
 // Source slots take priority over legacy membership rows, which can be duplicated
 // or retain a former team ID. Ambiguous legacy memberships remain unassigned.
 export function getReportingPlayers(db, matchId) {
-  return db.prepare(`SELECT p.*,COALESCE(i.PlayerName,'Player '||p.PlayerId) PlayerName,
-    COALESCE(h.HeroName,'Hero '||p.HeroId) HeroName,
+  return db.prepare(`SELECT p.*,COALESCE(CAST(i.PlayerName AS TEXT),'Player '||p.PlayerId) PlayerName,
+    COALESCE(CAST(h.HeroName AS TEXT),'Hero '||p.HeroId) HeroName,
     CASE WHEN p.PlayerSlot BETWEEN 0 AND 4 THEN 0 WHEN p.PlayerSlot BETWEEN 128 AND 132 THEN 1
       ELSE (SELECT CASE WHEN MIN(t.TeamId)=MAX(t.TeamId) THEN CASE WHEN MIN(t.TeamId)=m.TeamRad THEN 0 ELSE 1 END END
         FROM MatchTeamPlayer t WHERE t.MatchId=p.MatchId AND t.PlayerId=p.PlayerId AND t.TeamId IN(m.TeamRad,m.TeamDire)) END TeamSide
