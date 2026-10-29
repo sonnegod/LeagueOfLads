@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import './config/passport.js';              
-import routes, {liveMatchUpdates} from './routes/routes.js';
+import routes, {liveMatchUpdates, inhouseUpdates} from './routes/routes.js';
 import {startLiveMatchNotifications} from './config/liveMatchNotifications.js';
 import { siteApiHealth } from './config/siteAnalytics.js';
 
@@ -98,6 +98,7 @@ let stopping=false;
 function shutdown() {
   if(stopping)return;stopping=true;
   liveMatchUpdates.close();
+  inhouseUpdates.close();
   liveNotifications?.close();
   server.close(()=>process.exit(0));
   setTimeout(()=>process.exit(0),3000).unref();

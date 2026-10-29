@@ -25,6 +25,7 @@ import BettingFixturePage from './pages/BettingFixturePage';
 import {SeasonBettingLayout} from './context/SeasonBetSlipContext';
 import HeadToHeadPage from "./pages/HeadToHeadPage";
 const DraftGodPage = lazy(() => import('./pages/DraftGod'));
+const InhousesPage = lazy(() => import('./pages/InhousesPage'));
 const SkillBuildPreview = import.meta.env.DEV ? lazy(() => import('./pages/SkillBuildPreview')) : null;
 import LiveMatchesPage from "./pages/LiveMatchesPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -64,6 +65,7 @@ export default function App() {
         </Route>
         <Route path="/draftgod" element={<Suspense fallback={<p>Loading Draft God…</p>}><DraftGodPage /></Suspense>} />
         <Route path="/live" element={<LiveMatchesPage />} />
+        <Route path="/inhouses" element={<Suspense fallback={<p>Loading inhouses…</p>}><InhousesPage /></Suspense>} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/rules" element={<RulesPage />} />
         <Route path="/signup/:seasonId" element={<SignupPage />} />

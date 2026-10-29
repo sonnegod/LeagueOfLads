@@ -99,6 +99,16 @@ old tickets and wallets remain in a separate legacy account. Eligible models
 publish automatically; insufficient signup-era history or stale sources hold
 new prices. See [betting/README.md](betting/README.md) for setup, market types,
 verified result links, deployment, and Discord scheduling.
+## Inhouses
+
+Inhouses is currently an admin-only preview at `/inhouses`; public access is closed.
+Admins configure the shared ticket and queue rules under the primary
+**Inhouses** admin tab. A separate worker handles deadlines, match discovery,
+and automatic win/loss resolution; no nightly import is needed.
+
+See [inhouses/README.md](inhouses/README.md) for local setup, the one-time PM2
+registration, production ticket verification, and tests.
+
 ## Suggested regular season matchups
 
 Active league qualification rules are edited in **Admin → League → Settings →

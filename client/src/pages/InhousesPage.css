@@ -1,0 +1,101 @@
+.inhouses-page { min-width:0; }
+.inhouse-page-heading .inhouse-tabs { margin:0 0 0 auto; flex:none; align-self:flex-start; justify-content:flex-end; width:auto; max-width:100%; padding:.2rem; }
+.content .inhouses-page .inhouse-tabs .ui-tab { padding:.4rem .8rem !important; min-height:32px; }
+.inhouse-player-settings { max-width:680px; }
+.inhouse-role-dialog {
+  box-sizing:border-box; width:min(520px,calc(100vw - 2rem)); max-height:calc(100dvh - 2rem);
+  margin:auto; padding:1.75rem; border:1px solid #475569; border-radius:16px;
+  background:#0f172a; color:#f1f5f9; box-shadow:0 20px 80px #0008; overflow-y:auto; font:inherit;
+}
+.inhouse-role-dialog::backdrop { background:#020617c9; backdrop-filter:blur(3px); }
+.inhouse-role-dialog h2 { margin:0 0 12px; color:#bfdbfe; font-size:1.5rem; line-height:1.25; }
+.inhouse-role-dialog p { color:#cbd5e1; line-height:1.6; }
+.inhouse-role-dialog button { min-height:40px; padding:8px 12px; border:1px solid #475569; border-radius:8px; background:#17243a; color:#f1f5f9; cursor:pointer; font:inherit; }
+.inhouse-role-dialog :is(button,input):focus-visible { outline:2px solid #93c5fd; outline-offset:3px; }
+.inhouse-role-dialog button:disabled { opacity:.5; cursor:not-allowed; }
+.inhouse-role-dialog .inhouse-eyebrow { margin-top:0; color:#93c5fd; }
+.inhouse-role-error,.inhouse-role-dialog .inhouse-role-error { color:#fda4af; }
+.inhouse-page-heading,.inhouse-card-heading,.inhouse-team>header,.inhouse-actions { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.inhouse-page-heading { margin-bottom:var(--ui-content-gap); }
+.content .inhouse-page-heading h1 { margin:0; }
+.inhouse-page-heading p,.inhouse-muted,.inhouse-meta,.inhouse-player small { color:var(--muted-text,#94a3b8); }
+.inhouse-page-heading p { margin:0; }
+.inhouse-card { background:var(--surface,#0f172a); border:1px solid var(--border,#334155); border-radius:var(--ui-radius,12px); padding:var(--ui-card-inset,24px); min-width:0; margin-bottom:var(--ui-content-gap,24px); }
+.inhouse-card h2,.inhouse-card h3 { margin:0 0 12px; }
+.inhouse-card-heading { margin-bottom:16px; }
+.inhouse-card-heading h2,.inhouse-team>header h3 { margin:0; }
+.inhouse-card button { padding:8px 12px; }
+.inhouse-card a { color:var(--primary,#60a5fa); }
+.inhouse-card.is-mine { border-color:#60a5fa; box-shadow:inset 3px 0 #60a5fa; }
+.inhouse-eyebrow { display:block; color:#93c5fd; font-size:.78rem; letter-spacing:.06em; text-transform:uppercase; margin-bottom:6px; }
+.inhouse-timer { font-size:1.5rem; font-variant-numeric:tabular-nums; color:#bfdbfe; }
+.inhouse-overview { display:flex; flex-wrap:wrap; gap:12px 24px; padding:16px 0; margin-bottom:16px; border-top:1px solid #334155; border-bottom:1px solid #334155; color:#cbd5e1; }
+.inhouse-overview strong { color:#93c5fd; }
+.inhouse-coverage { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.inhouse-coverage span { font-size:.8rem; padding:5px 8px; background:#17243a; border-radius:6px; }
+.inhouse-coverage .needs-players { color:#fde68a; }
+.inhouse-coverage small { flex-basis:100%; color:#94a3b8; }
+.inhouse-lobby-grid,.inhouse-teams { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--ui-content-gap,24px); align-items:start; }
+.inhouse-preferences { display:grid; gap:16px; }
+.inhouse-preferences fieldset { border:0; padding:0; margin:0; min-width:0; }
+.inhouse-preferences legend { margin-bottom:12px; color:#cbd5e1; }
+.inhouse-role-choices { display:flex; flex-wrap:wrap; gap:6px; }
+.inhouse-role-choices button[aria-pressed=true],.inhouse-history button[aria-pressed=true] { border-color:#60a5fa; background:#1e3a5f; }
+.inhouse-role-order { display:grid; gap:6px; padding-left:26px; }
+.inhouse-role-order li { padding-left:4px; }
+.inhouse-role-order li span { display:inline-block; min-width:100px; }
+.inhouse-role-order button { margin-left:6px; }
+.inhouse-check { display:flex; align-items:center; gap:8px; }
+.inhouse-check input { width:18px; height:18px; }
+.inhouse-actions { justify-content:flex-start; margin-top:8px; }
+.inhouse-primary,.inhouse-signin { background:#1d4ed8 !important; border:1px solid #60a5fa !important; color:#fff !important; }
+.inhouse-signin { display:inline-block; border-radius:8px; padding:10px 14px; text-decoration:none; }
+.inhouse-notice { border:1px solid #a16207; background:#422b0a; color:#fde68a; border-radius:8px; padding:12px 16px; }
+.inhouse-notice.is-error { border-color:#be123c; color:#fecdd3; background:#4c1425; }
+.inhouse-meta { display:flex; flex-wrap:wrap; gap:8px 18px; font-size:.85rem; }
+.inhouse-ready-list { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+.inhouse-ready-list span { padding:6px 10px; border:1px solid #475569; border-radius:6px; color:#94a3b8; }
+.inhouse-ready-list .is-ready { color:#86efac; border-color:#15803d; background:#052e16; }
+.inhouse-team { background:#111c30; border:1px solid #334155; border-top:3px solid #60a5fa; border-radius:8px; padding:16px; min-width:0; }
+.inhouse-team-b { border-top-color:#c084fc; }
+.inhouse-team>header span { color:#cbd5e1; font-variant-numeric:tabular-nums; }
+.inhouse-player { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; border-top:1px solid #334155; min-width:0; }
+.inhouse-player-name { min-width:0; overflow-wrap:anywhere; }
+.inhouse-player-name a { font-weight:700; }
+.inhouse-player small { display:block; font-size:.75rem; margin-top:4px; }
+.inhouse-player-rating { flex-shrink:0; text-align:right; font-variant-numeric:tabular-nums; }
+.inhouse-positive,.inhouse-winner { color:#86efac; }
+.inhouse-negative { color:#fda4af; }
+.inhouse-available { margin-top:24px; }
+.inhouse-pick-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 20px; }
+.inhouse-pick { display:flex; gap:12px; align-items:center; min-width:0; }
+.inhouse-pick>.inhouse-player { flex:1; }
+.inhouse-queue { padding-left:24px; margin-bottom:0; }
+.inhouse-queue li { padding:10px 0; border-bottom:1px solid #26354c; }
+.inhouse-queue-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 12px; }
+.inhouse-queue-row a { overflow-wrap:anywhere; }
+.inhouse-queue-row span { grid-row:2; color:#94a3b8; font-size:.78rem; }
+.inhouse-queue-row strong { grid-column:2; grid-row:1 / span 2; align-self:center; }
+.inhouse-history { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr)); gap:8px; margin-bottom:16px; }
+.inhouse-history button { text-align:left; display:grid; gap:6px; }
+.inhouse-history small,.inhouse-player-note,.inhouse-calibration { color:#94a3b8; font-size:.75rem; }
+.inhouse-player-note,.inhouse-calibration { display:block; margin-top:3px; }
+.inhouse-table-wrap { overflow-x:auto; }
+.inhouse-table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+.inhouse-table td,.inhouse-table th { text-align:left; padding:10px; border-bottom:1px solid #334155; white-space:nowrap; }
+.inhouse-settings { display:grid; gap:16px; max-width:680px; }
+.inhouse-settings label,.inhouse-recovery label { display:grid; gap:8px; min-width:0; }
+.inhouse-settings input,.inhouse-settings select,.inhouse-recovery input,.inhouse-recovery textarea { width:100%; box-sizing:border-box; padding:10px; min-width:0; }
+.inhouse-recovery { display:grid; gap:12px; }
+.inhouse-admin-games { display:grid; gap:16px; }
+.inhouse-admin-game { border:1px solid #334155; border-radius:8px; padding:16px; }
+.inhouse-admin-game summary { cursor:pointer; overflow-wrap:anywhere; }
+.inhouse-admin-game summary small { display:block; color:#94a3b8; margin-top:6px; }
+@media(max-width:800px) { .inhouse-lobby-grid { grid-template-columns:minmax(0,1fr); gap:0; } }
+@media(max-width:600px) {
+  .inhouse-teams,.inhouse-pick-grid { grid-template-columns:minmax(0,1fr); }
+  .inhouse-card { padding:16px; }
+  .inhouse-card-heading input { width:100%; box-sizing:border-box; }
+  .inhouse-card-heading,.inhouse-page-heading { align-items:flex-start; }
+  .inhouse-role-order li span { min-width:80px; }
+}
