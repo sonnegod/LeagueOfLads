@@ -464,6 +464,13 @@ samples, including when the worker reuses its saved historical pricing cache.
 Canonical corrections replace cached duplicates; cached target-season rows
 cannot restore removed games. Only completed and observed games enter pricing.
 
+Team and player-stat validation are separate. Switching team odds to a validated
+roster or lineup model retains the approved historical distributions for player
+props. These quotes keep their historical-source checks and personal sample
+minimums; scheduled refreshes save reusable validated stat inputs without
+rebuilding preseason prices. Failed historical validation holds those props
+while independently validated team odds can still refresh.
+
 Each statistic checks the latest 1–6 current-season games against at least five
 earlier personal observations. A change must move the median by at least 25%
 and 1.5 robust variability units, with at least 75% of recent games supporting

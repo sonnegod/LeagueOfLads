@@ -37,6 +37,61 @@ function coldStart() {
   return { ...f, builder };
 }
 
+test('a transition to roster team pricing refreshes historical player props and saves reusable validated stat inputs',async()=>{
+  const f=preseasonFixture(),scratch=mkdtempSync(join(tmpdir(),'lads-roster-historical-stats-'));
+  try {
+    const canonicalTeams=f.analytics.prepare('SELECT * FROM TeamGameFacts').all();
+    f.analytics.exec('DELETE FROM TeamGameFacts; UPDATE PrivateTeamFeatures SET AverageSignupMMR=NULL WHERE TeamSubmissionId=23;');
+    const builder=(inputs,at)=>({...historicalPricingInputs(inputs,{history:history()},at),sourceFingerprint:historicalSourceFingerprint(f.league)});
+    runBetting({...f,now,seasonId:2,simulations:100,historicalInputBuilder:builder});
+    const market=f.betting.prepare("SELECT * FROM BettingMarkets WHERE MarketType='player_prop' AND PlayerId=210 AND StatKey='gpm' AND Scope='game' AND GameNumber=1").get();
+    assert.ok(market);
+    const preseason=()=>f.betting.prepare('SELECT s.* FROM BettingSelections s JOIN BettingMarkets m USING(MarketId) WHERE m.EventId IS NULL ORDER BY s.SelectionId').all();
+    const fixedPrices=preseason();
+    const pick=f.betting.prepare('SELECT SelectionId FROM BettingSelections WHERE MarketId=? LIMIT 1').get(market.MarketId);
+    f.book.accept('99',{seasonId:2,stake:100,requestKey:'before_roster_model_transition',legs:[{selectionId:pick.SelectionId,quoteVersion:market.QuoteVersion}]});
+    const accepted=f.betting.prepare('SELECT * FROM BettingTicketLegs').all();
+    const insert=f.analytics.prepare('INSERT INTO TeamGameFacts VALUES(@RunId,@MatchId,@TeamSubmissionId,@OpponentSubmissionId,@TeamId,@Won,@Side)');
+    for(const row of canonicalTeams)insert.run(row);
+    f.league.exec("CREATE TABLE MatchSourceDetails(MatchId INTEGER PRIMARY KEY,ObservedAtUtc TEXT); INSERT INTO MatchSourceDetails VALUES(1,'2026-10-13T12:00:01Z');");
+    let builds=0;
+    const result=runBetting({...f,now,seasonId:2,simulations:100,preservePreseason:true,refreshSavedInputs:true,
+      historicalInputBuilder:(inputs,at)=>{builds++;return builder(inputs,at);}});
+    assert.equal(builds,1);assert.deepEqual(result.issues,[]);
+    const forecast=f.betting.prepare('SELECT * FROM BettingForecasts ORDER BY ForecastId DESC LIMIT 1').get();
+    assert.equal(forecast.ModelVersion,'league-lineup-v7-roster-historical-stats-v1');
+    const snapshot=JSON.parse(f.betting.prepare('SELECT InputJson FROM BettingInputSnapshots WHERE SnapshotId=?').get(forecast.SnapshotId).InputJson).inputs;
+    assert.equal(snapshot.modelMode,'roster');assert.equal(snapshot.historicalPricing,undefined);
+    assert.equal(snapshot.historicalStatPricing.sourceFingerprint,historicalSourceFingerprint(f.league));
+    assert.equal(snapshot.historicalStatValidation.validated,true);
+    assert.equal(statSampler(snapshot,99999,'gpm',seededRandom(1)),null,'Unknown players do not get invented historical props');
+    const refreshed=f.betting.prepare('SELECT * FROM BettingMarkets WHERE MarketId=?').get(market.MarketId);
+    assert.equal(refreshed.Status,'open');assert.equal(refreshed.ForecastId,forecast.ForecastId);assert.equal(refreshed.Line,market.Line);
+    assert.equal(JSON.parse(refreshed.RulesJson).historicalPricing.sourceFingerprint,historicalSourceFingerprint(f.league));
+    const series=f.betting.prepare("SELECT RulesJson FROM BettingMarkets WHERE MarketType='series_winner' ORDER BY MarketId DESC LIMIT 1").get();
+    assert.equal(JSON.parse(series.RulesJson).historicalPricing,undefined,'Historical prop data does not replace the team model');
+    assert.deepEqual(preseason(),fixedPrices);assert.deepEqual(f.betting.prepare('SELECT * FROM BettingTicketLegs').all(),accepted);
+    const cached=readCachedHistoricalPricing(f.book,f.league,2,f.schedules.setup(2));
+    assert.equal(cached.validation.method,'retrospective_season_holdout');assert.equal(cached.validation.validated,true);
+    const analyticsPath=join(scratch,'Analytics.db');await f.analytics.backup(analyticsPath);
+    assert.equal(seasonGuard(f.league,analyticsPath,2,refreshed,now),null);
+    runBetting({...f,now,seasonId:2,simulations:100,preservePreseason:true,historicalInputBuilder:()=>cached});
+    assert.equal(f.betting.prepare('SELECT COUNT(*) n FROM BettingForecasts').get().n,2,'Routine jobs reuse the same approved inputs');
+    f.league.exec("UPDATE MatchSourceDetails SET ObservedAtUtc='2026-10-13T12:00:02Z';");
+    const failed=runBetting({...f,now,seasonId:2,simulations:100,preservePreseason:true,refreshSavedInputs:true,
+      historicalInputBuilder:(inputs,at)=>{const value=builder(inputs,at);return {...value,validation:{...value.validation,validated:false,reason:'historical_pricing_validation_failed'}};}});
+    assert.deepEqual(failed.issues,['historical_pricing_validation_failed']);
+    const held=f.betting.prepare('SELECT * FROM BettingMarkets WHERE MarketId=?').get(market.MarketId);
+    assert.equal(held.Status,'held');assert.equal(held.ForecastId,forecast.ForecastId,'Unvalidated history cannot produce replacement player prices');
+    assert.ok(f.betting.prepare("SELECT 1 FROM BettingMarkets WHERE MarketType='series_winner' AND Status='open'").get(),'The independently validated team model remains available');
+    assert.equal(readCachedHistoricalPricing(f.book,f.league,2,f.schedules.setup(2)),null);
+    assert.deepEqual(f.betting.prepare('SELECT * FROM BettingTicketLegs').all(),accepted);
+    const recovered=runBetting({...f,now,seasonId:2,simulations:100,preservePreseason:true,refreshSavedInputs:true,historicalInputBuilder:builder});
+    assert.deepEqual(recovered.issues,[]);
+    assert.equal(f.betting.prepare('SELECT Status FROM BettingMarkets WHERE MarketId=?').get(market.MarketId).Status,'open');
+  }finally{f.close();if(dirname(resolve(scratch))!==resolve(tmpdir()))throw Error('Unexpected cleanup target');rmSync(scratch,{recursive:true,force:true});}
+});
+
 test('backfilled records validate through an explicit season holdout without inventing historical signup ratings or observations', () => {
   const f = coldStart();
   try {

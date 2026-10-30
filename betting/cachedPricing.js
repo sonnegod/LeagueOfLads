@@ -4,12 +4,15 @@ import {HISTORICAL_PRICING_VERSION,historicalSourceFingerprint} from './historic
 // Analytics. A data refresh can save newer inputs without repricing preseason.
 export function readCachedHistoricalPricing(book,league,seasonId,setup) {
   if(!setup)return null;
-  const cached=book.db.prepare(`SELECT s.SnapshotId,f.ValidationJson,
-    json_extract(s.InputJson,'$.inputs.historicalPricing.sourceFingerprint') AS SourceFingerprint
+  const cached=book.db.prepare(`SELECT s.SnapshotId,
+    CASE WHEN json_extract(s.InputJson,'$.inputs.historicalStatPricing.version')=?
+      THEN json_extract(s.InputJson,'$.inputs.historicalStatValidation') ELSE f.ValidationJson END AS ValidationJson,
+    COALESCE(json_extract(s.InputJson,'$.inputs.historicalPricing.sourceFingerprint'),
+      json_extract(s.InputJson,'$.inputs.historicalStatPricing.sourceFingerprint')) AS SourceFingerprint
     FROM BettingForecasts f JOIN BettingInputSnapshots s ON s.SnapshotId=f.SnapshotId
-    WHERE s.SeasonId=? AND f.ModelVersion=? AND f.ForecastKey IS NOT NULL
+    WHERE s.SeasonId=? AND (f.ModelVersion=? OR json_extract(s.InputJson,'$.inputs.historicalStatPricing.version')=?) AND f.ForecastKey IS NOT NULL
       AND json_extract(s.InputJson,'$.setup.SetupJson')=?
-    ORDER BY f.ForecastId DESC LIMIT 1`).get(seasonId,HISTORICAL_PRICING_VERSION,setup.SetupJson);
+    ORDER BY f.ForecastId DESC LIMIT 1`).get(HISTORICAL_PRICING_VERSION,seasonId,HISTORICAL_PRICING_VERSION,HISTORICAL_PRICING_VERSION,setup.SetupJson);
   if(!cached)return null;
   const validation=JSON.parse(cached.ValidationJson);
   if(!validation.validated||cached.SourceFingerprint!==historicalSourceFingerprint(league))return null;

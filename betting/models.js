@@ -142,7 +142,7 @@ export function statSampler(inputs,playerId,stat,random) {
     cache.set(stat,{pooled,players});
   }
   const {pooled,players}=cache.get(stat);const personal=players.get(playerId)||[];
-  if(inputs.modelMode==='historical_roster'&&(personal.length<5||pooled.length<50))return null;
+  if((inputs.modelMode==='historical_roster'||inputs.historicalStatPricing)&&(personal.length<5||pooled.length<50))return null;
   if(pooled.length<5) return null;
   const distributionKey=`distribution:${playerId}:${stat}`;
   if(!cache.has(distributionKey))cache.set(distributionKey,playerStatDistribution(personal,pooled,column,inputs.season?.SeasonId));

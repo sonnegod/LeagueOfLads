@@ -442,20 +442,42 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
       const requiredSources=inputs.sources.filter(s=>['match_history','match_details'].includes(s.SourceName));
       let sourceReady=requiredSources.length===2&&requiredSources.every(s=>!s.IsStale&&s.LatestStatus==='complete')
         &&Number.isFinite(Date.parse(inputs.asOf))&&Date.parse(inputs.asOf)<=now.getTime()&&now.getTime()-Date.parse(inputs.asOf)<48*3600000;
-      if(!localTesting&&historicalInputBuilder&&(!validation.validated||inputs.modelMode==='league'
-        &&inputs.teams.some(t=>!inputs.teamStats.some(s=>s.TeamSubmissionId===t.TeamSubmissionId&&s.GamesPlayed>=5)))) {
+      const needsHistoricalTeam=!validation.validated||inputs.modelMode==='league'
+        &&inputs.teams.some(t=>!inputs.teamStats.some(s=>s.TeamSubmissionId===t.TeamSubmissionId&&s.GamesPlayed>=5));
+      const historicalPlayerQuotes=book.db.prepare(`SELECT 1 FROM BettingMarkets WHERE SeasonId=?
+        AND MarketType='player_prop' AND json_extract(RulesJson,'$.historicalPricing.version')=? LIMIT 1`)
+        .get(season.SeasonId,HISTORICAL_PRICING_VERSION);
+      const needsHistoricalStats=!!historicalPlayerQuotes||Object.values(validation.statDistributions).some(stat=>!stat.validated);
+      if(!localTesting&&historicalInputBuilder&&(needsHistoricalTeam||needsHistoricalStats)) {
         const historical=historicalInputBuilder(inputs,now);
         if(historical) {
           const candidates={...validation.candidates,historical:historical.validation};
           if(historical.validation.validated) {
-            inputs.modelMode=historical.modelMode;
             inputs.metricHistory=mergePlayerMetricHistory(canonicalMetrics,historical.metricHistory,inputs.season,inputs.asOf);
-            inputs.preseasonTeamPriors=historical.preseasonTeamPriors;
-            inputs.historicalPricing={version:historical.modelVersion,sourceFingerprint:historical.sourceFingerprint};
-            validation={...historical.validation,candidates};
-            sourceReady=Number.isFinite(Date.parse(inputs.asOf))&&Date.parse(inputs.asOf)<=now.getTime()
-              &&now.getTime()-Date.parse(inputs.asOf)<48*3600000;
+            const pricing={version:historical.modelVersion,sourceFingerprint:historical.sourceFingerprint};
+            if(needsHistoricalTeam) {
+              inputs.modelMode=historical.modelMode;
+              inputs.preseasonTeamPriors=historical.preseasonTeamPriors;
+              inputs.historicalPricing=pricing;
+              validation={...historical.validation,candidates};
+              sourceReady=Number.isFinite(Date.parse(inputs.asOf))&&Date.parse(inputs.asOf)<=now.getTime()
+                &&now.getTime()-Date.parse(inputs.asOf)<48*3600000;
+            } else {
+              // A validated team model does not establish player-stat readiness.
+              // Keep its team odds while retaining the approved historical props.
+              inputs.historicalStatPricing=pricing;
+              inputs.historicalStatValidation=historical.validation;
+              inputs.preseasonTeamPriors=historical.preseasonTeamPriors;
+              validation={...validation,candidates,statDistributions:historical.validation.statDistributions};
+            }
           } else if(!validation.validated)validation={...historical.validation,candidates};
+          else if(needsHistoricalStats&&historical.validation.reason)issues.push(historical.validation.reason);
+        }
+        if(historicalPlayerQuotes&&!historical?.validation?.validated) {
+          // Do not replace approved historical props with pooled-only guesses
+          // when their required history cannot currently be validated.
+          validation={...validation,statDistributions:Object.fromEntries(Object.entries(validation.statDistributions)
+            .map(([stat,report])=>[stat,{...report,validated:false}]))};
         }
       }
       if(localTesting) {
@@ -488,7 +510,8 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
           ||!m.EventId&&(preseason.closed||inputs.games.some(g=>g.Stage==='regular'))||event&&(event.StartedAtUtc||event.Status==='started'||event.Status==='completed');
         const pendingLeader=m.MarketType==='player_leader'&&inputs.pendingSlots.length>0;
         const absentPlayer=m.MarketType==='season_player'&&!seasonRoster.some(p=>p.PlayerId===m.PlayerId&&p.TeamSubmissionId===m.TeamKey);
-        const held=pendingLeader||absentPlayer||!sourceReady||!validation.validated||event?.Status==='needs_review'||event?.Stage==='tiebreaker';
+        const statNotReady=m.MarketType==='player_prop'&&!validation.statDistributions[m.StatKey]?.validated;
+        const held=pendingLeader||absentPlayer||statNotReady||!sourceReady||!validation.validated||event?.Status==='needs_review'||event?.Stage==='tiebreaker';
         book.db.prepare('UPDATE BettingMarkets SET Status=?,HoldReason=? WHERE MarketId=?').run(closed?'locked':held?'held':m.Status,
           pendingLeader?'pending_roster_slots':absentPlayer?'player_not_rostered':held?'source_or_model_not_ready':null,m.MarketId);
         // Removing the kickoff can restore an earlier cached forecast. Closing
@@ -506,7 +529,7 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
       void snapshot;
       const snapshotId=book.db.prepare('SELECT SnapshotId FROM BettingInputSnapshots WHERE Digest=?').get(inputHash).SnapshotId;
       const upcoming=events.filter(e=>Date.parse(e.ScheduledStartUtc)>now.getTime()&&Date.parse(e.ScheduledStartUtc)<=now.getTime()+lookaheadDays*86400000);
-      const modelVersion=inputs.historicalPricing?.version||`${MODEL_VERSION}-${inputs.modelMode}`;
+      const modelVersion=inputs.historicalPricing?.version||`${MODEL_VERSION}-${inputs.modelMode}${inputs.historicalStatPricing?'-historical-stats-v1':''}`;
       const forecastKey=digest({inputHash,events,setup,model:modelVersion,playerForm:PLAYER_FORM_VERSION,leaderField:LEADER_FIELD_VERSION,simulations,policy:book.policy,lookaheadDays,upcoming:upcoming.map(e=>e.EventId)});
       if(book.db.prepare('SELECT 1 FROM BettingForecasts WHERE ForecastKey=?').get(forecastKey))continue;
       const semantic=JSON.parse(JSON.stringify({teams:inputs.teams,roster:inputs.roster,stats:inputs.teamStats,metrics:inputs.metricHistory,
@@ -521,9 +544,10 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
       const forecasts=[],playerForms=new Map();
       const proposals=[];
       const publish=(definition,probabilities,close)=>{
+        const historicalPricing=inputs.historicalPricing||(['player_prop','season_player','player_leader'].includes(definition.type)?inputs.historicalStatPricing:null);
         const rules={...definition.rules,...(localTesting?{localTesting:true}:{}),
           ...(!definition.eventId?{frozenPreseason:{version:1,localTesting}}:{}),
-          ...(inputs.historicalPricing?{historicalPricing:inputs.historicalPricing}:{})};
+          ...(historicalPricing?{historicalPricing}:{})};
         proposals.push({definition:{...definition,rules},probabilities,close});
       };
       for(const event of upcoming) {
@@ -568,7 +592,7 @@ export function runBetting({book,league,analytics,schedules,seasonId=null,now=ne
         }
       }
       const preseasonPriorReady=inputs.modelMode==='historical_roster'||inputs.modelMode!=='league'&&!inputs.teams.some(t=>!Number.isFinite(t.AverageSignupMMR));
-      if(setup&&!preseasonPriorReady)issues.push('preseason_roster_prior_not_validated');
+      if(!keepPreseason&&setup&&!preseason.closed&&!preseasonPriorReady)issues.push('preseason_roster_prior_not_validated');
       if(!keepPreseason&&preseasonPriorReady&&setup&&!preseason.closed
         &&!inputs.games.some(g=>g.Stage==='regular')&&setup.Completion==='normal'&&setupMatchesSource(league,setup)) {
         const changedPlayers=hasTable(league,'SeasonRosterChanges')?league.prepare("SELECT DISTINCT PlayerId FROM SeasonRosterChanges WHERE SeasonId=? AND Kind='permanent'").all(season.SeasonId).map(r=>r.PlayerId):[];
