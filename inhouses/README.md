@@ -1,206 +1,162 @@
 # Inhouses
 
-The player-facing page is `/inhouses`, currently **admin preview only**. The
-navigation link and badges are shown only to existing league admins; non-admin
-visitors are redirected home. Every player-facing API and SSE endpoint also
-uses the existing server admin check, and non-admin browsers do not connect to
-the activity feed. Deploying this version does not open public participation.
-The existing Admin page has a primary
-**Inhouses** tab with Settings, Queue & Games, and Activity sections.
+The `/inhouses` page and its API/SSE endpoints are currently **admin preview
+only**. The Admin page has an Inhouses primary tab for Settings, Queue & Games,
+and Activity. Deploying does not open participation to non-admins.
 
-The page separates Lobby, Standings, History, and Player Settings. Preview admins get an
-optional role setup popup on their first visit; saving or skipping is remembered
-per account. Skipping a new profile leaves it flexible for any position, without
-a ranked preference. Settings remain editable until the player is reserved.
+## Five-bot workflow
 
-Selected players switch into a focused lobby view for ready check, draft,
-launch, and play. Queue/waiting cards and the general history/standings return
-after completion or cancellation. Ready checks are shown only to their selected
-players on the public page; the admin operational view remains available.
+Every new inhouse is hosted by one of five dedicated Steam accounts. One
+account stays assigned from ready check through lobby cleanup. All five use
+the same configurable inhouse ticket.
 
-Signing out removes a player's waiting entry through either logout URL. Ready,
-drafting, and playing reservations remain protected. The sidebar's Inhouses
-count bubble shows the waiting players' names on hover, focus, or touch. Its
-live updates use the shared `/api/inhouses/activity/stream` SSE endpoint, not a
-Steam request. Signing out removes the admin-only link and closes the stream.
-When a queued player is selected, their browser tab shows a flashing red dot
-and a ready-check title until they confirm or the check ends. The existing
-activity connection stays open in background tabs, so this also works while
-browsing other site pages. The alert uses a private event for that account;
-reduced-motion preferences show a steady dot instead. No browser notification
-permission or additional Steam requests are needed.
+1. Signed-in players save preferred positions and join the solo queue.
+2. The server atomically reserves the selected players and an online bot. If
+   every bot is busy or offline, players keep waiting in the queue.
+3. Players confirm the 60-second ready check. Teams are either automatically
+   balanced or chosen by the two captains using the configured draft rules.
+4. The bot creates an unlisted, password-protected Dota lobby with the saved
+   ticket, game mode and region, moves itself out of the playing teams, and
+   invites the selected accounts using their Dota player IDs.
+5. Players accept the invitation and join the slots shown on the site:
+   **Team A = Radiant, Team B = Dire**. The bot removes outsiders and unseats
+   players who occupy the wrong team or slot. Missing players are reinvited
+   at most every 30 seconds. It starts only after the full roster is correct.
+6. That same bot tracks the lobby's match ID and explicit win/loss outcome
+   through Dota's Game Coordinator. The server records ratings exactly once
+   and releases the players. **Players click Join queue themselves** for their
+   next game; completion does not automatically requeue them.
+7. The bot leaves the finished lobby before becoming available for another
+   inhouse. Bot assignments and verified launch rosters survive restarts.
 
-## Storage and isolation
+Inhouse hosting and results do not use Steam's public HTTP match/history
+endpoints or OpenDota. The worker's logged-in Game Coordinator connections
+also handle result recovery and admin match-link verification.
 
-All tables use the `Inhouse` prefix in `LadsData.db`. The web app and worker
-initialize these tables additively; neither imports inhouse games into the
-official league match tables. The existing daily LadsData backup includes them.
-There is no additional backup job or nightly inhouse import.
+## Account setup and production deployment
 
-The worker opens the database directly. It does not import `database.js`, preload
-league history, run Analytics, or start betting refreshes. Admin inhouse routes
-are mounted before the general betting mutation hook.
+Create five distinct dedicated Steam accounts and authorize **each account
+as a league admin for the shared inhouse ticket**. Setting a ticket ID in the
+website does not itself grant hosting permissions. Authenticate on the server;
+no graphical Dota client runs on the server. If Steam reports that a new account
+needs Dota access or initial account setup, complete that for that account.
 
-## Local development
+Deploy normally. If `inhouse-worker` is already registered with PM2, keep using
+that process. After installing the new dependencies, authenticate all five
+accounts interactively with the worker stopped:
 
-Restore the normal development database and configure `ENVIRONMENT=DEV` and the
-existing `STEAM_API_KEY` in `.env`. No new dependency or bot account is needed.
+```bash
+cd /root/LeagueOfLads
+pm2 stop inhouse-worker
+npm run inhouses:auth -- 1
+npm run inhouses:auth -- 2
+npm run inhouses:auth -- 3
+npm run inhouses:auth -- 4
+npm run inhouses:auth -- 5
+pm2 restart inhouse-worker
+pm2 save
+```
+
+Each command prompts for account name, hidden password and Steam Guard code,
+then prints the Steam ID. It saves the Steam ID and refresh token in
+`db/inhouse-bots/bot-N.json`. The directory is ignored by Git; authentication
+files are not stored in the database or exposed to the frontend. On Linux the
+directory is owner-only and files use mode 600. `INHOUSE_BOT_AUTH_DIR` can
+override it with an absolute private path outside the checkout. Never paste
+these files into chat or commit them. Renewed tokens are saved automatically;
+stop the worker before reauthenticating a revoked session. Each slot requires
+a different Steam account.
+
+For the first installation only, register the worker:
+
+```bash
+pm2 start scripts/inhouses/run.js --name inhouse-worker --cwd /root/LeagueOfLads --kill-timeout 10000
+pm2 save
+```
+
+Under **Admin > Inhouses > Settings**, enter the shared ticket and choose
+queue selection, team formation, launch window, Dota game mode (All Pick or
+Captain's Mode), and server region (US East by default). There is no manual
+hosting option. Check the five account cards for connection/assignment status.
+No cron entry or additional Droplet is needed.
+
+Use the **Start 2-player test** button when exactly two admins are queued and
+a bot is available. Both confirm readiness, accept its invitations and join
+their assigned slots. The bot launches and resolves the game through the same
+workflow; test wins/losses and ratings count. Positive-duration two-player
+tests can resolve below five minutes. Normal ten-player games treat shorter
+results as unrated remakes.
+
+First verify one real two-admin game end to end, then two overlapping games
+before filling all five slots. Mocked tests cover concurrency and wire decoding;
+they do not prove Steam account permissions or live outcome delivery.
+
+## Operations and recovery
+
+The worker advances deadlines and bot state once per second under a database
+lease. A second worker cannot start another set of Steam sessions against the
+same queue. It sends at most one lobby command per bot per second, and paces
+GC detail requests. While a lobby is actively playing, its outcome stream is
+used without repeated detail requests. Last Steam update reflects an actual
+Steam/GC update rather than the local heartbeat.
+
+Ready checks and captain picks last 60 seconds; timed-out draft picks are
+automatic. Failed ready checks remove absent players and return confirmations
+to their original queue priority. Unlaunched games expire after the configured
+launch window. Games allocating a server or already playing are not cancelled
+just because that join deadline passes. A launch returning to its waiting
+lobby without starting after five minutes is cancelled. Confirmed unscored
+outcomes and short remakes cancel without rating changes. Disconnection or
+disappearance alone never implies a winner.
+
+Lobby name/password are available only to that game's participants through a
+separate authorized endpoint. The launch roster is saved before starting, so
+players leaving the postgame lobby cannot erase the identities used to settle
+it. Ticket, exact match ID, roster, teams, start window and duration are checked.
+
+Admins can cancel an inhouse or correct its match link with a reason. An
+uncached correction is queued for a connected bot to verify through Steam;
+the game card displays pending/completed/failed status. Invalid identities or
+unknown winners cannot change ratings. Correcting an earlier resolved game
+replays affected rating history. Older unfinished manually hosted games remain
+visible for cancellation or verification of their known match ID; the worker
+does not discover additional manually hosted games.
+
+All data uses `Inhouse` tables in `LadsData.db`; initialization is additive.
+Existing daily database backups cover games and chat, but Steam authentication
+files stay separate. Inhouses are not imported into official league matches,
+Analytics or betting. Ratings start at 1,000 and use team-average Elo, K=48 for
+the first five calibration games, then K=24. No private MMR is used.
+
+## Frontend and local verification
+
+The page has Lobby, Standings, History and Player Settings tabs. Reserved
+players see their own lobby until completion/cancellation. The shared activity
+SSE connection updates sidebar counts and private chat and stays connected in
+background tabs for ready alerts. A ready check shows a flashing red favicon
+and tab title until confirmation or expiry; reduced motion uses a steady dot.
+Signing out removes a waiting entry but preserves an active game reservation.
+
+For local development use the normal development database and `ENVIRONMENT=DEV`.
+Steam accounts authenticated locally can create real ticketed lobbies when the
+worker runs; the regression suite instead uses isolated databases and fake
+sessions, without real invitations or production writes.
 
 ```bash
 npm run inhouses:init
 npm run dev
-```
-
-In a separate terminal, start the worker:
-
-```bash
+# Separate terminal, after authenticating the intended test accounts:
 npm run inhouses:worker
-```
-
-On PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`. Use the
-Settings section in Admin > Inhouses to enter the shared ticket ID and choose
-queue mode, draft mode, and launch window. Queueing is unavailable until the
-ticket is configured. The worker is required for unattended deadlines, automatic
-picks, match linking, and resolution.
-
-To run one worker pass without leaving a process running:
-
-```bash
-node scripts/inhouses/run.js --once
-```
-
-## Production rollout
-
-1. Deploy the code and client build through the existing deployment workflow.
-   Keep the server's existing HTTPS/session configuration. Startup creates only
-   the additive inhouse tables; no historical backfill is needed.
-2. On the server, register the separate worker once:
-
-   ```bash
-   cd /root/LeagueOfLads
-   npm run inhouses:init
-   pm2 start scripts/inhouses/run.js --name inhouse-worker --cwd /root/LeagueOfLads --kill-timeout 10000
-   pm2 save
-   ```
-
-3. In **Admin > Inhouses > Settings**, configure the actual dedicated inhouse
-   ticket ID. There is one shared setting for every queue and draft mode. Existing
-   inhouses retain their saved ticket/settings if this configuration changes.
-   IDs already recorded as official league/season tickets are rejected so the
-   overnight league importer cannot also treat these inhouses as season games.
-4. Check **Queue & Games** for the worker heartbeat and source messages. Use
-   `pm2 logs inhouse-worker --lines 60` for process errors. The normal deployment
-   already restarts registered PM2 processes; do not add this worker to cron.
-5. Before opening participation generally, play a controlled game under the
-   configured ticket. Verify all ten account IDs and sides are discoverable,
-   automatic linking occurs within the launch window, and a confirmed outcome
-   releases reservations and updates ratings exactly once. Real ticket/API
-   verification cannot be replaced by the local mocked tests.
-
-## Processing behavior
-
-### Two-admin live test
-
-1. Deploy the update and restart both the web app and the existing
-   `inhouse-worker` process. Startup adds the saved `PlayerCount` column; existing
-   games default to ten players. No manual SQL or separate test worker is needed.
-2. Configure the dedicated ticket under Admin > Inhouses > Settings. For the
-   initial live check, the ticket is **18083**. Keep the normal queue/draft rules.
-3. Both admins join the normal queue. With exactly two waiting players, click
-   **Start 2-player test** in the lobby waiting room or Admin > Inhouses > Queue &
-   Games. This admin-only action reserves those two players atomically.
-4. Both confirm the normal 60-second ready check. Each becomes their own team's
-   captain; no remaining players need drafting, so the lobby goes straight to
-   Waiting for game. It is labelled **1v1 admin test**.
-5. Play a real ticketed lobby with those two players on opposite sides within
-   the configured launch window. The existing worker verifies the ticket, both
-   account IDs, sides, and start window, links the match ID, and records Steam's
-   confirmed result. Missing live data or an unknown winner never implies a win.
-
-The player count is saved on that game, not in global settings. Normal queues
-still require ten players. A confirmed 1v1 test with a positive duration can
-resolve below five minutes; ten-player games retain the five-minute remake
-guard. Test wins, losses, calibration games, and ratings are recorded through
-the usual history and standings flow. This verifies the existing workflow with
-two players; a complete ten-player draft still needs its own live check.
-
-### Worker behavior
-
-- Local maintenance runs every second, including while Steam requests await a
-  response. It advances 60-second ready checks and draft turns.
-- Steam discovery runs approximately every ten seconds when games are pending.
-  Linked results are requested at most every fifteen seconds per game. There
-  are no Steam requests while there are no games awaiting play or resolution.
-- Requests in each client are serialized with at least one second between
-  starts and an eight-second network timeout. Each discovery pass has a work
-  budget so a busy ticket does not create an unbounded loop.
-- A database lease prevents two worker instances from operating simultaneously.
-  SIGINT/SIGTERM abort pending requests and release that lease. Transactions and
-  unique constraints independently protect reservations, picks, and match links.
-- Live discovery uses `GetLiveLeagueGames`; recent league history recovers games
-  missed during a restart; `GetMatchDetails` supplies confirmed results. Account
-  IDs, ticket, team membership, and available start times are verified. Endpoint
-  parameters are listed in the [extracted Steam API definitions](https://github.com/SteamTracking/SteamTracking/blob/master/API/IDOTA2Match_570.json).
-- Missing live data does not prove a game ended. Short results below five minutes
-  are held unrated as possible draft-only remakes; admins can cancel the inhouse
-  or correct its link to the replacement game. Incomplete identities or unknown
-  outcomes also remain unresolved. Full match statistics are not required.
-- Unlinked games cancel after the configured launch window (15 minutes by
-  default). Discovery gets a final attempt before deadline cancellation. Linked
-  games are not cancelled by that launch timeout.
-- Ratings use 1,000 starting points, team-average Elo with a 400-point scale,
-  individual K=48 for the first five rated calibration games and K=24 afterward. Ratings are
-  stored as SQLite REAL values; rounding is for display. No private MMR is used.
-- Ordinary results append small rating updates. Corrections or out-of-order
-  results replay the outcome ledger ordered by start time, match ID, and inhouse
-  ID, updating later expectations and calibration counts atomically. Historical
-  rosters, captain choices, and drafts stay unchanged.
-
-The frontend subscribes to `/api/inhouses/stream`. The web process checks the
-database revision once per second while viewers are connected and fans out a
-shared snapshot when it changes. Nginx buffering is disabled by the SSE response
-header. Browsers fall back to non-overlapping three-second reads on stream
-failure, pause while hidden, and resynchronize on return. Standings searching,
-sorting, and pagination use the already-loaded list.
-
-The page tabs are Lobby, Standings, History, and Player Settings. Lobby shows
-queueing and active games; completed/cancelled games and their details live in
-History. Tab and historical game selection persist in the URL. Reserved players
-remain focused on their assigned lobby until it completes or is cancelled.
-
-The sidebar queue bubble uses `/api/inhouses/activity/stream`. Changes made by
-the web process publish immediately after commit; changes from the separate
-worker are checked every 500 ms while subscribers are connected. The same
-connection carries private chat for the participant's current lobby, so adding
-chat does not create a separate connection per component. Reconnects restore
-the latest queue and 100 messages, with a polling fallback during interruptions.
-
-Beside the queued-player badge, a green gamepad badge counts active inhouses
-(ready check, draft, waiting to start, or playing). Its hover panel lists each
-game's stage and player count. Both panels show the combined player pool:
-queued players plus players reserved in active lobbies. Completed/cancelled
-games leave these counts automatically. This summary uses the same activity
-stream without another connection or worker.
-
-Lobby chat appears below the assigned game from ready check through play.
-Only its participants can read or send messages. Messages use the stored
-player name and plain text (up to 500 characters); Enter sends and Shift+Enter
-adds a line. Five messages per ten seconds per player are allowed, and retried
-sends use an idempotent client identifier. Completed/cancelled lobbies reject
-new messages. `InhouseChat` stores messages in the existing LadsData database,
-covered by its existing backup. Chat writes do not invalidate full game or
-standings snapshots. The additive table is created automatically at startup;
-no new service or scheduled job is required.
-
-## Verification
-
-```bash
+# Automated checks:
 npm run test:inhouses
 npm --prefix client run build
 ```
 
-The regression suite uses isolated databases and mocked Steam responses. It
-covers role selection, FIFO, waiting priority, balancing, draft authorization,
-timeouts, durable reservations, concurrent claims, simultaneous games, reversed
-sides, result delays, exactly-once ratings, corrections, API authorization, and
-SSE updates. One-off browser checks remain in ignored `.scratch/`.
+On PowerShell use `npm.cmd` if execution policy blocks `npm.ps1`. One-off browser
+checks stay in ignored `.scratch/`.
+
+Protocol references:
+[Valve lobby commands](https://github.com/SteamDatabase/GameTracking-Dota2/blob/master/Protobufs/dota_gcmessages_client_match_management.proto),
+[lobby snapshots and outcomes](https://github.com/SteamDatabase/GameTracking-Dota2/blob/master/Protobufs/dota_gcmessages_common_lobby.proto).
+`steam-user` provides the Steam session; `dota2-user` provides GC handshake and
+response decoding, with a small explicit encoder for missing lobby commands.

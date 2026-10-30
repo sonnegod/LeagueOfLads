@@ -15,7 +15,18 @@ export function inhouseFixture(options = {}) {
   const store = new InhouseStore(db, {clock});
   store.saveSettings({version: 1, leagueId: 777, queueMode: options.queueMode || 'fifo',
     draftMode: options.draftMode || 'automatic', launchMinutes: 15}, 99);
-  function join(id, body = {}) {return store.join(id, {roles: [1, 2, 3, 4, 5], offRole: true, ...body}, `Player ${id}`);}
+  // Queue/model tests use healthy virtual bot slots. Network/lobby behavior is
+  // exercised separately with injected sessions in the bot pool tests.
+  for (let id = 1; id <= (options.bots ?? 5); id++) store.updateBot(id,
+    {steamId: String(76561197960265728n + BigInt(1000 + id)), status: 'idle'});
+  function join(id, body = {}) {
+    // Simulate the bot's completed-lobby cleanup before a later test game.
+    for (const bot of options.bots === 0 ? [] : store.botStatus()) {
+      if (bot.gameId && ['completed','cancelled'].includes(store.rawGame(bot.gameId).Status)) store.releaseBot(bot.id, bot.gameId);
+      if (!store.db.prepare('SELECT InhouseId FROM InhouseBots WHERE BotId=?').get(bot.id).InhouseId && bot.steamId) store.updateBot(bot.id,{steamId:bot.steamId,status:'idle'});
+    }
+    return store.join(id, {roles: [1, 2, 3, 4, 5], offRole: true, ...body}, `Player ${id}`);
+  }
   function ten(start = 1, body = {}) {for (let i = start; i < start + 10; i++) join(i, body); return store.db.prepare('SELECT MAX(InhouseId) id FROM InhouseGames').get().id;}
   function ready(id) {for (const p of store.members(id)) store.ready(id, p.playerId); return store.game(id);}
   function match(id, {matchId = 9001, winner = 'radiant', duration = 2400, reversed = false, ...rest} = {}) {

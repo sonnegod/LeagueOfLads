@@ -4,7 +4,7 @@ import express from 'express';
 import {inhouseFixture,inhousePreviewAdmin} from './helpers/inhouseFixture.js';
 import {InhouseStore} from '../inhouses/store.js';
 import {createInhouseWorker} from '../inhouses/worker.js';
-import {createSteamInhouseClient,normalizeLiveGame} from '../inhouses/steam.js';
+import {inhouseBotFixture} from './helpers/inhouseBotFixture.js';
 import {ratingChanges} from '../inhouses/model.js';
 import {createInhouseRoutes} from '../routes/inhouseRoutes.js';
 
@@ -31,31 +31,25 @@ test('an explicit two-player test reserves exactly two people and snapshots its 
   }finally{f.close();}
 });
 
-test('the actual worker and Steam adapter link a 1v1, wait for a confirmed result, and record a short game exactly once',async()=>{
-  const f=inhouseFixture();let worker,finished=false;
+test('the assigned bot launches a two-admin lobby, records a short result once and releases both players for manual requeue',async()=>{
+  const f=inhouseBotFixture();let worker;
   try {
     f.store.saveSettings({...f.store.settings(),leagueId:18083});
     f.join(1);f.join(2);const {gameId}=f.store.startAdminTest(99);f.ready(gameId);
-    const match=f.match(gameId,{matchId:7771,reversed:true,duration:120});
-    const rawPlayers=match.players.map(p=>({account_id:p.playerId,player_slot:p.side==='radiant'?0:128}));
-    const api=createSteamInhouseClient({apiKey:'test',minIntervalMs:0,clock:f.clock,fetchImpl:async url=>{
-      assert.equal(url.searchParams.get('league_id')||'18083','18083');
-      const result=url.pathname.includes('GetLive')?{games:[{match_id:7771,league_id:18083,start_time:match.startedAt/1000,
-        scoreboard:{duration:120,radiant:{players:rawPlayers.filter(p=>p.player_slot===0)},dire:{players:rawPlayers.filter(p=>p.player_slot===128)}}}]}
-        :{match_id:7771,leagueid:18083,start_time:match.startedAt/1000,duration:120,players:rawPlayers,...(finished?{radiant_win:false}:{})};
-      return{ok:true,json:async()=>({result})};
-    }});
-    worker=createInhouseWorker(f.store,api,{clock:f.clock});
-    await worker.step();assert.equal(f.store.game(gameId).status,'playing');assert.equal(f.store.game(gameId).matchId,7771);
-    assert.equal(f.store.profile(1,'One').games,0,'No result is guessed while playing');
-    finished=true;f.advance(20000);await worker.step();
+    worker=createInhouseWorker(f.store,{...f.pool,start(){}},{clock:f.clock});
+    await worker.step();f.fill(1);f.advance(1000);await worker.step();
+    f.advance(1000);await worker.step();
+    assert.equal(f.store.game(gameId).status,'playing');assert.equal(f.store.game(gameId).matchId,90001);
+    assert.equal(f.store.profile(1,'One').games,0);
+    Object.assign(f.sessions.get(1).lobby,{state:3,matchOutcome:2,matchDuration:120});
+    f.advance(120000);await worker.step();
     const game=f.store.game(gameId);assert.equal(game.status,'completed');assert.equal(game.winner,'A');
     assert.equal(f.db.prepare('SELECT COUNT(*) n FROM InhouseQueue').get().n,0);
-    const winner=game.players.find(p=>p.side==='A'),loser=game.players.find(p=>p.side==='B');
-    assert.equal(f.store.profile(winner.playerId,'Winner').wins,1);assert.equal(f.store.profile(loser.playerId,'Loser').losses,1);
-    assert.equal(winner.ratingDelta,24);assert.equal(loser.ratingDelta,-24);
-    f.advance(20000);await worker.step();assert.ok(f.store.snapshot().leaderboard.every(p=>p.games===1));
-  }finally{worker?.close();f.close();}
+    assert.ok(f.store.snapshot().leaderboard.every(p=>p.games===1));
+    f.advance(1000);await worker.step();f.advance(1000);await worker.step();
+    assert.ok(f.store.snapshot().leaderboard.every(p=>p.games===1));
+    assert.equal(f.store.queueSummary().count,0,'Completed players are released, not automatically requeued');
+  }finally{worker?.close();f.cleanup();}
 });
 
 test('each saved format enforces its own identities and sides; normal games keep their five-minute remake guard',()=>{
@@ -71,9 +65,7 @@ test('each saved format enforces its own identities and sides; normal games keep
     assert.throws(()=>f.store.applyMatch(2,{...ten,players:ten.players.slice(0,2)}),{status:409});
     assert.equal(f.store.applyMatch(2,ten).completed,false);
     assert.equal(f.store.game(2).status,'playing');
-    const partial=normalizeLiveGame({match_id:123,players:Array.from({length:10},(_,i)=>({account_id:i+10,team:i<5?0:1})),
-      scoreboard:{radiant:{players:[{account_id:10}]},dire:{players:[{account_id:15}]}}},777);
-    assert.equal(partial.players.length,10,'Partial scoreboard does not replace a full ten-player roster');
+
   }finally{f.close();}
 });
 

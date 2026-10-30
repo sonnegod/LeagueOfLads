@@ -59,8 +59,38 @@ export function ensureInhouseSchema(db) {
       LastTick INTEGER, LastSuccess INTEGER, LastError TEXT
     );
     INSERT OR IGNORE INTO InhouseWorker(Id) VALUES(1);
+    CREATE TABLE IF NOT EXISTS InhouseBots (
+      BotId INTEGER PRIMARY KEY CHECK(BotId BETWEEN 1 AND 5), SteamId TEXT UNIQUE,
+      Status TEXT NOT NULL DEFAULT 'unconfigured', LastSeen INTEGER, LastError TEXT,
+      InhouseId INTEGER UNIQUE REFERENCES InhouseGames(InhouseId)
+    );
+    INSERT OR IGNORE INTO InhouseBots(BotId) VALUES(1),(2),(3),(4),(5);
+    CREATE TABLE IF NOT EXISTS InhouseBotResults (
+      MatchId INTEGER PRIMARY KEY, ResultJson TEXT NOT NULL, VerifiedAt INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS InhouseBotLookups (
+      LookupId INTEGER PRIMARY KEY, InhouseId INTEGER NOT NULL REFERENCES InhouseGames(InhouseId),
+      MatchId INTEGER NOT NULL, ActorId INTEGER NOT NULL, Reason TEXT NOT NULL,
+      Status TEXT NOT NULL DEFAULT 'pending', RequestedAt INTEGER NOT NULL, AttemptedAt INTEGER,
+      Attempts INTEGER NOT NULL DEFAULT 0, LastError TEXT
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_InhouseBotLookups_Pending ON InhouseBotLookups(InhouseId) WHERE Status='pending';
   `);
   db.transaction(() => {
+    const add = (table, name, definition) => {
+      if (!db.pragma(`table_info(${table})`).some(column => column.name === name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+    };
+    add('InhouseSettings', 'GameMode', 'INTEGER NOT NULL DEFAULT 1 CHECK(GameMode IN (1,2))');
+    add('InhouseSettings', 'ServerRegion', 'INTEGER NOT NULL DEFAULT 2');
+    add('InhouseGames', 'BotId', 'INTEGER REFERENCES InhouseBots(BotId)');
+    add('InhouseGames', 'GameMode', 'INTEGER NOT NULL DEFAULT 1');
+    add('InhouseGames', 'ServerRegion', 'INTEGER NOT NULL DEFAULT 2');
+    add('InhouseGames', 'LobbyId', 'TEXT');
+    add('InhouseGames', 'LobbyName', 'TEXT');
+    add('InhouseGames', 'LobbyPassword', 'TEXT');
+    add('InhouseGames', 'HostingError', 'TEXT');
+    add('InhouseGames', 'BotLaunchedAt', 'INTEGER');
+    add('InhouseGames', 'LaunchRosterJson', 'TEXT');
     if (!db.pragma('table_info(InhouseGames)').some(column => column.name === 'PlayerCount')) {
       db.exec('ALTER TABLE InhouseGames ADD COLUMN PlayerCount INTEGER NOT NULL DEFAULT 10 CHECK(PlayerCount IN (2,10))');
     }

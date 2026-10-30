@@ -15,9 +15,7 @@ test('admin preview guards all reads, streams and actions; mutations use Steam i
       if (id) req.user = {id: (76561197960265728n + BigInt(id)).toString(), displayName: `Signed in ${id}`};
       next();
     });
-    let correction;
-    routes = createInhouseRoutes({store: f.store, requireAdmin: inhousePreviewAdmin, isOfficialTicket: id => id === 20285,
-      api: {details: async id => {assert.equal(id, 9002); return correction;}}});
+    routes = createInhouseRoutes({store: f.store, requireAdmin: inhousePreviewAdmin, isOfficialTicket: id => id === 20285});
     app.use('/api/inhouses', routes.publicRoutes);
     app.use('/api/admin/inhouses', (req, res, next) => req.get('x-test-user') === '99' ? next() : res.sendStatus(req.user ? 403 : 401), routes.adminRoutes);
     server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
@@ -25,7 +23,7 @@ test('admin preview guards all reads, streams and actions; mutations use Steam i
     const request = (path, user, method = 'GET', body, role) => fetch(base + path, {method,
       headers: {'Content-Type': 'application/json', ...(user ? {'x-test-user': String(user)} : {}), ...(role ? {'x-test-preview-role': role} : {})}, ...(body ? {body: JSON.stringify(body)} : {})});
     const revision = f.store.revision();
-    for (const [path, method = 'GET'] of [['state'], ['queue'], ['activity'], ['stream'], ['activity/stream'], ['games'], ['games/1'], ['me'], ['games/1/chat'],
+    for (const [path, method = 'GET'] of [['state'], ['queue'], ['activity'], ['stream'], ['activity/stream'], ['games'], ['games/1'], ['me'], ['games/1/chat'], ['games/1/lobby'],
       ['queue', 'POST'], ['queue', 'DELETE'], ['preferences', 'PUT'], ['preferences/dismiss', 'POST'], ['games/1/ready', 'POST'], ['games/1/pick', 'POST'], ['games/1/chat', 'POST']]) {
       assert.equal((await request(`/inhouses/${path}`, null, method, method === 'GET' ? undefined : {})).status, 401, `Anonymous ${method} ${path}`);
       const regular = await request(`/inhouses/${path}`, 1, method, method === 'GET' ? undefined : {}, 'user');
@@ -55,12 +53,22 @@ test('admin preview guards all reads, streams and actions; mutations use Steam i
     const htmlPost = await fetch(base + '/inhouses/queue', {method: 'POST', headers: {'x-test-user': '1', 'Content-Type': 'text/plain'}, body: '{}'});
     assert.equal(htmlPost.status, 415);
     const gameId = f.ten(); f.ready(gameId); const match = f.match(gameId);
+    f.store.mutate(() => f.db.prepare('UPDATE InhouseGames SET LobbyPassword=? WHERE InhouseId=?').run('private-lobby-pass', gameId));
+    assert.equal((await request(`/inhouses/games/${gameId}/lobby`, 11)).status, 403);
+    assert.equal((await (await request(`/inhouses/games/${gameId}/lobby`, 1)).json()).password, 'private-lobby-pass');
+    assert.ok(!JSON.stringify(await (await request('/inhouses/state', 11)).json()).includes('private-lobby-pass'));
     f.store.applyMatch(gameId, match);
-    correction = {...match, matchId: 9002, winner: 'dire'};
+    const correction = {...match, matchId: 9002, winner: 'dire'};
     const body = {matchId: 9002, reason: 'Correct the original game'};
     assert.equal((await request(`/admin/inhouses/games/${gameId}/link`, 1, 'POST', body)).status, 403);
-    assert.equal((await request(`/admin/inhouses/games/${gameId}/link`, 99, 'POST', body)).status, 200);
+    assert.equal((await request(`/admin/inhouses/games/${gameId}/link`, 99, 'POST', body)).status, 202);
+    const lookup = f.db.prepare("SELECT LookupId FROM InhouseBotLookups WHERE Status='pending'").get();
+    f.store.finishBotLookup(lookup.LookupId,correction);
     assert.equal(f.store.game(gameId).winner, 'B');
+    assert.equal(f.db.prepare('SELECT MAX(Games) n FROM InhousePlayers').get().n, 1);
+    f.store.saveBotMatchResult({...match, matchId: 9003});
+    assert.equal((await request(`/admin/inhouses/games/${gameId}/link`, 99, 'POST', {matchId: 9003, reason: 'Use the GC-verified result'})).status, 200);
+    assert.equal(f.store.game(gameId).winner, 'A');
     assert.equal(f.db.prepare('SELECT MAX(Games) n FROM InhousePlayers').get().n, 1);
   } finally {routes?.stream.close(); if (server) await new Promise(resolve => server.close(resolve)); f.close();}
 });

@@ -129,6 +129,8 @@ function InhousesContent() {
       <InhouseChat key={`${mine.id}:${user.accountId}`} gameId={mine.id} accountId={user.accountId} /></div> : <>
     <div className="inhouse-overview"><span><strong>{state.queue.length}</strong> waiting</span><span>{state.settings.queueMode === 'fifo' ? 'FIFO · roles informational' : 'Role preference'}</span>
       <span>{state.settings.draftMode === 'captain' ? 'Captain draft' : 'Automatic teams'}</span><span>{connected ? 'Live updates' : 'Checking for updates'}</span></div>
+    {state.queue.length > 0 && !state.bots?.some(bot => bot.status === 'idle' && !bot.gameId) &&
+      <p className="inhouse-muted">Waiting for an available lobby bot. Queued players keep their place.</p>}
     {selected && !['completed', 'cancelled'].includes(selected.status) && card(selected)}
     <div className="inhouse-lobby-grid">
       {user && profile ? <QueuePanel profile={profile} queued={queued} busy={busy} configured={Boolean(state.settings.leagueId)} run={run} onSettings={() => changeTab('settings')} />
@@ -147,8 +149,8 @@ function InhousesContent() {
         {state.queue.length ? <ol className="inhouse-queue">{state.queue.map(p => <li key={p.playerId}><InhousePlayerRow player={p} /></li>)}</ol>
           : <p className="inhouse-muted">No players waiting. Start the next game.</p>}
         {user?.isAdmin && state.queue.length === 2 && <div className="inhouse-actions">
-          <button type="button" disabled={busy || !state.settings.leagueId} onClick={() => run('/admin/inhouses/test', 'POST')}>Start 2-player test</button>
-          <small className="inhouse-muted">1v1 using these two players and the configured ticket.</small>
+          <button type="button" disabled={busy || !state.settings.leagueId || !state.bots?.some(bot => bot.status === 'idle' && !bot.gameId)} onClick={() => run('/admin/inhouses/test', 'POST')}>Start 2-player test</button>
+          <small className="inhouse-muted">A bot hosts the 1v1 for these players using the configured ticket.</small>
         </div>}
       </section>
     </div>

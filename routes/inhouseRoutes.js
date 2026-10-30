@@ -56,7 +56,7 @@ export function createInhouseStream(store, {intervalMs = 1000, maxClients = 250}
   };
 }
 
-export function createInhouseRoutes({store, api, requireAdmin, playerName = (id, req) => req.user?.displayName || `Player ${id}`,
+export function createInhouseRoutes({store, requireAdmin, playerName = (id, req) => req.user?.displayName || `Player ${id}`,
   isOfficialTicket = () => false}) {
   const publicRoutes = express.Router(), adminRoutes = express.Router();
   const stream = createInhouseStream(store);
@@ -100,6 +100,7 @@ export function createInhouseRoutes({store, api, requireAdmin, playerName = (id,
   publicRoutes.post('/games/:id/ready', signedIn, endpoint((req, res) => res.json(store.ready(positiveId(req.params.id), req.inhousePlayerId))));
   publicRoutes.post('/games/:id/pick', signedIn, endpoint((req, res) => res.json(store.pick(positiveId(req.params.id), req.inhousePlayerId, req.body || {}))));
   publicRoutes.get('/games/:id/chat', signedIn, endpoint((req, res) => res.json(store.readChat(positiveId(req.params.id), req.inhousePlayerId))));
+  publicRoutes.get('/games/:id/lobby', signedIn, endpoint((req, res) => res.json(store.lobbyDetails(positiveId(req.params.id), req.inhousePlayerId))));
   publicRoutes.post('/games/:id/chat', signedIn, endpoint((req, res) => res.status(201).json(store.postChat(positiveId(req.params.id), req.inhousePlayerId, req.body || {}))));
 
   // The application mounts this router behind checkAdmin, before the general
@@ -114,7 +115,8 @@ export function createInhouseRoutes({store, api, requireAdmin, playerName = (id,
   adminRoutes.post('/games/:id/link', endpoint(async (req, res) => {
     const id = positiveId(req.params.id), matchId = positiveId(req.body?.matchId, 'match');
     if (typeof req.body?.reason !== 'string' || !req.body.reason.trim()) fail('Enter a reason for correcting the match link');
-    const match = await api.details(matchId);
+    const match = store.botMatchResult(matchId);
+    if (!match) return res.status(202).json(store.requestBotLookup(id, matchId, req.body.reason, requestAccountId(req)));
     res.json(store.applyMatch(id, match, {correction: true, actorId: requestAccountId(req), reason: req.body.reason}));
   }));
   return {publicRoutes, adminRoutes, stream: {...stream, close() {stream.close(); activity.close();}}};

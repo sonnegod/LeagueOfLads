@@ -2,9 +2,9 @@ import 'dotenv/config';
 import Database from 'better-sqlite3';
 import {fileURLToPath} from 'node:url';
 import {InhouseStore} from '../../inhouses/store.js';
-import {createSteamInhouseClient} from '../../inhouses/steam.js';
 import {createInhouseWorker} from '../../inhouses/worker.js';
 import {configureWarehouseConnection} from '../../config/warehouseConnection.js';
+import {createInhouseBotPool} from '../../inhouses/botPool.js';
 
 const args = process.argv.slice(2);
 if (args.some(arg => !['--once', '--init-only'].includes(arg))) throw new Error('Use --once or --init-only');
@@ -19,20 +19,18 @@ if (args.includes('--init-only')) {
   console.log('Inhouse tables are ready. Configure the ticket in Admin > Inhouses.');
   db.close();
 } else {
-  const controller = new AbortController();
-  const worker = createInhouseWorker(store, createSteamInhouseClient({signal: controller.signal}));
+  const pool = createInhouseBotPool(store);
+  const worker = createInhouseWorker(store, pool);
+  if (!worker.claim()) {db.close(); throw new Error('Another inhouse worker is already running');}
   let stopping = false;
-  const stop = () => {stopping = true; controller.abort(); worker.close();};
+  const stop = () => {stopping = true; worker.close();};
   process.once('SIGINT', stop); process.once('SIGTERM', stop);
-  const maintenance = setInterval(() => {
-    try {worker.maintain();} catch (error) {console.error('Inhouse maintenance:', error.code || 'Unexpected error');}
-  }, 1000);
   console.log('Inhouse worker started.');
   try {
     do {
-      try {await worker.step();}
+      try {if ((await worker.step()).skipped) stopping = true;}
       catch (error) {console.error('Inhouse worker:', error.status ? error.message : error.code || 'Unexpected error');}
       if (!stopping && !args.includes('--once')) await new Promise(resolve => setTimeout(resolve, 1000));
     } while (!stopping && !args.includes('--once'));
-  } finally {clearInterval(maintenance); worker.close(); db.close();}
+  } finally {worker.close(); db.close();}
 }
