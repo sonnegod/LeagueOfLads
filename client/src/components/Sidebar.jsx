@@ -3,9 +3,11 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import InhouseQueueBadge from './InhouseQueueBadge';
 import './Sidebar.css';
+import {useInhouseActivity} from '../context/inhouseActivity';
 
 export default function Sidebar({ open, onClose }) {
   const { user } = useAuth();
+  const inhouses=useInhouseActivity();
   const { pathname } = useLocation();
   const navClassName = ({ isActive }) => `sidebar-link${isActive ? ' is-active' : ''}`;
 
@@ -22,7 +24,7 @@ export default function Sidebar({ open, onClose }) {
         {/*<Link to="/match">Matches</Link> removing for performance issues*/}
         <NavLink to="/league" className={navClassName} onClick={onClose}>Leagues</NavLink>
         <NavLink to="/h2h" className={navClassName} onClick={onClose}>Head to Head</NavLink>
-        {user?.isAdmin && <div className="sidebar-inhouses"><NavLink to="/inhouses" className={navClassName} onClick={onClose}>Inhouses</NavLink>
+        {(inhouses?.availability?.activeGameId||inhouses?.availability?.availability==='open'||user?.isAdmin&&inhouses?.availability?.availability==='admin_testing')&& <div className="sidebar-inhouses"><NavLink to="/inhouses" className={navClassName} onClick={onClose}>Inhouses</NavLink>
           <InhouseQueueBadge /></div>}
         <NavLink to="/hero" className={navClassName} onClick={onClose}>Heroes</NavLink>
         <NavLink to="/awards" className={navClassName} onClick={onClose}>Awards</NavLink>

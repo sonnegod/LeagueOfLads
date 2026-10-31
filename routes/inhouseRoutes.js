@@ -2,6 +2,7 @@ import express from 'express';
 import {requestAccountId} from './utility/requestAccountId.js';
 import {fail, positiveId} from '../inhouses/store.js';
 import {createInhouseActivityStream} from '../inhouses/activityStream.js';
+import {visibleSnapshot,visibleActivity,canKeepInhouseStream} from '../inhouses/visibility.js';
 
 const endpoint = fn => async (req, res) => {
   try {await fn(req, res);}
@@ -17,7 +18,7 @@ const endpoint = fn => async (req, res) => {
 // Revision checks are cheap and local. Both the web process and separate worker
 // update the same revision in their transactions; one read fans out to viewers.
 export function createInhouseStream(store, {intervalMs = 1000, maxClients = 250} = {}) {
-  const clients = new Set();
+  const clients = new Map();
   let timer = null, revision = -1, snapshot = null, pulses = 0;
   function write(res, data) {
     try {if (res.destroyed || res.writableEnded || !res.write(data)) res.destroy();}
@@ -28,36 +29,39 @@ export function createInhouseStream(store, {intervalMs = 1000, maxClients = 250}
     if (next !== revision || !snapshot) {snapshot = store.snapshot(); revision = snapshot.revision; return true;}
     return false;
   }
-  function stateFrame() {
+  function stateFrame(viewer) {
     // Cached data may outlive its last viewer. Always timestamp a new delivery
     // now so reconnecting clients don't move deadline clocks into the past.
-    return `id: ${revision}\nevent: state\ndata: ${JSON.stringify({...snapshot, serverNow: store.clock()})}\n\n`;
+    return `id: ${revision}\nevent: state\ndata: ${JSON.stringify({...visibleSnapshot(snapshot,viewer), serverNow: store.clock()})}\n\n`;
   }
   function poll() {
     try {
-      if (refresh()) {const frame = stateFrame(); for (const res of clients) write(res, frame);}
-      else if (++pulses % 15 === 0) for (const res of clients) write(res, ': heartbeat\n\n');
-    } catch {for (const res of clients) res.destroy();}
+      if (refresh()) {for (const [res,viewer] of clients) {
+        write(res, stateFrame(viewer));
+        if(!canKeepInhouseStream(snapshot,viewer))res.end();
+      }}
+      else if (++pulses % 15 === 0) for (const res of clients.keys()) write(res, ': heartbeat\n\n');
+    } catch {for (const res of clients.keys()) res.destroy();}
   }
   return {
-    subscribe(req, res) {
+    subscribe(req, res, viewer={administrator:true}) {
       if (clients.size >= maxClients) return res.status(503).json({error: 'Live inhouse updates are busy'});
       refresh();
       res.set({'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store, no-transform',
         'Connection': 'keep-alive', 'X-Accel-Buffering': 'no'});
       res.socket?.setNoDelay(true); res.socket?.setTimeout(0); res.flushHeaders();
-      clients.add(res);
+      clients.set(res,viewer);
       const remove = () => {clients.delete(res); if (!clients.size) {clearInterval(timer); timer = null;}};
       res.once('close', remove);
-      write(res, 'retry: 2000\n\n'); write(res, stateFrame());
+      write(res, 'retry: 2000\n\n'); write(res, stateFrame(viewer));
       if (!timer && clients.size) {timer = setInterval(poll, intervalMs); timer.unref?.();}
     },
-    close() {clearInterval(timer); timer = null; for (const res of clients) res.end(); clients.clear();},
+    close() {clearInterval(timer); timer = null; for (const res of clients.keys()) res.end(); clients.clear();},
   };
 }
 
 export function createInhouseRoutes({store, requireAdmin, playerName = (id, req) => req.user?.displayName || `Player ${id}`,
-  isOfficialTicket = () => false}) {
+  isOfficialTicket = () => false, isAdmin = req=>Boolean(req.admin||req.user?.isAdmin)}) {
   const publicRoutes = express.Router(), adminRoutes = express.Router();
   const stream = createInhouseStream(store);
   const activity = createInhouseActivityStream(store);
@@ -66,32 +70,51 @@ export function createInhouseRoutes({store, requireAdmin, playerName = (id, req)
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && !req.is('application/json')) return res.status(415).json({error: 'Send application/json'});
     return next();
   });
-  // Keep the entire player-facing API (including reads and SSE) private during
-  // the admin preview. The application supplies its normal admin middleware.
-  publicRoutes.use(requireAdmin);
+  const viewer=req=>({playerId:Number(requestAccountId(req))||null,administrator:req.inhouseAdmin===true&&store.settings().availability!=='closed'});
+  publicRoutes.get('/availability',endpoint((req,res)=>{
+    const participation=store.participation(requestAccountId(req)),availability=store.settings().availability;
+    const canAccess=availability==='closed'?Boolean(participation.activeGameId):isAdmin(req)||availability==='open'||participation.hasHistory;
+    return res.json({availability,activeGameId:participation.activeGameId,hasHistory:participation.hasHistory,canAccess});
+  }));
+  publicRoutes.use((req,res,next)=>{
+    req.inhouseAdmin=isAdmin(req);
+    const availability=store.settings().availability,participation=store.participation(requestAccountId(req));
+    if(availability==='closed'&&!participation.activeGameId)return res.status(403).json({error:'Inhouses are closed'});
+    const open=availability==='open';
+    // Existing players keep their game and postgame report when access closes.
+    // Joining a private queue still always requires an administrator.
+    if(req.inhouseAdmin||open||!(req.method==='POST'&&req.path==='/queue')&&participation.hasHistory)return next();
+    return requireAdmin(req,res,()=>{req.inhouseAdmin=true;next();});
+  });
   const signedIn = (req, res, next) => {
     const id = requestAccountId(req);
     if (!id || Number(id) > 4294967294) return res.status(401).json({error: 'Sign in with Steam to queue'});
     req.inhousePlayerId = Number(id);
     return next();
   };
-  publicRoutes.get('/state', endpoint((req, res) => res.json(store.snapshot())));
-  publicRoutes.get('/queue', endpoint((req, res) => res.json(store.queueSummary())));
+  publicRoutes.get('/state', endpoint((req, res) => res.json(visibleSnapshot(store.snapshot(),viewer(req)))));
+  publicRoutes.get('/queue', endpoint((req, res) => res.json(store.settings().availability!=='open'&&!viewer(req).administrator?{count:0,players:[]}:store.queueSummary())));
   function activityRoom(req) {
     const playerId = requestAccountId(req);
     if (req.query.gameId === undefined) return {gameId: null, playerId: playerId ? Number(playerId) : null};
     if (!playerId) fail('Sign in to view lobby chat', 401);
-    return {gameId: positiveId(req.query.gameId, 'inhouse'), playerId: Number(playerId)};
+    return {gameId: positiveId(req.query.gameId, 'inhouse'), playerId: Number(playerId),administrator:viewer(req).administrator};
   }
   publicRoutes.get('/activity', endpoint((req, res) => {
     const room = activityRoom(req);
-    res.json({queue: store.activitySummary(), player: store.playerActivity(room.playerId),
+    const player=store.playerActivity(room.playerId);
+    res.json({queue: visibleActivity(store.activitySummary(),player,viewer(req).administrator), player,
       ...(room.gameId ? {chat: store.readChat(room.gameId, room.playerId)} : {})});
   }));
-  publicRoutes.get('/activity/stream', endpoint((req, res) => activity.subscribe(req, res, activityRoom(req))));
-  publicRoutes.get('/stream', endpoint((req, res) => stream.subscribe(req, res)));
-  publicRoutes.get('/games', endpoint((req, res) => res.json({games: store.history(req.query.before === undefined ? undefined : positiveId(req.query.before, 'history cursor'))})));
-  publicRoutes.get('/games/:id', endpoint((req, res) => res.json({game: store.game(positiveId(req.params.id))})));
+  publicRoutes.get('/activity/stream', endpoint((req, res) => activity.subscribe(req, res, {...activityRoom(req),administrator:viewer(req).administrator})));
+  publicRoutes.get('/stream', endpoint((req, res) => stream.subscribe(req, res,viewer(req))));
+  publicRoutes.get('/games', endpoint((req, res) => res.json({games: store.history(req.query.before === undefined ? undefined : positiveId(req.query.before, 'history cursor'),
+    store.settings().availability!=='open'&&!viewer(req).administrator?viewer(req).playerId:null)})));
+  publicRoutes.get('/games/:id', endpoint((req, res) => {
+    const id=positiveId(req.params.id);
+    if(store.settings().availability!=='open'&&!viewer(req).administrator)store.chatAccess(id,viewer(req).playerId);
+    res.json({game:store.game(id)});
+  }));
   publicRoutes.get('/me', signedIn, endpoint((req, res) => res.json({player: store.profile(req.inhousePlayerId, playerName(req.inhousePlayerId, req))})));
   publicRoutes.put('/preferences', signedIn, endpoint((req, res) => res.json({player: store.preferences(req.inhousePlayerId, req.body || {}, playerName(req.inhousePlayerId, req))})));
   publicRoutes.post('/preferences/dismiss', signedIn, endpoint((req, res) => res.json({player: store.dismissPreferencesPrompt(req.inhousePlayerId, playerName(req.inhousePlayerId, req))})));
@@ -107,6 +130,8 @@ export function createInhouseRoutes({store, requireAdmin, playerName = (id, req)
   // The application mounts this router behind checkAdmin, before the general
   // league/betting mutation hook. Inhouse actions never request betting refresh.
   adminRoutes.get('/status', endpoint((req, res) => res.json({...store.snapshot(), audit: store.auditLog()})));
+  adminRoutes.get('/stream',endpoint((req,res)=>stream.subscribe(req,res,{administrator:true,management:true})));
+  adminRoutes.put('/availability',endpoint((req,res)=>res.json(store.setAvailability(req.body||{},requestAccountId(req)))));
   adminRoutes.post('/test', endpoint((req, res) => res.json(store.startAdminTest(requestAccountId(req),{playerCount:req.body?.playerCount ?? 2}))));
   adminRoutes.put('/settings', endpoint((req, res) => {
     if (isOfficialTicket(positiveId(req.body?.leagueId, 'inhouse ticket ID'))) fail('Use a dedicated inhouse ticket, separate from official league seasons');

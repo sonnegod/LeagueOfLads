@@ -13,7 +13,7 @@ test('ready alerts follow authenticated queue reservations, confirmation, cancel
     const app = express(); app.use(express.json());
     app.use((req, res, next) => {
       const id = req.get('x-test-user'); req.isAuthenticated = () => Boolean(id);
-      if (id) req.user = {id: String(76561197960265728n + BigInt(id))};
+      if (id) req.user = {id: String(76561197960265728n + BigInt(id)),isAdmin:true};
       next();
     });
     app.use('/api/inhouses', routes.publicRoutes);
@@ -37,21 +37,21 @@ test('ready alerts follow authenticated queue reservations, confirmation, cancel
       }};
     }
     const selected = await subscribe(1), observer = await subscribe(99);
-    assert.deepEqual(await selected.player(), {queued: true, readyCheck: null});
-    assert.deepEqual(await observer.player(), {queued: false, readyCheck: null});
+    assert.deepEqual(await selected.player(), {queued: true,activeGameId:null, readyCheck: null});
+    assert.deepEqual(await observer.player(), {queued: false,activeGameId:null, readyCheck: null});
     for (let id = 2; id <= 10; id++) f.join(id);
     const gameId = f.store.rawGame(1).InhouseId;
-    const alert = {queued: false, readyCheck: {gameId, deadline: f.clock() + 60000}};
+    const alert = {queued: false,activeGameId:gameId, readyCheck: {gameId, deadline: f.clock() + 60000}};
     assert.deepEqual(await selected.player(), alert);
-    assert.deepEqual((await (await request('/activity?playerId=1', 99)).json()).player, {queued: false, readyCheck: null});
+    assert.deepEqual((await (await request('/activity?playerId=1', 99)).json()).player, {queued: false,activeGameId:null, readyCheck: null});
     f.store.ready(gameId, 1);
-    assert.deepEqual(await selected.player(), {queued: false, readyCheck: null}, 'Acknowledgement clears the private alert even if the public summary is unchanged');
+    assert.deepEqual(await selected.player(), {queued: false,activeGameId:gameId, readyCheck: null}, 'Acknowledgement clears the private alert even if the public summary is unchanged');
     const confirmed = await subscribe(1), unconfirmed = await subscribe(2);
     assert.equal((await confirmed.player()).readyCheck, null);
     assert.deepEqual(await unconfirmed.player(), alert);
     const workerStore = new InhouseStore(f.db, {clock: f.clock});
     workerStore.cancel(gameId, 'Cancel ready check', 99);
-    assert.deepEqual(await unconfirmed.player(), {queued: false, readyCheck: null}, 'Changes from the separate worker reach the existing connection');
+    assert.deepEqual(await unconfirmed.player(), {queued: false,activeGameId:null, readyCheck: null}, 'Changes from the separate worker reach the existing connection');
     for (let id = 1; id <= 10; id++) f.join(id);
     assert.ok(f.store.playerActivity(2).readyCheck);
     f.advance(60001);

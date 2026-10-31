@@ -1,11 +1,12 @@
 import {useEffect, useMemo, useState} from 'react';
-import {Link, Navigate, useSearchParams} from 'react-router-dom';
+import {Link, useSearchParams} from 'react-router-dom';
 import {useAuth} from '../context/AuthContext';
 import {inhouseRequest, useInhouses, useInhouseNow} from '../hooks/useInhouses';
 import InhouseGameCard from '../components/InhouseGameCard';
 import InhousePlayerSettings from '../components/InhousePlayerSettings';
 import InhouseRoleWelcome from '../components/InhouseRoleWelcome';
 import InhouseChat from '../components/InhouseChat';
+import {useInhouseActivity} from '../context/inhouseActivity';
 import {inhouseStatus, inhouseRating, inhouseRoles, inhouseCalibration} from '../utils/inhouseDisplay';
 import './InhousesPage.css';
 
@@ -48,9 +49,12 @@ function Leaderboard({players}) {
 }
 
 export default function InhousesPage() {
-  const {user, loading} = useAuth();
+  const {loading} = useAuth();
+  const {availability}=useInhouseActivity();
   if (loading) return <p>Loading inhouses…</p>;
-  if (!user?.isAdmin) return <Navigate to="/" replace />;
+  if(!availability)return <p>Loading inhouse availability…</p>;
+  if(!availability.canAccess)return <div className="ui-page inhouses-page"><h1>Inhouses</h1>
+    <p>{availability?.availability==='closed'?'Inhouses are currently closed.':'Inhouses are currently available for admin testing.'}</p></div>;
   return <InhousesContent />;
 }
 
@@ -126,6 +130,9 @@ function InhousesContent() {
     </section> : <section role="tabpanel" id="inhouse-lobby-panel" aria-labelledby="inhouse-lobby-tab">
     {!mine && !state.settings.leagueId ? <p className="inhouse-notice">Queueing opens once an admin configures the inhouse ticket.</p>
       : stale && <p className="inhouse-notice">Automatic inhouse updates are delayed. An admin can check the worker.</p>}
+    {state.settings.availability!=='open'&&<p className="inhouse-notice">{state.settings.availability==='closed'
+      ? 'Inhouses are closed. Existing games can finish; new queues and tests are paused.'
+      : 'Admin testing only. Inhouses are not open to players yet.'}</p>}
     {mine ? <div className="inhouse-focused-lobby">{card(mine)}
       <InhouseChat key={`${mine.id}:${user.accountId}`} gameId={mine.id} accountId={user.accountId} /></div> : <>
     <div className="inhouse-overview"><span><strong>{state.queue.length}</strong> waiting</span><span>{state.settings.queueMode === 'fifo' ? 'FIFO · roles informational' : 'Role preference'}</span>
@@ -134,7 +141,7 @@ function InhousesContent() {
       <p className="inhouse-muted">Waiting for an available lobby bot. Queued players keep their place.</p>}
     {selected && card(selected)}
     <div className="inhouse-lobby-grid">
-      {user && profile ? <QueuePanel profile={profile} queued={queued} busy={busy} configured={Boolean(state.settings.leagueId)} run={run} onSettings={() => changeTab('settings')} />
+      {user && profile ? <QueuePanel profile={profile} queued={queued} busy={busy} configured={Boolean(state.settings.leagueId)&&state.settings.availability!=='closed'&&(state.settings.availability==='open'||user.isAdmin)} run={run} onSettings={() => changeTab('settings')} />
         : <section className="inhouse-card"><h2>Join an inhouse</h2><p>{loading || user ? 'Loading your preferences…' : 'Sign in to choose your positions and join the queue.'}</p>
           {!loading && !user && <a className="inhouse-signin" href="/api/auth/steam?returnTo=/inhouses">Sign in with Steam</a>}</section>}
       <section className="inhouse-card"><header className="inhouse-card-heading"><h2>Waiting room</h2><span>{state.queue.length}/10</span></header>
@@ -150,8 +157,8 @@ function InhousesContent() {
         {state.queue.length ? <ol className="inhouse-queue">{state.queue.map(p => <li key={p.playerId}><InhousePlayerRow player={p} /></li>)}</ol>
           : <p className="inhouse-muted">No players waiting. Start the next game.</p>}
         {user?.isAdmin && queued && state.queue.length === 1 && <div className="inhouse-actions">
-          <button type="button" disabled={busy || !state.settings.leagueId || !state.bots?.some(bot=>bot.status==='idle'&&!bot.gameId)} onClick={()=>run('/admin/inhouses/test','POST',{playerCount:1})}>Start 1-player test</button>
-          <small className="inhouse-muted">Real bot-hosted All Pick game without a ticket. Tests the result and player release without changing ratings or standings.</small>
+          <button type="button" disabled={busy || state.settings.availability==='closed'||!state.settings.leagueId || !state.bots?.some(bot=>bot.status==='idle'&&!bot.gameId)} onClick={()=>run('/admin/inhouses/test','POST',{playerCount:1})}>Start 1-player test</button>
+          <small className="inhouse-muted">Real bot-hosted All Pick game using the configured inhouse ticket. Tests the result and player release without changing ratings or standings.</small>
         </div>}
         {user?.isAdmin && state.queue.length === 2 && <div className="inhouse-actions">
           <button type="button" disabled={busy || !state.settings.leagueId || !state.bots?.some(bot => bot.status === 'idle' && !bot.gameId)} onClick={() => run('/admin/inhouses/test', 'POST')}>Start 2-player test</button>

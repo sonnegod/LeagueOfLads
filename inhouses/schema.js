@@ -67,6 +67,7 @@ export function ensureInhouseSchema(db) {
       PlayerId INTEGER PRIMARY KEY REFERENCES InhousePlayers(PlayerId), JoinedAt INTEGER NOT NULL,
       InhouseId INTEGER REFERENCES InhouseGames(InhouseId)
     );
+    CREATE INDEX IF NOT EXISTS idx_InhouseMembers_Player ON InhouseMembers(PlayerId,InhouseId);
     CREATE INDEX IF NOT EXISTS idx_InhouseQueue_Order ON InhouseQueue(InhouseId,JoinedAt,PlayerId);
     CREATE INDEX IF NOT EXISTS idx_InhouseGames_Status ON InhouseGames(Status,InhouseId);
     CREATE TABLE IF NOT EXISTS InhouseChat (
@@ -109,6 +110,7 @@ export function ensureInhouseSchema(db) {
     };
     add('InhouseSettings', 'GameMode', 'INTEGER NOT NULL DEFAULT 1 CHECK(GameMode IN (1,2))');
     add('InhouseSettings', 'ServerRegion', 'INTEGER NOT NULL DEFAULT 2');
+    add('InhouseSettings', 'Availability', "TEXT NOT NULL DEFAULT 'admin_testing' CHECK(Availability IN ('closed','admin_testing','open'))");
     add('InhouseGames', 'BotId', 'INTEGER REFERENCES InhouseBots(BotId)');
     add('InhouseGames', 'GameMode', 'INTEGER NOT NULL DEFAULT 1');
     add('InhouseGames', 'ServerRegion', 'INTEGER NOT NULL DEFAULT 2');
@@ -124,6 +126,7 @@ export function ensureInhouseSchema(db) {
     add('InhouseGames', 'ChoiceTurn', 'INTEGER NOT NULL DEFAULT 2 CHECK(ChoiceTurn BETWEEN 0 AND 2)');
     add('InhouseGames', 'ChoiceDeadline', 'INTEGER');
     add('InhouseGames', 'LobbyJoinStartedAt', 'INTEGER');
+    add('InhouseGames', 'QueueAvailability', "TEXT NOT NULL DEFAULT 'admin_testing'");
     if (!db.pragma('table_info(InhouseGames)').some(column => column.name === 'PlayerCount')) {
       db.exec('ALTER TABLE InhouseGames ADD COLUMN PlayerCount INTEGER NOT NULL DEFAULT 10 CHECK(PlayerCount IN (1,2,10))');
     }

@@ -5,9 +5,26 @@ import {inhouseStatus, inhouseRoles} from '../utils/inhouseDisplay';
 import {useAuth} from '../context/AuthContext';
 import '../pages/InhousesPage.css';
 
+function AvailabilityControl({settings,busy,run}) {
+  const [mode,setMode]=useState(settings.availability),[saved,setSaved]=useState(false);
+  useEffect(()=>{setMode(settings.availability);setSaved(false);},[settings.availability]);
+  async function save(event) {
+    event.preventDefault();
+    if(await run('/admin/inhouses/availability','PUT',{availability:mode,version:settings.version}))setSaved(true);
+  }
+  return <section className="inhouse-card"><h2>Inhouse availability</h2>
+    <form className="inhouse-actions" onSubmit={save}><label>Access mode<select value={mode} onChange={event=>{setMode(event.target.value);setSaved(false);}}>
+      <option value="closed">Closed</option><option value="admin_testing">Admin testing</option><option value="open">Open to players</option>
+    </select></label><button type="submit" disabled={busy||mode===settings.availability}>Apply availability</button></form>
+    <p className="inhouse-muted">Closed stops new queues and tests. Admin testing is private to admins. Open to players enables the page and queue for everyone signed in.</p>
+    <p className="inhouse-muted">Closing or switching to admin testing releases waiting players. Reserved games continue, and bots stay connected and idle between games.</p>
+    {saved&&<p role="status">Availability saved.</p>}
+  </section>;
+}
+
 export default function InhouseAdminPanel({section = 'settings'}) {
   const {user}=useAuth();
-  const {state, error, setError, busy, run, refresh} = useInhouses(null);
+  const {state, error, setError, busy, run, refresh} = useInhouses(null,{admin:true});
   const [form, setForm] = useState(null), [message, setMessage] = useState('');
   const [selectedId, setSelectedId] = useState(''), [lookup, setLookup] = useState(''), [detail, setDetail] = useState(null);
   const [matchId, setMatchId] = useState(''), [reason, setReason] = useState(''), [audit, setAudit] = useState([]);
@@ -48,6 +65,7 @@ export default function InhouseAdminPanel({section = 'settings'}) {
   return <div className="inhouse-admin">
     {error && <p className="inhouse-notice is-error" role="alert">{error}</p>}
     {message && <p role="status">{message}</p>}
+    <AvailabilityControl settings={state.settings} busy={busy} run={run} />
     <section className="inhouse-card"><header className="inhouse-card-heading"><h2>Inhouse operations</h2>
       <button disabled={busy} onClick={() => refresh().catch(e => setError(e.message))}>Refresh</button></header>
       <p>{state.queue.length} waiting · {active.length} active · {state.worker.lastTick && now - state.worker.lastTick < 45000 ? 'Worker connected' : 'Worker not reporting'}</p>
@@ -79,8 +97,8 @@ export default function InhouseAdminPanel({section = 'settings'}) {
     </form></section>}
     {section === 'games' && <>
       {state.queue.length===1&&<section className="inhouse-card"><h2>Solo production test</h2>
-        <p className="inhouse-muted">Queue your own account, then test a real All Pick lobby without a ticket. Tests invitations, automatic start, result and release. Ratings and standings stay unchanged.</p>
-        <button type="button" disabled={busy||String(state.queue[0].playerId)!==String(user?.accountId)||!state.settings.leagueId||!state.bots?.some(bot=>bot.status==='idle'&&!bot.gameId)}
+        <p className="inhouse-muted">Queue your own account, then test a real All Pick lobby using the configured inhouse ticket. Tests invitations, automatic start, result and release. Ratings and standings stay unchanged.</p>
+        <button type="button" disabled={busy||state.settings.availability==='closed'||String(state.queue[0].playerId)!==String(user?.accountId)||!state.settings.leagueId||!state.bots?.some(bot=>bot.status==='idle'&&!bot.gameId)}
           onClick={()=>run('/admin/inhouses/test','POST',{playerCount:1})}>Start 1-player test</button>
       </section>}
       <section className="inhouse-card"><h2>Waiting players</h2>{state.queue.length ? <div className="inhouse-ready-list">{state.queue.map(p =>

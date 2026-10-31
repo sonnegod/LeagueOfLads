@@ -9,21 +9,22 @@ export async function inhouseRequest(path, options = {}) {
   return data;
 }
 
-export function useInhouses(userId) {
+export function useInhouses(userId, {admin=false}={}) {
+  const statePath=admin?'/admin/inhouses/status':'/inhouses/state',streamPath=admin?'/admin/inhouses/stream':'/inhouses/stream';
   const [state, setState] = useState(null), [profile, setProfile] = useState(null);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const refresh = useCallback(async () => {
-    const data = await inhouseRequest('/inhouses/state');
+    const data = await inhouseRequest(statePath);
     setState(current => !current || data.revision >= current.revision ? data : current);
-  }, []);
+  }, [statePath]);
   useEffect(() => {
     const controller = new AbortController();
     let source = null, fallback = true, timer, reading = false;
     const read = () => {
       if (document.hidden || controller.signal.aborted || reading) return;
       reading = true;
-      inhouseRequest('/inhouses/state', {signal: controller.signal}).then(data => {
+      inhouseRequest(statePath, {signal: controller.signal}).then(data => {
         if (!controller.signal.aborted) {setState(current => !current || data.revision >= current.revision ? data : current); setError('');}
       }).catch(e => {if (!controller.signal.aborted) setError(e.message);}).finally(() => {reading = false;});
     };
@@ -31,7 +32,7 @@ export function useInhouses(userId) {
       if (document.hidden) return;
       read();
       if (typeof EventSource === 'undefined') return;
-      source = new EventSource('/api/inhouses/stream');
+      source = new EventSource(`/api${streamPath}`);
       source.addEventListener('state', event => {
         try {
           const next = JSON.parse(event.data);
@@ -49,7 +50,7 @@ export function useInhouses(userId) {
     timer = setInterval(() => {if (fallback) read();}, 3000);
     document.addEventListener('visibilitychange', visibility);
     return () => {controller.abort(); source?.close(); clearInterval(timer); document.removeEventListener('visibilitychange', visibility);};
-  }, []);
+  }, [statePath,streamPath]);
   useEffect(() => {
     if (!userId) return;
     const controller = new AbortController();

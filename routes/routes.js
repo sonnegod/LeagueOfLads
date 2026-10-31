@@ -42,6 +42,7 @@ dotenv.config();
 const router = express.Router();
 const inhouseStore = new InhouseStore(db.db);
 const inhouseRoutes = createInhouseRoutes({store: inhouseStore, requireAdmin: checkAdmin,
+  isAdmin:req=>Boolean(req.isAuthenticated?.()&&getAdminForSteamId(req.user?.id)),
   isOfficialTicket: id => Boolean(db.db.prepare('SELECT 1 FROM LeagueInfo WHERE LeagueId=? UNION SELECT 1 FROM LeagueSeasons WHERE ExternalLeagueId=? LIMIT 1').get(id, id)),
   playerName: (id, req) => db.db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId=?').get(id)?.PlayerName || req.user?.displayName || `Player ${id}`});
 export const inhouseUpdates = inhouseRoutes.stream;

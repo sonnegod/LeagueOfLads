@@ -1,8 +1,22 @@
 # Inhouses
 
-The `/inhouses` page and its API/SSE endpoints are currently **admin preview
-only**. The Admin page has an Inhouses primary tab for Settings, Queue & Games,
-and Activity. Deploying does not open participation to non-admins.
+The Admin page has an Inhouses primary tab for Settings, Queue & Games,
+and Activity. Its **Inhouse availability** control has three modes:
+
+- **Closed:** stop new queue joins and tests, release waiting players, hide the
+  player-facing navigation and block its data endpoints, including for admins
+  and players with past games. Admin management controls remain available.
+- **Admin testing:** keep the page and new queue participation private to admins.
+- **Open to players:** allow everyone to browse and signed-in players to queue.
+
+New installations and upgrades default to **Admin testing**. Availability is
+saved independently of ticket and queue settings, so admins can close inhouses
+even before configuring a ticket. Switching to Closed or Admin testing clears
+the waiting queue; already reserved games continue through completion or
+cancellation. Their players retain access to their own active lobby; once a
+game finishes while Closed, access ends until inhouses reopen. Existing browser
+connections close when their access ends. Bots stay
+connected and idle between games; the worker does not need to be stopped.
 
 ## Five-bot workflow
 
@@ -76,6 +90,10 @@ pm2 restart inhouse-worker
 pm2 save
 ```
 
+If bot 1 is already authenticated, skip its authentication command and run
+only slots 2 through 5 with four different accounts. Restarting the existing
+worker loads all saved slots; no additional PM2 processes are needed.
+
 Each command prompts for account name, hidden password and Steam Guard code,
 then prints the Steam ID. It saves the Steam ID and refresh token in
 `db/inhouse-bots/bot-N.json`. The directory is ignored by Git; authentication
@@ -102,8 +120,8 @@ No cron entry or additional Droplet is needed.
 For a **one-player production smoke test**, sign in as an admin, join the queue
 on `/inhouses`, and make sure you are the only waiting player. Click
 **Start 1-player test**, confirm readiness and choose Radiant or Dire. An online
-bot uses the configured region, creates a real **All Pick** lobby **without a
-ticket** (league ID 0, so league-admin permissions are unnecessary),
+bot uses the configured region, creates a real **All Pick** lobby with the
+**configured inhouse ticket** (the bot needs league-admin access to that ticket),
 starts its join timer, invites your account and starts once you join your side.
 The worker records Dota's confirmed outcome, releases you, and leaves a postgame
 report on the site. Solo results are **unrated**: rating, wins/losses, calibration
@@ -111,8 +129,8 @@ games and standings do not change, including after admin corrections. Rejoin
 manually when finished. The same start button is in Admin > Inhouses > Queue &
 Games; it can only start a solo test for the requesting admin's own queue entry.
 Global ticket/queue/game-mode settings stay unchanged. Existing tests retain
-their saved ticket: cancel an older blocked test and start a new solo test to
-use the unticketed flow. A single player cannot exercise
+their saved ticket: cancel an older unticketed test and start a new solo test to
+use the configured ticket. A single player cannot exercise
 both captains' choices, so use the two-player test for Captain's Mode selection.
 
 Use the **Start 2-player test** button when exactly two admins are queued and

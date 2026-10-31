@@ -58,7 +58,7 @@ test('HTTP and SSE isolate lobby chat while public queue updates fan out immedia
     app.use(createSiteApiHealth({enabled: () => true, record: () => {tracked++;}}));
     app.use((req, res, next) => {
       const user = req.get('x-test-user'); req.isAuthenticated = () => Boolean(user);
-      if (user) req.user = {id: (76561197960265728n + BigInt(user)).toString()};
+      if (user) req.user = {id: (76561197960265728n + BigInt(user)).toString(),isAdmin:true};
       next();
     });
     app.use('/api/inhouses', routes.publicRoutes);

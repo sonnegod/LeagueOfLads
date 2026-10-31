@@ -1,3 +1,5 @@
+import {visibleActivity} from './visibility.js';
+
 // One lightweight public queue channel, with an optional private lobby chat on
 // the same SSE connection. Database polling catches changes from other workers;
 // local mutations notify subscribers immediately after their transaction commits.
@@ -22,8 +24,7 @@ export function createInhouseActivityStream(store, {intervalMs = 500, maxClients
     try {
       const changed = revision !== store.revision();
       if (refreshQueue()) {
-        const value = frame('queue', queue);
-        for (const client of clients) write(client.res, value);
+        for (const client of clients) write(client.res, frame('queue',visibleActivity(queue,store.playerActivity(client.playerId),client.administrator)));
       }
       if (changed) {
         const players = new Map();
@@ -34,6 +35,9 @@ export function createInhouseActivityStream(store, {intervalMs = 500, maxClients
             client.playerFingerprint = next; write(client.res, frame('player', player));
           }
         }
+      }
+      if(queue?.availability==='closed')for(const client of clients) {
+        if(!store.playerActivity(client.playerId).activeGameId)client.res.end();
       }
       for (const [id, room] of rooms) {
         const game = store.db.prepare('SELECT Status FROM InhouseGames WHERE InhouseId=?').get(id);
@@ -56,7 +60,7 @@ export function createInhouseActivityStream(store, {intervalMs = 500, maxClients
   }
   const unsubscribe = store.subscribe(publish);
   return {
-    subscribe(req, res, {gameId = null, playerId = null} = {}) {
+    subscribe(req, res, {gameId = null, playerId = null,administrator=true} = {}) {
       if (closed || clients.size >= maxClients) return res.status(503).json({error: 'Inhouse live updates are busy'});
       const chat = gameId ? store.readChat(gameId, playerId) : null;
       // A new subscriber must not consume an unseen worker revision before
@@ -67,7 +71,7 @@ export function createInhouseActivityStream(store, {intervalMs = 500, maxClients
         'Connection': 'keep-alive', 'X-Accel-Buffering': 'no'});
       res.socket?.setNoDelay(true); res.socket?.setTimeout(0); res.flushHeaders();
       const player = store.playerActivity(playerId);
-      const client = {res, gameId, playerId, playerFingerprint: JSON.stringify(player)}; clients.add(client);
+      const client = {res, gameId, playerId, administrator,playerFingerprint: JSON.stringify(player)}; clients.add(client);
       if (chat) {
         if (!rooms.has(gameId)) rooms.set(gameId, {clients: new Set(), cursor: chat.messages.at(-1)?.id || 0, status: chat.status});
         rooms.get(gameId).clients.add(client);
@@ -80,7 +84,7 @@ export function createInhouseActivityStream(store, {intervalMs = 500, maxClients
         }
         if (!clients.size) {clearInterval(timer); timer = null;}
       });
-      write(res, 'retry: 2000\n\n'); write(res, frame('queue', queue));
+      write(res, 'retry: 2000\n\n'); write(res, frame('queue', visibleActivity(queue,player,administrator)));
       write(res, frame('player', player));
       // Reconnects hydrate the latest 100 lines. Clients merge by message ID,
       // avoiding duplicate lines without keeping an unbounded replay buffer.

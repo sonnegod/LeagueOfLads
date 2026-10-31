@@ -49,7 +49,26 @@ export class InhouseStore {
   settings() {
     const s = this.db.prepare('SELECT * FROM InhouseSettings WHERE Id=1').get();
     return {leagueId: s.LeagueId, queueMode: s.QueueMode, draftMode: s.DraftMode, launchMinutes: s.LaunchMinutes, version: s.Version,
-      gameMode: s.GameMode, serverRegion: s.ServerRegion};
+      gameMode: s.GameMode, serverRegion: s.ServerRegion, availability:s.Availability};
+  }
+  setAvailability(body, actorId) {
+    return this.mutate(()=>{
+      const current=this.settings();
+      if(body.version!==current.version)fail('Settings changed. Refresh before saving.',409);
+      if(!['closed','admin_testing','open'].includes(body.availability))fail('Choose Closed, Admin testing or Open to players');
+      if(body.availability===current.availability)return {settings:current};
+      this.db.prepare('UPDATE InhouseSettings SET Availability=?,Version=Version+1 WHERE Id=1').run(body.availability);
+      const removed=body.availability==='open'?0:this.db.prepare('DELETE FROM InhouseQueue WHERE InhouseId IS NULL').run().changes;
+      this.audit('availability',actorId,null,{from:current.availability,to:body.availability,waitingReleased:removed});
+      this.advance(this.clock());
+      return {settings:this.settings()};
+    });
+  }
+  participation(playerId) {
+    if(!playerId)return {activeGameId:null,hasHistory:false};
+    const row=this.db.prepare(`SELECT MAX(CASE WHEN g.Status NOT IN ('completed','cancelled') THEN g.InhouseId END) activeGameId,
+      COUNT(*) n FROM InhouseMembers m JOIN InhouseGames g USING(InhouseId) WHERE m.PlayerId=?`).get(playerId);
+    return {activeGameId:row.activeGameId||null,hasHistory:row.n>0};
   }
   audit(action, actorId, inhouseId, details) {
     this.db.prepare('INSERT INTO InhouseAudit(At,ActorId,InhouseId,Action,DetailsJson) VALUES(?,?,?,?,?)')
@@ -112,6 +131,7 @@ export class InhouseStore {
   }
   join(playerId, body, name) {
     return this.mutate(() => {
+      if(this.settings().availability==='closed')fail('Inhouses are closed. An admin must reopen queueing.',409);
       if (!this.settings().leagueId) fail('An admin must configure the inhouse ticket before queueing opens', 409);
       const id = positiveId(playerId, 'player');
       if (this.db.prepare('SELECT 1 FROM InhouseQueue WHERE PlayerId=?').get(id)) fail('You are already queued or reserved for an inhouse', 409);
@@ -144,7 +164,7 @@ export class InhouseStore {
       LEFT JOIN InhouseGames g USING(InhouseId)
       LEFT JOIN InhouseMembers m ON m.InhouseId=q.InhouseId AND m.PlayerId=q.PlayerId
       WHERE q.PlayerId=?`).get(playerId ?? null);
-    return {queued: Boolean(row && !row.InhouseId),
+    return {queued: Boolean(row && !row.InhouseId), activeGameId:row?.InhouseId||null,
       readyCheck: row?.Status === 'ready' && row.Ready === 0 && row.Deadline > this.clock()
         ? {gameId: row.InhouseId, deadline: row.Deadline} : null};
   }
@@ -156,7 +176,7 @@ export class InhouseStore {
         WHERE g.Status IN ('ready','drafting','awaiting_game','playing')
         GROUP BY g.InhouseId ORDER BY g.InhouseId DESC`).all();
       const activePlayers = games.reduce((sum, game) => sum + game.playerCount, 0);
-      return {...queue, games, activePlayers, totalPlayers: queue.count + activePlayers};
+      return {...queue, games, activePlayers, totalPlayers: queue.count + activePlayers,availability:this.settings().availability};
     })();
   }
   chatAccess(id, playerId) {
@@ -330,13 +350,14 @@ export class InhouseStore {
         leaderboard: this.db.prepare('SELECT * FROM InhousePlayers ORDER BY Rating DESC,Games DESC,PlayerId').all().map(unpack)};
     })();
   }
-  history(before) {
-    return this.db.prepare('SELECT InhouseId FROM InhouseGames WHERE InhouseId<? ORDER BY InhouseId DESC LIMIT 20')
-      .all(before || Number.MAX_SAFE_INTEGER).map(row => this.game(row.InhouseId));
+  history(before, playerId=null) {
+    return this.db.prepare(`SELECT InhouseId FROM InhouseGames g WHERE InhouseId<? AND (? IS NULL OR
+      EXISTS(SELECT 1 FROM InhouseMembers m WHERE m.InhouseId=g.InhouseId AND m.PlayerId=?)) ORDER BY InhouseId DESC LIMIT 20`)
+      .all(before || Number.MAX_SAFE_INTEGER,playerId,playerId).map(row => this.game(row.InhouseId));
   }
   startSelection(now) {
     const settings = this.settings();
-    if (!settings.leagueId) return;
+    if (!settings.leagueId || settings.availability==='closed') return;
     let queue = this.queue();
     while (queue.length >= 10) {
       if (!this.availableBot()) break;
@@ -352,8 +373,8 @@ export class InhouseStore {
     if (!bot) fail('All lobby bots are busy or offline. Players remain queued.', 409);
     const id = Number(this.db.prepare(`INSERT INTO InhouseGames(Status,LeagueId,QueueMode,DraftMode,LaunchMinutes,CreatedAt,Deadline,PlayerCount)
       VALUES('ready',?,?,?,?,?,?,?)`).run(settings.leagueId, settings.queueMode, settings.draftMode, settings.launchMinutes, now, now + 60000, selected.length).lastInsertRowid);
-    this.db.prepare('UPDATE InhouseGames SET BotId=?,GameMode=?,ServerRegion=?,LobbyName=?,LobbyPassword=? WHERE InhouseId=?')
-      .run(bot.BotId, settings.gameMode, settings.serverRegion, `Lads Inhouse #${id}`, randomBytes(8).toString('hex'), id);
+    this.db.prepare('UPDATE InhouseGames SET BotId=?,GameMode=?,ServerRegion=?,LobbyName=?,LobbyPassword=?,QueueAvailability=? WHERE InhouseId=?')
+      .run(bot.BotId, settings.gameMode, settings.serverRegion, `Lads Inhouse #${id}`, randomBytes(8).toString('hex'),settings.availability, id);
     if (this.db.prepare('UPDATE InhouseBots SET InhouseId=? WHERE BotId=? AND InhouseId IS NULL').run(id, bot.BotId).changes !== 1) fail('Lobby bot was reserved by another game', 409);
     for (const p of selected) {
       this.db.prepare(`INSERT INTO InhouseMembers(InhouseId,PlayerId,JoinedAt,RolesJson,OffRole,RatingAtDraft,GamesAtDraft)
@@ -367,12 +388,13 @@ export class InhouseStore {
   startAdminTest(actorId, {playerCount = 2} = {}) {
     return this.mutate(() => {
       const settings = this.settings();
+      if(settings.availability==='closed')fail('Inhouses are closed. Reopen admin testing before starting a test.',409);
       if (!settings.leagueId) fail('Configure the inhouse ticket before starting a test', 409);
       if (![1,2].includes(playerCount)) fail('Choose a one-player or two-player admin test');
       const players = this.queue();
       if (players.length !== playerCount) fail(`Exactly ${playerCount === 1 ? 'one player must' : 'two players must'} be waiting in the queue to start this test`, 409);
       if (playerCount === 1 && players[0].playerId !== Number(actorId)) fail('Join the queue yourself to start a solo admin test', 403);
-      return {gameId: this.reservePlayers(players, {...settings, ...(playerCount === 1 ? {gameMode:1,leagueId:0} : {}),queueMode: 'fifo', draftMode: 'automatic'}, this.clock(), actorId)};
+      return {gameId: this.reservePlayers(players, {...settings, ...(playerCount === 1 ? {gameMode:1} : {}),queueMode: 'fifo', draftMode: 'automatic'}, this.clock(), actorId)};
     });
   }
   ready(id, playerId) {
@@ -454,7 +476,7 @@ export class InhouseStore {
   cancelInside(g, reason, actorId, failedReady = false) {
     this.db.prepare("UPDATE InhouseGames SET Status='cancelled',Deadline=NULL,CancelReason=?,CompletedAt=? WHERE InhouseId=?")
       .run(reason, this.clock(), g.InhouseId);
-    if (failedReady) {
+    if (failedReady && this.settings().availability!=='closed' && (this.settings().availability==='open'||g.QueueAvailability!=='open')) {
       this.db.prepare(`DELETE FROM InhouseQueue WHERE InhouseId=? AND PlayerId IN
         (SELECT PlayerId FROM InhouseMembers WHERE InhouseId=? AND Ready=0)`).run(g.InhouseId, g.InhouseId);
       this.db.prepare('UPDATE InhouseQueue SET InhouseId=NULL WHERE InhouseId=?').run(g.InhouseId);

@@ -10,11 +10,15 @@ function mergeChat(previous, next, ownerId) {
     .sort((a, b) => a.id - b.id).slice(-100)};
 }
 
+const canAccess=(mode,admin,history,activeGameId)=>mode==='closed'?Boolean(activeGameId):Boolean(admin||mode==='open'||history||activeGameId);
+
 // The sidebar and current lobby share one connection. Only a participant's
 // current room is subscribed; queue-only viewers receive no chat messages.
 export default function InhouseActivityProvider({children}) {
   const {user} = useAuth(), ownerId = String(user?.accountId || '');
-  const enabled = Boolean(user?.isAdmin);
+  const [availabilityState,setAvailabilityState]=useState(null);
+  const availability=availabilityState?.ownerId===ownerId?availabilityState:null;
+  const enabled = Boolean(availability?.availability==='open'||availability?.activeGameId||user?.isAdmin&&availability?.availability==='admin_testing');
   const [queue, setQueue] = useState(null), [error, setError] = useState('');
   const [requested, setRequested] = useState(null), [chatState, setChatState] = useState(null);
   const [playerState, setPlayerState] = useState(null);
@@ -29,6 +33,16 @@ export default function InhouseActivityProvider({children}) {
     if (gameId && packet.inhouseId === gameId) setChatState(previous => mergeChat(previous, packet, ownerId));
   }, [gameId, ownerId]);
   const refresh = useCallback(() => load.current(), []);
+  useEffect(()=>{
+    const controller=new AbortController();
+    const read=()=>inhouseRequest('/inhouses/availability',{signal:controller.signal}).then(data=>{
+      if(!controller.signal.aborted)setAvailabilityState({...data,ownerId});
+    }).catch(()=>{});
+    read();
+    const timer=setInterval(()=>{if(!document.hidden)read();},30000);
+    window.addEventListener('inhouses:changed',read);document.addEventListener('visibilitychange',read);
+    return()=>{controller.abort();clearInterval(timer);window.removeEventListener('inhouses:changed',read);document.removeEventListener('visibilitychange',read);};
+  },[ownerId]);
   useInhouseReadyAlert(enabled && playerState?.ownerId === ownerId ? playerState.readyCheck : null);
 
   useEffect(() => {
@@ -44,6 +58,8 @@ export default function InhouseActivityProvider({children}) {
         const data = await inhouseRequest(`/inhouses/activity${query}`, {signal: controller.signal});
         if (!controller.signal.aborted && sequence === startedAt) {
           setQueue(data.queue); setPlayerState({...data.player, ownerId});
+          setAvailabilityState(current=>current?.ownerId===ownerId?{...current,availability:data.queue.availability,activeGameId:data.player.activeGameId,
+            hasHistory:current.hasHistory||Boolean(data.player.activeGameId),canAccess:canAccess(data.queue.availability,user?.isAdmin,current.hasHistory,data.player.activeGameId)}:current);
           if (data.chat) receiveChat(data.chat); setError('');
         }
       } catch (e) {if (!controller.signal.aborted) setError(e.message);}
@@ -59,8 +75,15 @@ export default function InhouseActivityProvider({children}) {
         try {
           const data = JSON.parse(event.data);
           if (kind === 'chat') receiveChat(data);
-          else if (kind === 'player') setPlayerState({...data, ownerId});
-          else setQueue(data);
+          else if (kind === 'player') {
+            setPlayerState({...data, ownerId});
+            setAvailabilityState(current=>current?.ownerId===ownerId?{...current,activeGameId:data.activeGameId,hasHistory:current.hasHistory||Boolean(data.activeGameId),
+              canAccess:canAccess(current.availability,user?.isAdmin,current.hasHistory,data.activeGameId)}:current);
+          } else {
+            setQueue(data);
+            setAvailabilityState(current=>current?.ownerId===ownerId?{...current,availability:data.availability,
+              canAccess:canAccess(data.availability,user?.isAdmin,current.hasHistory,current.activeGameId)}:current);
+          }
           sequence++; fallback = false; setConnected(true); setError('');
         } catch {fallback = true;}
       };
@@ -81,10 +104,10 @@ export default function InhouseActivityProvider({children}) {
       document.removeEventListener('visibilitychange', visibility);
       window.removeEventListener('inhouses:changed', read);
     };
-  }, [gameId, ownerId, enabled]);
+  }, [gameId, ownerId, enabled,user?.isAdmin]);
 
   const chat = enabled && chatState?.ownerId === ownerId && chatState.inhouseId === gameId ? chatState : null;
-  return <InhouseActivityContext.Provider value={{queue: enabled ? queue : null, error: enabled ? error : '', refresh, connected: enabled && connected, chat, watchChat, acceptChat}}>
+  return <InhouseActivityContext.Provider value={{availability,queue: enabled ? queue : null, error: enabled ? error : '', refresh, connected: enabled && connected, chat, watchChat, acceptChat}}>
     {children}
   </InhouseActivityContext.Provider>;
 }
