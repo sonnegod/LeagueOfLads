@@ -93,6 +93,7 @@ function InhousesContent() {
   }
   const card = game => <InhouseGameCard key={game.id} game={game} userId={user?.accountId} now={now} busy={busy}
     onReady={id => run(`/inhouses/games/${id}/ready`, 'POST')}
+    onLobbyChoice={(id,choice,turn)=>run(`/inhouses/games/${id}/lobby-choice`,'POST',{choice,turn})}
     onPick={(id, playerId, turn) => run(`/inhouses/games/${id}/pick`, 'POST', {playerId, turn})} />;
   return <div className="ui-page inhouses-page">
     <header className="inhouse-page-heading"><h1>Inhouses</h1>
@@ -129,7 +130,9 @@ function InhousesContent() {
       <InhouseChat key={`${mine.id}:${user.accountId}`} gameId={mine.id} accountId={user.accountId} /></div> : <>
     <div className="inhouse-overview"><span><strong>{state.queue.length}</strong> waiting</span><span>{state.settings.queueMode === 'fifo' ? 'FIFO · roles informational' : 'Role preference'}</span>
       <span>{state.settings.draftMode === 'captain' ? 'Captain draft' : 'Automatic teams'}</span><span>{connected ? 'Live updates' : 'Checking for updates'}</span></div>
-    {selected && !['completed', 'cancelled'].includes(selected.status) && card(selected)}
+    {state.queue.length > 0 && !state.bots?.some(bot => bot.status === 'idle' && !bot.gameId) &&
+      <p className="inhouse-muted">Waiting for an available lobby bot. Queued players keep their place.</p>}
+    {selected && card(selected)}
     <div className="inhouse-lobby-grid">
       {user && profile ? <QueuePanel profile={profile} queued={queued} busy={busy} configured={Boolean(state.settings.leagueId)} run={run} onSettings={() => changeTab('settings')} />
         : <section className="inhouse-card"><h2>Join an inhouse</h2><p>{loading || user ? 'Loading your preferences…' : 'Sign in to choose your positions and join the queue.'}</p>
@@ -146,9 +149,13 @@ function InhousesContent() {
         </div>}
         {state.queue.length ? <ol className="inhouse-queue">{state.queue.map(p => <li key={p.playerId}><InhousePlayerRow player={p} /></li>)}</ol>
           : <p className="inhouse-muted">No players waiting. Start the next game.</p>}
+        {user?.isAdmin && queued && state.queue.length === 1 && <div className="inhouse-actions">
+          <button type="button" disabled={busy || !state.settings.leagueId || !state.bots?.some(bot=>bot.status==='idle'&&!bot.gameId)} onClick={()=>run('/admin/inhouses/test','POST',{playerCount:1})}>Start 1-player test</button>
+          <small className="inhouse-muted">Real bot-hosted All Pick game for your account. Tests the result and player release without changing ratings or standings.</small>
+        </div>}
         {user?.isAdmin && state.queue.length === 2 && <div className="inhouse-actions">
-          <button type="button" disabled={busy || !state.settings.leagueId} onClick={() => run('/admin/inhouses/test', 'POST')}>Start 2-player test</button>
-          <small className="inhouse-muted">1v1 using these two players and the configured ticket.</small>
+          <button type="button" disabled={busy || !state.settings.leagueId || !state.bots?.some(bot => bot.status === 'idle' && !bot.gameId)} onClick={() => run('/admin/inhouses/test', 'POST')}>Start 2-player test</button>
+          <small className="inhouse-muted">A bot hosts the 1v1 for these players using the configured ticket.</small>
         </div>}
       </section>
     </div>

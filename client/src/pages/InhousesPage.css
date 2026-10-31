@@ -17,6 +17,15 @@
 .inhouse-role-error,.inhouse-role-dialog .inhouse-role-error { color:#fda4af; }
 .inhouse-page-heading,.inhouse-card-heading,.inhouse-team>header,.inhouse-actions { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
 .inhouse-page-heading { margin-bottom:var(--ui-content-gap); }
+.inhouse-result { margin:16px 0; padding:16px; border:1px solid var(--border-color,#334155); border-radius:10px; background:var(--surface-raised,#17243a); }
+.inhouse-result h3 { margin:0 0 8px; }
+.inhouse-lobby-choices { margin:16px 0; padding:16px; border:1px solid #475569; border-radius:10px; }
+.inhouse-lobby-choices h3 { margin:0 0 8px; }
+.inhouse-choice-options { display:flex; flex-wrap:wrap; gap:10px; }
+.inhouse-choice-options button { flex:1 1 120px; min-height:42px; }
+.inhouse-result p { margin:10px 0 0; color:var(--muted-text,#94a3b8); }
+.inhouse-rating-change { display:flex; align-items:center; flex-wrap:wrap; gap:12px; font-variant-numeric:tabular-nums; }
+.inhouse-rating-change>span { font-size:1.35rem; font-weight:700; }
 .content .inhouse-page-heading h1 { margin:0; }
 .inhouse-page-heading p,.inhouse-muted,.inhouse-meta,.inhouse-player small { color:var(--muted-text,#94a3b8); }
 .inhouse-page-heading p { margin:0; }
@@ -88,6 +97,10 @@
 .inhouse-settings input,.inhouse-settings select,.inhouse-recovery input,.inhouse-recovery textarea { width:100%; box-sizing:border-box; padding:10px; min-width:0; }
 .inhouse-recovery { display:grid; gap:12px; }
 .inhouse-admin-games { display:grid; gap:16px; }
+.inhouse-bot-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(165px,100%),1fr)); gap:12px; }
+.inhouse-bot-slot { display:grid; align-content:start; gap:6px; min-width:0; border:1px solid #334155; border-radius:8px; padding:12px; }
+.inhouse-bot-slot small,.inhouse-bot-slot p { overflow-wrap:anywhere; color:#94a3b8; margin:0; font-size:.78rem; }
+.inhouse-lobby-details { display:flex; flex-wrap:wrap; gap:8px 20px; padding:12px; margin:12px 0; border:1px solid #334155; border-radius:8px; overflow-wrap:anywhere; }
 .inhouse-admin-game { border:1px solid #334155; border-radius:8px; padding:16px; }
 .inhouse-admin-game summary { cursor:pointer; overflow-wrap:anywhere; }
 .inhouse-admin-game summary small { display:block; color:#94a3b8; margin-top:6px; }

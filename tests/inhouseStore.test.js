@@ -61,7 +61,7 @@ test('preference mode waits for coverage while FIFO allows free draft, and setti
   } finally {f.close();}
 });
 
-test('captain authorization, stale turns, timeout picks, and final launch deadline are server-owned', () => {
+test('captain authorization and draft deadlines are server-owned; join timing waits for the bot', () => {
   const f = inhouseFixture({draftMode: 'captain'});
   try {
     const id = f.ten(); let game = f.ready(id);
@@ -72,11 +72,13 @@ test('captain authorization, stale turns, timeout picks, and final launch deadli
     for (let i = 0; i < 7; i++) {f.advance(60001); f.store.tick();}
     game = f.store.game(id);
     assert.equal(game.status, 'awaiting_game'); assert.equal(game.turn, 8);
-    assert.equal(game.deadline, f.clock() + 15 * 60000);
+    assert.equal(game.lobbyChoices.pending,true);
+    game=f.completeChoices(id);
+    assert.equal(game.deadline, null);
     assert.equal(game.players.filter(p => p.side === 'A').length, 5);
     f.advance(15 * 60000 + 1); f.store.tick();
-    assert.equal(f.store.game(id).status, 'cancelled');
-    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM InhouseQueue').get().n, 0);
+    assert.equal(f.store.game(id).status, 'awaiting_game','Website maintenance does not start or expire the bot join timer');
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM InhouseQueue').get().n, 10);
   } finally {f.close();}
 });
 
@@ -152,6 +154,7 @@ test('reservations and deadlines persist across connections and cannot be claime
   try {
     a = new Database(path); const first = new InhouseStore(a);
     first.saveSettings({version: 1, leagueId: 777, queueMode: 'fifo', draftMode: 'captain', launchMinutes: 15}, 99);
+    first.updateBot(1,{steamId:'76561197960266729',status:'idle'});
     for (let id = 1; id <= 10; id++) first.join(id, {roles: [2], offRole: false}, `Player ${id}`);
     const deadline = first.game(1).deadline;
     b = new Database(path); const second = new InhouseStore(b);
@@ -159,6 +162,20 @@ test('reservations and deadlines persist across connections and cannot be claime
     assert.throws(() => second.join(1, {roles: [1], offRole: false}, 'One'), /already/);
     second.tick(); assert.equal(first.db.prepare('SELECT COUNT(*) n FROM InhouseGames').get().n, 1);
   } finally {b?.close(); a?.close(); rmSync(directory, {recursive: true, force: true});}
+});
+
+test('new games always require an online bot, including requests from older clients sending manual hosting settings', () => {
+  const f=inhouseFixture({bots:0});
+  try {
+    f.store.saveSettings({...f.store.settings(),botHosting:false});
+    for(let id=1;id<=10;id++)f.join(id);
+    assert.equal(f.store.queue().length,10);
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM InhouseGames').get().n,0);
+    assert.equal(f.store.settings().botHosting,undefined);
+    f.store.updateBot(1,{steamId:'76561197960266729',status:'idle'});f.store.tick();
+    assert.equal(f.store.game(1).botId,1);
+    assert.equal(f.store.queue().length,0);
+  } finally {f.close();}
 });
 
 test('each player finishes calibration after exactly five rated games', () => {

@@ -33,7 +33,6 @@ import {createQualificationStageRouter} from './qualificationStageRoutes.js';
 import {readQualificationStage,readQualificationMatches,qualificationStageResponse} from '../config/tiebreakerStage.js';
 import { createPlayerLoginRouter } from './playerLoginRoutes.js';
 import {InhouseStore} from '../inhouses/store.js';
-import {createSteamInhouseClient} from '../inhouses/steam.js';
 import {createInhouseRoutes} from './inhouseRoutes.js';
 import {createLogoutHandler} from './authLogout.js';
 
@@ -42,7 +41,7 @@ dotenv.config();
 
 const router = express.Router();
 const inhouseStore = new InhouseStore(db.db);
-const inhouseRoutes = createInhouseRoutes({store: inhouseStore, api: createSteamInhouseClient(), requireAdmin: checkAdmin,
+const inhouseRoutes = createInhouseRoutes({store: inhouseStore, requireAdmin: checkAdmin,
   isOfficialTicket: id => Boolean(db.db.prepare('SELECT 1 FROM LeagueInfo WHERE LeagueId=? UNION SELECT 1 FROM LeagueSeasons WHERE ExternalLeagueId=? LIMIT 1').get(id, id)),
   playerName: (id, req) => db.db.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId=?').get(id)?.PlayerName || req.user?.displayName || `Player ${id}`});
 export const inhouseUpdates = inhouseRoutes.stream;

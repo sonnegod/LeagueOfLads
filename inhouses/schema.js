@@ -1,4 +1,31 @@
+// SQLite cannot alter a CHECK constraint in place. Preserve existing game IDs,
+// columns, indexes and references while allowing the explicit solo admin test.
+function allowSoloTests(db) {
+  const oldCheck = /CHECK\s*\(\s*PlayerCount\s+IN\s*\(\s*2\s*,\s*10\s*\)\s*\)/i;
+  const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='InhouseGames'").get()?.sql;
+  if (!sql || !oldCheck.test(sql)) return;
+  if (db.inTransaction) throw new Error('Initialize the inhouse schema outside an existing transaction');
+  const foreignKeys = db.pragma('foreign_keys', {simple:true});
+  try {
+    db.pragma('foreign_keys = OFF');
+    db.transaction(() => {
+      const current = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='InhouseGames'").get().sql;
+      if (!oldCheck.test(current)) return; // Another initializer already migrated it.
+      const objects = db.prepare("SELECT sql FROM sqlite_master WHERE tbl_name='InhouseGames' AND type IN ('index','trigger') AND sql IS NOT NULL").all();
+      const create = current.replace(oldCheck,'CHECK(PlayerCount IN (1,2,10))')
+        .replace(/^CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(?:"InhouseGames"|`InhouseGames`|\[InhouseGames\]|InhouseGames)\s*/i,'CREATE TABLE InhouseGames_solo_migration ');
+      const columns = db.pragma('table_info(InhouseGames)').map(c => `"${c.name.replaceAll('"','""')}"`).join(',');
+      db.exec(create);
+      db.exec(`INSERT INTO InhouseGames_solo_migration (${columns}) SELECT ${columns} FROM InhouseGames;
+        DROP TABLE InhouseGames; ALTER TABLE InhouseGames_solo_migration RENAME TO InhouseGames;`);
+      for (const object of objects) db.exec(object.sql);
+      if (db.pragma('foreign_key_check(InhouseGames)').length) throw new Error('Inhouse game migration found invalid references');
+    }).immediate();
+  } finally {db.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`);}
+}
+
 export function ensureInhouseSchema(db) {
+  allowSoloTests(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS InhouseSettings (
       Id INTEGER PRIMARY KEY CHECK(Id=1), LeagueId INTEGER,
@@ -26,7 +53,7 @@ export function ensureInhouseSchema(db) {
       Turn INTEGER NOT NULL DEFAULT 0, CaptainA INTEGER, CaptainB INTEGER,
       MatchId INTEGER UNIQUE, RadiantSide TEXT CHECK(RadiantSide IN ('A','B')),
       Winner TEXT CHECK(Winner IN ('A','B')), FormedAt INTEGER, StartedAt INTEGER, CompletedAt INTEGER,
-      CancelReason TEXT, PlayerCount INTEGER NOT NULL DEFAULT 10 CHECK(PlayerCount IN (2,10))
+      CancelReason TEXT, PlayerCount INTEGER NOT NULL DEFAULT 10 CHECK(PlayerCount IN (1,2,10))
     );
     CREATE TABLE IF NOT EXISTS InhouseMembers (
       InhouseId INTEGER NOT NULL REFERENCES InhouseGames(InhouseId), PlayerId INTEGER NOT NULL REFERENCES InhousePlayers(PlayerId),
@@ -59,10 +86,46 @@ export function ensureInhouseSchema(db) {
       LastTick INTEGER, LastSuccess INTEGER, LastError TEXT
     );
     INSERT OR IGNORE INTO InhouseWorker(Id) VALUES(1);
+    CREATE TABLE IF NOT EXISTS InhouseBots (
+      BotId INTEGER PRIMARY KEY CHECK(BotId BETWEEN 1 AND 5), SteamId TEXT UNIQUE,
+      Status TEXT NOT NULL DEFAULT 'unconfigured', LastSeen INTEGER, LastError TEXT,
+      InhouseId INTEGER UNIQUE REFERENCES InhouseGames(InhouseId)
+    );
+    INSERT OR IGNORE INTO InhouseBots(BotId) VALUES(1),(2),(3),(4),(5);
+    CREATE TABLE IF NOT EXISTS InhouseBotResults (
+      MatchId INTEGER PRIMARY KEY, ResultJson TEXT NOT NULL, VerifiedAt INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS InhouseBotLookups (
+      LookupId INTEGER PRIMARY KEY, InhouseId INTEGER NOT NULL REFERENCES InhouseGames(InhouseId),
+      MatchId INTEGER NOT NULL, ActorId INTEGER NOT NULL, Reason TEXT NOT NULL,
+      Status TEXT NOT NULL DEFAULT 'pending', RequestedAt INTEGER NOT NULL, AttemptedAt INTEGER,
+      Attempts INTEGER NOT NULL DEFAULT 0, LastError TEXT
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_InhouseBotLookups_Pending ON InhouseBotLookups(InhouseId) WHERE Status='pending';
   `);
   db.transaction(() => {
+    const add = (table, name, definition) => {
+      if (!db.pragma(`table_info(${table})`).some(column => column.name === name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+    };
+    add('InhouseSettings', 'GameMode', 'INTEGER NOT NULL DEFAULT 1 CHECK(GameMode IN (1,2))');
+    add('InhouseSettings', 'ServerRegion', 'INTEGER NOT NULL DEFAULT 2');
+    add('InhouseGames', 'BotId', 'INTEGER REFERENCES InhouseBots(BotId)');
+    add('InhouseGames', 'GameMode', 'INTEGER NOT NULL DEFAULT 1');
+    add('InhouseGames', 'ServerRegion', 'INTEGER NOT NULL DEFAULT 2');
+    add('InhouseGames', 'LobbyId', 'TEXT');
+    add('InhouseGames', 'LobbyName', 'TEXT');
+    add('InhouseGames', 'LobbyPassword', 'TEXT');
+    add('InhouseGames', 'HostingError', 'TEXT');
+    add('InhouseGames', 'BotLaunchedAt', 'INTEGER');
+    add('InhouseGames', 'LaunchRosterJson', 'TEXT');
+    add('InhouseGames', 'LobbyRadiantSide', "TEXT DEFAULT 'A' CHECK(LobbyRadiantSide IN ('A','B'))");
+    add('InhouseGames', 'FirstPickSide', "TEXT CHECK(FirstPickSide IN ('A','B'))");
+    add('InhouseGames', 'ChoiceCaptain', 'INTEGER');
+    add('InhouseGames', 'ChoiceTurn', 'INTEGER NOT NULL DEFAULT 2 CHECK(ChoiceTurn BETWEEN 0 AND 2)');
+    add('InhouseGames', 'ChoiceDeadline', 'INTEGER');
+    add('InhouseGames', 'LobbyJoinStartedAt', 'INTEGER');
     if (!db.pragma('table_info(InhouseGames)').some(column => column.name === 'PlayerCount')) {
-      db.exec('ALTER TABLE InhouseGames ADD COLUMN PlayerCount INTEGER NOT NULL DEFAULT 10 CHECK(PlayerCount IN (2,10))');
+      db.exec('ALTER TABLE InhouseGames ADD COLUMN PlayerCount INTEGER NOT NULL DEFAULT 10 CHECK(PlayerCount IN (1,2,10))');
     }
     if (!db.pragma('table_info(InhousePlayers)').some(column => column.name === 'PreferencesPromptedAt')) {
       db.exec('ALTER TABLE InhousePlayers ADD COLUMN PreferencesPromptedAt INTEGER');

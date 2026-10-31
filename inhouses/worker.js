@@ -1,106 +1,41 @@
 import {randomUUID} from 'node:crypto';
 
-// A database lease prevents accidentally running two PM2 instances against the
-// same queue. Reservation and result transactions remain authoritative as well.
-export function createInhouseWorker(store, api, {clock = Date.now, owner = randomUUID()} = {}) {
-  let stopped = false, nextPoll = 0, nextHealth = 0;
-  const detailDue = new Map();
-  function lease() {
-    return store.db.prepare(`UPDATE InhouseWorker SET Owner=?,LeaseUntil=? WHERE Id=1
+// One process owns the five Steam sessions, deadlines and lobby assignments.
+export function createInhouseWorker(store, pool, {clock = Date.now, owner = randomUUID()} = {}) {
+  let stopped = false, started = false, nextHealth = 0, lastSuccess = 0, lastError = '';
+  function claim() {
+    return !stopped && store.db.prepare(`UPDATE InhouseWorker SET Owner=?,LeaseUntil=? WHERE Id=1
       AND (Owner=? OR LeaseUntil<? OR Owner IS NULL)`).run(owner, clock() + 120000, owner, clock()).changes === 1;
   }
-  function health(error, success = false) {
-    store.mutate(() => {
-      store.db.prepare(`UPDATE InhouseWorker SET LastTick=?,LastSuccess=CASE WHEN ? THEN ? ELSE LastSuccess END,LastError=? WHERE Id=1 AND Owner=?`)
-        .run(clock(), Number(success), clock(), error || null, owner);
-    });
-  }
   function maintain() {
-    if (stopped || !lease()) return false;
-    // Keep ready checks and picks advancing while API requests are awaiting
-    // network responses. Launch cancellation still follows discovery in step().
-    store.tick({expireLaunch: false});
-    if (clock() >= nextHealth) {
-      store.mutate(() => store.db.prepare('UPDATE InhouseWorker SET LastTick=? WHERE Id=1 AND Owner=?').run(clock(), owner));
+    if (!claim()) {
+      if (started && !stopped) close({report: false});
+      return false;
+    }
+    if (!started) {
+      started = true;
+      try {pool.start();} catch (error) {close(); throw error;}
+    }
+    store.tick();
+    const report = pool.tick() || {};
+    // The bot owns the join deadline after confirming its lobby is ready.
+    // Site maintenance advances only ready checks and captain choices/drafts.
+    const error = report.errors?.join(' ').slice(0,1000) || '';
+    if (clock() >= nextHealth || report.lastSuccess > lastSuccess || error !== lastError) {
+      store.mutate(() => store.db.prepare(`UPDATE InhouseWorker SET LastTick=?,
+        LastSuccess=CASE WHEN ?>COALESCE(LastSuccess,0) THEN ? ELSE LastSuccess END,LastError=?
+        WHERE Id=1 AND Owner=?`).run(clock(), report.lastSuccess || 0, report.lastSuccess || 0,
+          error || null, owner));
+      lastSuccess = report.lastSuccess || 0; lastError = error;
       nextHealth = clock() + 15000;
     }
     return true;
   }
-  async function step() {
-    if (stopped || !lease()) return {skipped: true};
-    store.tick({expireLaunch: false});
-    if (clock() < nextPoll) {
-      if (clock() >= nextHealth) {health(null); nextHealth = clock() + 15000;}
-      return {polled: false};
-    }
-    nextPoll = clock() + 10000;
-    const pending = store.db.prepare("SELECT * FROM InhouseGames WHERE Status IN ('awaiting_game','playing') ORDER BY InhouseId").all();
-    if (!pending.length) {health(null); nextHealth = clock() + 15000; return {polled: false};}
-    const errors = [], details = new Map();
-    const budgetEnd = clock() + 45000;
-    async function matchDetails(id) {
-      if (!lease()) throw new Error('Worker lease unavailable');
-      if (!details.has(id)) details.set(id, await api.details(id));
-      return details.get(id);
-    }
-    function tryLink(match) {
-      if (stopped) return;
-      const eligible = pending.filter(g => g.Status === 'awaiting_game' && match.leagueId === g.LeagueId && !g.MatchId && (() => {
-        try {store.validateMatch(g, match); return true;} catch {return false;}
-      })());
-      if (eligible.length !== 1) return;
-      try {const outcome = store.applyMatch(eligible[0].InhouseId, match); eligible[0].MatchId = match.matchId; eligible[0].Status = outcome.completed ? 'completed' : 'playing';}
-      catch (error) {if (!error.status || error.status >= 500) throw error;}
-    }
-    try {
-      for (const leagueId of new Set(pending.map(g => g.LeagueId))) {
-        if (stopped || clock() > budgetEnd) break;
-        try {for (const match of await api.live(leagueId)) tryLink(match);}
-        catch (error) {errors.push(error.message);}
-        // History also recovers a game that started/finished while the worker
-        // was offline. It is not needed every five seconds during a long game.
-        const awaiting = pending.filter(g => !stopped && g.Status === 'awaiting_game' && g.LeagueId === leagueId);
-        if (awaiting.length) {
-          try {
-            const history = await api.history(leagueId);
-            const earliest = Math.min(...awaiting.map(g => g.FormedAt)) - 120000;
-            for (const candidate of history) {
-              if (clock() > budgetEnd || stopped) break;
-              if (!Number.isFinite(candidate.startedAt) || candidate.startedAt < earliest ||
-                store.db.prepare('SELECT 1 FROM InhouseGames WHERE MatchId=?').get(candidate.matchId)) continue;
-              try {tryLink(await matchDetails(candidate.matchId));} catch (error) {errors.push(error.message);}
-            }
-          } catch (error) {errors.push(error.message);}
-        }
-      }
-      for (const g of pending.filter(g => g.Status === 'playing')) {
-        if (stopped || clock() > budgetEnd) break;
-        if ((detailDue.get(g.MatchId) || 0) > clock()) continue;
-        detailDue.set(g.MatchId, clock() + 15000);
-        try {
-          const match = await matchDetails(g.MatchId);
-          if (stopped) break;
-          const outcome = store.applyMatch(g.InhouseId, match);
-          if (match.winner && !outcome.completed) errors.push(g.PlayerCount === 2
-            ? `Match ${g.MatchId} is awaiting a valid start time and duration.`
-            : `Match ${g.MatchId} is shorter than five minutes; cancel or correct its link if it was a remake.`);
-        } catch (error) {errors.push(error.message);}
-      }
-    } finally {
-      // Discover before enforcing launch deadlines, so a game present at the
-      // boundary can be linked atomically rather than cancelled first.
-      if (!stopped && lease()) {
-        store.tick();
-        health(errors.length ? [...new Set(errors)].join(' ').slice(0, 1000) : null, errors.length === 0);
-      }
-      nextHealth = clock() + 15000;
-      const playing = new Set(store.db.prepare("SELECT MatchId FROM InhouseGames WHERE Status='playing'").all().map(g => g.MatchId));
-      for (const id of detailDue.keys()) if (!playing.has(id)) detailDue.delete(id);
-    }
-    return {polled: true, errors};
-  }
-  return {step, maintain, close() {
+  function close({report = true} = {}) {
+    if (stopped) return;
     stopped = true;
-    store.db.prepare('UPDATE InhouseWorker SET Owner=NULL,LeaseUntil=0 WHERE Id=1 AND Owner=?').run(owner);
-  }};
+    try {if (started) pool.close(report ? undefined : {report: false});}
+    finally {store.db.prepare('UPDATE InhouseWorker SET Owner=NULL,LeaseUntil=0 WHERE Id=1 AND Owner=?').run(owner);}
+  }
+  return {claim, maintain, close, async step() {return maintain() ? {polled: true} : {skipped: true};}};
 }

@@ -15,5 +15,7 @@ LadsData.db
 Logs/
 # Temporary local verification scripts and artifacts
 /.scratch/
+# Steam bot sessions must never be committed, including custom local auth files.
+**/inhouse-bots/
 client/src/data/dotaItems.generated.json
 client/src/data/dotaItems.generated.json.*.tmp
