@@ -14,6 +14,18 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
     slot.nextCommand = clock() + 1000;
     slot.session.command(name, body);
   }
+  const chatName = player => String(player.name || 'Player').replace(/\s+/g,' ').trim().slice(0,100);
+  function flushChat(slot) {
+    if (!slot.chatQueue.size || clock() < slot.nextChat || typeof slot.session.sayLobby !== 'function') return;
+    const keys=[],parts=[];
+    for (const [key,text] of slot.chatQueue) {
+      if ([...parts,text].join(' ').length > 500) break;
+      keys.push(key);parts.push(text);
+    }
+    slot.nextChat=clock()+1000;
+    try {if(slot.session.sayLobby(parts.join(' ')))for(const key of keys)slot.chatQueue.delete(key);}
+    catch { /* Chat delivery must not prevent roster checks or game launch. */ }
+  }
   function settingsFor(g) {
     return {lobbyId: g.LobbyId || undefined, gameName: g.LobbyName, passKey: g.LobbyPassword,
       serverRegion: g.ServerRegion, gameMode: g.GameMode, leagueid: g.LeagueId,
@@ -77,18 +89,37 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
     if (g.LobbyJoinStartedAt == null) {
       store.startLobbyTimer(g.InhouseId, lobby.lobbyId);
       g = store.rawGame(g.InhouseId);
+      slot.chatQueue.set('opened',`Lobby ready. You have ${g.LaunchMinutes} minutes to join your assigned team. Any slot on that team is fine.`);
     }
     const players = store.members(g.InhouseId);
     const expected = new Map(players.map(p => [p.playerId, p.side === g.LobbyRadiantSide ? 0 : 1]));
+    const present = new Map(members.filter(p => p.id !== session.steamId).map(p => [accountId(p.id), p]));
+    const arrivals = new Set();
+    for (const player of players) {
+      if (present.has(player.playerId) && !slot.chatPresent.has(player.playerId)) {
+        arrivals.add(player.playerId);
+        slot.chatQueue.set(`welcome:${player.playerId}`,`${chatName(player)}: join ${expected.get(player.playerId)===0?'Radiant':'Dire'} (any slot).`);
+      }
+      if (!present.has(player.playerId)) {
+        slot.chatQueue.delete(`welcome:${player.playerId}`);slot.chatQueue.delete(`correction:${player.playerId}`);
+      }
+      if (present.get(player.playerId)?.team === expected.get(player.playerId)) slot.chatQueue.delete(`correction:${player.playerId}`);
+    }
+    slot.chatPresent=new Set(players.filter(p=>present.has(p.playerId)).map(p=>p.playerId));
+    flushChat(slot);
     for (const member of members) {
       const id = accountId(member.id);
       if (member.id === session.steamId) continue;
       if (!expected.has(id)) {send(slot, 'kick', {accountId: id}); return;}
       if ([0,1].includes(member.team) && member.team !== expected.get(id)) {
+        if(!arrivals.has(id)&&(slot.correctionDue.get(id)||0)<=clock()) {
+          const player=players.find(p=>p.playerId===id);
+          slot.chatQueue.set(`correction:${id}`,`${chatName(player)}: wrong team. Join ${expected.get(id)===0?'Radiant':'Dire'} (any slot).`);
+          slot.correctionDue.set(id,clock()+5000);
+        }
         send(slot, 'unseat', {accountId: id}); return;
       }
     }
-    const present = new Map(members.filter(p => p.id !== session.steamId).map(p => [accountId(p.id), p]));
     for (const player of players) {
       if (!present.has(player.playerId) && (slot.invites.get(player.playerId) || 0) <= clock()) {
         slot.invites.set(player.playerId, clock() + 30000); slot.nextCommand = clock() + 1000;
@@ -96,7 +127,14 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
       }
     }
     if (players.some(p => present.get(p.playerId)?.team !== expected.get(p.playerId))) {
+      slot.chatWaitUntil=0;
       store.hostingUpdate(g.InhouseId, {HostingError: 'Waiting for all invited players to join their assigned Radiant / Dire teams.'}); return;
+    }
+    // Give the last arrivals' instructions a short chance to reach lobby chat.
+    // A missing/rejected chat connection must never hold a complete roster.
+    if(slot.chatQueue.size&&clock()+2000<g.Deadline) {
+      slot.chatWaitUntil ||= Math.min(clock()+10000,g.Deadline-2000);
+      if(clock()<slot.chatWaitUntil)return;
     }
     if ((slot.launchDue || 0) > clock()) return;
     // Persist the verified identities before launch: postgame snapshots may
@@ -138,7 +176,8 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
       }
       for (const [id, config] of configs) {
         const previous = store.db.prepare('SELECT * FROM InhouseBots WHERE BotId=?').get(id);
-        const slot = {id, session: null, error: config.error || null, nextCommand: 0, invites: new Map(), gameId: previous.InhouseId};
+        const slot = {id, session: null, error: config.error || null, nextCommand: 0, invites: new Map(), gameId: previous.InhouseId,
+          chatQueue:new Map(),chatPresent:new Set(),correctionDue:new Map(),nextChat:0,chatWaitUntil:0};
         slots.set(id, slot);
         if (config.auth && (!previous.InhouseId || !previous.SteamId || previous.SteamId === config.auth.steamId)) {
           slot.session = createSession(config.auth, {clock, onToken: data => saveAuth(id, data)});
@@ -189,6 +228,7 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
           const row = store.db.prepare('SELECT * FROM InhouseBots WHERE BotId=?').get(slot.id);
           if (row.InhouseId !== slot.gameId) {
             slot.gameId = row.InhouseId; slot.invites.clear(); slot.resultDue = 0; slot.launchDue = 0; slot.nextCreate = 0;
+            slot.chatQueue.clear();slot.chatPresent.clear();slot.correctionDue.clear();slot.nextChat=0;slot.chatWaitUntil=0;
           }
           store.updateBot(slot.id, {steamId: session.steamId,
             status: !session.ready ? session.status : row.InhouseId ? 'busy' : session.lobby ? 'blocked' : 'idle', error: session.error || slot.error});

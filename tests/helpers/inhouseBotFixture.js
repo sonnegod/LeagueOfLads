@@ -3,7 +3,7 @@ import {createInhouseBotPool} from '../../inhouses/botPool.js';
 import {steamIdForPlayer} from '../../inhouses/botProtocol.js';
 import {InhouseStore} from '../../inhouses/store.js';
 export function inhouseBotFixture({botStartsRadiant = false,...options} = {}) {
-  const f = inhouseFixture({...options,bots:0}), sessions = new Map(), commands = [];
+  const f = inhouseFixture({...options,bots:0}), sessions = new Map(), commands = [], messages=[];
   const auth = id => ({steamId: steamIdForPlayer(1000 + id), refreshToken: 'not-a-real-token'});
   const createSession = config => {
     const id = Number(BigInt(config.steamId) - 76561197960265728n) - 1000, previous = sessions.get(id);
@@ -11,6 +11,7 @@ export function inhouseBotFixture({botStartsRadiant = false,...options} = {}) {
       lobby: previous?.lobby || null, start() {}, close() {}, result() {return null;},
       details: async () => {throw new Error('Public and GC result lookup unavailable');},
       invite(playerId) {commands.push({id, name: 'invite', playerId});},
+      sayLobby(text) {messages.push({id,text});return true;},
       command(name, data) {
         commands.push({id, name, data});
         const gameId = f.db.prepare('SELECT InhouseId FROM InhouseBots WHERE BotId=?').get(id).InhouseId;
@@ -36,7 +37,7 @@ export function inhouseBotFixture({botStartsRadiant = false,...options} = {}) {
         ({id: steamIdForPlayer(p.playerId), team: side === game.lobbyChoices.radiantSide ? 0 : 1, slot: index + 1})))];
     session.lobby.memberIndices = session.lobby.allMembers.map((_, i) => i);
   }
-  return {...f, sessions, commands, step, fill, get pool() {return pool;},
+  return {...f, sessions, commands, messages, step, fill, get pool() {return pool;},
     restart() {pool.close(); pool = createInhouseBotPool(new InhouseStore(f.db, {clock: f.clock}), poolOptions); pool.start();},
     cleanup() {pool.close(); f.close();}};
 }

@@ -3,6 +3,58 @@ import assert from 'node:assert/strict';
 import {inhouseBotFixture as fixture} from './helpers/inhouseBotFixture.js';
 import {steamIdForPlayer} from '../inhouses/botProtocol.js';
 
+test('production lobby chat announces the join window, greets by name and corrects wrong teams without repeating every tick',()=>{
+  const f=fixture();
+  try {
+    f.join(1);f.store.profile(1,'Brae');const {gameId}=f.store.startAdminTest(1,{playerCount:1});f.ready(gameId);
+    f.step();f.step();
+    assert.ok(f.messages.some(m=>m.text.includes('15 minutes')));
+    f.fill(1);const session=f.sessions.get(1);session.lobby.allMembers[1].team=4;
+    f.step();assert.ok(f.messages.some(m=>m.text.includes('Brae: join Radiant (any slot).')));
+    const count=f.messages.length;f.step();f.step();assert.equal(f.messages.length,count);
+    session.lobby.allMembers[1].team=1;f.step();assert.equal(f.commands.at(-1).name,'unseat');
+    f.step();assert.ok(f.messages.some(m=>m.text.includes('Brae: wrong team. Join Radiant')));
+    session.lobby.allMembers=session.lobby.allMembers.slice(0,1);session.lobby.memberIndices=[0];f.step();
+    f.fill(1);session.lobby.allMembers[1].team=4;f.step();
+    assert.equal(f.messages.filter(m=>m.text.includes('Brae: join Radiant')).length,2,'Rejoining gets a fresh instruction');
+    session.lobby.allMembers[1].team=0;session.lobby.allMembers[1].slot=5;f.step();
+    assert.equal(f.commands.at(-1).name,'launch','Any slot on the assigned team still starts');
+  }finally{f.cleanup();}
+});
+
+for(const broken of [false,true])test(`queued lobby messages ${broken?'cannot block launch when chat fails':'survive chat-channel join delay'}`,()=>{
+  const f=fixture();
+  try {
+    f.join(1);const {gameId}=f.store.startAdminTest(1,{playerCount:1});f.ready(gameId);
+    const session=f.sessions.get(1),send=session.sayLobby;let chatReady=false;
+    session.sayLobby=text=>{if(broken)throw Error('Chat unavailable');return chatReady?send(text):false;};
+    f.step();f.step();f.fill(1);f.step();
+    assert.equal(f.commands.some(c=>c.name==='launch'),false);
+    if(!broken){chatReady=true;f.step();assert.ok(f.messages.some(m=>m.text.includes('join Radiant')));}
+    else for(let i=0;i<10;i++)f.step();
+    assert.equal(f.commands.some(c=>c.name==='launch'),true);
+  }finally{f.cleanup();}
+});
+
+test('simultaneous arrivals with long names are batched into bounded messages, and old lobby messages never carry into a reused bot',()=>{
+  const f=fixture();
+  try {
+    const id=f.ten();f.ready(id);
+    for(let player=1;player<=10;player++)f.store.profile(player,`Captain${player} `+'x'.repeat(100));
+    f.step();f.step();f.fill(1);
+    for(let tick=0;tick<6;tick++)f.step();
+    assert.equal(f.commands.some(c=>c.name==='launch'),true);
+    assert.ok(f.messages.every(m=>m.text.length<=500));
+    assert.equal(f.messages.reduce((n,m)=>n+(m.text.match(/: join (Radiant|Dire)/g)||[]).length,0),10);
+    f.store.cancel(id,'Finish long-name test',99);f.step();f.step();f.step();
+    const before=f.messages.length;
+    f.join(11);f.store.profile(11,'New Player');const next=f.store.startAdminTest(11,{playerCount:1}).gameId;f.ready(next);
+    f.step();f.step();f.fill(1);f.step();
+    assert.ok(f.messages.slice(before).some(m=>m.text.includes('New Player: join Radiant')));
+    assert.ok(f.messages.slice(before).every(m=>!m.text.includes('Captain')));
+  }finally{f.cleanup();}
+});
+
 test('the bot starts the join timer only after lobby confirmation/configuration and preserves it across restarts',()=>{
   const f=fixture();
   try {

@@ -34,6 +34,10 @@ the same configurable inhouse ticket.
    players who occupy the wrong team. Any slot on the correct side is accepted.
    Missing players are reinvited at most every 30 seconds. It starts only after
    the full roster is correct.
+   The bot announces the join window in Dota lobby chat, greets arriving
+   players by their site names with their assigned side, and reminds players
+   who choose the wrong team. Messages are batched and paced; a chat outage
+   never holds a complete roster indefinitely or changes its assigned teams.
 6. That same bot tracks the lobby's match ID and explicit win/loss outcome
    through Dota's Game Coordinator. The server records ratings exactly once
    and releases the players. **Players click Join queue themselves** for their
