@@ -16,10 +16,10 @@ export function createInhouseWorker(store, pool, {clock = Date.now, owner = rand
       started = true;
       try {pool.start();} catch (error) {close(); throw error;}
     }
-    store.tick({expireLaunch: false});
-    const report = pool.tick() || {};
-    // Consume available lobby events before expiring an unlaunched assignment.
     store.tick();
+    const report = pool.tick() || {};
+    // The bot owns the join deadline after confirming its lobby is ready.
+    // Site maintenance advances only ready checks and captain choices/drafts.
     const error = report.errors?.join(' ').slice(0,1000) || '';
     if (clock() >= nextHealth || report.lastSuccess > lastSuccess || error !== lastError) {
       store.mutate(() => store.db.prepare(`UPDATE InhouseWorker SET LastTick=?,

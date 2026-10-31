@@ -1,6 +1,7 @@
 import {ensureInhouseSchema} from './schema.js';
 import {selectPlayers, captains, bestTeams, autoPick, PICK_ORDER, ratingChanges} from './model.js';
-import {randomBytes} from 'node:crypto';
+import {randomBytes, randomInt} from 'node:crypto';
+import {lobbyChoices} from './lobbyChoices.js';
 
 export function fail(message, status = 400) {throw Object.assign(new Error(message), {status});}
 export function positiveId(value, label = 'ID') {
@@ -19,9 +20,10 @@ const reasonText = value => {
 };
 
 export class InhouseStore {
-  constructor(db, {clock = Date.now} = {}) {
+  constructor(db, {clock = Date.now, random = randomInt} = {}) {
     this.db = db;
     this.clock = clock;
+    this.random = random;
     this.listeners = new Set();
     ensureInhouseSchema(db);
   }
@@ -238,7 +240,7 @@ export class InhouseStore {
     return this.mutate(() => {
       if (!['completed','cancelled'].includes(this.rawGame(gameId).Status)) fail('This bot is still assigned to an active game', 409);
       this.db.prepare('UPDATE InhouseBots SET InhouseId=NULL WHERE BotId=? AND InhouseId=?').run(botId, gameId);
-      this.advance(this.clock(), {expireLaunch: false});
+      this.advance(this.clock());
     });
   }
   hostingUpdate(id, values) {
@@ -256,6 +258,16 @@ export class InhouseStore {
   lobbyDetails(id, playerId) {
     const g = this.chatAccess(id, playerId);
     return {gameId: g.InhouseId, name: g.LobbyName, password: g.LobbyPassword, lobbyId: g.LobbyId};
+  }
+  startLobbyTimer(id, lobbyId) {
+    return this.mutate(() => {
+      const g = this.rawGame(id);
+      if (g.Status !== 'awaiting_game' || g.ChoiceTurn < 2 || !g.BotId || g.LobbyId !== lobbyId || g.BotLaunchedAt) fail('This lobby is not ready to open', 409);
+      if (g.LobbyJoinStartedAt != null) return;
+      const now = this.clock(), deadline = now + g.LaunchMinutes * 60000;
+      this.db.prepare('UPDATE InhouseGames SET LobbyJoinStartedAt=?,Deadline=? WHERE InhouseId=?').run(now, deadline, id);
+      this.audit('lobby-opened', null, id, {lobbyId, joinDeadline: deadline});
+    });
   }
   botMatchResult(matchId) {
     const row = this.db.prepare('SELECT ResultJson FROM InhouseBotResults WHERE MatchId=?').get(matchId);
@@ -297,11 +309,13 @@ export class InhouseStore {
     const allowedPicks = g.Status === 'drafting' ? players.filter(p => !p.side &&
       bestTeams(players, g.QueueMode, {...fixed, [p.playerId]: PICK_ORDER[g.Turn]}, seeds)).map(p => p.playerId) : [];
     return {id: g.InhouseId, status: g.Status, leagueId: g.LeagueId, queueMode: g.QueueMode, draftMode: g.DraftMode, playerCount: g.PlayerCount,
-      launchMinutes: g.LaunchMinutes, createdAt: g.CreatedAt, deadline: g.Deadline, formedAt: g.FormedAt,
+      launchMinutes: g.LaunchMinutes, createdAt: g.CreatedAt, deadline: g.Deadline, formedAt: g.FormedAt, rated: g.PlayerCount !== 1,
       turn: g.Turn, captainA: g.CaptainA, captainB: g.CaptainB, matchId: g.MatchId, radiantSide: g.RadiantSide,
       winner: g.Winner, startedAt: g.StartedAt, completedAt: g.CompletedAt, cancelReason: g.CancelReason,
       botId: g.BotId, lobbyId: g.LobbyId, lobbyName: g.LobbyName, gameMode: g.GameMode, serverRegion: g.ServerRegion,
+      lobbyJoinStartedAt: g.LobbyJoinStartedAt, botLaunchedAt: g.BotLaunchedAt,
       hostingError: g.HostingError,
+      lobbyChoices: lobbyChoices(g),
       verification: this.db.prepare('SELECT MatchId matchId,Status status,LastError error FROM InhouseBotLookups WHERE InhouseId=? ORDER BY LookupId DESC LIMIT 1').get(g.InhouseId) || null,
       turnSide: g.Status === 'drafting' ? PICK_ORDER[g.Turn] : null, players, allowedPicks};
   }
@@ -347,16 +361,18 @@ export class InhouseStore {
       const reserved = this.db.prepare('UPDATE InhouseQueue SET InhouseId=? WHERE PlayerId=? AND InhouseId IS NULL').run(id, p.playerId);
       if (reserved.changes !== 1) fail('Queue changed during selection', 409);
     }
-    this.audit(selected.length === 2 ? 'test-started' : 'selected', actorId, id, {players: selected.map(p => p.playerId)});
+    this.audit(selected.length < 10 ? 'test-started' : 'selected', actorId, id, {players: selected.map(p => p.playerId),playerCount:selected.length});
     return id;
   }
-  startAdminTest(actorId) {
+  startAdminTest(actorId, {playerCount = 2} = {}) {
     return this.mutate(() => {
       const settings = this.settings();
       if (!settings.leagueId) fail('Configure the inhouse ticket before starting a test', 409);
+      if (![1,2].includes(playerCount)) fail('Choose a one-player or two-player admin test');
       const players = this.queue();
-      if (players.length !== 2) fail('Exactly two players must be waiting in the queue to start a test', 409);
-      return {gameId: this.reservePlayers(players, {...settings, queueMode: 'fifo', draftMode: 'automatic'}, this.clock(), actorId)};
+      if (players.length !== playerCount) fail(`Exactly ${playerCount === 1 ? 'one player must' : 'two players must'} be waiting in the queue to start this test`, 409);
+      if (playerCount === 1 && players[0].playerId !== Number(actorId)) fail('Join the queue yourself to start a solo admin test', 403);
+      return {gameId: this.reservePlayers(players, {...settings, ...(playerCount === 1 ? {gameMode:1} : {}),queueMode: 'fifo', draftMode: 'automatic'}, this.clock(), actorId)};
     });
   }
   ready(id, playerId) {
@@ -369,10 +385,10 @@ export class InhouseStore {
       if (!updated.changes) fail('You are not in this inhouse', 403);
       const players = this.members(id);
       if (players.every(p => p.ready)) {
-        const seeds = captains(players);
+        const seeds = g.PlayerCount === 1 ? {A:players[0].playerId,B:null} : captains(players);
         this.db.prepare('UPDATE InhouseGames SET CaptainA=?,CaptainB=? WHERE InhouseId=?').run(seeds.A, seeds.B, id);
         for (const side of ['A', 'B']) this.db.prepare('UPDATE InhouseMembers SET Side=? WHERE InhouseId=? AND PlayerId=?').run(side, id, seeds[side]);
-        if (g.DraftMode === 'automatic') this.finalize(id, bestTeams(players, g.QueueMode, {}, seeds), now);
+        if (g.DraftMode === 'automatic') this.finalize(id, g.PlayerCount === 1 ? {sides:{[players[0].playerId]:'A'},positions:{}} : bestTeams(players, g.QueueMode, {}, seeds), now);
         else this.db.prepare("UPDATE InhouseGames SET Status='drafting',Deadline=? WHERE InhouseId=?").run(now + 60000, id);
         this.audit('ready', null, id, {captains: seeds});
       }
@@ -384,9 +400,33 @@ export class InhouseStore {
     const g = this.rawGame(id);
     for (const [playerId, side] of Object.entries(teams.sides)) this.db.prepare('UPDATE InhouseMembers SET Side=?,Position=? WHERE InhouseId=? AND PlayerId=?')
       .run(side, teams.positions[playerId] || null, id, playerId);
-    this.db.prepare("UPDATE InhouseGames SET Status='awaiting_game',FormedAt=?,Deadline=? WHERE InhouseId=?")
-      .run(now, now + g.LaunchMinutes * 60000, id);
-    this.audit('formed', null, id, {deadline: now + g.LaunchMinutes * 60000});
+    const firstCaptain = g.PlayerCount === 1 || this.random(2) === 0 ? g.CaptainA : g.CaptainB;
+    this.db.prepare(`UPDATE InhouseGames SET Status='awaiting_game',FormedAt=?,Deadline=NULL,
+      ChoiceCaptain=?,ChoiceTurn=0,ChoiceDeadline=?,LobbyRadiantSide=NULL,FirstPickSide=NULL WHERE InhouseId=?`)
+      .run(now, firstCaptain, now + 60000, id);
+    this.audit('formed', null, id, {firstChoiceCaptain: firstCaptain});
+  }
+  chooseLobbyInside(id, value, now, actorId = null) {
+    const g = this.rawGame(id), choices = lobbyChoices(g);
+    if (g.Status !== 'awaiting_game' || !choices.pending || g.BotLaunchedAt) fail('Lobby choices have ended', 409);
+    if (!choices.options.includes(value)) fail('Choose the remaining side or pick-order option', 400);
+    const side = choices.captainId === g.CaptainA ? 'A' : 'B', other = side === 'A' ? 'B' : 'A';
+    const radiant = ['radiant','dire'].includes(value) ? value === 'radiant' ? side : other : g.LobbyRadiantSide;
+    const firstPick = ['first_pick','second_pick'].includes(value) ? value === 'first_pick' ? side : other : g.FirstPickSide;
+    const complete = g.GameMode !== 2 || g.ChoiceTurn === 1;
+    this.db.prepare(`UPDATE InhouseGames SET LobbyRadiantSide=?,FirstPickSide=?,ChoiceTurn=?,ChoiceDeadline=?,Deadline=? WHERE InhouseId=?`)
+      .run(radiant, firstPick, complete ? 2 : 1, complete ? null : now + 60000, null, id);
+    this.audit('lobby-choice', actorId, id, {captainId: choices.captainId, choice: value, automatic: actorId == null});
+  }
+  chooseLobby(id, actorId, body) {
+    return this.mutate(() => {
+      const now = this.clock(); this.advance(now);
+      const g = this.rawGame(id), choices = lobbyChoices(g);
+      if (!choices.pending || body.turn !== choices.turn) fail('The lobby choice has moved on', 409);
+      if (Number(actorId) !== choices.captainId) fail('Only the current captain can choose', 403);
+      this.chooseLobbyInside(Number(id), body.choice, now, actorId);
+      return {ok: true};
+    });
   }
   pickInside(id, playerId, now, actorId = null) {
     const g = this.rawGame(id), players = this.members(id), side = PICK_ORDER[g.Turn];
@@ -430,11 +470,15 @@ export class InhouseStore {
       return {ok: true};
     });
   }
-  advance(now, {expireLaunch = true} = {}) {
-    const expired = this.db.prepare("SELECT * FROM InhouseGames WHERE Status IN ('ready','drafting','awaiting_game') AND Deadline<=? ORDER BY InhouseId").all(now);
+  advance(now) {
+    const choices = this.db.prepare("SELECT * FROM InhouseGames WHERE Status='awaiting_game' AND ChoiceTurn<2 AND ChoiceDeadline<=? ORDER BY InhouseId").all(now);
+    for (const g of choices) {
+      const options = lobbyChoices(g).options;
+      this.chooseLobbyInside(g.InhouseId, options[this.random(options.length)], now);
+    }
+    const expired = this.db.prepare("SELECT * FROM InhouseGames WHERE Status IN ('ready','drafting') AND Deadline<=? ORDER BY InhouseId").all(now);
     for (const g of expired) {
       if (g.Status === 'ready') this.cancelInside(g, 'Ready check expired', null, true);
-      if (g.Status === 'awaiting_game' && expireLaunch && !(g.BotId && g.BotLaunchedAt)) this.cancelInside(g, 'No matching game found within the launch window', null);
       if (g.Status === 'drafting') {
         const players = this.members(g.InhouseId), fixed = Object.fromEntries(players.filter(p => p.side).map(p => [p.playerId, p.side]));
         const playerId = autoPick(players, g.QueueMode, fixed, g.Turn, {A: g.CaptainA, B: g.CaptainB});
@@ -444,7 +488,7 @@ export class InhouseStore {
     }
     this.startSelection(now);
   }
-  tick(options) {return this.mutate(() => this.advance(this.clock(), options));}
+  tick() {return this.mutate(() => this.advance(this.clock()));}
   validateMatch(g, match) {
     if (match.leagueId !== g.LeagueId) fail('Match uses a different inhouse ticket', 409);
     if (!match.players || match.players.length !== g.PlayerCount || new Set(match.players.map(p => p.playerId)).size !== g.PlayerCount) fail(`Match must identify all ${g.PlayerCount} players`, 409);
@@ -457,7 +501,8 @@ export class InhouseStore {
       if (!implied || radiantSide && radiantSide !== implied) fail('Match teams do not match the drafted teams', 409);
       radiantSide = implied;
     }
-    const latestStart = Math.max(g.FormedAt + g.LaunchMinutes * 60000, (g.BotLaunchedAt || 0) + 300000);
+    const latestStart = Math.max((g.LobbyJoinStartedAt ?? g.FormedAt) + g.LaunchMinutes * 60000, (g.BotLaunchedAt || 0) + 300000);
+    if (g.BotLaunchedAt && g.LobbyRadiantSide && radiantSide !== g.LobbyRadiantSide) fail('Match sides differ from the captain choices', 409);
     if (match.startedAt && (match.startedAt < g.FormedAt - 120000 || match.startedAt > latestStart)) fail('Match start is outside this inhouse launch window', 409);
     return radiantSide;
   }
@@ -465,6 +510,7 @@ export class InhouseStore {
     return this.mutate(() => {
       const g = this.rawGame(id), matchId = positiveId(match.matchId, 'match');
       if (!['awaiting_game', 'playing', 'completed'].includes(g.Status)) fail('This inhouse cannot be linked in its current state', 409);
+      if (g.ChoiceTurn < 2) fail('Complete the captain lobby choices before linking a match', 409);
       if (g.MatchId && g.MatchId !== matchId && !correction) fail('Inhouse is already linked', 409);
       if (this.db.prepare('SELECT 1 FROM InhouseGames WHERE MatchId=? AND InhouseId<>?').get(matchId, id)) fail('Match is already assigned to another inhouse', 409);
       const radiantSide = this.validateMatch(g, match);
@@ -472,7 +518,7 @@ export class InhouseStore {
       // A draft-only/short remake must not award a rating outcome. Admins can
       // cancel it or correct the link to the replacement game using the two
       // agreed recovery controls.
-      const finished = ['radiant', 'dire'].includes(match.winner) && match.duration >= (g.PlayerCount === 2 ? 1 : 300) && Boolean(match.startedAt);
+      const finished = ['radiant', 'dire'].includes(match.winner) && match.duration >= (g.PlayerCount < 10 ? 1 : 300) && Boolean(match.startedAt);
       if (g.Status === 'completed' && !finished) fail('A resolved inhouse can only be corrected to a confirmed full-game result', 409);
       const winner = finished ? match.winner === 'radiant' ? radiantSide : radiantSide === 'A' ? 'B' : 'A' : null;
       if (g.MatchId === matchId && g.Winner === winner && g.RadiantSide === radiantSide) return {ok: true, completed: finished};
@@ -486,13 +532,18 @@ export class InhouseStore {
       }
       this.audit(correction ? 'match-corrected' : finished ? 'resolved' : 'linked', actorId, Number(id),
         {previousMatchId: g.MatchId, matchId, previousWinner: g.Winner, winner, reason});
-      this.advance(this.clock(), {expireLaunch: false});
+      this.advance(this.clock());
       return {ok: true, completed: finished};
     });
   }
   rateGame(id) {
     const g = this.rawGame(id);
     const roster = this.members(id).map(p => ({...p, ...this.db.prepare('SELECT Rating rating,Games games FROM InhousePlayers WHERE PlayerId=?').get(p.playerId)}));
+    if (g.PlayerCount === 1) {
+      for (const p of roster) this.db.prepare('UPDATE InhouseMembers SET RatingBefore=?,RatingAfter=?,RatingDelta=0,Expected=NULL,K=0 WHERE InhouseId=? AND PlayerId=?')
+        .run(p.rating,p.rating,id,p.playerId);
+      return;
+    }
     const saveMember = this.db.prepare('UPDATE InhouseMembers SET RatingBefore=?,RatingAfter=?,RatingDelta=?,Expected=?,K=? WHERE InhouseId=? AND PlayerId=?');
     const savePlayer = this.db.prepare('UPDATE InhousePlayers SET Rating=?,Games=Games+1,Wins=Wins+?,Losses=Losses+? WHERE PlayerId=?');
     for (const change of ratingChanges(roster, g.Winner)) {
@@ -505,10 +556,14 @@ export class InhouseStore {
     // Replay the small outcome ledger, never full game JSON. Opponents' later
     // expectations and calibration counts depend on earlier corrected results.
     const players = new Map(this.db.prepare('SELECT PlayerId FROM InhousePlayers').all().map(p => [p.PlayerId, {rating: 1000, games: 0, wins: 0, losses: 0}]));
-    const games = this.db.prepare("SELECT InhouseId,Winner FROM InhouseGames WHERE Status='completed' ORDER BY StartedAt,MatchId,InhouseId").all();
+    const games = this.db.prepare("SELECT InhouseId,Winner,PlayerCount FROM InhouseGames WHERE Status='completed' ORDER BY StartedAt,MatchId,InhouseId").all();
     const saveMember = this.db.prepare('UPDATE InhouseMembers SET RatingBefore=?,RatingAfter=?,RatingDelta=?,Expected=?,K=? WHERE InhouseId=? AND PlayerId=?');
     for (const g of games) {
       const roster = this.members(g.InhouseId).map(p => ({...p, ...players.get(p.playerId)}));
+      if (g.PlayerCount === 1) {
+        for (const p of roster) saveMember.run(p.rating,p.rating,0,null,0,g.InhouseId,p.playerId);
+        continue;
+      }
       for (const change of ratingChanges(roster, g.Winner)) {
         const state = players.get(change.playerId), side = roster.find(p => p.playerId === change.playerId).side;
         state.rating = change.after; state.games++;

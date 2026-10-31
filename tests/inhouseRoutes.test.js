@@ -24,7 +24,7 @@ test('admin preview guards all reads, streams and actions; mutations use Steam i
       headers: {'Content-Type': 'application/json', ...(user ? {'x-test-user': String(user)} : {}), ...(role ? {'x-test-preview-role': role} : {})}, ...(body ? {body: JSON.stringify(body)} : {})});
     const revision = f.store.revision();
     for (const [path, method = 'GET'] of [['state'], ['queue'], ['activity'], ['stream'], ['activity/stream'], ['games'], ['games/1'], ['me'], ['games/1/chat'], ['games/1/lobby'],
-      ['queue', 'POST'], ['queue', 'DELETE'], ['preferences', 'PUT'], ['preferences/dismiss', 'POST'], ['games/1/ready', 'POST'], ['games/1/pick', 'POST'], ['games/1/chat', 'POST']]) {
+      ['queue', 'POST'], ['queue', 'DELETE'], ['preferences', 'PUT'], ['preferences/dismiss', 'POST'], ['games/1/ready', 'POST'], ['games/1/pick', 'POST'], ['games/1/lobby-choice','POST'], ['games/1/chat', 'POST']]) {
       assert.equal((await request(`/inhouses/${path}`, null, method, method === 'GET' ? undefined : {})).status, 401, `Anonymous ${method} ${path}`);
       const regular = await request(`/inhouses/${path}`, 1, method, method === 'GET' ? undefined : {}, 'user');
       assert.equal(regular.status, 403, `Non-admin ${method} ${path}`);

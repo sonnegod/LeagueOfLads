@@ -2,9 +2,11 @@ import {useEffect, useState} from 'react';
 import {inhouseRequest, useInhouses, useInhouseNow} from '../hooks/useInhouses';
 import InhouseGameCard from './InhouseGameCard';
 import {inhouseStatus, inhouseRoles} from '../utils/inhouseDisplay';
+import {useAuth} from '../context/AuthContext';
 import '../pages/InhousesPage.css';
 
 export default function InhouseAdminPanel({section = 'settings'}) {
+  const {user}=useAuth();
   const {state, error, setError, busy, run, refresh} = useInhouses(null);
   const [form, setForm] = useState(null), [message, setMessage] = useState('');
   const [selectedId, setSelectedId] = useState(''), [lookup, setLookup] = useState(''), [detail, setDetail] = useState(null);
@@ -66,16 +68,21 @@ export default function InhouseAdminPanel({section = 'settings'}) {
         <option value="fifo">FIFO — first ten, roles informational</option><option value="preference">Role preference — accepted positions enforced</option></select></label>
       <label>Team formation<select value={form.draftMode} onChange={event => change('draftMode', event.target.value)}>
         <option value="captain">Captain draft</option><option value="automatic">Automatic balanced teams</option></select></label>
-      <label>Game launch window (minutes)<input type="number" required min="1" max="120" value={form.launchMinutes} onChange={event => change('launchMinutes', Number(event.target.value))} /></label>
+      <label>Lobby join window (minutes)<input type="number" required min="1" max="120" value={form.launchMinutes} onChange={event => change('launchMinutes', Number(event.target.value))} /></label>
       <label>Dota game mode<select value={form.gameMode ?? 1} onChange={event => change('gameMode', Number(event.target.value))}>
         <option value={1}>All Pick</option><option value={2}>Captain’s Mode</option></select></label>
       <label>Server region<select value={form.serverRegion ?? 2} onChange={event => change('serverRegion', Number(event.target.value))}>
         {[[2,'US East'],[1,'US West'],[3,'Europe West'],[8,'Europe East'],[9,'Austria'],[5,'Southeast Asia'],[7,'Australia'],[10,'Brazil'],[11,'South Africa'],[14,'Chile'],[15,'Peru'],[16,'India'],[19,'Japan']].map(([value,label]) => <option key={value} value={value}>{label}</option>)}
       </select></label>
-      <p className="inhouse-muted">One ticket is shared by every mode. Existing inhouses keep their saved ticket and rules. Ready checks and draft turns last 60 seconds.</p>
+      <p className="inhouse-muted">One ticket is shared by every mode. Existing inhouses keep their saved ticket and rules. Ready checks and draft turns last 60 seconds. The join window starts when the bot confirms its Dota lobby is ready.</p>
       <div><button type="submit" className="inhouse-primary" disabled={busy}>Save settings</button></div>
     </form></section>}
     {section === 'games' && <>
+      {state.queue.length===1&&<section className="inhouse-card"><h2>Solo production test</h2>
+        <p className="inhouse-muted">Queue your own account, then test a real All Pick lobby, invitations, automatic start, result and release. Ratings and standings stay unchanged.</p>
+        <button type="button" disabled={busy||String(state.queue[0].playerId)!==String(user?.accountId)||!state.settings.leagueId||!state.bots?.some(bot=>bot.status==='idle'&&!bot.gameId)}
+          onClick={()=>run('/admin/inhouses/test','POST',{playerCount:1})}>Start 1-player test</button>
+      </section>}
       <section className="inhouse-card"><h2>Waiting players</h2>{state.queue.length ? <div className="inhouse-ready-list">{state.queue.map(p =>
         <span key={p.playerId}>{p.name} · {inhouseRoles(p)}</span>)}</div> : <p className="inhouse-muted">No players waiting.</p>}</section>
       {state.queue.length === 2 && <section className="inhouse-card"><h2>Two-player test</h2>

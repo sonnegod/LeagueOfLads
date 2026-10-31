@@ -12,7 +12,7 @@ import {readBotAuth, writeBotAuth, botAuthPath} from '../inhouses/botAuth.js';
 test('lobby command bytes preserve Valve field numbers and full 64-bit lobby IDs', () => {
   // Independent minimal decoders describe the published wire contract.
   const schema = protobuf.parse(`syntax="proto2";
-    message Config {optional uint64 lobby=1; optional string name=2; optional uint32 region=4; optional uint32 mode=5; optional uint32 ticket=16;}
+    message Config {optional uint64 lobby=1; optional string name=2; optional uint32 region=4; optional uint32 mode=5; optional uint32 pick=6; optional uint32 ticket=16; optional uint32 priority=46;}
     message NewLobby {optional string password=5; optional Config config=7;}
     message AccountKick {optional uint32 account=3;}
     message AccountUnseat {optional uint32 account=1;}
@@ -22,6 +22,8 @@ test('lobby command bytes preserve Valve field numbers and full 64-bit lobby IDs
   const decoded = schema.lookupType('NewLobby').decode(create.payload);
   assert.equal(decoded.password, 'secret'); assert.equal(decoded.config.ticket, 18083);
   assert.equal(decoded.config.region, 2); assert.equal(decoded.config.mode, 1);
+  const captainMode=schema.lookupType('Config').decode(encodeLobbyCommand('details',{gameMode:2,cmPick:2,selectionPriorityRules:0}).payload);
+  assert.equal(captainMode.mode,2);assert.equal(captainMode.pick,2);assert.equal(captainMode.priority,0);
   const id = '18446744073709550000';
   const config = schema.lookupType('Config').decode(encodeLobbyCommand('details',{lobbyId:id}).payload);
   assert.equal(config.lobby.toString(), id);

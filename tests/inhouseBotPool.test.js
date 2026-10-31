@@ -3,7 +3,49 @@ import assert from 'node:assert/strict';
 import {inhouseBotFixture as fixture} from './helpers/inhouseBotFixture.js';
 import {steamIdForPlayer} from '../inhouses/botProtocol.js';
 
-test('a newly created lobby unseats its bot from Radiant before inviting, then accepts live slots 1 through 5', () => {
+test('the bot starts the join timer only after lobby confirmation/configuration and preserves it across restarts',()=>{
+  const f=fixture();
+  try {
+    const id=f.ten();f.ready(id);
+    assert.equal(f.store.game(id).deadline,null);
+    f.advance(20*60000);f.store.tick();
+    assert.equal(f.store.game(id).status,'awaiting_game');
+    f.step();assert.equal(f.store.game(id).lobbyJoinStartedAt,null,'Sending create is not confirmation');
+    const session=f.sessions.get(1);session.lobby.allowCheats=true;
+    f.step();assert.equal(f.commands.at(-1).name,'details');
+    assert.equal(f.store.game(id).deadline,null,'Configuration repair does not use the player join window');
+    let announcement=null;
+    const stop=f.store.subscribe(()=>{const game=f.store.snapshot().games.find(g=>g.id===id);if(game.lobbyJoinStartedAt)announcement=game;});
+    f.step();stop();
+    const opened=f.store.game(id);
+    assert.equal(opened.lobbyJoinStartedAt,f.clock());
+    assert.equal(opened.deadline,opened.lobbyJoinStartedAt+15*60000);
+    assert.equal(announcement.deadline,opened.deadline,'The site receives the timer through the normal live snapshot');
+    f.advance(5*60000);f.restart();f.step();
+    assert.equal(f.store.game(id).deadline,opened.deadline,'Restart never renews the join window');
+    assert.equal(f.store.auditLog().filter(a=>a.action==='lobby-opened').length,1);
+    f.setNow(opened.deadline+1);f.store.tick();
+    assert.equal(f.store.game(id).status,'awaiting_game');
+    f.pool.tick();assert.equal(f.store.game(id).status,'cancelled');
+    assert.match(f.store.game(id).cancelReason,/join timer expired/);
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM InhouseQueue').get().n,0);
+    f.step();f.step();assert.equal(f.store.botStatus()[0].gameId,null);
+  }finally{f.cleanup();}
+});
+
+test('a bot owns expiry after its opened lobby disappears, without trying to recreate an expired lobby',()=>{
+  const f=fixture();
+  try {
+    const id=f.ten();f.ready(id);f.step();f.step();
+    const opened=f.store.game(id);assert.ok(opened.lobbyJoinStartedAt);
+    f.sessions.get(1).lobby=null;f.setNow(opened.deadline+1);
+    const creates=f.commands.filter(c=>c.name==='create'||c.name==='join').length;
+    f.pool.tick();assert.equal(f.store.game(id).status,'cancelled');
+    assert.equal(f.commands.filter(c=>c.name==='create'||c.name==='join').length,creates);
+  }finally{f.cleanup();}
+});
+
+test('a newly created lobby unseats its bot before inviting, then accepts any slot on each assigned team', () => {
   const f = fixture({botStartsRadiant:true});
   try {
     const id = f.ten(); f.ready(id); f.step();
@@ -17,7 +59,7 @@ test('a newly created lobby unseats its bot from Radiant before inviting, then a
     const players = f.store.members(id);
     session.lobby.allMembers = [{id:session.steamId,team:4,slot:0}, ...['A','B'].flatMap(side =>
       players.filter(p=>p.side===side).sort((a,b)=>(a.position||9)-(b.position||9)||(a.pickNumber||0)-(b.pickNumber||0)||a.playerId-b.playerId)
-        .map((p,index)=>({id:steamIdForPlayer(p.playerId),team:side==='A'?0:1,slot:index+1})))];
+        .map((p,index)=>({id:steamIdForPlayer(p.playerId),team:side==='A'?0:1,slot:5-index})))];
     session.lobby.memberIndices = session.lobby.allMembers.map((_,i)=>i);
     f.step(); assert.equal(f.commands.at(-1).name, 'launch');
   } finally {f.cleanup();}
@@ -60,13 +102,10 @@ test('the pool invites missing players, rejects outsiders and wrong sides, and l
     const player = session.lobby.allMembers[1]; player.team = player.team === 0 ? 1 : 0;
     f.step(); assert.equal(f.commands.at(-1).name, 'unseat');
     assert.equal(f.commands.some(c => c.name === 'launch'), false);
-    f.fill(1); session.lobby.allMembers[1].slot = 4;
-    f.step(); assert.equal(f.commands.at(-1).name, 'unseat', 'The correct team alone is insufficient when the player occupies the wrong slot');
-    assert.equal(f.commands.some(c => c.name === 'launch'), false);
     f.fill(1); session.lobby.allMembers.push({id: steamIdForPlayer(999), team: 3});
     session.lobby.memberIndices = session.lobby.allMembers.map((_, i) => i);
     f.step(); assert.equal(f.commands.at(-1).name, 'kick');
-    f.fill(1); f.step();
+    f.fill(1); session.lobby.allMembers[1].slot = 5; session.lobby.allMembers[5].slot = 1; f.step();
     assert.equal(f.commands.at(-1).name, 'launch');
     assert.equal(JSON.parse(f.store.rawGame(id).LaunchRosterJson).length, 10);
     f.step(); assert.equal(f.store.game(id).status, 'playing'); assert.equal(f.store.game(id).matchId, 90001);

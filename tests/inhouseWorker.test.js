@@ -18,16 +18,18 @@ test('one worker owns the five bot sessions and another cannot start sessions un
   } finally {a?.close();b?.close();f.close();}
 });
 
-test('bot events are consumed before launch deadlines expire, preserving a detected game and cancelling an unlaunched one', async () => {
-  const f=inhouseFixture();let worker;
+test('the bot preserves a detected game and expires only its ready lobby join window', async () => {
+  const f=inhouseBotFixture();let worker;
   try {
     const a=f.ten(),b=f.ten(11);f.ready(a);f.ready(b);
-    const match=f.match(a,{winner:null});f.advance(15*60000+1);
-    worker=createInhouseWorker(f.store,{start(){},tick(){f.store.applyMatch(a,match);},close(){}},{clock:f.clock});
+    f.step();f.step();f.fill(1);f.step();
+    f.advance(15*60000+1);
+    f.store.tick();assert.equal(f.store.game(b).status,'awaiting_game','Site maintenance does not own lobby expiry');
+    worker=createInhouseWorker(f.store,{...f.pool,start(){}},{clock:f.clock});
     await worker.step();
     assert.equal(f.store.game(a).status,'playing');assert.equal(f.store.game(b).status,'cancelled');
     assert.equal(f.db.prepare('SELECT COUNT(*) n FROM InhouseQueue').get().n,10);
-  } finally {worker?.close();f.close();}
+  } finally {worker?.close();f.cleanup();}
 });
 
 test('a missing result or interrupted bot connection cannot release playing reservations or guess a winner', async () => {

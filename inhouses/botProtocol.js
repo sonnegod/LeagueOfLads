@@ -7,11 +7,11 @@ import * as gc from 'dota2-user/protobufs/index.js';
 const root = protobuf.parse(`syntax = "proto2";
   message Details {
     optional uint64 lobby_id=1; optional string game_name=2;
-    optional uint32 server_region=4; optional uint32 game_mode=5;
+    optional uint32 server_region=4; optional uint32 game_mode=5; optional uint32 cm_pick=6;
     optional bool allow_cheats=10; optional bool fill_with_bots=11;
     optional bool allow_spectating=13; optional string pass_key=15;
     optional uint32 leagueid=16; optional uint32 dota_tv_delay=24;
-    optional bool lan=25; optional uint32 visibility=33;
+    optional bool lan=25; optional uint32 visibility=33; optional uint32 selection_priority_rules=46;
   }
   message Create {optional string pass_key=5; optional Details lobby_details=7;}
   message Join {optional uint64 lobby_id=1; optional string pass_key=3;}

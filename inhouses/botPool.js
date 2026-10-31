@@ -1,7 +1,6 @@
 import {BOT_COUNT, readBotAuth, writeBotAuth} from './botAuth.js';
 import {createBotSession} from './botSession.js';
 import {accountId, lobbyMembers} from './botProtocol.js';
-import {inhouseLobbyAssignments} from '../shared/inhouseLobby.js';
 
 export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBotAuth,
   saveAuth = writeBotAuth, createSession = createBotSession} = {}) {
@@ -18,6 +17,7 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
   function settingsFor(g) {
     return {lobbyId: g.LobbyId || undefined, gameName: g.LobbyName, passKey: g.LobbyPassword,
       serverRegion: g.ServerRegion, gameMode: g.GameMode, leagueid: g.LeagueId,
+      cmPick: g.GameMode === 2 && g.FirstPickSide ? g.FirstPickSide === g.LobbyRadiantSide ? 1 : 2 : 0, selectionPriorityRules: 0,
       allowCheats: false, fillWithBots: false, allowSpectating: true, dotaTvDelay: 0, lan: false, visibility: 2};
   }
   function applyResult(gameId, match) {
@@ -26,7 +26,7 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
     store.validateMatch(g, match);
     const outcome = store.applyMatch(gameId, match);
     if (outcome.completed) store.saveBotMatchResult(match);
-    else if (match.winner && match.duration > 0 && match.duration < (g.PlayerCount === 2 ? 1 : 300)) {
+    else if (match.winner && match.duration > 0 && match.duration < (g.PlayerCount < 10 ? 1 : 300)) {
       store.cancel(gameId, 'Dota confirmed a short game; treated as an unrated remake.', null);
     }
   }
@@ -58,22 +58,28 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
     if (g.BotLaunchedAt && clock() > g.BotLaunchedAt + 300000) {
       store.cancel(g.InhouseId, 'Dota returned to the waiting lobby without starting a match within five minutes of launch.', null); return;
     }
-    if (!g.BotLaunchedAt && g.Deadline <= clock()) return;
+    if (!g.BotLaunchedAt && g.LobbyJoinStartedAt != null && g.Deadline <= clock()) {
+      store.cancel(g.InhouseId, 'The lobby join timer expired before all players joined their assigned teams.', null); return;
+    }
     if (lobby.leaderId !== session.steamId) {errorFor(slot, 'Lobby bot is not the lobby host.'); return;}
-    if (lobby.gameMode !== g.GameMode || lobby.serverRegion !== g.ServerRegion || lobby.allowCheats || lobby.fillWithBots || lobby.lan
+    if (lobby.gameMode !== g.GameMode || lobby.serverRegion !== g.ServerRegion || g.GameMode === 2 && (lobby.cmPick !== settingsFor(g).cmPick || lobby.selectionPriorityRules !== 0) || lobby.allowCheats || lobby.fillWithBots || lobby.lan
       || lobby.visibility !== 2 || !lobby.allowSpectating || lobby.passKey !== g.LobbyPassword) {
       send(slot, 'details', settingsFor(g)); return;
     }
     const members = lobbyMembers(lobby), bot = members.find(p => p.id === session.steamId);
     if (bot && [0,1].includes(bot.team)) {send(slot, 'unseat', {accountId: accountId(session.steamId)}); return;}
     if (!bot) {errorFor(slot, 'Bot is not present in the assigned lobby.'); return;}
-    const players = store.members(g.InhouseId), assignments = inhouseLobbyAssignments(players);
-    const expected = new Map(assignments.map(p => [p.playerId, p]));
+    if (g.LobbyJoinStartedAt == null) {
+      store.startLobbyTimer(g.InhouseId, lobby.lobbyId);
+      g = store.rawGame(g.InhouseId);
+    }
+    const players = store.members(g.InhouseId);
+    const expected = new Map(players.map(p => [p.playerId, p.side === g.LobbyRadiantSide ? 0 : 1]));
     for (const member of members) {
       const id = accountId(member.id);
       if (member.id === session.steamId) continue;
       if (!expected.has(id)) {send(slot, 'kick', {accountId: id}); return;}
-      if ([0,1].includes(member.team) && (member.team !== expected.get(id).team || member.slot !== expected.get(id).slot)) {
+      if ([0,1].includes(member.team) && member.team !== expected.get(id)) {
         send(slot, 'unseat', {accountId: id}); return;
       }
     }
@@ -84,13 +90,13 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
         session.invite(player.playerId); return;
       }
     }
-    if (players.some(p => present.get(p.playerId)?.team !== expected.get(p.playerId).team || present.get(p.playerId)?.slot !== expected.get(p.playerId).slot)) {
-      store.hostingUpdate(g.InhouseId, {HostingError: 'Waiting for all invited players to join their assigned Radiant / Dire slots.'}); return;
+    if (players.some(p => present.get(p.playerId)?.team !== expected.get(p.playerId))) {
+      store.hostingUpdate(g.InhouseId, {HostingError: 'Waiting for all invited players to join their assigned Radiant / Dire teams.'}); return;
     }
     if ((slot.launchDue || 0) > clock()) return;
     // Persist the verified identities before launch: postgame snapshots may
     // remove players as they leave, but cannot change this verified roster.
-    const roster = players.map(p => ({playerId: p.playerId, side: p.side === 'A' ? 'radiant' : 'dire'}));
+    const roster = players.map(p => ({playerId: p.playerId, side: p.side === g.LobbyRadiantSide ? 'radiant' : 'dire'}));
     store.hostingUpdate(g.InhouseId, {BotLaunchedAt: g.BotLaunchedAt || clock(), LaunchRosterJson: JSON.stringify(roster), HostingError: null});
     slot.launchDue = clock() + 30000; send(slot, 'launch');
   }
@@ -194,10 +200,14 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
             continue;
           }
           if (!['awaiting_game','playing'].includes(g.Status)) continue;
+          if (g.ChoiceTurn < 2) continue;
           const finalLobby = g.MatchId ? session.result(g.MatchId) : session.resultForLobby?.(g.LobbyId);
           if (finalLobby) processLobby(slot, g, finalLobby);
           else if (lobby) processLobby(slot, g, lobby);
           else if (g.Status === 'awaiting_game' && (slot.nextCreate || 0) <= clock()) {
+            if (!g.BotLaunchedAt && g.LobbyJoinStartedAt != null && g.Deadline <= clock()) {
+              store.cancel(g.InhouseId, 'The lobby join timer expired before the game started.', null); continue;
+            }
             slot.nextCreate = clock() + 30000;
             if (g.LobbyId) send(slot, 'join', {lobbyId: g.LobbyId, passKey: g.LobbyPassword});
             else send(slot, 'create', {passKey: g.LobbyPassword, lobbyDetails: settingsFor(g)});

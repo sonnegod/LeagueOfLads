@@ -15,17 +15,32 @@ the same configurable inhouse ticket.
    every bot is busy or offline, players keep waiting in the queue.
 3. Players confirm the 60-second ready check. Teams are either automatically
    balanced or chosen by the two captains using the configured draft rules.
+   After teams are formed, a randomly selected captain chooses Radiant/Dire or
+   first/second pick for the **Dota Captain's Mode hero draft**. The other
+   captain then chooses the remaining category; each choice has a 60-second
+   timer with automatic selection on expiry. The website player-draft order
+   stays unchanged. All Pick offers side choice only. The bot uses the saved
+   side/pick order when it prepares the Dota lobby.
 4. The bot creates an unlisted, password-protected Dota lobby with the saved
    ticket, game mode and region, moves itself out of the playing teams, and
    invites the selected accounts using their Dota player IDs.
-5. Players accept the invitation and join the slots shown on the site:
-   **Team A = Radiant, Team B = Dire**. The bot removes outsiders and unseats
-   players who occupy the wrong team or slot. Missing players are reinvited
-   at most every 30 seconds. It starts only after the full roster is correct.
+   Once Dota confirms the owned lobby is configured and ready, the bot starts
+   the saved join window (15 minutes by default). It publishes the start time
+   and deadline to the site, which displays the countdown through SSE. Setup
+   delays do not consume join time; reconnecting does not reset the deadline.
+5. Players accept the invitation and join their assigned side:
+   Radiant/Dire follows the captains' saved choices, shown on each team card.
+   The bot removes outsiders and unseats
+   players who occupy the wrong team. Any slot on the correct side is accepted.
+   Missing players are reinvited at most every 30 seconds. It starts only after
+   the full roster is correct.
 6. That same bot tracks the lobby's match ID and explicit win/loss outcome
    through Dota's Game Coordinator. The server records ratings exactly once
    and releases the players. **Players click Join queue themselves** for their
    next game; completion does not automatically requeue them.
+   Live site updates leave a postgame report above the queue, showing win/loss,
+   before/after inhouse rating and each player's gain or loss. Reports also
+   remain available in History, including reconciled ratings after corrections.
 7. The bot leaves the finished lobby before becoming available for another
    inhouse. Bot assignments and verified launch rosters survive restarts.
 
@@ -80,9 +95,22 @@ Captain's Mode), and server region (US East by default). There is no manual
 hosting option. Check the five account cards for connection/assignment status.
 No cron entry or additional Droplet is needed.
 
+For a **one-player production smoke test**, sign in as an admin, join the queue
+on `/inhouses`, and make sure you are the only waiting player. Click
+**Start 1-player test**, confirm readiness and choose Radiant or Dire. An online
+bot uses the configured ticket and region, creates a real **All Pick** lobby,
+starts its join timer, invites your account and starts once you join your side.
+The worker records Dota's confirmed outcome, releases you, and leaves a postgame
+report on the site. Solo results are **unrated**: rating, wins/losses, calibration
+games and standings do not change, including after admin corrections. Rejoin
+manually when finished. The same start button is in Admin > Inhouses > Queue &
+Games; it can only start a solo test for the requesting admin's own queue entry.
+Global queue/game-mode settings stay unchanged. A single player cannot exercise
+both captains' choices, so use the two-player test for Captain's Mode selection.
+
 Use the **Start 2-player test** button when exactly two admins are queued and
 a bot is available. Both confirm readiness, accept its invitations and join
-their assigned slots. The bot launches and resolves the game through the same
+their assigned teams. The bot launches and resolves the game through the same
 workflow; test wins/losses and ratings count. Positive-duration two-player
 tests can resolve below five minutes. Normal ten-player games treat shorter
 results as unrated remakes.
@@ -102,8 +130,9 @@ Steam/GC update rather than the local heartbeat.
 
 Ready checks and captain picks last 60 seconds; timed-out draft picks are
 automatic. Failed ready checks remove absent players and return confirmations
-to their original queue priority. Unlaunched games expire after the configured
-launch window. Games allocating a server or already playing are not cancelled
+to their original queue priority. The bot expires an unlaunched game after its
+configured join window; website requests do not start or expire this timer.
+Games allocating a server or already playing are not cancelled
 just because that join deadline passes. A launch returning to its waiting
 lobby without starting after five minutes is cancelled. Confirmed unscored
 outcomes and short remakes cancel without rating changes. Disconnection or
@@ -122,7 +151,9 @@ replays affected rating history. Older unfinished manually hosted games remain
 visible for cancellation or verification of their known match ID; the worker
 does not discover additional manually hosted games.
 
-All data uses `Inhouse` tables in `LadsData.db`; initialization is additive.
+All data uses `Inhouse` tables in `LadsData.db`. Schema initialization preserves
+existing data; enabling solo tests transactionally updates the player-count
+constraint while retaining game IDs, chat, reservations and bot assignments.
 Existing daily database backups cover games and chat, but Steam authentication
 files stay separate. Inhouses are not imported into official league matches,
 Analytics or betting. Ratings start at 1,000 and use team-average Elo, K=48 for

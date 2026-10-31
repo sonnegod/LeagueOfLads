@@ -1,10 +1,9 @@
 import {inhouseFixture} from './inhouseFixture.js';
 import {createInhouseBotPool} from '../../inhouses/botPool.js';
 import {steamIdForPlayer} from '../../inhouses/botProtocol.js';
-import {inhouseLobbyAssignments} from '../../shared/inhouseLobby.js';
 import {InhouseStore} from '../../inhouses/store.js';
-export function inhouseBotFixture({botStartsRadiant = false} = {}) {
-  const f = inhouseFixture({bots:0}), sessions = new Map(), commands = [];
+export function inhouseBotFixture({botStartsRadiant = false,...options} = {}) {
+  const f = inhouseFixture({...options,bots:0}), sessions = new Map(), commands = [];
   const auth = id => ({steamId: steamIdForPlayer(1000 + id), refreshToken: 'not-a-real-token'});
   const createSession = config => {
     const id = Number(BigInt(config.steamId) - 76561197960265728n) - 1000, previous = sessions.get(id);
@@ -26,18 +25,19 @@ export function inhouseBotFixture({botStartsRadiant = false} = {}) {
       }};
     sessions.set(id, session); return session;
   };
-  const options = {clock: f.clock, readAuth: auth, saveAuth: () => {}, createSession};
-  let pool = createInhouseBotPool(f.store, options); pool.start(); pool.tick();
-  f.store.saveSettings({...f.store.settings(), gameMode: 1, serverRegion: 2});
+  const poolOptions = {clock: f.clock, readAuth: auth, saveAuth: () => {}, createSession};
+  let pool = createInhouseBotPool(f.store, poolOptions); pool.start(); pool.tick();
+  f.store.saveSettings({...f.store.settings(), serverRegion: 2});
   function step() {f.advance(1000); pool.tick();}
   function fill(botId) {
-    const session = sessions.get(botId), g = f.db.prepare('SELECT InhouseId FROM InhouseBots WHERE BotId=?').get(botId);
-    session.lobby.allMembers = [{id: session.steamId, team: 3, slot: 0}, ...inhouseLobbyAssignments(f.store.members(g.InhouseId)).map(p =>
-      ({id: steamIdForPlayer(p.playerId), team: p.team, slot: p.slot}))];
+    const session = sessions.get(botId), g = f.db.prepare('SELECT InhouseId FROM InhouseBots WHERE BotId=?').get(botId), game=f.store.game(g.InhouseId);
+    session.lobby.allMembers = [{id: session.steamId, team: 3, slot: 0}, ...['A','B'].flatMap(side =>
+      f.store.members(g.InhouseId).filter(p => p.side === side).map((p,index) =>
+        ({id: steamIdForPlayer(p.playerId), team: side === game.lobbyChoices.radiantSide ? 0 : 1, slot: index + 1})))];
     session.lobby.memberIndices = session.lobby.allMembers.map((_, i) => i);
   }
   return {...f, sessions, commands, step, fill, get pool() {return pool;},
-    restart() {pool.close(); pool = createInhouseBotPool(new InhouseStore(f.db, {clock: f.clock}), options); pool.start();},
+    restart() {pool.close(); pool = createInhouseBotPool(new InhouseStore(f.db, {clock: f.clock}), poolOptions); pool.start();},
     cleanup() {pool.close(); f.close();}};
 }
 
