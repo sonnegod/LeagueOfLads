@@ -79,7 +79,7 @@ export default function InhouseAdminPanel({section = 'settings'}) {
     </form></section>}
     {section === 'games' && <>
       {state.queue.length===1&&<section className="inhouse-card"><h2>Solo production test</h2>
-        <p className="inhouse-muted">Queue your own account, then test a real All Pick lobby, invitations, automatic start, result and release. Ratings and standings stay unchanged.</p>
+        <p className="inhouse-muted">Queue your own account, then test a real All Pick lobby without a ticket. Tests invitations, automatic start, result and release. Ratings and standings stay unchanged.</p>
         <button type="button" disabled={busy||String(state.queue[0].playerId)!==String(user?.accountId)||!state.settings.leagueId||!state.bots?.some(bot=>bot.status==='idle'&&!bot.gameId)}
           onClick={()=>run('/admin/inhouses/test','POST',{playerCount:1})}>Start 1-player test</button>
       </section>}

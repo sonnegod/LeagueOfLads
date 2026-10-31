@@ -16,7 +16,7 @@ test('solo testing is explicit, reserves only the requesting queued admin, and s
     assert.throws(()=>f.store.startAdminTest(1,{playerCount:3}),{status:400});
     const {gameId}=f.store.startAdminTest(1,{playerCount:1});
     let game=f.store.game(gameId);
-    assert.equal(game.playerCount,1);assert.equal(game.rated,false);assert.equal(game.gameMode,1);
+    assert.equal(game.playerCount,1);assert.equal(game.rated,false);assert.equal(game.gameMode,1);assert.equal(game.leagueId,0);
     assert.equal(game.queueMode,'fifo');assert.equal(game.draftMode,'automatic');
     assert.deepEqual(game.players.map(p=>p.playerId),[1]);assert.deepEqual(f.store.settings(),settings);
     f.store.ready(gameId,1);game=f.store.game(gameId);
@@ -34,6 +34,7 @@ for(const side of ['radiant','dire'])for(const winner of ['radiant','dire'])test
     f.join(1);const {gameId}=f.store.startAdminTest(1,{playerCount:1});
     f.store.ready(gameId,1);f.store.chooseLobby(gameId,1,{turn:0,choice:side});
     f.step();f.step();assert.ok(f.store.game(gameId).lobbyJoinStartedAt);
+    assert.equal(f.sessions.get(1).lobby.leagueid,0,'Solo test does not require permission to host the configured ticket');
     assert.ok(f.commands.some(c=>c.name==='invite'&&c.playerId===1));
     f.fill(1);f.step();assert.equal(f.commands.at(-1).name,'launch');f.step();
     assert.equal(f.store.game(gameId).status,'playing');
@@ -82,7 +83,8 @@ test('solo test API is admin-only, requires the admin own queue entry and reject
     assert.equal((await post()).status,401);assert.equal((await post('99','user')).status,403);
     assert.equal((await post('98')).status,403);assert.equal(f.store.queueSummary().count,1);
     const response=await post('99');assert.equal(response.status,200);
-    assert.equal(f.store.game((await response.json()).gameId).playerCount,1);
+    const created=f.store.game((await response.json()).gameId);
+    assert.equal(created.playerCount,1);assert.equal(created.leagueId,0);assert.equal(f.store.settings().leagueId,777);
     assert.equal((await post('99')).status,409);assert.equal(f.store.snapshot().games.length,1);
   }finally{routes?.stream.close();server?.closeAllConnections();if(server)await new Promise(resolve=>server.close(resolve));f.close();}
 });

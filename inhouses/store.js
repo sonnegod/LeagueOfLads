@@ -372,7 +372,7 @@ export class InhouseStore {
       const players = this.queue();
       if (players.length !== playerCount) fail(`Exactly ${playerCount === 1 ? 'one player must' : 'two players must'} be waiting in the queue to start this test`, 409);
       if (playerCount === 1 && players[0].playerId !== Number(actorId)) fail('Join the queue yourself to start a solo admin test', 403);
-      return {gameId: this.reservePlayers(players, {...settings, ...(playerCount === 1 ? {gameMode:1} : {}),queueMode: 'fifo', draftMode: 'automatic'}, this.clock(), actorId)};
+      return {gameId: this.reservePlayers(players, {...settings, ...(playerCount === 1 ? {gameMode:1,leagueId:0} : {}),queueMode: 'fifo', draftMode: 'automatic'}, this.clock(), actorId)};
     });
   }
   ready(id, playerId) {

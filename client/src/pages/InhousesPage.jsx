@@ -151,7 +151,7 @@ function InhousesContent() {
           : <p className="inhouse-muted">No players waiting. Start the next game.</p>}
         {user?.isAdmin && queued && state.queue.length === 1 && <div className="inhouse-actions">
           <button type="button" disabled={busy || !state.settings.leagueId || !state.bots?.some(bot=>bot.status==='idle'&&!bot.gameId)} onClick={()=>run('/admin/inhouses/test','POST',{playerCount:1})}>Start 1-player test</button>
-          <small className="inhouse-muted">Real bot-hosted All Pick game for your account. Tests the result and player release without changing ratings or standings.</small>
+          <small className="inhouse-muted">Real bot-hosted All Pick game without a ticket. Tests the result and player release without changing ratings or standings.</small>
         </div>}
         {user?.isAdmin && state.queue.length === 2 && <div className="inhouse-actions">
           <button type="button" disabled={busy || !state.settings.leagueId || !state.bots?.some(bot => bot.status === 'idle' && !bot.gameId)} onClick={() => run('/admin/inhouses/test', 'POST')}>Start 2-player test</button>

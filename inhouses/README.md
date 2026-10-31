@@ -98,14 +98,17 @@ No cron entry or additional Droplet is needed.
 For a **one-player production smoke test**, sign in as an admin, join the queue
 on `/inhouses`, and make sure you are the only waiting player. Click
 **Start 1-player test**, confirm readiness and choose Radiant or Dire. An online
-bot uses the configured ticket and region, creates a real **All Pick** lobby,
+bot uses the configured region, creates a real **All Pick** lobby **without a
+ticket** (league ID 0, so league-admin permissions are unnecessary),
 starts its join timer, invites your account and starts once you join your side.
 The worker records Dota's confirmed outcome, releases you, and leaves a postgame
 report on the site. Solo results are **unrated**: rating, wins/losses, calibration
 games and standings do not change, including after admin corrections. Rejoin
 manually when finished. The same start button is in Admin > Inhouses > Queue &
 Games; it can only start a solo test for the requesting admin's own queue entry.
-Global queue/game-mode settings stay unchanged. A single player cannot exercise
+Global ticket/queue/game-mode settings stay unchanged. Existing tests retain
+their saved ticket: cancel an older blocked test and start a new solo test to
+use the unticketed flow. A single player cannot exercise
 both captains' choices, so use the two-player test for Captain's Mode selection.
 
 Use the **Start 2-player test** button when exactly two admins are queued and

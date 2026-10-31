@@ -6,7 +6,7 @@ export function createBotSession(auth, {clock = Date.now, onToken = () => {}, on
   steam = new SteamUser({dataDirectory: null, autoRelogin: true, renewRefreshTokens: true})} = {}) {
   const dota = new Dota2User(steam), results = new Map();
   let lobby = null, ready = false, readyAt = 0, lastActivityAt = 0, status = 'connecting', error = null, closed = false;
-  let chatChannel = null, chatJoinDue = 0;
+  let chatChannel = null, chatJoinDue = 0, commandError = null;
   function rawCommand(name, data) {
     const {messageId,payload} = encodeLobbyCommand(name,data);
     dota.sendRawBuffer(messageId,payload);
@@ -37,6 +37,12 @@ export function createBotSession(auth, {clock = Date.now, onToken = () => {}, on
   });
   // This response schema is missing from the library's router mappings.
   steam.on('receivedFromGC', (app, type, bytes) => {
+    // Create/configure/launch replies use Steam EResult (1 = success),
+    // whereas lobby-join replies below use DOTAJoinLobbyResult (0 = success).
+    if (app === 570 && type === gc.EDOTAGCMsg.k_EMsgGCPracticeLobbyResponse) {
+      const code = gc.CMsgGenericResult.decode(bytes).eresult;
+      commandError = code === 1 ? null : `Dota rejected a lobby command (${SteamUser.EResult[code] || 'Unknown'}, code ${code}). Check the bot account's league-admin access and lobby settings.`;
+    }
     if (app === 570 && type === 7010) {
       const response = decodeChatJoined(bytes);
       if (lobby && response.channelName === `Lobby_${lobby.lobbyId}` && response.channelType === 3) {
@@ -69,7 +75,7 @@ export function createBotSession(auth, {clock = Date.now, onToken = () => {}, on
   return {
     get steamId() {return auth.steamId;}, get lobby() {return lobby;},
     get ready() {return ready && !closed && clock() >= readyAt + 2000;},
-    get status() {return status;}, get error() {return error;},
+    get status() {return status;}, get error() {return error || commandError;},
     get lastActivityAt() {return lastActivityAt;},
     start() {steam.logOn({refreshToken: auth.refreshToken});},
     command(name, data) {

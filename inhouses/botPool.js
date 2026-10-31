@@ -35,11 +35,16 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
     if (lobby.lobbyId !== g.LobbyId && (g.LobbyId || lobby.gameName !== g.LobbyName)) {
       errorFor(slot, 'This bot is in a different lobby. Its saved inhouse has not been reassigned.'); return;
     }
+    if (!g.LobbyId) {store.hostingUpdate(g.InhouseId, {LobbyId: lobby.lobbyId}); g = store.rawGame(g.InhouseId);}
     if (lobby.leagueid !== g.LeagueId) {
-      if (lobby.state === 0) {send(slot, 'details', {...settingsFor(g), lobbyId: lobby.lobbyId}); return;}
+      if (lobby.state === 0) {
+        errorFor(slot, g.LeagueId
+          ? `Dota has not applied inhouse ticket ${g.LeagueId} to this lobby (current ticket: ${lobby.leagueid || 'none'}). Check this bot account's league-admin access.`
+          : `Dota has not removed ticket ${lobby.leagueid} from this solo test lobby. Waiting for the unticketed lobby settings.`);
+        send(slot, 'details', {...settingsFor(g), lobbyId: lobby.lobbyId}); return;
+      }
       errorFor(slot, 'Lobby uses a different ticket. Check the bot account’s league permissions.'); return;
     }
-    if (!g.LobbyId) {store.hostingUpdate(g.InhouseId, {LobbyId: lobby.lobbyId}); g = store.rawGame(g.InhouseId);}
     const matchId = Number(lobby.matchId);
     if (matchId > 0 && g.LaunchRosterJson && g.BotLaunchedAt) {
       const match = {matchId, leagueId: g.LeagueId, startedAt: Number(lobby.gameStartTime) > 0
@@ -209,6 +214,7 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
               store.cancel(g.InhouseId, 'The lobby join timer expired before the game started.', null); continue;
             }
             slot.nextCreate = clock() + 30000;
+            if (!session.error) store.hostingUpdate(g.InhouseId, {HostingError: `Waiting for Dota to confirm the ${g.LobbyId ? 'saved lobby' : 'new lobby'}${g.LeagueId ? ` for ticket ${g.LeagueId}. If this persists, check the bot account's league-admin access.` : ' (no ticket).'}`});
             if (g.LobbyId) send(slot, 'join', {lobbyId: g.LobbyId, passKey: g.LobbyPassword});
             else send(slot, 'create', {passKey: g.LobbyPassword, lobbyDetails: settingsFor(g)});
           }

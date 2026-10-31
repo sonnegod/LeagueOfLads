@@ -75,6 +75,12 @@ test('the real GC decoder accepts reconnect caches, live updates, terminal outco
   assert.equal(gc.CMsgInviteToLobby.decode(sent.at(-1).bytes).steamId,steamIdForPlayer(49219700));
   raw(4502,gc.CMsgInvitationCreated,{groupId:lobby.lobbyId,steamId:steamIdForPlayer(49219700),userOffline:false});
   assert.deepEqual(invitations,[{lobbyId:lobby.lobbyId,steamId:steamIdForPlayer(49219700),userOffline:false}]);
+  raw(7055,gc.CMsgGenericResult,{eresult:15});
+  assert.match(session.error,/AccessDenied, code 15/);
+  raw(22,gc.CMsgSOSingleObject,{typeId:2004,objectData:bytes});
+  assert.match(session.error,/league-admin/,'A lobby snapshot does not hide a rejected command');
+  raw(7055,gc.CMsgGenericResult,{eresult:1});assert.equal(session.error,null,'EResult 1 is success');
+  steam.emit('receivedFromGC',570,7113,Buffer.from([8,0]));assert.equal(session.error,null,'Join result 0 is success');
   const final = {...lobby,state:3,matchId:'9067573923',matchOutcome:3,matchDuration:600};
   raw(22,gc.CMsgSOSingleObject,{typeId:2004,objectData:Buffer.from(gc.CSODOTALobby.encode(final).finish())});
   assert.equal(session.lobby.matchOutcome,3);

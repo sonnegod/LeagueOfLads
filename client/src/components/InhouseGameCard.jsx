@@ -63,7 +63,7 @@ export default function InhouseGameCard({game, userId, now, busy, onReady, onPic
     <div className="inhouse-meta"><span>{game.queueMode === 'fifo' ? 'FIFO · roles informational' : 'Role preference'}</span>
       {game.playerCount === 2 && <span>1v1 admin test</span>}
       {game.playerCount === 1 && <span>Solo admin test · Unrated · All Pick</span>}
-      <span>{game.draftMode === 'captain' ? 'Captain draft' : 'Automatic teams'}</span><span>Ticket {game.leagueId}</span>
+      <span>{game.draftMode === 'captain' ? 'Captain draft' : 'Automatic teams'}</span><span>{game.leagueId?`Ticket ${game.leagueId}`:'No ticket · test lobby'}</span>
       {game.matchId && <a href={`https://www.dotabuff.com/matches/${game.matchId}`} target="_blank" rel="noreferrer">Match {game.matchId} ↗</a>}</div>
     {game.status === 'ready' ? <>
       <p>{game.players.filter(p => p.ready).length}/{game.playerCount ?? 10} players ready. Confirm before the timer ends.</p>

@@ -239,6 +239,8 @@ test('ticket configuration retries target the actual new lobby, and offline bots
     const id = f.ten(); f.ready(id); f.step();
     const lobby = f.sessions.get(1).lobby;
     lobby.leagueid=0; f.step();
+    assert.equal(f.store.game(id).lobbyId,lobby.lobbyId,'The actual lobby remains visible even before its ticket is accepted');
+    assert.match(f.store.game(id).hostingError,/ticket 777.*league-admin/);
     assert.equal(f.commands.at(-1).name,'details');
     assert.equal(f.commands.at(-1).data.lobbyId,lobby.lobbyId);
     assert.equal(f.commands.at(-1).data.leagueid,777);
