@@ -32,6 +32,8 @@ test('lobby command bytes preserve Valve field numbers and full 64-bit lobby IDs
   assert.equal(schema.lookupType('AccountKick').decode(encodeLobbyCommand('kick',{accountId:123}).payload).account,123);
   assert.equal(schema.lookupType('AccountUnseat').decode(encodeLobbyCommand('unseat',{accountId:123}).payload).account,123);
   assert.equal(encodeLobbyCommand('launch').payload.length, 0);
+  assert.equal(encodeLobbyCommand('abandon').messageId, 7035);
+  assert.equal(encodeLobbyCommand('abandon').payload.length, 0);
   assert.equal(accountId(steamIdForPlayer(92627233)), 92627233);
   assert.equal(accountId('not-a-steam-id'), null);
   const stale = {allMembers:[{id:steamIdForPlayer(1)},{id:steamIdForPlayer(2)}],memberIndices:[1]};
@@ -53,6 +55,7 @@ test('the real GC decoder accepts reconnect caches, live updates, terminal outco
   const bytes = Buffer.from(gc.CSODOTALobby.encode(lobby).finish());
   raw(4004,gc.CMsgClientWelcome,{outofdateSubscribedCaches:[{objects:[{typeId:2004,objectData:[bytes]}]}]});
   now += 2000; assert.equal(session.ready,true); assert.equal(session.lobby.lobbyId,lobby.lobbyId);
+  assert.equal(session.hasLobbyState,true);
   session.command('create',{passKey:'test',lobbyDetails:{leagueid:18083}});
   assert.equal(sent.at(-1).id,7038);
   const chatSchema=protobuf.parse(`syntax="proto2";
@@ -87,14 +90,35 @@ test('the real GC decoder accepts reconnect caches, live updates, terminal outco
   raw(22,gc.CMsgSOSingleObject,{typeId:2004,objectData:Buffer.from(gc.CSODOTALobby.encode(final).finish())});
   assert.equal(session.lobby.matchOutcome,3);
   assert.equal(session.result(9067573923).matchDuration,600);
+  session.command('abandon');
+  assert.equal(sent.at(-1).id,7035,'The bot leaves only its own game session');
   raw(25,gc.CMsgSOCacheUnsubscribed,{ownerSoid:{id:lobby.lobbyId,type:0}});
   assert.equal(sent.at(-1).id,7272,'Leaving the lobby also leaves its chat');
   assert.equal(session.sayLobby('Cannot write to the old lobby.'),false);
   assert.equal(session.lobby,null);
   assert.equal(session.result(9067573923).matchOutcome,3,'The result survives players leaving the lobby');
   steam.emit('error',{eresult:5,message:'secret credentials must never be exposed'});
+  assert.equal(session.hasLobbyState,false);
   assert.equal(session.ready,false); assert.doesNotMatch(session.error,/secret credentials/);
   session.close();
+});
+
+test('GC disconnection invalidates cached membership until the new welcome confirms current lobby state',()=>{
+  let now=1000;
+  const steam=new EventEmitter();
+  Object.assign(steam,{packageName:'steam-user',packageVersion:'5.3.0',steamID:{getSteamID64:()=>steamIdForPlayer(1001)},
+    logOn(){},logOff(){},gamesPlayed(){},sendToGC(){}});
+  const session=createBotSession({steamId:steamIdForPlayer(1001),refreshToken:'test'},{steam,clock:()=>now});
+  const raw=(id,type,data)=>steam.emit('receivedFromGC',570,id,Buffer.from(type.encode(type.fromPartial(data)).finish()));
+  try {
+    const lobby=gc.CSODOTALobby.fromPartial({lobbyId:'12345',allMembers:[{id:session.steamId}],memberIndices:[0]});
+    raw(4004,gc.CMsgClientWelcome,{outofdateSubscribedCaches:[{objects:[{typeId:2004,objectData:[Buffer.from(gc.CSODOTALobby.encode(lobby).finish())]}]}]});
+    now+=2000;assert.equal(session.ready,true);assert.equal(session.hasLobbyState,true);
+    raw(gc.EGCBaseClientMsg.k_EMsgGCClientConnectionStatus,gc.CMsgConnectionStatus,{status:gc.GCConnectionStatus.GCConnectionStatus_NO_SESSION});
+    assert.equal(session.ready,false);assert.equal(session.hasLobbyState,false);assert.equal(session.lobby,null);
+    raw(4004,gc.CMsgClientWelcome,{});now+=2000;
+    assert.equal(session.ready,true);assert.equal(session.hasLobbyState,true);assert.equal(session.lobby,null);
+  }finally{session.close();}
 });
 
 test('GC result normalization requires an explicit victory outcome rather than a default boolean', () => {

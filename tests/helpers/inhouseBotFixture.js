@@ -7,7 +7,7 @@ export function inhouseBotFixture({botStartsRadiant = false,...options} = {}) {
   const auth = id => ({steamId: steamIdForPlayer(1000 + id), refreshToken: 'not-a-real-token'});
   const createSession = config => {
     const id = Number(BigInt(config.steamId) - 76561197960265728n) - 1000, previous = sessions.get(id);
-    const session = {steamId: config.steamId, ready: true, status: 'connected', error: null,
+    const session = {steamId: config.steamId, ready: true, hasLobbyState: true, status: 'connected', error: null,
       lobby: previous?.lobby || null, start() {}, close() {}, result() {return null;},
       details: async () => {throw new Error('Public and GC result lookup unavailable');},
       invite(playerId) {commands.push({id, name: 'invite', playerId});},
@@ -23,6 +23,7 @@ export function inhouseBotFixture({botStartsRadiant = false,...options} = {}) {
         if (name === 'kick') this.lobby.allMembers = this.lobby.allMembers.filter(p => p.id !== steamIdForPlayer(data.accountId));
         if (name === 'launch') Object.assign(this.lobby, {state: 2, matchId: String(90000 + gameId), gameStartTime: Math.floor(f.clock() / 1000)});
         if (name === 'leave') this.lobby = null;
+        if (name === 'abandon') this.lobby = null;
       }};
     sessions.set(id, session); return session;
   };

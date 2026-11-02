@@ -7,6 +7,7 @@ export function createBotSession(auth, {clock = Date.now, onToken = () => {}, on
   const dota = new Dota2User(steam), results = new Map();
   let lobby = null, ready = false, readyAt = 0, lastActivityAt = 0, status = 'connecting', error = null, closed = false;
   let chatChannel = null, chatJoinDue = 0, commandError = null;
+  let hasLobbyState = false;
   function rawCommand(name, data) {
     const {messageId,payload} = encodeLobbyCommand(name,data);
     dota.sendRawBuffer(messageId,payload);
@@ -17,17 +18,17 @@ export function createBotSession(auth, {clock = Date.now, onToken = () => {}, on
   }
   function accept(bytes, removed = false) {
     const next = gc.CSODOTALobby.decode(bytes);
-    if (removed) {if (lobby?.lobbyId === next.lobbyId) {resetChat(); lobby = null;} return;}
+    if (removed) {if (lobby?.lobbyId === next.lobbyId) {resetChat(); lobby = null; hasLobbyState = true; lastActivityAt = clock();} return;}
     if (lobby?.lobbyId !== next.lobbyId) resetChat();
-    lobby = next; error = null; lastActivityAt = clock();
+    lobby = next; hasLobbyState = true; error = null; lastActivityAt = clock();
     if (Number(next.matchId) > 0 && next.matchOutcome !== 0) results.set(Number(next.matchId), next);
     while (results.size > 10) results.delete(results.keys().next().value);
   }
   const object = (item, removed = false) => {if (item.typeId === 2004) accept(item.objectData, removed);};
   const cache = data => {for (const item of data.objects || []) if (item.typeId === 2004) for (const bytes of item.objectData) accept(bytes);};
-  dota.router.on(gc.EGCBaseClientMsg.k_EMsgGCClientWelcome, data => {for (const entry of data.outofdateSubscribedCaches || []) cache(entry);});
+  dota.router.on(gc.EGCBaseClientMsg.k_EMsgGCClientWelcome, data => {hasLobbyState = true; for (const entry of data.outofdateSubscribedCaches || []) cache(entry);});
   dota.router.on(gc.ESOMsg.k_ESOMsg_CacheSubscribed, cache);
-  dota.router.on(gc.ESOMsg.k_ESOMsg_CacheUnsubscribed, data => {if (data.ownerSoid?.id === lobby?.lobbyId) {resetChat(); lobby = null;}});
+  dota.router.on(gc.ESOMsg.k_ESOMsg_CacheUnsubscribed, data => {if (data.ownerSoid?.id === lobby?.lobbyId) {resetChat(); lobby = null; hasLobbyState = true; lastActivityAt = clock();}});
   dota.router.on(gc.ESOMsg.k_ESOMsg_Create, item => object(item));
   dota.router.on(gc.ESOMsg.k_ESOMsg_Update, item => object(item));
   dota.router.on(gc.ESOMsg.k_ESOMsg_Destroy, item => object(item, true));
@@ -61,7 +62,7 @@ export function createBotSession(auth, {clock = Date.now, onToken = () => {}, on
     }
   });
   dota.on('connectedToGC', () => {ready = true; readyAt = clock(); lastActivityAt = clock(); status = 'connected'; error = null;});
-  dota.on('disconnectedFromGC', () => {ready = false; resetChat(false); status = 'offline'; error = 'Dota connection interrupted; reconnecting.';});
+  dota.on('disconnectedFromGC', () => {ready = false; resetChat(false); lobby = null; hasLobbyState = false; status = 'offline'; error = 'Dota connection interrupted; reconnecting.';});
   steam.on('loggedOn', () => {
     if (steam.steamID.getSteamID64() !== auth.steamId) {error = 'Steam session belongs to a different bot account.'; status = 'error'; steam.logOff(); return;}
     steam.gamesPlayed([570]);
@@ -71,9 +72,10 @@ export function createBotSession(auth, {clock = Date.now, onToken = () => {}, on
     catch {error = 'Unable to save the renewed Steam session.';}
   });
   steam.on('steamGuard', () => {status = 'error'; error = 'Steam authentication required. Run the bot authentication command again.';});
-  steam.on('error', problem => {status = 'error'; ready = false; error = `Steam login failed (code ${Number(problem.eresult) || 'unknown'}). Reauthenticate this bot if needed.`;});
+  steam.on('error', problem => {status = 'error'; ready = false; hasLobbyState = false; error = `Steam login failed (code ${Number(problem.eresult) || 'unknown'}). Reauthenticate this bot if needed.`;});
   return {
     get steamId() {return auth.steamId;}, get lobby() {return lobby;},
+    get hasLobbyState() {return hasLobbyState;},
     get ready() {return ready && !closed && clock() >= readyAt + 2000;},
     get status() {return status;}, get error() {return error || commandError;},
     get lastActivityAt() {return lastActivityAt;},

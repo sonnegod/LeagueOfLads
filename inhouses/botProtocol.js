@@ -28,7 +28,7 @@ const root = protobuf.parse(`syntax = "proto2";
 const commands = {
   create: [7038, 'Create'], details: [7046, 'Details'], join: [7044, 'Join'],
   team: [7047, 'Team'], kick: [7081, 'Kick'], unseat: [8047, 'Unseat'],
-  leave: [7040, 'Empty'], launch: [7041, 'Empty'],
+  leave: [7040, 'Empty'], launch: [7041, 'Empty'], abandon: [7035, 'Empty'],
   chatJoin: [7009, 'ChatJoin'], chat: [7273, 'ChatText'], chatLeave: [7272, 'ChatLeave'],
 };
 export {gc};
@@ -51,6 +51,13 @@ export function lobbyMembers(lobby) {
   // currently present accounts; stale slots must not make a lobby look full.
   const indices = lobby.memberIndices || [];
   return indices.map(i => all[i]).filter(p => p && accountId(p.id));
+}
+export function isBotOnlyLobby(lobby, steamId) {
+  // An absent/incomplete membership list is not evidence that everyone left.
+  // allMembers includes historical players; memberIndices is the live roster.
+  if (!Array.isArray(lobby?.allMembers) || !Array.isArray(lobby.memberIndices) || lobby.memberIndices.length !== 1) return false;
+  const index = lobby.memberIndices[0];
+  return Number.isInteger(index) && index >= 0 && lobby.allMembers[index]?.id === steamId;
 }
 export function normalizeGCMatch(match, requestedId) {
   if (!match || Number(match.matchId) !== Number(requestedId)) throw new Error('Dota has not returned this match result yet');

@@ -181,6 +181,22 @@ lobby without starting after five minutes is cancelled. Confirmed unscored
 outcomes and short remakes cancel without rating changes. Disconnection or
 disappearance alone never implies a winner.
 
+After a launched game has only its hosting bot left in the **current** Dota
+lobby membership for 60 seconds, the bot requests to leave its own game session.
+The same rule applies to solo tests, two-player tests and ten-player games;
+even one other lobby member keeps the bot assigned. A returning player resets
+the grace period. The bot does not destroy the lobby or end the game server;
+Dota/Steam handles the remaining lobby lifecycle.
+
+The bot stays reserved until its live Steam/GC session confirms that it no
+longer belongs to the lobby, then the unfinished inhouse is cancelled without
+ratings and the bot returns to the idle pool. Departure requests retry at most
+once every 15 seconds, and pending cleanup survives worker restarts. Confirmed
+match results take precedence. Connection loss, unknown membership or a vanished
+lobby without a recorded cleanup request cannot by themselves cancel a game.
+New waiting lobbies retain their normal join window. A bot stranded alone in an
+unassigned lobby uses the same grace period to recover from a blocked slot.
+
 Lobby name/password are available only to that game's participants through a
 separate authorized endpoint. The launch roster is saved before starting, so
 players leaving the postgame lobby cannot erase the identities used to settle

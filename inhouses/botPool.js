@@ -1,6 +1,8 @@
 import {BOT_COUNT, readBotAuth, writeBotAuth} from './botAuth.js';
 import {createBotSession} from './botSession.js';
-import {accountId, lobbyMembers} from './botProtocol.js';
+import {accountId, lobbyMembers, isBotOnlyLobby} from './botProtocol.js';
+
+const EMPTY_LOBBY_GRACE_MS = 60000;
 
 export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBotAuth,
   saveAuth = writeBotAuth, createSession = createBotSession} = {}) {
@@ -42,6 +44,46 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
       store.cancel(gameId, 'Dota confirmed a short game; treated as an unrated remake.', null);
     }
   }
+  function cleanEmptyLobby(slot, g, lobby) {
+    if (!g.BotLaunchedAt || !g.LaunchRosterJson || !['awaiting_game','playing'].includes(g.Status)) return false;
+    const session = slot.session, pending = g.LobbyCleanupRequestedAt != null;
+    if (!session.hasLobbyState) {slot.emptySince = null; return false;}
+    if (!lobby) {
+      slot.emptySince = null;
+      if (!pending) return false;
+      store.cancel(g.InhouseId, 'All players left the Dota lobby. The bot left its game session; inhouse cancelled without ratings.', null);
+      return true;
+    }
+    if (lobby.lobbyId !== g.LobbyId || lobby.leagueid !== g.LeagueId || g.MatchId && Number(lobby.matchId) !== g.MatchId) {
+      slot.emptySince = null; return false;
+    }
+    if (!isBotOnlyLobby(lobby, session.steamId)) {
+      slot.emptySince = null;
+      // Never issue another leave request while somebody else is present.
+      return pending;
+    }
+    // Confirmed outcomes were handled first. Empty postgame lobbies with no
+    // result must not hold a bot forever either. Never destroy the lobby/server.
+    if (![0,1,2,3,6].includes(lobby.state)) {
+      slot.emptySince = null; return pending;
+    }
+    slot.emptySince ??= clock();
+    if (!pending && clock() - slot.emptySince < EMPTY_LOBBY_GRACE_MS) return false;
+    if (!pending) store.requestEmptyLobbyCleanup(g.InhouseId, slot.id, lobby.lobbyId);
+    if (clock() < (slot.cleanupDue || 0)) return true;
+    slot.cleanupDue = clock() + 15000;
+    send(slot, 'abandon');
+    return true;
+  }
+  function cleanUnassignedLobby(slot, lobby) {
+    if (!isBotOnlyLobby(lobby, slot.session.steamId)) {
+      slot.emptySince = null; return;
+    }
+    slot.emptySince ??= clock();
+    if (clock() - slot.emptySince < EMPTY_LOBBY_GRACE_MS || clock() < (slot.cleanupDue || 0)) return;
+    slot.cleanupDue = clock() + 15000;
+    send(slot, 'abandon');
+  }
   function processLobby(slot, g, lobby) {
     const session = slot.session;
     if (lobby.lobbyId !== g.LobbyId && (g.LobbyId || lobby.gameName !== g.LobbyName)) {
@@ -71,6 +113,8 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
       applyResult(g.InhouseId, match);
       if (store.rawGame(g.InhouseId).Status === 'completed') return;
     }
+    g = store.rawGame(g.InhouseId);
+    if (lobby === session.lobby && cleanEmptyLobby(slot, g, lobby)) return;
     if (g.Status === 'playing' || matchId > 0 || lobby.state !== 0) return;
     if (g.BotLaunchedAt && clock() > g.BotLaunchedAt + 300000) {
       store.cancel(g.InhouseId, 'Dota returned to the waiting lobby without starting a match within five minutes of launch.', null); return;
@@ -188,6 +232,7 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
       for (const [id, config] of configs) {
         const previous = store.db.prepare('SELECT * FROM InhouseBots WHERE BotId=?').get(id);
         const slot = {id, session: null, error: config.error || null, nextCommand: 0, invites: new Map(), gameId: previous.InhouseId,
+          emptySince: null, cleanupDue: 0,
           chatQueue:new Map(),chatPresent:new Set(),correctionDue:new Map(),nextChat:0,chatWaitUntil:0};
         slots.set(id, slot);
         if (config.auth && (!previous.InhouseId || !previous.SteamId || previous.SteamId === config.auth.steamId)) {
@@ -239,18 +284,25 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
           const row = store.db.prepare('SELECT * FROM InhouseBots WHERE BotId=?').get(slot.id);
           if (row.InhouseId !== slot.gameId) {
             slot.gameId = row.InhouseId; slot.invites.clear(); slot.resultDue = 0; slot.launchDue = 0; slot.nextCreate = 0;
+            slot.emptySince = null; slot.cleanupDue = 0;
             slot.chatQueue.clear();slot.chatPresent.clear();slot.correctionDue.clear();slot.nextChat=0;slot.chatWaitUntil=0;
           }
           store.updateBot(slot.id, {steamId: session.steamId,
-            status: !session.ready ? session.status : row.InhouseId ? 'busy' : session.lobby ? 'blocked' : 'idle', error: session.error || slot.error});
-          if (!session.ready || clock() < slot.nextCommand) continue;
+            status: !session.ready ? session.status : !session.hasLobbyState ? 'connecting' : row.InhouseId ? 'busy' : session.lobby ? 'blocked' : 'idle', error: session.error || slot.error});
+          if (!session.ready || !session.hasLobbyState) {slot.emptySince = null; continue;}
+          if (clock() < slot.nextCommand) continue;
           slot.error = null;
-          if (!row.InhouseId) continue;
+          if (!row.InhouseId) {cleanUnassignedLobby(slot, session.lobby); continue;}
           const g = store.rawGame(row.InhouseId), lobby = session.lobby;
           if (session.error) store.hostingUpdate(g.InhouseId, {HostingError: session.error});
           if (['completed','cancelled'].includes(g.Status)) {
             if (lobby) {
-              if (lobby.lobbyId === g.LobbyId || !g.LobbyId && lobby.gameName === g.LobbyName) send(slot, 'leave');
+              if (lobby.lobbyId === g.LobbyId || !g.LobbyId && lobby.gameName === g.LobbyName) {
+                if (clock() >= (slot.cleanupDue || 0)) {
+                  slot.cleanupDue = clock() + 15000;
+                  send(slot, g.BotLaunchedAt ? 'abandon' : 'leave');
+                }
+              }
               else errorFor(slot, 'Bot is in an unexpected lobby; its reservation remains held for an admin check.');
             } else store.releaseBot(slot.id, g.InhouseId);
             continue;
@@ -260,6 +312,7 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
           const finalLobby = g.MatchId ? session.result(g.MatchId) : session.resultForLobby?.(g.LobbyId);
           if (finalLobby) processLobby(slot, g, finalLobby);
           else if (lobby) processLobby(slot, g, lobby);
+          else if (g.LobbyCleanupRequestedAt != null) cleanEmptyLobby(slot, g, null);
           else if (g.Status === 'awaiting_game' && (slot.nextCreate || 0) <= clock()) {
             if (!g.BotLaunchedAt && g.LobbyJoinStartedAt != null && g.Deadline <= clock()) {
               store.cancel(g.InhouseId, 'The lobby join timer expired before the game started.', null); continue;
@@ -269,7 +322,13 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
             if (g.LobbyId) send(slot, 'join', {lobbyId: g.LobbyId, passKey: g.LobbyPassword});
             else send(slot, 'create', {passKey: g.LobbyPassword, lobbyDetails: settingsFor(g)});
           }
-          const current = store.rawGame(g.InhouseId);
+          let current = store.rawGame(g.InhouseId);
+          // A cached outcome may outlive the current lobby. After giving that
+          // outcome priority, finish our pending departure from live state.
+          if (g.LobbyCleanupRequestedAt != null && !session.lobby && ['awaiting_game','playing'].includes(current.Status)) {
+            cleanEmptyLobby(slot, current, null);
+            current = store.rawGame(g.InhouseId);
+          }
           if (current.Status === 'playing') pollResult(slot, current, lobby);
         } catch {errorFor(slot, 'Lobby bot could not process its assignment. Check its connection, ticket permissions and saved lobby.');}
       }

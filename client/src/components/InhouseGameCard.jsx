@@ -67,7 +67,7 @@ export default function InhouseGameCard({game, userId, now, busy, onReady, onPic
   const seconds = Math.max(0, Math.ceil((deadline - now) / 1000));
   const radiantSide=game.radiantSide||game.lobbyChoices?.radiantSide;
   return <article className={`inhouse-card inhouse-game${mine ? ' is-mine' : ''}`}>
-    <header className="inhouse-card-heading"><div><span className="inhouse-eyebrow">Inhouse #{game.id}</span><h2>{game.status === 'completed' ? 'Postgame report' : choosing ? 'Captain lobby choices'
+    <header className="inhouse-card-heading"><div><span className="inhouse-eyebrow">Inhouse #{game.id}</span><h2>{game.status === 'completed' ? 'Postgame report' : game.lobbyCleanupRequestedAt && game.status !== 'cancelled' ? 'Releasing lobby bot' : choosing ? 'Captain lobby choices'
       : game.status==='awaiting_game' ? game.botLaunchedAt ? 'Starting game' : game.lobbyJoinStartedAt ? 'Join the Dota lobby' : 'Preparing lobby' : inhouseStatus[game.status]}</h2></div>
       {deadline && <span className="inhouse-timer" aria-label="Time remaining">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</span>}
       {onDismiss && ['completed', 'cancelled'].includes(game.status) && <button type="button" className="inhouse-report-dismiss" aria-label="Dismiss postgame report" title="Dismiss report" onClick={() => onDismiss(game.id)}><X size={18} aria-hidden="true" /></button>}</header>

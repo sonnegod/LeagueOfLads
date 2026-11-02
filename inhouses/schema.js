@@ -127,6 +127,7 @@ export function ensureInhouseSchema(db) {
     add('InhouseGames', 'ChoiceDeadline', 'INTEGER');
     add('InhouseGames', 'LobbyJoinStartedAt', 'INTEGER');
     add('InhouseGames', 'QueueAvailability', "TEXT NOT NULL DEFAULT 'admin_testing'");
+    add('InhouseGames', 'LobbyCleanupRequestedAt', 'INTEGER');
     add('InhouseMembers', 'ReinviteRequestedAt', 'INTEGER');
     add('InhouseMembers', 'ReinviteHandledAt', 'INTEGER');
     if (!db.pragma('table_info(InhouseGames)').some(column => column.name === 'PlayerCount')) {

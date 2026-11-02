@@ -270,6 +270,17 @@ export class InhouseStore {
       this.advance(this.clock());
     });
   }
+  requestEmptyLobbyCleanup(id, botId, lobbyId) {
+    return this.mutate(() => {
+      const g = this.rawGame(id);
+      if (!['awaiting_game','playing'].includes(g.Status) || !g.BotLaunchedAt || !g.LaunchRosterJson || g.BotId !== botId || g.LobbyId !== lobbyId)
+        fail('This bot cannot release this game session', 409);
+      if (g.LobbyCleanupRequestedAt != null) return;
+      this.db.prepare('UPDATE InhouseGames SET LobbyCleanupRequestedAt=?,HostingError=? WHERE InhouseId=?')
+        .run(this.clock(), 'All players left. The bot is leaving its Dota game session; waiting for confirmation.', id);
+      this.audit('empty-lobby-cleanup-requested', null, id, {botId, lobbyId});
+    });
+  }
   hostingUpdate(id, values) {
     const allowed = ['LobbyId','HostingError','BotLaunchedAt','LaunchRosterJson'];
     const entries = Object.entries(values);
@@ -363,7 +374,7 @@ export class InhouseStore {
       turn: g.Turn, captainA: g.CaptainA, captainB: g.CaptainB, matchId: g.MatchId, radiantSide: g.RadiantSide,
       winner: g.Winner, startedAt: g.StartedAt, completedAt: g.CompletedAt, cancelReason: g.CancelReason,
       botId: g.BotId, lobbyId: g.LobbyId, lobbyName: g.LobbyName, gameMode: g.GameMode, serverRegion: g.ServerRegion,
-      lobbyJoinStartedAt: g.LobbyJoinStartedAt, botLaunchedAt: g.BotLaunchedAt,
+      lobbyJoinStartedAt: g.LobbyJoinStartedAt, botLaunchedAt: g.BotLaunchedAt, lobbyCleanupRequestedAt: g.LobbyCleanupRequestedAt,
       hostingError: g.HostingError,
       lobbyChoices: lobbyChoices(g),
       verification: this.db.prepare('SELECT MatchId matchId,Status status,LastError error FROM InhouseBotLookups WHERE InhouseId=? ORDER BY LookupId DESC LIMIT 1').get(g.InhouseId) || null,
