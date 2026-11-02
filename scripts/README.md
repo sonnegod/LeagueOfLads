@@ -67,6 +67,17 @@ backups use `<database>_YYYYMMDD.db`. Completed backups are published only after
 SQLite succeeds, and a shared `flock` prevents overlapping runs from making duplicates.
 The server needs the `sqlite3` and `flock` commands.
 
+Backups keep PM2 processes running. They establish a read transaction before
+copying, so ongoing WAL writes (including idle bot heartbeats) cannot repeatedly
+restart the copy. WAL databases remain writable during the snapshot; databases
+using rollback journals may temporarily delay writers until the copy finishes.
+Copies run at lower CPU priority and have a 120-second limit per database, plus
+a ten-second forced-stop grace period. Waiting for another backup's lock is also
+limited to 120 seconds. Set `BACKUP_TIMEOUT_SECONDS` to a positive whole number
+to override these limits. The server also needs GNU `timeout` and `nice` (included
+with Ubuntu coreutils). A timeout fails the job and removes its incomplete output;
+it does not publish a partial backup or stop/restart PM2.
+
 Backups are kept for three days (72 hours) by default. Expired files are pruned before
 creating backups, so a full disk does not prevent retention cleanup. `nightlyRun.sh`
 also prunes before ingestion. An exported `BACKUP_RETENTION_DAYS` overrides the default; any existing

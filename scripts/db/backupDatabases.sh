@@ -7,6 +7,7 @@ BACKUP_ROOT="$ROOT_DIR/backups"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 BACKUP_DAY="${TIMESTAMP%%_*}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-3}"
+BACKUP_TIMEOUT_SECONDS="${BACKUP_TIMEOUT_SECONDS:-120}"
 
 usage() {
     cat <<'USAGE'
@@ -19,6 +20,10 @@ Creates at most one SQLite-safe backup per database per server calendar day unde
 Existing timestamped backups from today also satisfy the daily backup.
 Backup files older than three days are removed before a backup run. Use `prune`
 to apply retention without creating a new backup.
+
+Backups use a fixed read snapshot so background WAL writes cannot restart the
+copy. Each copy and the wait for another backup are limited to 120 seconds;
+set BACKUP_TIMEOUT_SECONDS to override. PM2 processes stay running.
 
 Examples:
   ./scripts/db/backupDatabases.sh
@@ -34,6 +39,7 @@ backup_db() (
     local dest="$dest_dir/${name}_${BACKUP_DAY}.db"
     local existing
     local temporary
+    local status
 
     if [ ! -f "$source" ]; then
         echo "Skipping $name: $source not found"
@@ -51,9 +57,30 @@ backup_db() (
 
     # Publish only completed backups so a failed or interrupted attempt can retry.
     temporary="$(mktemp "${dest}.tmp.XXXXXX")"
-    trap 'rm -f -- "$temporary"' EXIT
-    sqlite3 "$source" ".backup '$temporary'"
-    test -s "$temporary"
+    trap 'rm -f -- "$temporary" "$temporary-journal" "$temporary-wal" "$temporary-shm"' EXIT
+    echo "Backing up $name (timeout: ${BACKUP_TIMEOUT_SECONDS}s)"
+    # Establish the source snapshot before starting the incremental copy.
+    # WAL writers (including idle bot heartbeats) can continue without causing
+    # .backup to restart after every write. Never take a source write lock.
+    if timeout --kill-after=10s "${BACKUP_TIMEOUT_SECONDS}s" nice -n 10 \
+        sqlite3 -readonly -batch -bail "$source" > /dev/null <<SQL
+.timeout 5000
+BEGIN;
+SELECT count(*) FROM sqlite_master;
+.backup '$temporary'
+COMMIT;
+SQL
+    then
+        test -s "$temporary"
+    else
+        status=$?
+        if [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+            echo "Backup of $name timed out after ${BACKUP_TIMEOUT_SECONDS}s; incomplete copy discarded" >&2
+        else
+            echo "Backup of $name failed (exit $status); incomplete copy discarded" >&2
+        fi
+        return "$status"
+    fi
     mv -- "$temporary" "$dest"
     echo "Created $dest"
 )
@@ -87,11 +114,18 @@ target="${1:-all}"
 
 case "$target" in
     all|LadsData|Betting|public|Analytics|SiteAnalytics|prune)
+        if [[ ! "$BACKUP_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "BACKUP_TIMEOUT_SECONDS must be a positive whole number" >&2
+            exit 1
+        fi
         # Manual runs and the nightly job may overlap. Serialize their backup
         # checks, writes and pruning; flock releases automatically on process exit.
         mkdir -p "$BACKUP_ROOT"
         exec 9>"$BACKUP_ROOT/.backup.lock"
-        flock 9
+        if ! flock -w "$BACKUP_TIMEOUT_SECONDS" 9; then
+            echo "Timed out waiting for another database backup to finish" >&2
+            exit 1
+        fi
         prune_backups
         if [ "$target" = all ]; then
             for name in LadsData Betting public Analytics SiteAnalytics; do
