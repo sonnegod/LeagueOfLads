@@ -71,7 +71,7 @@ cp -- "$1" "$destination"
   }
 }
 
-test('all databases keep one snapshot per day across deployment and nightly calls', { skip: !bash }, async () => {
+test('all databases keep one snapshot per day across manual and nightly calls', { skip: !bash }, async () => {
   await fixture(async ({ root, invoke, backups }) => {
     await invoke();
     for (const name of names) writeFileSync(join(root, 'db', `${name}.db`), 'changed after first backup');

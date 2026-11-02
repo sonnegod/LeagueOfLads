@@ -42,9 +42,9 @@ Use `--init-only` for schema creation or `--status` for a read-only status check
 Deployments build the client on a GitHub Actions runner with Node 22, then upload
 the finished files to a per-run staging directory on the server. The server
 updates its checkout with `git pull origin main`, installs server dependencies,
-backs up databases, publishes the staged client and restarts PM2. Frontend installs
+publishes the staged client and restarts PM2. Frontend installs
 and Vite builds no longer compete with the live app for server memory. An install,
-backup or Git pull failure leaves the published frontend untouched; staging
+or Git pull failure leaves the published frontend untouched; staging
 is cleaned up when the deployment command exits. Existing GitHub server secrets
 are reused. Startup initializes additive source/Betting schemas; Analytics builds,
 pricing and item downloads are handled separately. `nightlyRun.sh` builds even
@@ -60,8 +60,9 @@ GitHub source, so server-only frontend edits are not included in that build.
 ## Scheduled database backups
 
 `db/backupDatabases.sh` creates at most one backup per server calendar day for each
-of LadsData, Betting, public, Analytics and SiteAnalytics. Deployments and the nightly
-job share this limit; an existing timestamped backup from today also counts. New
+of LadsData, Betting, public, Analytics and SiteAnalytics. The nightly job and manual
+runs share this limit; an existing timestamped backup from today also counts. Deployments
+do not run database backups. New
 backups use `<database>_YYYYMMDD.db`. Completed backups are published only after
 SQLite succeeds, and a shared `flock` prevents overlapping runs from making duplicates.
 The server needs the `sqlite3` and `flock` commands.

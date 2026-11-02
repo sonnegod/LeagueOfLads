@@ -87,7 +87,7 @@ target="${1:-all}"
 
 case "$target" in
     all|LadsData|Betting|public|Analytics|SiteAnalytics|prune)
-        # Deployments and the nightly job may overlap. Serialize their backup
+        # Manual runs and the nightly job may overlap. Serialize their backup
         # checks, writes and pruning; flock releases automatically on process exit.
         mkdir -p "$BACKUP_ROOT"
         exec 9>"$BACKUP_ROOT/.backup.lock"
