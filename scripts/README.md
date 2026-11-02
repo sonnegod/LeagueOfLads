@@ -296,7 +296,7 @@ does not fetch historical matches, infer rosters, correct results or regroup ser
 `config/warehouseConnection.js` enables and verifies **WAL** on writable LadsData
 connections used by the API, new-database creation, migrations and EDW workers.
 The pinned `better-sqlite3` 12.8.0 includes SQLite 3.51.3's WAL concurrency fix.
-Run `npm install` after updating the checkout. The deployment workflow installs it
+Run `npm ci` after updating the checkout. The deployment workflow installs it
 and checks Node compatibility first (Node 22.12+ recommended). An unpatched SQLite
 runtime is rejected before configuring concurrent WAL access.
 

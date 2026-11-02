@@ -28,8 +28,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: client
-        # Lockfiles are not tracked in this repository.
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Build frontend on GitHub runner
         working-directory: client
@@ -71,7 +70,7 @@ jobs:
             # Native server dependencies are still installed on the server.
             node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (!((major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major > 22)) { console.error("Node 20.19+ or 22.12+ is required; Node 22.12+ is recommended."); process.exit(1); }'
             
-            npm install
+            npm ci --no-audit --no-fund
             # Copy assets first and index last, retaining older hashed assets
             # for browsers that already loaded the previous frontend.
             for entry in "$staging/"*; do
