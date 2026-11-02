@@ -1,34 +1,21 @@
 import {useEffect, useState} from 'react';
-import {inhouseRequest, useInhouses, useInhouseNow} from '../hooks/useInhouses';
+import {inhouseRequest, useInhouseNow} from '../hooks/useInhouses';
+import {useInhouseAdmin} from '../hooks/useInhouseAdmin';
+import {InhouseWorkerStatus} from './InhouseAdminControls';
 import InhouseGameCard from './InhouseGameCard';
 import {inhouseStatus, inhouseRoles} from '../utils/inhouseDisplay';
 import {useAuth} from '../context/AuthContext';
 import '../pages/InhousesPage.css';
 
-function AvailabilityControl({settings,busy,run}) {
-  const [mode,setMode]=useState(settings.availability),[saved,setSaved]=useState(false);
-  useEffect(()=>{setMode(settings.availability);setSaved(false);},[settings.availability]);
-  async function save(event) {
-    event.preventDefault();
-    if(await run('/admin/inhouses/availability','PUT',{availability:mode,version:settings.version}))setSaved(true);
-  }
-  return <section className="inhouse-card"><h2>Inhouse availability</h2>
-    <form className="inhouse-actions" onSubmit={save}><label>Access mode<select value={mode} onChange={event=>{setMode(event.target.value);setSaved(false);}}>
-      <option value="closed">Closed</option><option value="admin_testing">Admin testing</option><option value="open">Open to players</option>
-    </select></label><button type="submit" disabled={busy||mode===settings.availability}>Apply availability</button></form>
-    <p className="inhouse-muted">Closed stops new queues and tests. Admin testing is private to admins. Open to players enables the page and queue for everyone signed in.</p>
-    <p className="inhouse-muted">Closing or switching to admin testing releases waiting players. Reserved games continue, and bots stay connected and idle between games.</p>
-    {saved&&<p role="status">Availability saved.</p>}
-  </section>;
-}
-
 export default function InhouseAdminPanel({section = 'settings'}) {
   const {user}=useAuth();
-  const {state, error, setError, busy, run, refresh} = useInhouses(null,{admin:true});
+  const {state, error, setError, busy, run} = useInhouseAdmin();
   const [form, setForm] = useState(null), [message, setMessage] = useState('');
   const [selectedId, setSelectedId] = useState(''), [lookup, setLookup] = useState(''), [detail, setDetail] = useState(null);
   const [matchId, setMatchId] = useState(''), [reason, setReason] = useState(''), [audit, setAudit] = useState([]);
   const now = useInhouseNow(state?.serverNow);
+  const [confirmClear, setConfirmClear] = useState(false);
+  useEffect(() => {if (!state?.queue.length) setConfirmClear(false);}, [state?.queue.length]);
   useEffect(() => {
     if (!state?.settings) return;
     setForm(previous => previous?.version === state.settings.version ? previous : state.settings);
@@ -62,24 +49,8 @@ export default function InhouseAdminPanel({section = 'settings'}) {
       try {const data = await inhouseRequest(`/inhouses/games/${selected.id}`); setDetail(data.game);} catch { /* Normal stream refresh still updates recent games. */ }
     }
   }
-  return <div className="inhouse-admin">
-    {error && <p className="inhouse-notice is-error" role="alert">{error}</p>}
+  return <div className="inhouse-admin-workspace"><div className="inhouse-admin">
     {message && <p role="status">{message}</p>}
-    <AvailabilityControl settings={state.settings} busy={busy} run={run} />
-    <section className="inhouse-card"><header className="inhouse-card-heading"><h2>Inhouse operations</h2>
-      <button disabled={busy} onClick={() => refresh().catch(e => setError(e.message))}>Refresh</button></header>
-      <p>{state.queue.length} waiting · {active.length} active · {state.worker.lastTick && now - state.worker.lastTick < 45000 ? 'Worker connected' : 'Worker not reporting'}</p>
-      {state.worker.lastSuccess && <p className="inhouse-muted">Last Steam update: {new Date(state.worker.lastSuccess).toLocaleString()}</p>}
-      {state.worker.lastError && <p className="inhouse-notice">{state.worker.lastError}</p>}
-    </section>
-    <section className="inhouse-card"><header className="inhouse-card-heading"><h2>Lobby bot pool</h2>
-      <span>{(state.bots || []).filter(bot => bot.status === 'idle' && !bot.gameId).length} available / 5</span></header>
-      <div className="inhouse-bot-grid">{(state.bots || []).map(bot => <article key={bot.id} className="inhouse-bot-slot">
-        <strong>Bot {bot.id}</strong><span>{bot.gameId ? `Inhouse #${bot.gameId} · ` : ''}{bot.status}</span>
-        <small>{bot.steamId || 'Not authenticated'}</small>{bot.lastError && <p>{bot.lastError}</p>}
-      </article>)}</div>
-      <p className="inhouse-muted">Each account hosts one inhouse through completion. Authenticate the five accounts on the server and authorize each for the shared ticket. Players stay queued until a bot is available.</p>
-    </section>
     {section === 'settings' && form && <section className="inhouse-card"><h2>Queue settings</h2><form className="inhouse-settings" onSubmit={save}>
       <label>Shared inhouse ticket / league ID<input required type="number" min="1" max="4294967295" value={form.leagueId || ''} onChange={event => change('leagueId', Number(event.target.value))} /></label>
       <label>Queue selection<select value={form.queueMode} onChange={event => change('queueMode', event.target.value)}>
@@ -101,7 +72,15 @@ export default function InhouseAdminPanel({section = 'settings'}) {
         <button type="button" disabled={busy||state.settings.availability==='closed'||String(state.queue[0].playerId)!==String(user?.accountId)||!state.settings.leagueId||!state.bots?.some(bot=>bot.status==='idle'&&!bot.gameId)}
           onClick={()=>run('/admin/inhouses/test','POST',{playerCount:1})}>Start 1-player test</button>
       </section>}
-      <section className="inhouse-card"><h2>Waiting players</h2>{state.queue.length ? <div className="inhouse-ready-list">{state.queue.map(p =>
+      <section className="inhouse-card"><header className="inhouse-card-heading"><h2>Waiting players</h2>
+        <button type="button" disabled={busy || !state.queue.length} onClick={() => setConfirmClear(true)}>Unqueue everyone</button></header>
+        {confirmClear && <div className="inhouse-queue-confirm" role="group" aria-label="Confirm clearing queue">
+          <p>Remove all {state.queue.length} waiting players? Reserved and active games continue.</p>
+          <div className="inhouse-actions"><button type="button" disabled={busy} onClick={async () => {
+            const result = await run('/admin/inhouses/queue', 'DELETE');
+            if (result) {setConfirmClear(false); setMessage(`Removed ${result.removed} waiting player(s).`);}
+          }}>Clear waiting queue</button><button type="button" disabled={busy} onClick={() => setConfirmClear(false)}>Keep queue</button></div>
+        </div>}{state.queue.length ? <div className="inhouse-ready-list">{state.queue.map(p =>
         <span key={p.playerId}>{p.name} · {inhouseRoles(p)}</span>)}</div> : <p className="inhouse-muted">No players waiting.</p>}</section>
       {state.queue.length === 2 && <section className="inhouse-card"><h2>Two-player test</h2>
         <p>Reserve both queued players and an available bot for a 1v1. The bot creates the lobby, invites both players, starts it and records the outcome.</p>
@@ -138,5 +117,5 @@ export default function InhouseAdminPanel({section = 'settings'}) {
         {entry.details.reason && <p>{entry.details.reason}</p>}{entry.details.matchId && <p>Match {entry.details.previousMatchId ? `${entry.details.previousMatchId} → ` : ''}{entry.details.matchId}</p>}</div>)}
       {!audit.length && <p className="inhouse-muted">No inhouse activity yet.</p>}
     </div></section>}
-  </div>;
+  </div><InhouseWorkerStatus /></div>;
 }

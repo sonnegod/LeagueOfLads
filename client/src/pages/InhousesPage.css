@@ -1,4 +1,44 @@
 .inhouses-page { min-width:0; }
+.admin-page-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:var(--ui-content-gap,24px); }
+.content .admin-page-heading h1 { margin:0; }
+.inhouse-availability-control { position:relative; max-width:100%; }
+.inhouse-availability>summary { display:flex; align-items:center; gap:12px; padding:10px 14px; cursor:pointer; border:1px solid #475569; border-radius:10px; background:#0f172a; color:#cbd5e1; list-style:none; }
+.inhouse-availability>summary::-webkit-details-marker { display:none; }
+.inhouse-availability>summary:focus-visible { outline:2px solid #93c5fd; outline-offset:3px; }
+.inhouse-availability>summary::after { content:'▾'; color:#94a3b8; }
+.inhouse-availability strong { color:#fde68a; }
+.inhouse-availability[data-availability=open] strong { color:#86efac; }
+.inhouse-availability[data-availability=closed] strong { color:#fda4af; }
+.inhouse-availability-menu { position:absolute; top:calc(100% + 8px); right:0; z-index:30; display:grid; gap:12px; width:min(340px,calc(100vw - 48px)); padding:18px; box-sizing:border-box; border:1px solid #475569; border-radius:12px; background:#0f172a; color:#f1f5f9; box-shadow:0 12px 40px #0008; }
+.inhouse-availability-menu label { display:grid; gap:8px; }
+.inhouse-availability-menu select { width:100%; padding:8px; }
+.inhouse-availability-menu p { margin:0; color:#94a3b8; font-size:.85rem; line-height:1.5; }
+.inhouse-availability-menu button { padding:8px 12px; }
+.inhouse-control-error { color:#fda4af; font-size:.82rem; overflow-wrap:anywhere; }
+.inhouse-availability-control>.inhouse-control-error { max-width:340px; margin:8px 0 0; }
+.inhouse-admin-workspace { display:grid; grid-template-columns:minmax(0,1fr) 260px; align-items:start; gap:var(--ui-content-gap,24px); }
+.inhouse-admin { min-width:0; }
+.inhouse-worker-sidebar { position:sticky; top:80px; min-width:0; }
+.inhouse-card.inhouse-worker-status { padding:16px; font-size:.85rem; }
+.inhouse-worker-status .inhouse-card-heading { gap:8px; }
+.inhouse-worker-status h2 { font-size:1rem; }
+.inhouse-worker-status .inhouse-card-heading button { padding:4px 8px; font-size:.75rem; }
+.inhouse-health { display:flex; align-items:center; gap:8px; }
+.inhouse-health>span { width:8px; height:8px; border-radius:50%; background:#fda4af; }
+.inhouse-health[data-healthy=true]>span { background:#86efac; }
+.inhouse-bot-status-list { list-style:none; padding:0; margin:12px 0; }
+.inhouse-bot-status-list li { padding:9px 0; border-top:1px solid #334155; }
+.inhouse-bot-status-list li>div { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.inhouse-bot-status-list small { display:block; margin-top:4px; overflow-wrap:anywhere; }
+.inhouse-bot-status-list [data-status] { color:#94a3b8; }
+.inhouse-bot-status-list :is([data-status=idle],[data-status=busy]) { color:#86efac; }
+.inhouse-bot-status-list :is([data-status=error],[data-status=offline],[data-status=blocked]) { color:#fda4af; }
+.inhouse-worker-details { color:#94a3b8; font-size:.78rem; overflow-wrap:anywhere; }
+.inhouse-worker-details summary { cursor:pointer; }
+.inhouse-queue-confirm { border:1px solid #a16207; border-radius:8px; padding:12px; margin:12px 0; }
+.inhouse-queue-confirm p { margin:0 0 8px; }
+.inhouse-report-dismiss { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+@media(max-width:1000px) { .inhouse-admin-workspace { grid-template-columns:minmax(0,1fr); } .inhouse-worker-sidebar { position:static; } }
 .inhouse-page-heading .inhouse-tabs { margin:0 0 0 auto; flex:none; align-self:flex-start; justify-content:flex-end; width:auto; max-width:100%; padding:.2rem; }
 .content .inhouses-page .inhouse-tabs .ui-tab { padding:.4rem .8rem !important; min-height:32px; }
 .inhouse-player-settings { max-width:680px; }

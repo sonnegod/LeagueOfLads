@@ -154,6 +154,13 @@ export class InhouseStore {
     // The conditional delete runs under the same write lock used to select ten.
     return this.mutate(() => ({removed: this.db.prepare('DELETE FROM InhouseQueue WHERE PlayerId=? AND InhouseId IS NULL').run(playerId).changes === 1}));
   }
+  clearQueue(actorId) {
+    return this.mutate(() => {
+      const removed = this.db.prepare('DELETE FROM InhouseQueue WHERE InhouseId IS NULL').run().changes;
+      if (removed) this.audit('queue-cleared', actorId, null, {removed});
+      return {removed};
+    });
+  }
   queueSummary() {
     const players = this.db.prepare(`SELECT p.PlayerId playerId,p.Name name FROM InhouseQueue q
       JOIN InhousePlayers p USING(PlayerId) WHERE q.InhouseId IS NULL ORDER BY q.JoinedAt,q.PlayerId`).all();
@@ -278,6 +285,29 @@ export class InhouseStore {
   lobbyDetails(id, playerId) {
     const g = this.chatAccess(id, playerId);
     return {gameId: g.InhouseId, name: g.LobbyName, password: g.LobbyPassword, lobbyId: g.LobbyId};
+  }
+  requestReinvite(id, playerId) {
+    return this.mutate(() => {
+      const g = this.chatAccess(id, playerId), now = this.clock();
+      if (g.Status !== 'awaiting_game' || !g.BotId || !g.LobbyId || g.LobbyJoinStartedAt == null || g.BotLaunchedAt || g.Deadline <= now)
+        fail('Invitations are available while the lobby is open and waiting for players.', 409);
+      const bot = this.botStatus().find(bot => bot.id === g.BotId);
+      if (bot?.gameId !== id || bot.status !== 'busy') fail('The lobby bot is reconnecting. Please try again shortly.', 409);
+      const member = this.db.prepare('SELECT ReinviteRequestedAt FROM InhouseMembers WHERE InhouseId=? AND PlayerId=?').get(id, playerId);
+      if (member.ReinviteRequestedAt != null && member.ReinviteRequestedAt + 30000 > now)
+        fail('Please wait 30 seconds between invitation requests.', 429);
+      this.db.prepare('UPDATE InhouseMembers SET ReinviteRequestedAt=? WHERE InhouseId=? AND PlayerId=?').run(now, id, playerId);
+      return {pending: true, retryAt: now + 30000};
+    });
+  }
+  pendingReinvites(id) {
+    return this.db.prepare(`SELECT PlayerId playerId,ReinviteRequestedAt requestedAt FROM InhouseMembers
+      WHERE InhouseId=? AND ReinviteRequestedAt IS NOT NULL
+      AND (ReinviteHandledAt IS NULL OR ReinviteRequestedAt>ReinviteHandledAt) ORDER BY ReinviteRequestedAt,PlayerId`).all(id);
+  }
+  finishReinvite(id, playerId, requestedAt) {
+    return this.mutate(() => this.db.prepare(`UPDATE InhouseMembers SET ReinviteHandledAt=?
+      WHERE InhouseId=? AND PlayerId=? AND ReinviteRequestedAt=?`).run(requestedAt, id, playerId, requestedAt));
   }
   startLobbyTimer(id, lobbyId) {
     return this.mutate(() => {

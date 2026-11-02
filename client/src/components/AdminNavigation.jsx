@@ -8,14 +8,14 @@ const workspaces=[
   {key:'admin',label:'Admin'},
 ];
 
-export default function AdminNavigation({workspace,onWorkspaceChange,sections,activeSection,onSectionChange}) {
+export default function AdminNavigation({workspace,onWorkspaceChange,sections,activeSection,onSectionChange,actions}) {
   const sectionsRef=useRef(null);
   useLayoutEffect(()=>{
     const rail=sectionsRef.current;if(!rail)return;
     const navigation=rail.closest('nav');
     const revealSelected=()=>{
       const selected=rail.querySelector('[aria-pressed="true"]');if(!selected)return;
-      const scroller=getComputedStyle(rail).overflowX==='visible'?navigation:rail;
+      const scroller=rail;
       // Layout offsets stay stable while the entrance animation transforms tabs.
       let start=0;
       for(let element=selected;element&&element!==scroller;element=element.offsetParent)start+=element.offsetLeft;
@@ -35,14 +35,17 @@ export default function AdminNavigation({workspace,onWorkspaceChange,sections,ac
         onClick={()=>onWorkspaceChange(key)}><span>{label}</span></button>)}
     </div>
     <span key={`connector-${workspace}`} className="admin-navigation-connector" aria-hidden="true"><ChevronRight size={17} /></span>
-    <div key={workspace} id="admin-section-navigation" className="ui-tabs admin-navigation-secondary" ref={sectionsRef}
-      role="group" aria-label={`${workspaces.find(item=>item.key===workspace)?.label||'Admin'} sections`}>
-      <div className="admin-section-list">
+    <div className="ui-tabs admin-navigation-secondary">
+      <div id="admin-section-navigation" className="admin-section-scroll" ref={sectionsRef}
+        role="group" aria-label={`${workspaces.find(item=>item.key===workspace)?.label||'Admin'} sections`}>
+      <div key={workspace} className="admin-section-list">
         {sections.map(([key,label],index)=><button key={key} type="button" className="ui-tab admin-section-tab"
           style={{'--admin-section-index':index}} aria-pressed={activeSection===key} onClick={()=>onSectionChange(key)}>
           <span>{label}</span>
         </button>)}
       </div>
+      </div>
+      {actions && <div className="admin-navigation-actions">{actions}</div>}
     </div>
   </nav>;
 }

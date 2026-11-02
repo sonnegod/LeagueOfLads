@@ -12,16 +12,18 @@ import {readBotAuth, writeBotAuth, botAuthPath} from '../inhouses/botAuth.js';
 test('lobby command bytes preserve Valve field numbers and full 64-bit lobby IDs', () => {
   // Independent minimal decoders describe the published wire contract.
   const schema = protobuf.parse(`syntax="proto2";
-    message Config {optional uint64 lobby=1; optional string name=2; optional uint32 region=4; optional uint32 mode=5; optional uint32 pick=6; optional uint32 ticket=16; optional uint32 priority=46;}
+    message Config {optional uint64 lobby=1; optional string name=2; optional uint32 region=4; optional uint32 mode=5; optional uint32 pick=6; optional uint32 ticket=16; optional uint32 visibility=33; optional uint32 priority=46;}
     message NewLobby {optional string password=5; optional Config config=7;}
     message AccountKick {optional uint32 account=3;}
     message AccountUnseat {optional uint32 account=1;}
   `).root;
-  const create = encodeLobbyCommand('create', {passKey:'secret', lobbyDetails:{gameName:'Inhouse #1',serverRegion:2,gameMode:1,leagueid:18083}});
+  const create = encodeLobbyCommand('create', {passKey:'secret', lobbyDetails:{gameName:'Inhouse #1',serverRegion:2,gameMode:1,leagueid:18083,visibility:0}});
   assert.equal(create.messageId, 7038);
   const decoded = schema.lookupType('NewLobby').decode(create.payload);
   assert.equal(decoded.password, 'secret'); assert.equal(decoded.config.ticket, 18083);
   assert.equal(decoded.config.region, 2); assert.equal(decoded.config.mode, 1);
+  assert.equal(decoded.config.visibility, 0);
+  assert.ok(Object.hasOwn(decoded.config, 'visibility'), 'Public visibility is explicitly sent even though its value is zero');
   const captainMode=schema.lookupType('Config').decode(encodeLobbyCommand('details',{gameMode:2,cmPick:2,selectionPriorityRules:0}).payload);
   assert.equal(captainMode.mode,2);assert.equal(captainMode.pick,2);assert.equal(captainMode.priority,0);
   const id = '18446744073709550000';

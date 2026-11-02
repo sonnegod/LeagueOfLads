@@ -1,10 +1,13 @@
 import {Link} from 'react-router-dom';
 import {useEffect, useState} from 'react';
+import {X} from 'lucide-react';
 import {inhouseRequest} from '../hooks/useInhouses';
 import {inhouseStatus, inhouseRating, inhouseRoles, inhouseCalibration} from '../utils/inhouseDisplay';
 const average = players => players.length ? inhouseRating(players.reduce((n, p) => n + p.rating, 0) / players.length) : '—';
-function BotLobbyDetails({game}) {
+function BotLobbyDetails({game, now, busy, onReinvite}) {
   const [details, setDetails] = useState(null);
+  const [retryAt, setRetryAt] = useState(0), [requested, setRequested] = useState(false);
+  const remaining = Math.max(0, Math.ceil((retryAt - now) / 1000));
   useEffect(() => {
     const controller = new AbortController();
     inhouseRequest(`/inhouses/games/${game.id}/lobby`, {signal: controller.signal})
@@ -18,6 +21,13 @@ function BotLobbyDetails({game}) {
         : 'The bot is preparing the lobby. Your join timer starts when it confirms the lobby is ready.'}</p>
     {details?.gameId === game.id && <div className="inhouse-lobby-details"><span>Lobby: <strong>{details.name}</strong></span>
       <span>Password: <code>{details.password}</code></span></div>}
+    {onReinvite && game.lobbyJoinStartedAt && !game.botLaunchedAt && game.deadline > now && <div className="inhouse-actions">
+      <button type="button" disabled={busy || remaining > 0} onClick={async () => {
+        const result = await onReinvite(game.id);
+        if (result) {setRetryAt(result.retryAt); setRequested(true);}
+      }}>{remaining ? `Invite again in ${remaining}s` : 'Ask bot to reinvite me'}</button>
+      {requested && <small className="inhouse-muted" role="status">Reinvite requested. Check your Dota invitations.</small>}
+    </div>}
   </>;
 }
 function CaptainLobbyChoices({game,userId,busy,onChoose,seconds}) {
@@ -48,7 +58,7 @@ export function InhousePlayer({player, showResult = false}) {
   </div>;
 }
 
-export default function InhouseGameCard({game, userId, now, busy, onReady, onPick, onLobbyChoice, allowReadyPreview = false}) {
+export default function InhouseGameCard({game, userId, now, busy, onReady, onPick, onLobbyChoice, onReinvite, onDismiss, allowReadyPreview = false}) {
   const mine = game.players.find(p => String(p.playerId) === String(userId));
   if (game.status === 'ready' && !mine && !allowReadyPreview) return null;
   const canPick = game.status === 'drafting' && Number(userId) === (game.turnSide === 'A' ? game.captainA : game.captainB);
@@ -59,7 +69,8 @@ export default function InhouseGameCard({game, userId, now, busy, onReady, onPic
   return <article className={`inhouse-card inhouse-game${mine ? ' is-mine' : ''}`}>
     <header className="inhouse-card-heading"><div><span className="inhouse-eyebrow">Inhouse #{game.id}</span><h2>{game.status === 'completed' ? 'Postgame report' : choosing ? 'Captain lobby choices'
       : game.status==='awaiting_game' ? game.botLaunchedAt ? 'Starting game' : game.lobbyJoinStartedAt ? 'Join the Dota lobby' : 'Preparing lobby' : inhouseStatus[game.status]}</h2></div>
-      {deadline && <span className="inhouse-timer" aria-label="Time remaining">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</span>}</header>
+      {deadline && <span className="inhouse-timer" aria-label="Time remaining">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</span>}
+      {onDismiss && ['completed', 'cancelled'].includes(game.status) && <button type="button" className="inhouse-report-dismiss" aria-label="Dismiss postgame report" title="Dismiss report" onClick={() => onDismiss(game.id)}><X size={18} aria-hidden="true" /></button>}</header>
     <div className="inhouse-meta"><span>{game.queueMode === 'fifo' ? 'FIFO · roles informational' : 'Role preference'}</span>
       {game.playerCount === 2 && <span>1v1 admin test</span>}
       {game.playerCount === 1 && <span>Solo admin test · Unrated · All Pick</span>}
@@ -86,7 +97,7 @@ export default function InhouseGameCard({game, userId, now, busy, onReady, onPic
       {game.status === 'drafting' && <p aria-live="polite">Team {game.turnSide} picks next · Pick {game.turn + 1}/8{canPick ? ' · Your pick' : ''}</p>}
       {choosing && <CaptainLobbyChoices game={game} userId={userId} busy={busy} seconds={seconds} onChoose={onLobbyChoice} />}
       {game.status === 'awaiting_game' && !choosing && (game.botId
-        ? mine ? <BotLobbyDetails game={game} /> : <p>Bot {game.botId} is preparing this lobby.</p>
+        ? mine ? <BotLobbyDetails game={game} now={now} busy={busy} onReinvite={onReinvite} /> : <p>Bot {game.botId} is preparing this lobby.</p>
         : <p>This inhouse predates bot hosting. An admin can cancel it and start a bot-hosted game, or verify its existing match ID.</p>)}
       {game.hostingError && !['completed','cancelled'].includes(game.status) && <p className="inhouse-notice">{game.hostingError}</p>}
       <div className="inhouse-teams">{['A', 'B'].map(side => {

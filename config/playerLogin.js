@@ -8,10 +8,17 @@ export function ensurePlayerLoginSchema(db) {
       FirstLoginAtUtc TEXT,NameConfirmedAtUtc TEXT,
       NameConfirmationRequired INTEGER NOT NULL DEFAULT 0 CHECK(NameConfirmationRequired IN (0,1))
     )`);
-    const columns=new Set(db.prepare('PRAGMA table_info(Logins)').all().map(c=>c.name));
+    const columns=new Set(db.prepare('PRAGMA table_info(Logins)').all().map(c=>c.name.toLowerCase()));
+    // Some restored databases name this 32-bit Steam account identifier
+    // AccountId. Normalize it in place, preserving rows and its UNIQUE key.
+    if(!columns.has('steamid')&&columns.has('accountid')) {
+      db.exec('ALTER TABLE Logins RENAME COLUMN AccountId TO SteamID');
+      columns.add('steamid');
+    }
+    if(!columns.has('steamid'))throw new Error('Unsupported Logins schema: expected SteamID or AccountId');
     for(const [column,type] of Object.entries({FirstLoginAtUtc:'TEXT',NameConfirmedAtUtc:'TEXT',
       NameConfirmationRequired:'INTEGER NOT NULL DEFAULT 0 CHECK(NameConfirmationRequired IN (0,1))'})) {
-      if(!columns.has(column))db.exec(`ALTER TABLE Logins ADD COLUMN ${column} ${type}`);
+      if(!columns.has(column.toLowerCase()))db.exec(`ALTER TABLE Logins ADD COLUMN ${column} ${type}`);
     }
     db.exec(`CREATE TABLE IF NOT EXISTS PlayerLoginMigrations (
       Version INTEGER PRIMARY KEY,AppliedAtUtc TEXT NOT NULL

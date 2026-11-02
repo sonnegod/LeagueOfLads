@@ -7,14 +7,53 @@ import {createPlayerLoginRouter} from '../routes/playerLoginRoutes.js';
 
 const first='2026-10-19T12:00:00.000Z';
 const later='2026-10-20T12:00:00.000Z';
-function fixture() {
+function fixture(identityColumn='SteamID') {
   const db=new Database(':memory:');
   db.exec(`CREATE TABLE PlayerInfo(PlayerId INTEGER PRIMARY KEY,PlayerName TEXT NOT NULL,LastDateChanged TEXT);
-    CREATE TABLE Logins(UID INTEGER PRIMARY KEY AUTOINCREMENT,Username TEXT NOT NULL,SteamID INTEGER NOT NULL UNIQUE,LastLoginDate TEXT NOT NULL);
+    CREATE TABLE Logins(UID INTEGER PRIMARY KEY AUTOINCREMENT,Username TEXT NOT NULL,${identityColumn} INTEGER NOT NULL UNIQUE,LastLoginDate TEXT NOT NULL);
     INSERT INTO Logins VALUES(77,'Existing Steam user',77,'2026-10-01T00:00:00.000Z');
     INSERT INTO PlayerInfo VALUES(1,'Recorded league name',NULL),(2,'Other player',NULL),(77,'Existing player',NULL);`);
   ensurePlayerLoginSchema(db);return db;
 }
+
+test('startup migrates AccountId login tables without losing identities, timestamps or unique upserts',()=>{
+  const db=fixture('AccountId');try {
+    assert.ok(db.pragma('table_info(Logins)').some(column=>column.name==='SteamID'));
+    assert.equal(db.prepare('SELECT UID,Username,LastLoginDate FROM Logins WHERE SteamID=77').get().UID,77);
+    assert.equal(getPlayerLoginState(db,77).nameConfirmation.firstLoginAtUtc,null);
+    assert.equal(getPlayerLoginState(db,77).nameConfirmation.required,true);
+    assert.equal(confirmPlayerName(db,77,'Existing player',new Date(first)).success,true);
+    const confirmed=db.prepare('SELECT * FROM Logins WHERE SteamID=77').get();
+    // Also cover restored databases where the confirmation migration already ran.
+    db.exec('ALTER TABLE Logins RENAME COLUMN SteamID TO AccountId');
+    ensurePlayerLoginSchema(db);ensurePlayerLoginSchema(db);
+    assert.deepEqual(db.prepare('SELECT * FROM Logins WHERE SteamID=77').get(),confirmed);
+    recordPlayerLogin(db,77,'Returning Steam user',later);
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM Logins WHERE SteamID=77').get().n,1);
+    assert.equal(db.prepare('SELECT UID FROM Logins WHERE SteamID=77').get().UID,77);
+    assert.equal(getPlayerLoginState(db,77).nameConfirmation.required,false);
+    assert.equal(getPlayerLoginState(db,77).nameConfirmation.confirmedAtUtc,first);
+    recordPlayerLogin(db,3,'New visitor',later);
+    assert.equal(getPlayerLoginState(db,3).nameConfirmation.firstLoginAtUtc,later);
+  }finally{db.close();}
+});
+
+test('a failed AccountId migration rolls back its schema rename and can retry without losing records',()=>{
+  const db=fixture();try {
+    db.exec(`ALTER TABLE Logins RENAME COLUMN SteamID TO AccountId;
+      DELETE FROM PlayerLoginMigrations;
+      UPDATE Logins SET NameConfirmationRequired=0 WHERE AccountId=77;
+      CREATE TRIGGER reject_confirmation BEFORE UPDATE ON Logins BEGIN SELECT RAISE(ABORT,'test migration failure'); END;`);
+    assert.throws(()=>ensurePlayerLoginSchema(db),/test migration failure/);
+    assert.ok(db.pragma('table_info(Logins)').some(column=>column.name==='AccountId'));
+    assert.equal(db.prepare('SELECT UID FROM Logins WHERE AccountId=77').get().UID,77);
+    db.exec('DROP TRIGGER reject_confirmation');
+    ensurePlayerLoginSchema(db);
+    assert.equal(getPlayerLoginState(db,77).nameConfirmation.required,true);
+    recordPlayerLogin(db,77,'Recovered login',later);
+    assert.equal(db.prepare('SELECT UID FROM Logins WHERE SteamID=77').get().UID,77);
+  }finally{db.close();}
+});
 
 test('existing users get the same confirmation popup once, without inventing a first-login date',()=>{
   const db=fixture();try {

@@ -22,6 +22,7 @@ import PastChampionsPanel from "../components/PastChampionsPanel";
 import RecordManagementPanel from "../components/RecordManagementPanel";
 import AdminNavigation from "../components/AdminNavigation";
 import InhouseAdminPanel from "../components/InhouseAdminPanel";
+import {InhouseAdminProvider, InhouseAvailability} from "../components/InhouseAdminControls";
 
 
 export default function AdminPage() {
@@ -86,10 +87,11 @@ export default function AdminPage() {
   ];
 
    return (
-    <div className={`ui-page admin-page${activeTab === 'admin' && activeAdminTab === 'rules' ? ' admin-page-rules' : ''}`}>
-      <h1>Admin Panel</h1>
+    <InhouseAdminProvider><div className={`ui-page admin-page${activeTab === 'admin' && activeAdminTab === 'rules' ? ' admin-page-rules' : ''}`}>
+      <header className="admin-page-heading"><h1>Admin Panel</h1></header>
 
       <AdminNavigation workspace={activeTab} onWorkspaceChange={setActiveTab} sections={sections}
+        actions={activeTab === 'inhouses' ? <InhouseAvailability /> : undefined}
         activeSection={activeTab==='league'?activeLeagueTab:activeTab==='inhouses'?activeInhouseTab:activeAdminTab}
         onSectionChange={activeTab==='league'?setActiveLeagueTab:activeTab==='inhouses'?setActiveInhouseTab:setActiveAdminTab} />
 
@@ -170,7 +172,7 @@ export default function AdminPage() {
         {activeTab === "admin" && activeAdminTab === "champions" && <PastChampionsPanel onChanged={triggerRefresh} />}
         {activeTab === "admin" && activeAdminTab === "recordManagement" && <RecordManagementPanel refreshKey={refreshKey} onChanged={triggerRefresh} />}
         {activeTab === "admin" && activeAdminTab === "auditLog" && <AdminAuditLogPanel />}
-    </div>
+    </div></InhouseAdminProvider>
   );
 }
 

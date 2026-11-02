@@ -1,7 +1,8 @@
 # Inhouses
 
 The Admin page has an Inhouses primary tab for Settings, Queue & Games,
-and Activity. Its **Inhouse availability** control has three modes:
+and Activity. The **Inhouses** control at the right of its secondary tab bar
+sets availability to one of three modes:
 
 - **Closed:** stop new queue joins and tests, release waiting players, hide the
   player-facing navigation and block its data endpoints, including for admins
@@ -35,7 +36,7 @@ the same configurable inhouse ticket.
    timer with automatic selection on expiry. The website player-draft order
    stays unchanged. All Pick offers side choice only. The bot uses the saved
    side/pick order when it prepares the Dota lobby.
-4. The bot creates an unlisted, password-protected Dota lobby with the saved
+4. The bot creates a public, password-protected Dota lobby with the saved
    ticket, game mode and region, moves itself out of the playing teams, and
    invites the selected accounts using their Dota player IDs.
    Once Dota confirms the owned lobby is configured and ready, the bot starts
@@ -46,6 +47,10 @@ the same configurable inhouse ticket.
    Radiant/Dire follows the captains' saved choices, shown on each team card.
    The bot removes outsiders and unseats
    players who occupy the wrong team. Any slot on the correct side is accepted.
+   While the lobby is ready and waiting, participants can click **Ask bot to
+   reinvite me** on their game card. Requests go to the assigned bot and are
+   limited to one per player every 30 seconds; players already present need no
+   additional invitation. The join deadline does not reset.
    Missing players are reinvited at most every 30 seconds. It starts only after
    the full roster is correct.
    The bot announces the join window in Dota lobby chat, greets arriving
@@ -59,6 +64,9 @@ the same configurable inhouse ticket.
    Live site updates leave a postgame report above the queue, showing win/loss,
    before/after inhouse rating and each player's gain or loss. Reports also
    remain available in History, including reconciled ratings after corrections.
+   Close a finished report with its **Dismiss report** button to hide it from
+   the lobby. Dismissal is remembered per signed-in account in that browser's
+   local storage, with no database write; History can still reopen the report.
 7. The bot leaves the finished lobby before becoming available for another
    inhouse. Bot assignments and verified launch rosters survive restarts.
 
@@ -145,6 +153,16 @@ before filling all five slots. Mocked tests cover concurrency and wire decoding;
 they do not prove Steam account permissions or live outcome delivery.
 
 ## Operations and recovery
+
+Inhouse admin tabs show only their own controls, with one compact **Worker &
+bots** status card beside them (below the controls on narrow screens). It shows
+the worker heartbeat, queue/game counts, all five bot statuses and connection
+details. Availability is managed from the right of the secondary tab bar while
+the Inhouses workspace is selected.
+
+Under **Queue & Games**, **Unqueue everyone** clears all waiting players after
+confirmation. Reserved and active games keep their players; this action is
+admin-only and recorded in Activity.
 
 The worker advances deadlines and bot state once per second under a database
 lease. A second worker cannot start another set of Steam sessions against the

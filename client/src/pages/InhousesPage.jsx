@@ -2,6 +2,7 @@ import {useEffect, useMemo, useState} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
 import {useAuth} from '../context/AuthContext';
 import {inhouseRequest, useInhouses, useInhouseNow} from '../hooks/useInhouses';
+import {useDismissedInhouseReports} from '../hooks/useDismissedInhouseReports';
 import InhouseGameCard from '../components/InhouseGameCard';
 import InhousePlayerSettings from '../components/InhousePlayerSettings';
 import InhouseRoleWelcome from '../components/InhouseRoleWelcome';
@@ -61,6 +62,7 @@ export default function InhousesPage() {
 function InhousesContent() {
   const {user, loading} = useAuth(), [params, setParams] = useSearchParams();
   const {state, profile, error, setError, busy, run, connected} = useInhouses(user?.accountId);
+  const {dismissed, dismiss} = useDismissedInhouseReports(user?.accountId);
   const [archive, setArchive] = useState([]), [detail, setDetail] = useState(null), [historyBusy, setHistoryBusy] = useState(false);
   const now = useInhouseNow(state?.serverNow), requestedId = Number(params.get('game')) || null;
   const mine = state?.games.find(g => !['completed', 'cancelled'].includes(g.status) && g.players.some(p => String(p.playerId) === String(user?.accountId)));
@@ -86,7 +88,8 @@ function InhousesContent() {
     .filter(g => g.status !== 'ready' || g.players.some(p => String(p.playerId) === String(user?.accountId)))
     .sort((a, b) => b.id - a.id);
   const queued = state.queue.some(p => String(p.playerId) === String(user?.accountId));
-  const selected = requestedId ? games.find(g => g.id === requestedId) : activeTab === 'history' ? null : mine || state.games.find(g => g.players.some(p => String(p.playerId) === String(user?.accountId)));
+  const candidate = requestedId ? games.find(g => g.id === requestedId) : activeTab === 'history' ? null : mine || state.games.find(g => g.players.some(p => String(p.playerId) === String(user?.accountId)));
+  const selected = activeTab !== 'history' && ['completed', 'cancelled'].includes(candidate?.status) && dismissed.includes(candidate.id) ? null : candidate;
   const active = games.filter(g => !['completed', 'cancelled'].includes(g.status) && g.id !== selected?.id);
   const completed = games.filter(g => ['completed', 'cancelled'].includes(g.status));
   const stale = !state.worker.lastTick || now - state.worker.lastTick > 45000;
@@ -96,6 +99,11 @@ function InhousesContent() {
     catch (e) {setError(e.message);} finally {setHistoryBusy(false);}
   }
   const card = game => <InhouseGameCard key={game.id} game={game} userId={user?.accountId} now={now} busy={busy}
+    onDismiss={activeTab === 'lobby' && user && ['completed', 'cancelled'].includes(game.status) ? id => {
+      dismiss(id);
+      const next = new URLSearchParams(params); next.delete('game'); setParams(next, {replace: true});
+    } : undefined}
+    onReinvite={id => run(`/inhouses/games/${id}/reinvite`, 'POST')}
     onReady={id => run(`/inhouses/games/${id}/ready`, 'POST')}
     onLobbyChoice={(id,choice,turn)=>run(`/inhouses/games/${id}/lobby-choice`,'POST',{choice,turn})}
     onPick={(id, playerId, turn) => run(`/inhouses/games/${id}/pick`, 'POST', {playerId, turn})} />;

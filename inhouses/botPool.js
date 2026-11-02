@@ -30,7 +30,7 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
     return {lobbyId: g.LobbyId || undefined, gameName: g.LobbyName, passKey: g.LobbyPassword,
       serverRegion: g.ServerRegion, gameMode: g.GameMode, leagueid: g.LeagueId,
       cmPick: g.GameMode === 2 && g.FirstPickSide ? g.FirstPickSide === g.LobbyRadiantSide ? 1 : 2 : 0, selectionPriorityRules: 0,
-      allowCheats: false, fillWithBots: false, allowSpectating: true, dotaTvDelay: 0, lan: false, visibility: 2};
+      allowCheats: false, fillWithBots: false, allowSpectating: true, dotaTvDelay: 0, lan: false, visibility: 0};
   }
   function applyResult(gameId, match) {
     const g = store.rawGame(gameId);
@@ -80,7 +80,7 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
     }
     if (lobby.leaderId !== session.steamId) {errorFor(slot, 'Lobby bot is not the lobby host.'); return;}
     if (lobby.gameMode !== g.GameMode || lobby.serverRegion !== g.ServerRegion || g.GameMode === 2 && (lobby.cmPick !== settingsFor(g).cmPick || lobby.selectionPriorityRules !== 0) || lobby.allowCheats || lobby.fillWithBots || lobby.lan
-      || lobby.visibility !== 2 || !lobby.allowSpectating || lobby.passKey !== g.LobbyPassword) {
+      || lobby.visibility !== 0 || !lobby.allowSpectating || lobby.passKey !== g.LobbyPassword) {
       send(slot, 'details', settingsFor(g)); return;
     }
     const members = lobbyMembers(lobby), bot = members.find(p => p.id === session.steamId);
@@ -119,6 +119,17 @@ export function createInhouseBotPool(store, {clock = Date.now, readAuth = readBo
         }
         send(slot, 'unseat', {accountId: id}); return;
       }
+    }
+    // Explicit requests cross from the web process to the owning worker. Keep
+    // them ahead of routine invitations without bypassing lobby/roster checks.
+    for (const request of store.pendingReinvites(g.InhouseId)) {
+      if (!present.has(request.playerId)) {
+        session.invite(request.playerId);
+        slot.invites.set(request.playerId, clock() + 30000);
+        slot.nextCommand = clock() + 1000;
+      }
+      store.finishReinvite(g.InhouseId, request.playerId, request.requestedAt);
+      if (!present.has(request.playerId)) return;
     }
     for (const player of players) {
       if (!present.has(player.playerId) && (slot.invites.get(player.playerId) || 0) <= clock()) {
