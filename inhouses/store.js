@@ -2,6 +2,7 @@ import {ensureInhouseSchema} from './schema.js';
 import {selectPlayers, captains, bestTeams, autoPick, PICK_ORDER, ratingChanges} from './model.js';
 import {randomBytes, randomInt} from 'node:crypto';
 import {lobbyChoices} from './lobbyChoices.js';
+import {InhouseAccess} from './access.js';
 
 export function fail(message, status = 400) {throw Object.assign(new Error(message), {status});}
 export function positiveId(value, label = 'ID') {
@@ -26,6 +27,7 @@ export class InhouseStore {
     this.random = random;
     this.listeners = new Set();
     ensureInhouseSchema(db);
+    this.access = new InhouseAccess(this);
   }
   mutate(fn) {
     let changed = false;
@@ -71,8 +73,12 @@ export class InhouseStore {
     return {activeGameId:row.activeGameId||null,hasHistory:row.n>0};
   }
   audit(action, actorId, inhouseId, details) {
+    const saved = {...details};
+    if (actorId) saved.actorName = this.access.playerName(actorId);
+    if (/^(vouch|community-manager)-(added|removed)$/.test(action))
+      saved.playerName = this.access.playerName(details.playerId);
     this.db.prepare('INSERT INTO InhouseAudit(At,ActorId,InhouseId,Action,DetailsJson) VALUES(?,?,?,?,?)')
-      .run(this.clock(), actorId || null, inhouseId || null, action, JSON.stringify(details));
+      .run(this.clock(), actorId || null, inhouseId || null, action, JSON.stringify(saved));
   }
   saveSettings(body) {
     return this.mutate(() => {
@@ -134,6 +140,7 @@ export class InhouseStore {
       if(this.settings().availability==='closed')fail('Inhouses are closed. An admin must reopen queueing.',409);
       if (!this.settings().leagueId) fail('An admin must configure the inhouse ticket before queueing opens', 409);
       const id = positiveId(playerId, 'player');
+      if (!this.access.permissions(id).canQueue) fail('A community manager must vouch for you before you can queue', 403);
       if (this.db.prepare('SELECT 1 FROM InhouseQueue WHERE PlayerId=?').get(id)) fail('You are already queued or reserved for an inhouse', 409);
       this.setPreferences(id, body, name);
       this.db.prepare('INSERT INTO InhouseQueue(PlayerId,JoinedAt) VALUES(?,?)').run(id, this.clock());
@@ -397,6 +404,7 @@ export class InhouseStore {
       .all(before || Number.MAX_SAFE_INTEGER,playerId,playerId).map(row => this.game(row.InhouseId));
   }
   startSelection(now) {
+    this.access.pruneQueue();
     const settings = this.settings();
     if (!settings.leagueId || settings.availability==='closed') return;
     let queue = this.queue();
@@ -428,6 +436,7 @@ export class InhouseStore {
   }
   startAdminTest(actorId, {playerCount = 2} = {}) {
     return this.mutate(() => {
+      this.access.pruneQueue();
       const settings = this.settings();
       if(settings.availability==='closed')fail('Inhouses are closed. Reopen admin testing before starting a test.',409);
       if (!settings.leagueId) fail('Configure the inhouse ticket before starting a test', 409);
@@ -521,6 +530,7 @@ export class InhouseStore {
       this.db.prepare(`DELETE FROM InhouseQueue WHERE InhouseId=? AND PlayerId IN
         (SELECT PlayerId FROM InhouseMembers WHERE InhouseId=? AND Ready=0)`).run(g.InhouseId, g.InhouseId);
       this.db.prepare('UPDATE InhouseQueue SET InhouseId=NULL WHERE InhouseId=?').run(g.InhouseId);
+      this.access.pruneQueue();
     } else this.db.prepare('DELETE FROM InhouseQueue WHERE InhouseId=?').run(g.InhouseId);
     this.audit('cancelled', actorId, g.InhouseId, {reason});
   }
@@ -638,6 +648,18 @@ export class InhouseStore {
     for (const [id, p] of players) savePlayer.run(p.rating, p.games, p.wins, p.losses, id);
   }
   auditLog() {
-    return this.db.prepare("SELECT * FROM InhouseAudit WHERE Action<>'settings' ORDER BY AuditId DESC LIMIT 100").all().map(r => ({id: r.AuditId, at: r.At, actorId: r.ActorId, inhouseId: r.InhouseId, action: r.Action, details: JSON.parse(r.DetailsJson)}));
+    const names = new Map();
+    const name = id => {
+      if (!id) return null;
+      if (!names.has(id)) names.set(id, this.access.playerName(id));
+      return names.get(id);
+    };
+    return this.db.prepare("SELECT * FROM InhouseAudit WHERE Action<>'settings' ORDER BY AuditId DESC LIMIT 100").all().map(row => {
+      const details = JSON.parse(row.DetailsJson);
+      if (/^(vouch|community-manager)-(added|removed)$/.test(row.Action) && !details.playerName)
+        details.playerName = name(details.playerId);
+      return {id: row.AuditId, at: row.At, actorId: row.ActorId,
+        actorName: details.actorName || name(row.ActorId), inhouseId: row.InhouseId, action: row.Action, details};
+    });
   }
 }

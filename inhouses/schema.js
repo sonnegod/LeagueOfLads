@@ -39,6 +39,18 @@ export function ensureInhouseSchema(db) {
       Id INTEGER PRIMARY KEY CHECK(Id=1), Revision INTEGER NOT NULL DEFAULT 0
     );
     INSERT OR IGNORE INTO InhouseMeta(Id) VALUES(1);
+    CREATE TABLE IF NOT EXISTS InhouseCommunityManagers (
+      PlayerId INTEGER PRIMARY KEY CHECK(PlayerId BETWEEN 1 AND 4294967294),
+      AddedAt INTEGER NOT NULL, AddedBy INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS InhouseVouches (
+      PlayerId INTEGER PRIMARY KEY CHECK(PlayerId BETWEEN 1 AND 4294967294),
+      VouchedAt INTEGER NOT NULL, VouchedBy INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS InhouseAccessMeta (
+      Id INTEGER PRIMARY KEY CHECK(Id=1), Revision INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT OR IGNORE INTO InhouseAccessMeta(Id) VALUES(1);
     CREATE TABLE IF NOT EXISTS InhousePlayers (
       PlayerId INTEGER PRIMARY KEY, Name TEXT NOT NULL, RolesJson TEXT NOT NULL DEFAULT '[]',
       OffRole INTEGER NOT NULL DEFAULT 1 CHECK(OffRole IN (0,1)),

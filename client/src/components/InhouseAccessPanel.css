@@ -1,0 +1,14 @@
+.inhouse-access-panel { min-width:0; }
+.inhouse-access-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--ui-content-gap,24px); align-items:start; }
+.inhouse-access-list { margin-bottom:0; }
+.inhouse-access-search { display:grid; gap:8px; color:#cbd5e1; font-size:.85rem; }
+.inhouse-access-search input { width:100%; min-width:0; box-sizing:border-box; padding:10px; }
+.inhouse-access-list ul { list-style:none; margin:16px 0 0; padding:0; }
+.inhouse-access-list li { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid #334155; }
+.inhouse-access-list li:last-child { border-bottom:0; }
+.inhouse-access-person { display:grid; gap:4px; min-width:0; overflow-wrap:anywhere; }
+.inhouse-access-person small,.inhouse-access-inherited { color:#94a3b8; font-size:.75rem; }
+.inhouse-access-role { color:#bfdbfe; font-size:.72rem; }
+.inhouse-access-list li > button { flex:none; }
+.inhouse-access-pagination { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:16px; }
+@media(max-width:850px) { .inhouse-access-columns { grid-template-columns:minmax(0,1fr); } }

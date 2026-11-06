@@ -3,6 +3,7 @@ import {requestAccountId} from './utility/requestAccountId.js';
 import {fail, positiveId} from '../inhouses/store.js';
 import {createInhouseActivityStream} from '../inhouses/activityStream.js';
 import {visibleSnapshot,visibleActivity,canKeepInhouseStream} from '../inhouses/visibility.js';
+import {createInhouseAccessStream} from '../inhouses/accessStream.js';
 
 const endpoint = fn => async (req, res) => {
   try {await fn(req, res);}
@@ -32,7 +33,7 @@ export function createInhouseStream(store, {intervalMs = 1000, maxClients = 250}
   function stateFrame(viewer) {
     // Cached data may outlive its last viewer. Always timestamp a new delivery
     // now so reconnecting clients don't move deadline clocks into the past.
-    return `id: ${revision}\nevent: state\ndata: ${JSON.stringify({...visibleSnapshot(snapshot,viewer), serverNow: store.clock()})}\n\n`;
+    return `id: ${revision}\nevent: state\ndata: ${JSON.stringify({...visibleSnapshot(snapshot,viewer), access: store.access.permissions(viewer.playerId), serverNow: store.clock()})}\n\n`;
   }
   function poll() {
     try {
@@ -65,16 +66,42 @@ export function createInhouseRoutes({store, requireAdmin, playerName = (id, req)
   const publicRoutes = express.Router(), adminRoutes = express.Router();
   const stream = createInhouseStream(store);
   const activity = createInhouseActivityStream(store);
+  const accessStream = createInhouseAccessStream(store);
   for (const router of [publicRoutes, adminRoutes]) router.use((req, res, next) => {
     res.set('Cache-Control', 'private, no-store');
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && !req.is('application/json')) return res.status(415).json({error: 'Send application/json'});
     return next();
   });
   const viewer=req=>({playerId:Number(requestAccountId(req))||null,administrator:req.inhouseAdmin===true&&store.settings().availability!=='closed'});
+  const signedIn = (req, res, next) => {
+    const id = requestAccountId(req);
+    if (!id || Number(id) > 4294967294) return res.status(401).json({error: 'Sign in with Steam to queue'});
+    req.inhousePlayerId = Number(id);
+    return next();
+  };
+  // Management is independent of player availability. Closing the queue must
+  // not lock community managers out of maintaining the whitelist.
+  publicRoutes.get('/management/access', signedIn, endpoint((req, res) => {
+    store.access.requireManager(req.inhousePlayerId);
+    res.json({version: store.access.version(), permissions: store.access.permissions(req.inhousePlayerId)});
+  }));
+  publicRoutes.get('/management/stream', signedIn, endpoint((req, res) => accessStream.subscribe(req, res, req.inhousePlayerId)));
+  publicRoutes.get('/management/vouches', signedIn, endpoint((req, res) =>
+    res.json(store.access.list('vouches', req.inhousePlayerId, req.query))));
+  for (const [method, enabled] of [['put', true], ['delete', false]]) {
+    publicRoutes[method]('/management/vouches/:playerId', signedIn, endpoint((req, res) =>
+      res.json(store.access.change('vouches', req.params.playerId, enabled, req.inhousePlayerId))));
+    adminRoutes[method]('/community-managers/:playerId', signedIn, endpoint((req, res) =>
+      res.json(store.access.change('managers', req.params.playerId, enabled, req.inhousePlayerId))));
+  }
+  adminRoutes.get('/community-managers', signedIn, endpoint((req, res) =>
+    res.json(store.access.list('managers', req.inhousePlayerId, req.query))));
   publicRoutes.get('/availability',endpoint((req,res)=>{
     const participation=store.participation(requestAccountId(req)),availability=store.settings().availability;
+    const permissions = store.access.permissions(requestAccountId(req));
     const canAccess=availability==='closed'?Boolean(participation.activeGameId):isAdmin(req)||availability==='open'||participation.hasHistory;
-    return res.json({availability,activeGameId:participation.activeGameId,hasHistory:participation.hasHistory,canAccess});
+    return res.json({...permissions,availability,activeGameId:participation.activeGameId,hasHistory:participation.hasHistory,canAccess,
+      canQueue: permissions.canQueue && (availability === 'open' || availability === 'admin_testing' && isAdmin(req))});
   }));
   publicRoutes.use((req,res,next)=>{
     req.inhouseAdmin=isAdmin(req);
@@ -86,13 +113,7 @@ export function createInhouseRoutes({store, requireAdmin, playerName = (id, req)
     if(req.inhouseAdmin||open||!(req.method==='POST'&&req.path==='/queue')&&participation.hasHistory)return next();
     return requireAdmin(req,res,()=>{req.inhouseAdmin=true;next();});
   });
-  const signedIn = (req, res, next) => {
-    const id = requestAccountId(req);
-    if (!id || Number(id) > 4294967294) return res.status(401).json({error: 'Sign in with Steam to queue'});
-    req.inhousePlayerId = Number(id);
-    return next();
-  };
-  publicRoutes.get('/state', endpoint((req, res) => res.json(visibleSnapshot(store.snapshot(),viewer(req)))));
+  publicRoutes.get('/state', endpoint((req, res) => res.json({...visibleSnapshot(store.snapshot(),viewer(req)), access: store.access.permissions(requestAccountId(req))})));
   publicRoutes.get('/queue', endpoint((req, res) => res.json(store.settings().availability!=='open'&&!viewer(req).administrator?{count:0,players:[]}:store.queueSummary())));
   function activityRoom(req) {
     const playerId = requestAccountId(req);
@@ -147,5 +168,5 @@ export function createInhouseRoutes({store, requireAdmin, playerName = (id, req)
     if (!match) return res.status(202).json(store.requestBotLookup(id, matchId, req.body.reason, requestAccountId(req)));
     res.json(store.applyMatch(id, match, {correction: true, actorId: requestAccountId(req), reason: req.body.reason}));
   }));
-  return {publicRoutes, adminRoutes, stream: {...stream, close() {stream.close(); activity.close();}}};
+  return {publicRoutes, adminRoutes, stream: {...stream, close() {stream.close(); activity.close(); accessStream.close();}}};
 }

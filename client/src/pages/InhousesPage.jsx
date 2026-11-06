@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useId, useMemo, useState} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
 import {useAuth} from '../context/AuthContext';
 import {inhouseRequest, useInhouses, useInhouseNow} from '../hooks/useInhouses';
@@ -7,16 +7,26 @@ import InhouseGameCard from '../components/InhouseGameCard';
 import InhousePlayerSettings from '../components/InhousePlayerSettings';
 import InhouseRoleWelcome from '../components/InhouseRoleWelcome';
 import InhouseChat from '../components/InhouseChat';
+import InhouseAccessPanel from '../components/InhouseAccessPanel';
 import {useInhouseActivity} from '../context/inhouseActivity';
 import {inhouseStatus, inhouseRating, inhouseRoles, inhouseCalibration} from '../utils/inhouseDisplay';
 import './InhousesPage.css';
 
-function QueuePanel({profile, queued, busy, configured, run, onSettings}) {
-  return <section className="inhouse-card"><h2>Your queue</h2>
-    <p className="inhouse-muted">Saved preferences: <strong>{inhouseRoles(profile)}</strong></p>
-    <div className="inhouse-actions">{queued ? <button disabled={busy} onClick={() => run('/inhouses/queue', 'DELETE')}>Leave queue</button>
+function QueuePanel({profile, queued, busy, configured, eligible, run, onSettings}) {
+  const noticeId = useId(), locked = !eligible && !queued;
+  return <section className="inhouse-card inhouse-queue-card"><h2>Your queue</h2>
+    <div className={`inhouse-queue-entry${locked ? ' is-locked' : ''}`}>
+    <div className="inhouse-queue-entry-content">
+      <p className="inhouse-muted">Saved preferences: <strong>{inhouseRoles(profile)}</strong></p>
+      <div className="inhouse-actions">{queued ? <button disabled={busy} onClick={() => run('/inhouses/queue', 'DELETE')}>Leave queue</button>
         : <button className="inhouse-primary" disabled={busy || !configured}
+          aria-describedby={locked ? noticeId : undefined}
           onClick={() => run('/inhouses/queue', 'POST', {roles: profile.roles, offRole: profile.offRole})}>Join queue</button>}</div>
+    </div>
+    {locked && <div className="inhouse-vouch-overlay"><div id={noticeId} className="inhouse-vouch-window" role="status">
+      <strong>Vouch required</strong><p>Reach out to an admin or community manager to be vouched before joining the queue.</p>
+    </div></div>}
+    </div>
     <div className="inhouse-actions"><button onClick={onSettings}>Player Settings</button></div>
   </section>;
 }
@@ -54,6 +64,10 @@ export default function InhousesPage() {
   const {availability}=useInhouseActivity();
   if (loading) return <p>Loading inhouses…</p>;
   if(!availability)return <p>Loading inhouse availability…</p>;
+  if (!availability.canAccess && availability.canManage) return <div className="ui-page inhouses-page">
+    <header className="inhouse-page-heading"><h1>Inhouses</h1><div className="ui-tabs inhouse-tabs" role="tablist" aria-label="Inhouse sections">
+      <button type="button" className="ui-tab" role="tab" aria-selected="true" id="inhouse-management-tab" aria-controls="inhouse-management-panel">Vouching</button>
+    </div></header><section role="tabpanel" id="inhouse-management-panel" aria-labelledby="inhouse-management-tab"><InhouseAccessPanel /></section></div>;
   if(!availability.canAccess)return <div className="ui-page inhouses-page"><h1>Inhouses</h1>
     <p>{availability?.availability==='closed'?'Inhouses are currently closed.':'Inhouses are currently available for admin testing.'}</p></div>;
   return <InhousesContent />;
@@ -61,20 +75,24 @@ export default function InhousesPage() {
 
 function InhousesContent() {
   const {user, loading} = useAuth(), [params, setParams] = useSearchParams();
+  const {availability} = useInhouseActivity();
   const {state, profile, error, setError, busy, run, connected} = useInhouses(user?.accountId);
+  const canManage = state?.access?.canManage ?? availability.canManage;
   const {dismissed, dismiss} = useDismissedInhouseReports(user?.accountId);
   const [archive, setArchive] = useState([]), [detail, setDetail] = useState(null), [historyBusy, setHistoryBusy] = useState(false);
   const now = useInhouseNow(state?.serverNow), requestedId = Number(params.get('game')) || null;
   const mine = state?.games.find(g => !['completed', 'cancelled'].includes(g.status) && g.players.some(p => String(p.playerId) === String(user?.accountId)));
   const ownActiveGameId = mine?.id;
-  const activeTab = mine ? 'lobby' : ['standings', 'history', 'settings'].includes(params.get('tab')) ? params.get('tab') : 'lobby';
+  const activeTab = params.get('tab') === 'management' && canManage ? 'management'
+    : mine ? 'lobby' : ['standings', 'history', 'settings'].includes(params.get('tab')) ? params.get('tab') : 'lobby';
   const changeTab = tab => {const next = new URLSearchParams(params); if (tab === 'lobby') next.delete('tab'); else next.set('tab', tab); setParams(next);};
   useEffect(() => {
-    if (!ownActiveGameId || params.get('game') === String(ownActiveGameId) && !params.has('tab')) return;
+    if (!ownActiveGameId || params.get('tab') === 'management' && canManage
+      || params.get('game') === String(ownActiveGameId) && !params.has('tab')) return;
     const next = new URLSearchParams(params);
     next.set('game', String(ownActiveGameId)); next.delete('tab');
     setParams(next, {replace: true});
-  }, [ownActiveGameId, params, setParams]);
+  }, [ownActiveGameId, params, setParams, canManage]);
   const requestedInState = state?.games.some(game => game.id === requestedId);
   useEffect(() => {
     if (ownActiveGameId || !requestedId || requestedInState) return;
@@ -110,16 +128,18 @@ function InhousesContent() {
   return <div className="ui-page inhouses-page">
     <header className="inhouse-page-heading"><h1>Inhouses</h1>
     <div className="ui-tabs inhouse-tabs" role="tablist" aria-label="Inhouse sections">
-      {[['lobby', 'Lobby'], ['standings', 'Standings'], ['history', 'History'], ['settings', 'Player Settings']].map(([key, label]) => <button type="button" className="ui-tab" role="tab" key={key}
+      {[['lobby', 'Lobby'], ['standings', 'Standings'], ['history', 'History'], ['settings', 'Player Settings'],
+        ...(canManage ? [['management', 'Vouching']] : [])].map(([key, label]) => <button type="button" className="ui-tab" role="tab" key={key}
         id={`inhouse-${key}-tab`} aria-controls={`inhouse-${key}-panel`} aria-selected={activeTab === key}
-        disabled={key !== 'lobby' && Boolean(mine)} title={key !== 'lobby' && mine ? 'Available when your inhouse completes or is cancelled' : undefined}
+        disabled={!['lobby','management'].includes(key) && Boolean(mine)} title={!['lobby','management'].includes(key) && mine ? 'Available when your inhouse completes or is cancelled' : undefined}
         onClick={() => changeTab(key)}>{label}</button>)}
     </div>
     </header>
-    {user && profile && profile.playerId === Number(user.accountId) && !profile.preferencesPromptedAt && !mine &&
+    {user && profile && state.access?.canQueue && activeTab !== 'management' && profile.playerId === Number(user.accountId) && !profile.preferencesPromptedAt && !mine &&
       <InhouseRoleWelcome key={user.accountId} profile={profile} run={run} busy={busy} />}
     {error && <p className="inhouse-notice is-error" role="alert">{error}</p>}
-    {activeTab === 'standings' ? <section role="tabpanel" id="inhouse-standings-panel" aria-labelledby="inhouse-standings-tab">
+    {activeTab === 'management' ? <section role="tabpanel" id="inhouse-management-panel" aria-labelledby="inhouse-management-tab"><InhouseAccessPanel /></section>
+      : activeTab === 'standings' ? <section role="tabpanel" id="inhouse-standings-panel" aria-labelledby="inhouse-standings-tab">
       <Leaderboard players={state.leaderboard} />
     </section> : activeTab === 'history' ? <section role="tabpanel" id="inhouse-history-panel" aria-labelledby="inhouse-history-tab">
       <section className="inhouse-card"><header className="inhouse-card-heading"><h2>Game history</h2>
@@ -149,7 +169,8 @@ function InhousesContent() {
       <p className="inhouse-muted">Waiting for an available lobby bot. Queued players keep their place.</p>}
     {selected && card(selected)}
     <div className="inhouse-lobby-grid">
-      {user && profile ? <QueuePanel profile={profile} queued={queued} busy={busy} configured={Boolean(state.settings.leagueId)&&state.settings.availability!=='closed'&&(state.settings.availability==='open'||user.isAdmin)} run={run} onSettings={() => changeTab('settings')} />
+      {user && profile ? <QueuePanel profile={profile} queued={queued} busy={busy} eligible={Boolean(state.access?.canQueue)}
+        configured={Boolean(state.access?.canQueue)&&Boolean(state.settings.leagueId)&&state.settings.availability!=='closed'&&(state.settings.availability==='open'||user.isAdmin)} run={run} onSettings={() => changeTab('settings')} />
         : <section className="inhouse-card"><h2>Join an inhouse</h2><p>{loading || user ? 'Loading your preferences…' : 'Sign in to choose your positions and join the queue.'}</p>
           {!loading && !user && <a className="inhouse-signin" href="/api/auth/steam?returnTo=/inhouses">Sign in with Steam</a>}</section>}
       <section className="inhouse-card"><header className="inhouse-card-heading"><h2>Waiting room</h2><span>{state.queue.length}/10</span></header>

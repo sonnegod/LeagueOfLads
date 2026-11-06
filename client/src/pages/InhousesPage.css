@@ -76,6 +76,13 @@
 .inhouse-card button { padding:8px 12px; }
 .inhouse-card a { color:var(--primary,#60a5fa); }
 .inhouse-card.is-mine { border-color:#60a5fa; box-shadow:inset 3px 0 #60a5fa; }
+.inhouse-queue-entry { position:relative; }
+.inhouse-queue-entry.is-locked { display:grid; align-items:center; min-height:150px; }
+.inhouse-queue-entry.is-locked .inhouse-queue-entry-content { opacity:.3; filter:grayscale(1); }
+.inhouse-vouch-overlay { position:absolute; inset:0; display:grid; place-items:center; padding:12px; border-radius:8px; background:#94a3b812; }
+.inhouse-vouch-window { width:min(100%,320px); box-sizing:border-box; padding:14px 16px; border:1px solid #64748b; border-radius:8px; background:#293241f2; color:#e2e8f0; text-align:center; box-shadow:0 6px 18px #02061740; }
+.inhouse-vouch-window strong { font-size:.9rem; }
+.inhouse-vouch-window p { margin:6px 0 0; color:#cbd5e1; font-size:.8rem; line-height:1.5; }
 .inhouse-eyebrow { display:block; color:#93c5fd; font-size:.78rem; letter-spacing:.06em; text-transform:uppercase; margin-bottom:6px; }
 .inhouse-timer { font-size:1.5rem; font-variant-numeric:tabular-nums; color:#bfdbfe; }
 .inhouse-overview { display:flex; flex-wrap:wrap; gap:12px 24px; padding:16px 0; margin-bottom:16px; border-top:1px solid #334155; border-bottom:1px solid #334155; color:#cbd5e1; }
@@ -137,6 +144,7 @@
 .inhouse-settings input,.inhouse-settings select,.inhouse-recovery input,.inhouse-recovery textarea { width:100%; box-sizing:border-box; padding:10px; min-width:0; }
 .inhouse-recovery { display:grid; gap:12px; }
 .inhouse-admin-games { display:grid; gap:16px; }
+.inhouse-admin-games > div { min-width:0; overflow-wrap:anywhere; }
 .inhouse-bot-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(165px,100%),1fr)); gap:12px; }
 .inhouse-bot-slot { display:grid; align-content:start; gap:6px; min-width:0; border:1px solid #334155; border-radius:8px; padding:12px; }
 .inhouse-bot-slot small,.inhouse-bot-slot p { overflow-wrap:anywhere; color:#94a3b8; margin:0; font-size:.78rem; }

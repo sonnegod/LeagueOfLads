@@ -8,7 +8,8 @@ sets availability to one of three modes:
   player-facing navigation and block its data endpoints, including for admins
   and players with past games. Admin management controls remain available.
 - **Admin testing:** keep the page and new queue participation private to admins.
-- **Open to players:** allow everyone to browse and signed-in players to queue.
+- **Open to players:** allow everyone to browse. Queueing requires a vouch,
+  community manager status, or admin status.
 
 New installations and upgrades default to **Admin testing**. Availability is
 saved independently of ticket and queue settings, so admins can close inhouses
@@ -19,13 +20,53 @@ game finishes while Closed, access ends until inhouses reopen. Existing browser
 connections close when their access ends. Bots stay
 connected and idle between games; the worker does not need to be stopped.
 
+## Community managers and vouching
+
+Admins automatically inherit community manager and queue permissions from the
+existing `Admins` table; no duplicate manager or vouch record is needed. Under
+**Admin → Inhouses → Community Managers**, any admin can search users by name or
+Dota account ID and add/remove designated community managers. An account ID can
+also be added before its first site login. Managers cannot assign other managers,
+change inhouse settings, start admin tests, or use admin recovery controls.
+
+Admins and community managers have a **Vouching** tab on `/inhouses`, including
+when the player queue is closed or limited to admin testing. Its two independently
+searchable, paginated lists show vouched/automatically eligible players and players
+who still need a vouch. Search accepts names or Dota account IDs; numeric IDs can
+be vouched before login. Admin and manager rows identify inherited access and
+cannot be removed through the vouch list. Admin testing still restricts new queue
+joins to admins; the manager role does not bypass the availability setting.
+
+Signing in, saving preferences, or having previous inhouse games does not grant
+queue access. Existing players are not automatically vouched during upgrade.
+Removing a vouch or a manager role removes an otherwise ineligible waiting player
+from the queue immediately. Reserved/playing games continue, but a revoked player
+cannot rejoin or be automatically requeued after an expired ready check. An
+independent vouch survives losing the manager role.
+
+Changes record their actor and target in the inhouse audit. Audit details
+preserve their names at the time of the change, alongside account
+IDs; the Activity view describes vouches, removals, manager roles, and availability
+changes with those names. Older entries resolve names from available player data.
+Unvouched players can browse open inhouses, standings, history, and player settings;
+only the queue-entry controls have a grey vouch-required overlay.
+
+The additive
+`InhouseCommunityManagers`, `InhouseVouches`, and `InhouseAccessMeta` tables are
+created on normal startup. Manager pages receive access-list revisions through a
+dedicated SSE channel, with polling fallback. All open manager pages refresh their
+current search/page after edits; new connections receive current permissions.
+Existing connections lose management access after demotion, including external
+admin-role changes. Unrelated bot heartbeats do not reload the manager lists.
+
 ## Five-bot workflow
 
 Every new inhouse is hosted by one of five dedicated Steam accounts. One
 account stays assigned from ready check through lobby cleanup. All five use
 the same configurable inhouse ticket.
 
-1. Signed-in players save preferred positions and join the solo queue.
+1. Vouched players, community managers, and admins sign in, save preferred
+   positions, and join the solo queue when availability permits.
 2. The server atomically reserves the selected players and an online bot. If
    every bot is busy or offline, players keep waiting in the queue.
 3. Players confirm the 60-second ready check. Teams are either automatically

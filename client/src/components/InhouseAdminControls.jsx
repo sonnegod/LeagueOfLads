@@ -1,9 +1,8 @@
 import {useEffect, useRef, useState} from 'react';
 import {useInhouses, useInhouseNow} from '../hooks/useInhouses';
 import {InhouseAdminContext, useInhouseAdmin} from '../hooks/useInhouseAdmin';
+import {inhouseAvailabilityLabels as availabilityLabels} from '../utils/inhouseDisplay';
 import '../pages/InhousesPage.css';
-
-const availabilityLabels = {closed: 'Closed', admin_testing: 'Admin testing', open: 'Open to players'};
 
 export function InhouseAdminProvider({children}) {
   const controls = useInhouses(null, {admin: true});

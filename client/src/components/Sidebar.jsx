@@ -24,8 +24,8 @@ export default function Sidebar({ open, onClose }) {
         {/*<Link to="/match">Matches</Link> removing for performance issues*/}
         <NavLink to="/league" className={navClassName} onClick={onClose}>Leagues</NavLink>
         <NavLink to="/h2h" className={navClassName} onClick={onClose}>Head to Head</NavLink>
-        {(inhouses?.availability?.activeGameId||inhouses?.availability?.availability==='open'||user?.isAdmin&&inhouses?.availability?.availability==='admin_testing')&& <div className="sidebar-inhouses"><NavLink to="/inhouses" className={navClassName} onClick={onClose}>Inhouses</NavLink>
-          <InhouseQueueBadge /></div>}
+        {(inhouses?.availability?.canManage||inhouses?.availability?.activeGameId||inhouses?.availability?.availability==='open'||user?.isAdmin&&inhouses?.availability?.availability==='admin_testing')&& <div className="sidebar-inhouses"><NavLink to="/inhouses" className={navClassName} onClick={onClose}>Inhouses</NavLink>
+          {inhouses?.availability?.canAccess && <InhouseQueueBadge />}</div>}
         <NavLink to="/hero" className={navClassName} onClick={onClose}>Heroes</NavLink>
         <NavLink to="/awards" className={navClassName} onClick={onClose}>Awards</NavLink>
         <NavLink to="/rules" className={navClassName} onClick={onClose}>Rules</NavLink>
