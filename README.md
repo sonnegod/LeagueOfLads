@@ -5,7 +5,7 @@
 Use Node.js 22.12+ and npm (the current Vite client requires Node 20.19+ or 22.12+).
 Run these commands from the repository root. SQLiteStudio is optional if you want
 to inspect the databases. The pinned database driver includes SQLite's WAL
-concurrency fix; run `npm ci` after updating the checkout.
+concurrency fix; run `npm install` after updating the checkout.
 
 1. Clone the repository (or use your existing checkout), change into it, and
    install both sets of dependencies:
@@ -13,14 +13,9 @@ concurrency fix; run `npm ci` after updating the checkout.
    ```bash
    git clone https://github.com/sonnegod/LeagueOfLads.git
    cd LeagueOfLads
-   npm ci
-   npm --prefix client ci
+   npm install
+   npm --prefix client install
    ```
-
-   Both `package-lock.json` files are tracked so local installs and deployments
-   use the same dependency versions. When adding or updating a dependency, use
-   `npm install` in the relevant directory, then commit its `package.json` and
-   `package-lock.json` changes together after testing.
 
 2. Copy `.env.example` to `.env` in the repository root (unless you already have
    a `.env`), then replace the Steam API key placeholder with a development key
@@ -302,3 +297,4 @@ or external analytics service is needed.
 - The existing `scripts/db/backupDatabases.sh all` also backs up SiteAnalytics when present; use
   `./scripts/db/backupDatabases.sh SiteAnalytics` for just this database. The standard backup
   retention is three days, so expired usage may remain in a backup until it expires too.
+  
