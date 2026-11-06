@@ -3,8 +3,9 @@ import {inhouseRequest, useInhouseNow} from '../hooks/useInhouses';
 import {useInhouseAdmin} from '../hooks/useInhouseAdmin';
 import {InhouseWorkerStatus} from './InhouseAdminControls';
 import InhouseGameCard from './InhouseGameCard';
-import {inhouseStatus, inhouseRoles} from '../utils/inhouseDisplay';
+import {inhouseStatus, inhouseRoles, inhouseAuditSummary} from '../utils/inhouseDisplay';
 import {useAuth} from '../context/AuthContext';
+import InhouseAccessPanel from './InhouseAccessPanel';
 import '../pages/InhousesPage.css';
 
 export default function InhouseAdminPanel({section = 'settings'}) {
@@ -50,6 +51,7 @@ export default function InhouseAdminPanel({section = 'settings'}) {
     }
   }
   return <div className="inhouse-admin-workspace"><div className="inhouse-admin">
+    {section === 'communityManagers' && <InhouseAccessPanel kind="managers" />}
     {message && <p role="status">{message}</p>}
     {section === 'settings' && form && <section className="inhouse-card"><h2>Queue settings</h2><form className="inhouse-settings" onSubmit={save}>
       <label>Shared inhouse ticket / league ID<input required type="number" min="1" max="4294967295" value={form.leagueId || ''} onChange={event => change('leagueId', Number(event.target.value))} /></label>
@@ -112,8 +114,10 @@ export default function InhouseAdminPanel({section = 'settings'}) {
         <button onClick={() => setSelectedId(String(g.id))}>Open game and recovery</button></details>)}
     </>}
     {section === 'audit' && <section className="inhouse-card"><h2>Inhouse activity</h2><div className="inhouse-admin-games">
-      {audit.map(entry => <div key={entry.id}><strong>{entry.inhouseId ? `#${entry.inhouseId} · ` : ''}{entry.action.replaceAll('-', ' ')}</strong>
-        <small className="inhouse-player-note">{new Date(entry.at).toLocaleString()} · {entry.actorId ? `${entry.action === 'pick' ? 'Player' : 'Admin'} ${entry.actorId}` : 'Automatic'}</small>
+      {audit.map(entry => <div key={entry.id}><strong>{entry.inhouseId ? `#${entry.inhouseId} · ` : ''}{inhouseAuditSummary(entry)}</strong>
+        <small className="inhouse-player-note">{new Date(entry.at).toLocaleString()} · {entry.actorId ? `${entry.actorName || `Account ${entry.actorId}`} (${entry.actorId})` : 'Automatic'}</small>
+        {Boolean(entry.details.waitingRemoved || entry.details.waitingReleased) && <p className="inhouse-muted">
+          {entry.details.waitingRemoved || entry.details.waitingReleased} waiting {(entry.details.waitingRemoved || entry.details.waitingReleased) === 1 ? 'place released' : 'places released'}.</p>}
         {entry.details.reason && <p>{entry.details.reason}</p>}{entry.details.matchId && <p>Match {entry.details.previousMatchId ? `${entry.details.previousMatchId} → ` : ''}{entry.details.matchId}</p>}</div>)}
       {!audit.length && <p className="inhouse-muted">No inhouse activity yet.</p>}
     </div></section>}

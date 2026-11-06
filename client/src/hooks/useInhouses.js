@@ -5,7 +5,7 @@ export async function inhouseRequest(path, options = {}) {
     ...options, signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),
     headers: {'Content-Type': 'application/json', ...options.headers}});
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Inhouse request failed');
+  if (!response.ok) throw Object.assign(new Error(data.error || 'Inhouse request failed'), {status: response.status});
   return data;
 }
 

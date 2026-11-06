@@ -80,7 +80,7 @@ export default function AdminPage() {
     ...(seasonId?[['match','Match']]:[]),
     ...(seasonStatus==='active'?[['schedule','Schedule'],['highlights','Highlights'],['editor','Editor'],['playoffs','Playoffs'],['settings','Settings']]:[]),
   ]:activeTab==='inhouses'?[
-    ['settings','Settings'],['games','Queue & Games'],['audit','Activity'],
+    ['settings','Settings'],['games','Queue & Games'],['communityManagers','Community Managers'],['audit','Activity'],
   ]:[
     ['requests','Requests'],['rules','Rules'],['adjustedPlayers','Adjusted Players'],['champions','Champions'],
     ['recordManagement','Record Management'],['adminManagement','Admin Management'],['auditLog','Audit Log'],
