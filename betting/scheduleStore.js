@@ -4,6 +4,9 @@ import { parseScheduleMessage, PARSER_VERSION } from './scheduleParser.js';
 import { currentSeasonRoster, conflictingRosterPlayers } from './rosterMembership.js';
 import { ensurePendingRosterSchema, currentPendingSlots } from '../config/pendingRosterSlots.js';
 import {ensureRosterDisplayOrderSchema,validRosterOrder} from '../config/rosterDisplayOrder.js';
+import {allowSingleGameFixtures} from '../config/scheduleFormats.js';
+import {hasTable,resultsChanged} from '../config/matchResultsSchema.js';
+import {refreshSeriesLifecycle} from '../config/seriesLifecycle.js';
 
 export const digest = value => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 export function fail(message, status = 400, code = 'INVALID_REQUEST') { const error = new Error(message); error.status = status; error.code = code; throw error; }
@@ -17,6 +20,7 @@ export class ScheduleStore {
     ensurePendingRosterSchema(db);
     ensureRosterDisplayOrderSchema(db);
     db.exec(readFileSync(new URL('../scripts/db/schedules.schema.sql', import.meta.url), 'utf8'));
+    allowSingleGameFixtures(db);
     const refreshColumns=db.pragma('table_info(BettingRefreshState)').map(c=>c.name);
     for(const [name,type] of Object.entries({LastAttemptAtUtc:'TEXT',LastCompletedAtUtc:'TEXT',ConsecutiveFailures:'INTEGER NOT NULL DEFAULT 0',LastErrorCode:'TEXT',NextRetryAtUtc:'TEXT',AnalyticsRequestedRevision:'INTEGER NOT NULL DEFAULT 0'}))
       if(!refreshColumns.includes(name))db.exec(`ALTER TABLE BettingRefreshState ADD COLUMN ${name} ${type}`);
@@ -116,8 +120,9 @@ export class ScheduleStore {
       const keys = this.teams(seasonId).map(t => t.TeamSubmissionId);
       const team1 = id(input.team1Key); const team2 = id(input.team2Key); const start = utc(input.scheduledStartUtc);
       if (!team1 || !team2 || team1 === team2 || !keys.includes(team1) || !keys.includes(team2)) fail('Select two teams from this season');
-      if (!start || !['regular','tiebreaker','playoff'].includes(input.stage) || ![2,3,5].includes(Number(input.bestOf))) fail('Enter a valid date, stage and series format');
-      if ((input.stage === 'regular' && Number(input.bestOf) !== 2) || (input.stage !== 'regular' && ![3,5].includes(Number(input.bestOf)))) fail('Groups use BO2; postseason uses BO3 or BO5');
+      if (!start || !['regular','tiebreaker','playoff'].includes(input.stage) || ![1,2,3,5].includes(Number(input.bestOf))) fail('Enter a valid date, stage and series format');
+      if ((input.stage === 'regular' && Number(input.bestOf) !== 2) || (input.stage === 'playoff' && ![3,5].includes(Number(input.bestOf)))
+        || (input.stage==='tiebreaker'&&![1,3].includes(Number(input.bestOf)))) fail('Groups use BO2; tiebreakers use BO1 or BO3; playoffs use BO3 or BO5');
       const timezone = input.timezone || 'America/New_York';
       if (typeof timezone !== 'string' || timezone.length > 60) fail('Invalid timezone');
       const status = input.status || 'scheduled';
@@ -127,20 +132,22 @@ export class ScheduleStore {
       if (previous && Number(input.revision) !== previous.Revision) fail('This fixture changed. Reload before saving.', 409, 'REVISION_CONFLICT');
       if (previous && ['cancelled','forfeit','replaced'].includes(previous.Status)) fail('Create a new fixture after cancellation or replacement', 409);
       const changedDefinition = previous && (previous.Team1Key !== team1 || previous.Team2Key !== team2 || previous.BestOf !== Number(input.bestOf) || previous.Stage !== input.stage);
+      const retainedSeries = changedDefinition && previous.Team1Key===team1 && previous.Team2Key===team2 && previous.Stage===input.stage ? previous.SeriesId : null;
       if (changedDefinition) {
-        this.db.prepare("UPDATE ScheduledEvents SET Status = 'replaced', Revision = Revision + 1, UpdatedAtUtc = ? WHERE EventId = ?")
-          .run(now.toISOString(), previous.EventId);
+        this.db.prepare("UPDATE ScheduledEvents SET Status = 'replaced',SeriesId=CASE WHEN ? THEN NULL ELSE SeriesId END, Revision = Revision + 1, UpdatedAtUtc = ? WHERE EventId = ?")
+          .run(Number(Boolean(retainedSeries)),now.toISOString(), previous.EventId);
         this.revision(previous.EventId, actor, 'Teams or format changed');
       }
       let eventId;
       const startedAt = previous?.StartedAtUtc || (status === 'started' ? utc(input.startedAtUtc) || now.toISOString() : null);
       if (!previous || changedDefinition) {
-        if (input.seriesId) fail('Link an actual series after creating the fixture');
+        if (input.seriesId && Number(input.seriesId)!==retainedSeries) fail('Link an actual series after creating the fixture');
         const row = this.db.prepare(`INSERT INTO ScheduledEvents (SeasonId,Team1Key,Team2Key,Stage,BestOf,ScheduledStartUtc,Timezone,Status,
           StartedAtUtc,SourceMessageId,CreatedAtUtc,UpdatedAtUtc) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
           .run(seasonId, team1, team2, input.stage, Number(input.bestOf), start, timezone, status,
             status === 'started' ? utc(input.startedAtUtc) || now.toISOString() : null, input.sourceMessageId || null, now.toISOString(), now.toISOString());
         eventId = Number(row.lastInsertRowid);
+        if(retainedSeries)this.db.prepare('UPDATE ScheduledEvents SET SeriesId=? WHERE EventId=?').run(retainedSeries,eventId);
       } else {
         eventId = previous.EventId;
         if (input.seriesId !== undefined && input.seriesId !== previous.SeriesId) {
@@ -160,6 +167,12 @@ export class ScheduleStore {
             startedAt && status === 'scheduled' ? 'started' : status, startedAt, now.toISOString(), eventId);
       }
       this.revision(eventId, actor, previous ? 'Fixture updated' : 'Fixture created');
+      const linkedSeries=this.get(eventId).SeriesId;
+      if(linkedSeries&&hasTable(this.db,'SeriesLifecycle')&&this.db.prepare('SELECT 1 FROM SeriesLifecycle WHERE SeriesId=?').get(linkedSeries)) {
+        refreshSeriesLifecycle(this.db,linkedSeries,now);
+        this.db.prepare('UPDATE TrackedLeagueMatches SET EventId=? WHERE SeriesId=?').run(eventId,linkedSeries);
+        resultsChanged(this.db);
+      }
       this.audit('Schedule Changed', `Updated fixture ${eventId} for season ${seasonId}`);
       return this.get(eventId);
     })();

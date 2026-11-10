@@ -192,7 +192,8 @@ never overlaps requests. After a successful poll is saved, it notifies the web
 process through a local IPC socket. Linux uses `db/live-updates.sock` with mode
 `0600`; Windows development uses a project-specific named pipe. The web process
 creates the channel automatically. Both processes must run under the same OS user.
-No new cron job, service, port, secret, or environment variable is required.
+The live feed itself needs no additional cron job, port, secret or environment
+variable. Automatic post-match retrieval uses the results worker described below.
 
 On the visible Live Matches page, one SSE connection at
 `/api/liveMatches/stream` supplies both the cards and navbar badge. A full state is
@@ -204,10 +205,71 @@ stops polling once streaming recovers. A watchdog also detects buffered/stalled
 streams. Leaving the live page or hiding the tab closes the connection. The navbar
 uses its lightweight count endpoint every five seconds on other pages.
 
-Recent matches refresh separately every 30 seconds and when a live match
+Recent games refresh separately every 30 seconds and when a live match
 disappears. Timeline history loads when opened, then requests only snapshots newer
 than its saved cursor. Background requests pause in hidden tabs. Live and app
 endpoints send `Cache-Control: no-store`.
+
+### Automatic league results and live series
+
+Live games are grouped under a stable series before their results arrive.
+Completed games retain their snapshot timelines and gain a **View match** link
+once imported. Series remain on the Live page while in progress; completed
+series are shown in Recent series for 24 hours. Daily cleanup retains snapshots
+for seven days. A **Parse incomplete** notice distinguishes confirmed results
+from replay details that are still being retrieved.
+
+After a match has been absent from successful Steam live-feed responses for
+two minutes, `scripts/league/resultsWorker.js` retrieves its result from OpenDota.
+The queue, retries and leases live in `LadsData.db`; failures and restarts retain
+pending work. The worker imports core results, rebuilds standings/Neustadtl,
+updates series completion, and requests a combined analytics/betting refresh.
+Detailed replay sections retry independently without recounting results or
+invalidating saved odds when the response is unchanged. Nightly ingestion uses
+the same importer to recover missed games. Inhouses keep their bot workflow.
+
+**Admin → League → Match → Automatic match results** controls automatic retrieval,
+stage defaults and the grand-final format. It also shows worker health, request
+usage, pending imports and errors, and provides manual import/retry controls.
+Automatic retrieval defaults to **Off**. Explicit admin retries and nightly
+recovery work while it is off. A running import can finish when switched off.
+Startup widens the fixture format constraint to allow BO1 tiebreakers while
+preserving existing fixture IDs, links and revision history.
+
+Groups use BO2. Tiebreakers use their saved pool format; playoffs default to BO3.
+An explicit scheduled fixture format takes priority. Grand finals need an explicit
+fixture/bracket format or a configured grand-final default. Formats are saved per
+series; later default changes do not rewrite existing series. Unknown formats or
+ambiguous fixture matches require admin review. A lead or idle period does not
+complete a series. Playoff advancement uses the completed series bound to that
+specific bracket match, so a prior encounter cannot also resolve a grand final.
+
+OpenDota calls from result imports, replay enrichment and public-player jobs share
+a persistent budget: **30 requests/minute and 45,000/month** by default, counting
+failed requests too. Background work reserves headroom for new results. HTTP 429
+responses and Retry-After persist a cooldown. `OPENDOTA_REQUESTS_PER_MINUTE` and
+`OPENDOTA_MONTHLY_BUDGET` override the app budget; `OPENDOTA_API_KEY` optionally
+authenticates requests. Usage represents calls from jobs sharing this league DB,
+not a provider billing report. Steam live polling does not use this quota.
+
+Deploy the client and server normally, then register the additional worker once:
+
+```bash
+cd /root/LeagueOfLads
+pm2 start scripts/league/resultsWorker.js --name league-results-worker --cwd /root/LeagueOfLads --kill-timeout 30000
+pm2 save
+```
+
+Then configure formats and enable automatic imports in the Match admin tab.
+Existing workers are restarted with `pm2 restart league-results-worker`; no new
+cron job or Nginx change is needed. The worker stays idle when no import is due.
+Public SSE invalidations at `/api/match-results/stream` refresh affected views
+after committed changes and settlement; job errors and quota details stay admin-only.
+
+For local development, start `npm run matches:worker` in another terminal using
+the normal development environment. `npm run test:match-results` uses isolated
+databases and mocked responses and makes no OpenDota requests. One-off browser
+checks stay in ignored `.scratch/`.
 
 Cards distinguish when game data changed from when Steam last returned the match.
 Unchanged upstream data will not advance the displayed game clock. A failed
@@ -297,4 +359,3 @@ or external analytics service is needed.
 - The existing `scripts/db/backupDatabases.sh all` also backs up SiteAnalytics when present; use
   `./scripts/db/backupDatabases.sh SiteAnalytics` for just this database. The standard backup
   retention is three days, so expired usage may remain in a backup until it expires too.
-  

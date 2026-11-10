@@ -9,6 +9,7 @@ import PlayerNameConfirmation from './PlayerNameConfirmation';
 import useUpcomingGames from '../hooks/useUpcomingGames';
 import LiveMatchesProvider from '../context/LiveMatchesProvider';
 import InhouseActivityProvider from '../context/InhouseActivityProvider';
+import MatchResultsUpdates from './MatchResultsUpdates';
 
 export default function Layout() {
   const { user, loading } = useAuth();
@@ -36,6 +37,7 @@ export default function Layout() {
   return (
     <LiveMatchesProvider><InhouseActivityProvider><div className={`app-shell${upcomingGames.length ? ' has-upcoming-games' : ''}`}>
       <SiteAnalyticsTracker />
+      <MatchResultsUpdates />
       {user&&<PlayerNameConfirmation key={user.accountId} />}
       <Navbar
         upcomingGames={upcomingGames}

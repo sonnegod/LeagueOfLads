@@ -8,10 +8,11 @@ export const clock = seconds => seconds == null ? '—' : `${seconds < 0 ? '−'
 
 export function useReport(url) {
   const [attempt, setAttempt] = useState(0), [state, setState] = useState({ url: null });
+  useEffect(()=>{const refresh=()=>setAttempt(n=>n+1);window.addEventListener('league-results:changed',refresh);return()=>window.removeEventListener('league-results:changed',refresh);},[]);
   useEffect(() => {
     if (!url) return undefined;
     const controller = new AbortController();
-    setState({ url, loading: true });
+    setState(previous=>previous.url===url&&previous.data?{...previous,refreshing:true}:{url,loading:true});
     fetch(url, { signal: controller.signal }).then(async response => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not load report');

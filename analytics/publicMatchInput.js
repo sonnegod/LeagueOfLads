@@ -1,4 +1,5 @@
 import { ANALYTICS_DEFAULTS } from './config.js';
+import {fetchOpenDota} from '../config/openDotaClient.js';
 
 function number(value) {
   if (value === null || value === undefined || value === '' || typeof value === 'boolean') return null;
@@ -32,7 +33,7 @@ export function normalizePublicMatches(playerId, matches) {
 
 // Parameters are documented at https://docs.opendota.com/ (player matches).
 // Yield bounded pages rather than retaining a player's entire history in memory.
-export async function* publicMatchPages(playerId, { fetchImpl = fetch,
+export async function* publicMatchPages(playerId, { fetchImpl = fetchOpenDota,
   pause = ms => new Promise(resolve => setTimeout(resolve, ms)), pageSize = 100, maxPages = 100 } = {}) {
   let previousPage = null;
   for (let page = 0; page < maxPages; page += 1) {

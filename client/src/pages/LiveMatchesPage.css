@@ -104,3 +104,15 @@
     padding: 10px !important;
   }
 }
+.live-series-card { min-width: 0; border: 1px solid var(--border, #334155); border-radius: 12px; overflow: hidden; background: var(--panel, #101b2b); }
+.live-series-heading { padding: var(--space-4, 16px); border-bottom: 1px solid var(--border, #334155); }
+.live-series-heading h2 { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3, 12px); margin: 0; font-size: 1rem; }
+.live-series-heading h2 > a { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.live-series-heading h2 > a:last-child { text-align: right; }
+.live-series-score { white-space: nowrap; font-size: 1.35rem; font-weight: 700; }
+.live-series-heading p { margin: var(--space-2, 8px) 0; color: var(--muted-text, #94a3b8); font-size: .85rem; }
+.live-series-games > details + details { border-top: 1px solid var(--border, #334155); }
+.live-series-games summary { cursor: pointer; padding: var(--space-3, 12px) var(--space-4, 16px); font-weight: 600; }
+.live-series-games summary span { margin-left: var(--space-3, 12px); font-weight: 400; color: var(--muted-text, #94a3b8); }
+.live-import-notice { margin: 0 0 var(--space-3, 12px); color: #fcd34d; font-size: .85rem; }
+.live-match-page-link { display: inline-block; margin-bottom: var(--space-3, 12px); }

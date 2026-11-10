@@ -198,6 +198,10 @@ function readBettingSourceState(league,analyticsPath,now,{localTesting=false,his
 
 export function verifiedFixtureGames(league,inputs,event) {
   if(!event.SeriesId)return null;
+  if(hasTable(league,'SeriesLifecycle')) {
+    const lifecycle=league.prepare('SELECT Status,BestOf FROM SeriesLifecycle WHERE SeriesId=?').get(event.SeriesId);
+    if(lifecycle&&(lifecycle.Status!=='completed'||lifecycle.BestOf!==event.BestOf))return null;
+  }
   const source=league.prepare('SELECT * FROM SeriesInfo WHERE SeriesId=?').get(event.SeriesId);
   const teams=[event.Team1Key,event.Team2Key].map(key=>inputs.teams.find(t=>t.TeamSubmissionId===key));
   if(!source||source.LeagueId!==inputs.season.LeagueId||teams.some(t=>!t?.TeamId)

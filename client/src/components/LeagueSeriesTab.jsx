@@ -27,7 +27,7 @@ export default function LeagueSeriesTab({ series = [], matches = [] }) {
             <MatchResultBadge winnerSide={winnerSide} side="r" /></span>
           <span className="league-series-result">
             <strong>{item.team1Wins} – {item.team2Wins}</strong>
-            {item.hasPendingResults ? <small>Pending results</small> : tied ? <small>Draw</small> : null}
+            {item.hasPendingResults ? <small>{item.SeriesStatus==='in_progress'?'In progress':item.SeriesStatus==='needs_format'?'Format awaiting confirmation':'Pending results'}</small> : tied ? <small>Draw</small> : null}
           </span>
           <span className="league-series-team">{item.team_two}{' '}
             <MatchResultBadge winnerSide={winnerSide} side="d" /></span>

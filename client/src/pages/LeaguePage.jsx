@@ -29,16 +29,18 @@ export default function LeaguePage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [loadAttempt, setLoadAttempt] = useState(0);
+  useEffect(()=>{const refresh=()=>setLoadAttempt(n=>n+1);window.addEventListener('league-results:changed',refresh);return()=>window.removeEventListener('league-results:changed',refresh);},[]);
   const [activeTab, setActiveTab] = useState("home");
   const [expandedHeroes, setExpandedHeroes] = useState({});
   const [stageInfo, setStageInfo] = useState(null);
   const [stageExists, setStageExists] = useState(false);
   const defaultedLeagueRef = useRef(null);
+  const loadedLeagueRef=useRef(null);
   
   useEffect(() => {
     const controller = new AbortController();
     async function fetchLeague() {
-      setLoading(true);
+      if(loadedLeagueRef.current!==leagueId)setLoading(true);
       setError('');
       try {
         const res = await fetch(`/api/leagues/${leagueId}`, { signal: controller.signal });
@@ -48,6 +50,7 @@ export default function LeaguePage({
         if (controller.signal.aborted) return;
 
         setLeague(data);
+        loadedLeagueRef.current=leagueId;
         if (Number(data.league?.[0]?.Active) !== 1) {
           setActiveTab(current => current === 'schedule' ? 'home' : current);
         }

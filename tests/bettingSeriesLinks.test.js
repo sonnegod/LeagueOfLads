@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {engineFixture} from './helpers/bettingFixture.js';
 import {runBetting} from '../betting/engine.js';
+import {ensureMatchResultsSchema} from '../config/matchResultsSchema.js';
 
 const openedAt=new Date('2026-10-13T12:00:00Z');
 const playedAt=new Date('2026-10-17T04:00:00Z');
@@ -23,6 +24,24 @@ function series(f,{id=900,day='2026-10-16',stage='g',leagueId=100,teams=[1022222
   }
 }
 const refresh=(f,now=playedAt)=>runBetting({...f,now,seasonId:1,simulations:50});
+
+test('live series completion gates settlement without changing accepted prices',()=>{
+  const f=fixture();try {
+    ensureMatchResultsSchema(f.league);
+    const event=schedule(f);refresh(f,openedAt);
+    const quote=f.betting.prepare(`SELECT s.SelectionId,s.OfferedMicros,m.QuoteVersion FROM BettingSelections s
+      JOIN BettingMarkets m USING(MarketId) WHERE m.EventId=? AND m.MarketType='series_winner' AND s.OutcomeKey='draw'`).get(event.EventId);
+    const ticket=f.book.accept('99',{seasonId:1,stake:100,requestKey:'live_completion_gate',legs:[{selectionId:quote.SelectionId,quoteVersion:quote.QuoteVersion}]});
+    series(f);
+    f.league.prepare(`INSERT INTO SeriesLifecycle(SeriesId,EventId,BestOf,FormatSource,Status,UpdatedAt) VALUES(900,?,2,'fixture','in_progress',?)`).run(event.EventId,playedAt.toISOString());
+    refresh(f);assert.equal(f.betting.prepare('SELECT Status FROM BettingTickets WHERE TicketId=?').get(ticket.ticketId).Status,'pending');
+    f.league.exec("UPDATE SeriesLifecycle SET Status='completed' WHERE SeriesId=900");
+    refresh(f);assert.equal(f.betting.prepare('SELECT Status FROM BettingTickets WHERE TicketId=?').get(ticket.ticketId).Status,'won');
+    assert.equal(f.betting.prepare('SELECT AcceptedMicros FROM BettingTicketLegs WHERE TicketId=?').get(ticket.ticketId).AcceptedMicros,quote.OfferedMicros);
+    const count=f.betting.prepare('SELECT COUNT(*) n FROM BettingLedger').get().n;refresh(f);
+    assert.equal(f.betting.prepare('SELECT COUNT(*) n FROM BettingLedger').get().n,count);
+  }finally{f.close();}
+});
 
 test('played fixtures link and settle automatically by New York date, preserving accepted odds across repeat nights',()=>{
   const f=fixture();try {

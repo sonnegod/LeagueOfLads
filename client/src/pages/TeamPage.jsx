@@ -32,6 +32,8 @@ export default function TeamPage() {
   const [selectedLeague, setSelectedLeague] = useState('all');
   const [teamLeagues, setTeamLeagues] = useState([]);
   const loadedTeamIdRef = useRef(null);
+  const [resultsRevision,setResultsRevision]=useState(0);
+  useEffect(()=>{const refresh=()=>setResultsRevision(n=>n+1);window.addEventListener('league-results:changed',refresh);return()=>window.removeEventListener('league-results:changed',refresh);},[]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -109,7 +111,7 @@ export default function TeamPage() {
     }
     fetchTeamInfo();
     return () => controller.abort();
-  }, [routeTeamId, teamSubmissionId, selectedLeague]);
+  }, [routeTeamId, teamSubmissionId, selectedLeague,resultsRevision]);
 
   if (loading) return <div>Loading...</div>;
   if (error) return <p role="alert">{error}</p>;

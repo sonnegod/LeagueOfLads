@@ -140,8 +140,8 @@ export function parseScheduleMessage(message, teams, roleAliases = []) {
   const parsed = parseScheduleTime(content.replace(/<@&\d+>/g, '').replace(/\b\d{6,10}\b/g, ''), message.editedAt || message.authoredAt,
     60,{weekdayFallback:true});
   if (parsed.error) return parsed;
-  const stage = /\btiebreak/i.test(content) ? 'tiebreaker' : /\b(?:playoff|finals?|bo\s*[35])\b/i.test(content) ? 'playoff' : 'regular';
-  const bestOf = Number(content.match(/\bbo\s*([235])\b/i)?.[1] || (stage === 'regular' ? 2 : /grand\s+final/i.test(content)?5:3));
+  const stage = /\btiebreak/i.test(content) ? 'tiebreaker' : /\b(?:playoff|finals?|bo\s*[135])\b/i.test(content) ? 'playoff' : 'regular';
+  const bestOf = Number(content.match(/\bbo\s*([1235])\b/i)?.[1] || (stage === 'regular' ? 2 : /grand\s+final/i.test(content)?5:3));
   return { ...parsed, team1Key: [...ids][0], team2Key: [...ids][1], stage, bestOf,
     status: /\bforfeit(?:ed)?\b/i.test(content)?'forfeit':/\b(cancelled|canceled)\b/i.test(content) ? 'cancelled' : 'scheduled', parserVersion: PARSER_VERSION };
 }

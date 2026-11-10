@@ -9,6 +9,8 @@
     "inhouses:worker": "node scripts/inhouses/run.js",
     "inhouses:auth": "node scripts/inhouses/authBot.js",
     "test:inhouses": "node --test tests/inhouse*.test.js",
+    "matches:worker": "node scripts/league/resultsWorker.js",
+    "test:match-results": "node --test tests/matchResults*.test.js",
     "start": "node index.js",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon index.js",

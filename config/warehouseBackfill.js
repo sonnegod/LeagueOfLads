@@ -1,4 +1,5 @@
 import { planWarehouseCollection } from './warehouseCollection.js';
+import {fetchOpenDota} from './openDotaClient.js';
 import { ingestWarehouseMatch, recordWarehouseFailure, IMPORTER_VERSION } from './warehouseIngestion.js';
 import { captureWarehouseBaseline, compareWarehouseBaseline, validateWarehouse } from './warehouseValidation.js';
 import { withSqliteBusyRetry, isSqliteBusy } from './warehouseConnection.js';
@@ -53,7 +54,7 @@ export function openDotaLimits(headers, now=Date.now()) {
 // Fetching and waits happen outside transactions. A successful response is reused
 // across database retries, and only existing curated IDs can reach this function.
 export async function runWarehouseBackfill(db, config, {
-  state, saveState=()=>{}, saveReport=()=>{}, saveRepair=()=>{}, log=()=>{}, fetcher=fetch,
+  state, saveState=()=>{}, saveReport=()=>{}, saveRepair=()=>{}, log=()=>{}, fetcher=(url,options)=>fetchOpenDota(url,{...options,db}),
   now=Date.now, sleep=ms=>new Promise(r=>setTimeout(r,ms)), signal, repairIncomplete=false
 }) {
   validateBackfillConfig(config);

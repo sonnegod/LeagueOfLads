@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import {fetchOpenDota} from '../../config/openDotaClient.js';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {configureWarehouseConnection} from '../../config/warehouseConnection.js';
@@ -29,7 +30,7 @@ try {
     let data;
     if(file)data=JSON.parse(readFileSync(resolve(file),'utf8'));
     else{
-      const response=await fetch(`https://api.opendota.com/api/matches/${matchId}`,{signal:AbortSignal.timeout(20000)});
+      const response=await fetchOpenDota(`https://api.opendota.com/api/matches/${matchId}`,{db:options.apply?db:undefined,signal:AbortSignal.timeout(20000)});
       if(!response.ok)throw Error(`OpenDota ${matchId}: HTTP ${response.status}`);
       data=await response.json();
     }

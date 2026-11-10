@@ -1,5 +1,7 @@
 import { rebuildLeagueGroupStandings } from './groupStandings.js';
 import { markBettingDirty } from '../betting/refreshQueue.js';
+import {hasTable,resultsChanged} from './matchResultsSchema.js';
+import {refreshSeriesLifecycle} from './seriesLifecycle.js';
 
 function invalid(message,status=400){throw Object.assign(new Error(message),{status});}
 
@@ -51,6 +53,14 @@ export function updateMatchRecord(db,values,audit=()=>{}){
     // Commit the rebuild requirement with the source correction. A routine
     // scheduling worker must not settle against the previous Analytics facts.
     markBettingDirty(db,new Date(),{refreshAnalytics:true});
+    if(hasTable(db,'TrackedLeagueMatches')) {
+      const tracked=db.prepare('SELECT SeriesId FROM TrackedLeagueMatches WHERE MatchId=?').get(id);
+      const current=db.prepare('SELECT SeriesId FROM SeriesMatch WHERE MatchId=? ORDER BY SeriesId LIMIT 1').get(id);
+      db.prepare("UPDATE TrackedLeagueMatches SET SeriesId=?,TeamRad=?,TeamDire=?,ResultStatus='imported' WHERE MatchId=?")
+        .run(current?.SeriesId||null,rad,dire,id);
+      for(const seriesId of new Set([tracked?.SeriesId,current?.SeriesId].filter(Boolean)))refreshSeriesLifecycle(db,seriesId);
+      resultsChanged(db);
+    }
     audit('MatchTeam Update',`Updated Match ${id} with values Team1 = ${rad}, Team2 = ${dire}, Winner = ${winner}; previous teams ${before.TeamRad},${before.TeamDire}`);
     return {success:true,message:'Match updated successfully!'};
   }).immediate();
