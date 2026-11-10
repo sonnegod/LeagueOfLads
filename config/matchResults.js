@@ -4,6 +4,7 @@ import {associateTrackedSeries,currentLeagueStage,stageForLeagueMatch} from './s
 import {fetchOpenDota} from './openDotaClient.js';
 import {importLeagueMatch,enrichLeagueMatch} from './importLeagueMatch.js';
 import {withSqliteBusyRetry} from './warehouseConnection.js';
+import {nightlyOwnsResults} from './matchResultsOwnership.js';
 
 const iso=ms=>new Date(ms).toISOString();
 export function observeLeagueMatches(db,leagueId,matches,now=new Date()) {
@@ -15,8 +16,8 @@ export function observeLeagueMatches(db,leagueId,matches,now=new Date()) {
     for(const m of matches) {
       if(!m.MatchId)continue;seen.add(m.MatchId);
       const previous=db.prepare('SELECT * FROM TrackedLeagueMatches WHERE MatchId=?').get(m.MatchId);
-      db.prepare(`INSERT INTO TrackedLeagueMatches(MatchId,LeagueId,Stage,TeamRad,TeamDire,FirstSeenAt,LastSeenAt,StartedAt)
-        VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(MatchId) DO UPDATE SET LastSeenAt=excluded.LastSeenAt,MissingSince=NULL,
+      db.prepare(`INSERT INTO TrackedLeagueMatches(MatchId,LeagueId,Stage,TeamRad,TeamDire,FirstSeenAt,LastSeenAt,StartedAt,WorkerEligible)
+        VALUES(?,?,?,?,?,?,?,?,1) ON CONFLICT(MatchId) DO UPDATE SET LastSeenAt=excluded.LastSeenAt,MissingSince=NULL,
         TeamRad=COALESCE(excluded.TeamRad,TeamRad),TeamDire=COALESCE(excluded.TeamDire,TeamDire),
         ResultStatus=CASE WHEN ResultStatus IN ('pending','live') THEN 'live' ELSE ResultStatus END`)
         .run(m.MatchId,leagueId,stage,m.RadiantTeamId,m.DireTeamId,now.toISOString(),now.toISOString(),iso(now.getTime()-Math.max(0,m.GameDuration||0)*1000));
@@ -38,7 +39,7 @@ export function observeLeagueMatches(db,leagueId,matches,now=new Date()) {
     }
   }).immediate();
 }
-export function enqueueLeagueMatch(db,matchId,leagueId,{stage=stageForLeagueMatch(db,leagueId,matchId),teamRad=null,teamDire=null,startedAt=null,now=new Date(),force=false}={}) {
+export function enqueueLeagueMatch(db,matchId,leagueId,{stage=stageForLeagueMatch(db,leagueId,matchId),teamRad=null,teamDire=null,startedAt=null,now=new Date(),force=false,nightly=false}={}) {
   ensureMatchResultsSchema(db);
   db.prepare(`INSERT INTO TrackedLeagueMatches(MatchId,LeagueId,Stage,TeamRad,TeamDire,FirstSeenAt,LastSeenAt,StartedAt,MissingSince,ResultStatus,NextAttemptAt)
     VALUES(?,?,?,?,?,?,?,?,?,'pending',?) ON CONFLICT(MatchId) DO UPDATE SET
@@ -46,21 +47,24 @@ export function enqueueLeagueMatch(db,matchId,leagueId,{stage=stageForLeagueMatc
       ResultStatus=CASE WHEN ? AND ResultStatus!='imported' THEN 'pending' ELSE ResultStatus END,
       EnrichmentStatus=CASE WHEN ? THEN 'pending' ELSE EnrichmentStatus END,
       LastError=CASE WHEN ? THEN NULL ELSE LastError END`)
-    .run(matchId,leagueId,stage,teamRad,teamDire,now.toISOString(),now.toISOString(),startedAt,now.toISOString(),now.toISOString(),Number(force),Number(force),Number(force),Number(force));
-  if(force)db.prepare('UPDATE TrackedLeagueMatches SET ManualRequested=1 WHERE MatchId=?').run(matchId);
+    .run(matchId,leagueId,stage,teamRad,teamDire,now.toISOString(),now.toISOString(),startedAt,now.toISOString(),now.toISOString(),Number(force||nightly),Number(force||nightly),Number(force||nightly),Number(force||nightly));
+  if(nightly)db.prepare('UPDATE TrackedLeagueMatches SET WorkerEligible=0 WHERE MatchId=?').run(matchId);
+  if(force)db.prepare('UPDATE TrackedLeagueMatches SET ManualRequested=1,WorkerEligible=1 WHERE MatchId=?').run(matchId);
 }
 export function claimResultJob(db,owner,now=new Date(),{automatic=true}={}) {
   ensureMatchResultsSchema(db);
   return db.transaction(()=>{
+    if(automatic&&nightlyOwnsResults(db,now))return null;
     const enabled=!automatic||db.prepare('SELECT Enabled FROM MatchResultsSettings WHERE Id=1').get().Enabled;
     const job=db.prepare(`SELECT t.* FROM TrackedLeagueMatches t JOIN LeagueInfo l ON l.LeagueId=t.LeagueId AND l.Active=1
       WHERE (t.ResultStatus='pending' OR (t.ResultStatus IN ('imported','remake') AND t.EnrichmentStatus IN ('pending','partial','error')))
       AND (?=1 OR t.ManualRequested=1)
+      AND (?=0 OR t.WorkerEligible=1 OR t.ManualRequested=1)
       AND (t.NextAttemptAt IS NULL OR t.NextAttemptAt<=?) AND (t.LeaseUntil IS NULL OR t.LeaseUntil<=?)
-      ORDER BY CASE WHEN t.ResultStatus='pending' THEN 0 ELSE 1 END,t.NextAttemptAt,t.MatchId LIMIT 1`).get(Number(Boolean(enabled)),now.toISOString(),now.toISOString());
+      ORDER BY CASE WHEN t.ResultStatus='pending' THEN 0 ELSE 1 END,t.NextAttemptAt,t.MatchId LIMIT 1`).get(Number(Boolean(enabled)),Number(automatic),now.toISOString(),now.toISOString());
     if(!job)return null;
-    db.prepare('UPDATE TrackedLeagueMatches SET LeaseOwner=?,LeaseUntil=?,LastAttemptAt=?,AttemptCount=AttemptCount+1,ManualRequested=0 WHERE MatchId=?')
-      .run(owner,iso(now.getTime()+120000),now.toISOString(),job.MatchId);
+    db.prepare('UPDATE TrackedLeagueMatches SET LeaseOwner=?,LeaseUntil=?,LastAttemptAt=?,AttemptCount=AttemptCount+1,ManualRequested=0,WorkerEligible=CASE WHEN ? THEN WorkerEligible ELSE 0 END WHERE MatchId=?')
+      .run(owner,iso(now.getTime()+120000),now.toISOString(),Number(automatic),job.MatchId);
     return {...job,AttemptCount:job.AttemptCount+1};
   }).immediate();
 }
@@ -111,6 +115,20 @@ export async function runResultBatch(db,{limit=5,automatic=true,...options}={}) 
     results.push(await processResultJob(db,job,{...options,owner}));
   }
   return results;
+}
+export function resultWorkerPollDelay(db,now=new Date()) {
+  ensureMatchResultsSchema(db);
+  if(nightlyOwnsResults(db,now))return 60000;
+  const enabled=db.prepare('SELECT Enabled FROM MatchResultsSettings WHERE Id=1').get().Enabled;
+  const active=db.prepare(`SELECT 1 FROM TrackedLeagueMatches t JOIN LeagueInfo l ON l.LeagueId=t.LeagueId AND l.Active=1
+    WHERE (?=1 OR t.ManualRequested=1) AND (t.WorkerEligible=1 OR t.ManualRequested=1) AND (
+      (t.ResultStatus='live' AND ?=1) OR (
+        (t.ResultStatus='pending' OR (t.ResultStatus IN ('imported','remake') AND t.EnrichmentStatus IN ('pending','partial','error')))
+        AND (t.NextAttemptAt IS NULL OR t.NextAttemptAt<=?) AND (t.LeaseUntil IS NULL OR t.LeaseUntil<=?)
+      )) LIMIT 1`).get(Number(Boolean(enabled)),Number(Boolean(enabled)),iso(now.getTime()+15000),iso(now.getTime()+15000));
+  const derived=hasTable(db,'BettingRefreshState')&&db.prepare(`SELECT 1 FROM MatchResultsState m JOIN BettingRefreshState b ON b.Id=m.Id
+    WHERE m.Id=1 AND m.Revision>m.DerivedRevision AND b.RequestedRevision>b.CompletedRevision`).get();
+  return active||derived?15000:60000;
 }
 export function matchImportStatus(db,matchId) {
   if(!hasTable(db,'TrackedLeagueMatches'))return null;

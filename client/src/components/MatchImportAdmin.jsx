@@ -30,19 +30,22 @@ export default function MatchImportAdmin({seasonId,refreshKey}) {
     catch(cause){setError(cause.message);}finally{setBusy(false);}
   }
   const jobs=data?.jobs||[];
+  const nightlyPaused=Date.parse(data?.coordination?.RequestUntil)>Date.now()
+    ||data?.coordination?.Mode==='nightly'&&Date.parse(data?.coordination?.LeaseUntil)>Date.now();
   return <section className="ui-panel match-scheduling-card"><h3>Automatic match results</h3>
-    <p className="match-scheduling-help">Finished live games are retrieved in the background. Results update standings and series; replay details can finish later. Groups use BO2, tiebreakers use their pool rules, and fixture formats take priority. Defaults apply to new series.</p>
+    <p className="match-scheduling-help">Finished live games are retrieved until nightly takes over final cleanup. Results update standings and series; replay details can finish later. Groups use BO2, tiebreakers use their pool rules, and fixture formats take priority. Defaults apply to new series.</p>
     {error&&<p role="alert" className="match-scheduling-error">{error}</p>}{message&&<p role="status">{message}</p>}
     {data?<><Settings key={data.settings.Revision} settings={data.settings} busy={busy} run={run}/>
       <p className="match-scheduling-help">Worker last checked: {when(data.worker.LastTickAt)} NY · OpenDota: {data.budget.monthRequests.toLocaleString()} / {data.budget.monthlyLimit.toLocaleString()} requests this month · {data.budget.minuteLimit}/minute shared budget.</p>
       {data.worker.LastError&&<p role="status" className="match-scheduling-error">{data.worker.LastError}</p>}
+      {nightlyPaused&&<p role="status">Nightly cleanup is taking ownership. Daytime imports and refreshes are paused until it finishes.</p>}
       {data.budget.PauseUntil>Date.now()&&<p role="status">OpenDota requests paused until {when(data.budget.PauseUntil)} NY: {data.budget.Reason}</p>}
       <form className="held-match-draft-actions" onSubmit={event=>{event.preventDefault();run('','POST',{seasonId:Number(seasonId),matchId:Number(matchId)});}}>
         <label>Import or recheck a match<input inputMode="numeric" pattern="[0-9]+" required value={matchId} placeholder="Match ID" onChange={event=>setMatchId(event.target.value)}/></label><button disabled={busy}>Queue import</button>
       </form>
       {!jobs.length?<p className="match-scheduling-help">No match imports awaiting results, replay details or review.</p>:<div className="match-scheduling-events"><table className="match-scheduling-table"><thead><tr><th>Match</th><th>Result / Parse</th><th>Next retry (NY)</th><th>Details</th><th/></tr></thead><tbody>
         {jobs.map(job=><tr key={job.MatchId}><td>{job.ResultStatus==='imported'?<a href={`/match/${job.MatchId}`}>{job.MatchId}</a>:job.MatchId}{job.SeriesId&&<small> · Series {job.SeriesId}</small>}</td>
-          <td>{job.ResultStatus.replaceAll('_',' ')} / {job.EnrichmentStatus}</td><td>{when(job.NextAttemptAt)}</td><td>{job.LastError|| (job.SeriesStatus==='needs_format'?'Confirm the series format.':'Waiting for OpenDota data.')}
+          <td>{job.ResultStatus.replaceAll('_',' ')} / {job.EnrichmentStatus}</td><td>{!job.WorkerEligible&&!job.ManualRequested?'Next nightly run':when(job.NextAttemptAt)}</td><td>{job.LastError|| (job.SeriesStatus==='needs_format'?'Confirm the series format.':'Waiting for OpenDota data.')}
           {job.SeriesId&&['needs_format','needs_review'].includes(job.SeriesStatus)&&<form className="held-match-draft-actions" onSubmit={event=>{event.preventDefault();run(`/series/${job.SeriesId}/format`,'PUT',{bestOf:Number(formats[job.SeriesId])});}}>
             <label>Series format<select required value={formats[job.SeriesId]||''} onChange={event=>setFormats(old=>({...old,[job.SeriesId]:event.target.value}))}><option value="">Choose format</option>{(job.Stage==='g'?[2]:job.Stage==='t'?[1,3]:[3,5]).map(n=><option key={n} value={n}>BO{n}</option>)}</select></label><button disabled={busy}>Set format</button>
           </form>}</td><td><button type="button" disabled={busy||job.ResultStatus==='live'} onClick={()=>run(`/${job.MatchId}/retry`,'POST',{})}>Retry</button></td></tr>)}

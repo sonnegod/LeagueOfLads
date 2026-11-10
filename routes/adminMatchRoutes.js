@@ -31,6 +31,7 @@ export function createAdminMatchRouter({league,schedules,includeLocalTests=false
   router.get('/imports',endpoint((req,res)=>res.json({
     settings:league.prepare('SELECT * FROM MatchResultsSettings WHERE Id=1').get(),budget:openDotaBudgetStatus(league),
     worker:league.prepare('SELECT * FROM MatchResultsState WHERE Id=1').get(),
+    coordination:league.prepare('SELECT Mode,LeaseUntil,RequestUntil FROM MatchResultsRunLock WHERE Id=1').get(),
     jobs:league.prepare(`SELECT t.*,s.BestOf,s.Status SeriesStatus FROM TrackedLeagueMatches t LEFT JOIN SeriesLifecycle s USING(SeriesId)
       WHERE t.ResultStatus IN ('pending','needs_review') OR (t.ResultStatus IN ('imported','remake') AND t.EnrichmentStatus NOT IN ('ready','not_applicable'))
         OR (t.SeriesId IS NULL AND t.LastError IS NOT NULL) OR s.Status IN ('needs_format','needs_review') ORDER BY t.LastAttemptAt DESC,t.MatchId DESC LIMIT 50`).all()})));

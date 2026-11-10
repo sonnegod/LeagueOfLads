@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import {readFileSync} from 'node:fs';
 import {ensureMatchResultsSchema} from '../config/matchResultsSchema.js';
-import {observeLeagueMatches,enqueueLeagueMatch,claimResultJob,runResultBatch} from '../config/matchResults.js';
+import {observeLeagueMatches,enqueueLeagueMatch,claimResultJob,processResultJob,runResultBatch,resultWorkerPollDelay} from '../config/matchResults.js';
+import {acquireResultsWorker,releaseResultsWorker,nightlyOwnsResults,withNightlyResultsOwnership} from '../config/matchResultsOwnership.js';
 import {importLeagueMatch,enrichLeagueMatch} from '../config/importLeagueMatch.js';
 import {refreshSeriesLifecycle,seriesFormat,advanceCompletedPlayoffSeries,stageForLeagueMatch} from '../config/seriesLifecycle.js';
 import {reserveOpenDotaRequest,fetchOpenDota} from '../config/openDotaClient.js';
@@ -59,6 +60,108 @@ test('healthy disappearance grace, return to live, disabled processing and resta
     assert.equal(claimResultJob(f.db,'three',new Date(+start+245000)),null);
   }finally{f.close();}
 });
+test('the worker stays idle without games, wakes for live activity, and returns to idle after work completes',async()=>{
+  const f=fixture();try {
+    let requests=0;
+    const fetchImpl=async()=>{requests++;return {ok:true,json:async()=>payload(1,{complete:true})};};
+    f.db.exec('UPDATE MatchResultsSettings SET Enabled=1');
+    assert.equal(resultWorkerPollDelay(f.db,start),60000);
+    assert.deepEqual(await runResultBatch(f.db,{now:()=>start,fetchImpl}),[]);
+    assert.equal(requests,0,'An empty queue must not call OpenDota');
+    const live={MatchId:1,RadiantTeamId:1001,DireTeamId:1002,GameDuration:100};
+    observeLeagueMatches(f.db,100,[live],start);
+    assert.equal(resultWorkerPollDelay(f.db,start),15000);
+    observeLeagueMatches(f.db,100,[],new Date(+start+1000));
+    const ended=new Date(+start+122000);
+    observeLeagueMatches(f.db,100,[],ended);
+    await runResultBatch(f.db,{now:()=>ended,fetchImpl});
+    assert.equal(requests,1);
+    assert.equal(resultWorkerPollDelay(f.db,ended),15000,'Derived updates must finish before idling');
+    f.db.exec('UPDATE BettingRefreshState SET CompletedRevision=RequestedRevision;UPDATE MatchResultsState SET DerivedRevision=Revision');
+    assert.equal(resultWorkerPollDelay(f.db,ended),60000);
+    f.db.prepare("UPDATE TrackedLeagueMatches SET EnrichmentStatus='partial',NextAttemptAt=?").run(new Date(+ended+3600000).toISOString());
+    assert.equal(resultWorkerPollDelay(f.db,ended),60000,'Replay backoff must not keep fast polling active');
+    assert.equal(resultWorkerPollDelay(f.db,new Date(+ended+3600000)),15000);
+    f.db.exec('UPDATE MatchResultsSettings SET Enabled=0');
+    assert.equal(resultWorkerPollDelay(f.db,new Date(+ended+3600000)),60000);
+    enqueueLeagueMatch(f.db,1,100,{force:true,now:ended});
+    assert.equal(resultWorkerPollDelay(f.db,ended),15000,'An explicit admin retry also wakes processing');
+  }finally{f.close();}
+});
+
+test('nightly drains the active worker, takes permanent cleanup ownership, and leaves new live games eligible',async()=>{
+  const f=fixture();try {
+    f.db.exec('UPDATE MatchResultsSettings SET Enabled=1');
+    const one={MatchId:1,RadiantTeamId:1001,DireTeamId:1002,GameDuration:100};
+    const crossing={...one,MatchId:3};
+    observeLeagueMatches(f.db,100,[one,crossing],start);
+    observeLeagueMatches(f.db,100,[crossing],new Date(+start+1000));
+    let at=new Date(+start+122000);
+    observeLeagueMatches(f.db,100,[crossing],at);
+    assert.equal(acquireResultsWorker(f.db,'daytime',at),true);
+    const job=claimResultJob(f.db,'daytime',at);assert.equal(job.MatchId,1);
+    let drained=false;
+    await withNightlyResultsOwnership(f.db,async()=>{
+      assert.equal(drained,true);assert.equal(nightlyOwnsResults(f.db,at),true);
+      assert.equal(acquireResultsWorker(f.db,'other-worker',at),false);
+      assert.equal(claimResultJob(f.db,'automatic',at),null);
+      assert.equal(resultWorkerPollDelay(f.db,at),60000);
+      assert.equal(f.db.prepare('SELECT WorkerEligible FROM TrackedLeagueMatches WHERE MatchId=1').get().WorkerEligible,0);
+      assert.equal(f.db.prepare('SELECT WorkerEligible FROM TrackedLeagueMatches WHERE MatchId=3').get().WorkerEligible,1);
+      const results=await runResultBatch(f.db,{automatic:false,now:()=>at,fetchImpl:async()=>({ok:true,json:async()=>payload(1,{complete:true})})});
+      assert.equal(results.length,1);assert.equal(results[0].enrichment,'ready');
+    },{owner:'nightly',now:()=>at,wait:async()=>{
+      assert.equal(nightlyOwnsResults(f.db,at),true);
+      assert.equal(claimResultJob(f.db,'second-job',at),null,'A nightly request stops further daytime claims');
+      await processResultJob(f.db,job,{owner:'daytime',now:()=>at,fetchImpl:async()=>({ok:true,json:async()=>payload()})});
+      releaseResultsWorker(f.db,'daytime');drained=true;at=new Date(+at+1000);
+    }});
+    assert.equal(nightlyOwnsResults(f.db,at),false);
+    assert.equal(f.db.prepare('SELECT Revision=DerivedRevision AS done FROM MatchResultsState').get().done,1);
+    assert.equal(f.db.prepare('SELECT WorkerEligible FROM TrackedLeagueMatches WHERE MatchId=1').get().WorkerEligible,0);
+    const newLive={...one,MatchId:4};
+    observeLeagueMatches(f.db,100,[crossing,newLive],at);
+    observeLeagueMatches(f.db,100,[crossing],new Date(+at+1000));
+    at=new Date(+at+122000);observeLeagueMatches(f.db,100,[crossing],at);
+    assert.equal(claimResultJob(f.db,'next-game',at).MatchId,4);
+  }finally{f.close();}
+});
+
+test('a failed nightly releases its pause but leaves old cleanup to nightly or an explicit admin retry',async()=>{
+  const f=fixture();try {
+    f.db.exec('UPDATE MatchResultsSettings SET Enabled=1');
+    enqueueLeagueMatch(f.db,1,100,{force:true,now:start});
+    await assert.rejects(withNightlyResultsOwnership(f.db,async()=>{throw new Error('Nightly source unavailable');},{now:()=>start}),/source unavailable/);
+    assert.equal(nightlyOwnsResults(f.db,start),false);
+    assert.equal(acquireResultsWorker(f.db,'resumed',start),true);releaseResultsWorker(f.db,'resumed');
+    let requests=0;
+    assert.deepEqual(await runResultBatch(f.db,{now:()=>start,fetchImpl:async()=>{requests++;throw new Error('Unexpected API call');}}),[]);
+    assert.equal(requests,0);
+    enqueueLeagueMatch(f.db,1,100,{force:true,now:start});
+    assert.equal(claimResultJob(f.db,'admin-retry',start).MatchId,1);
+  }finally{f.close();}
+});
+
+test('nightly can recover an expired worker and stale responses cannot overwrite its replacement claim',async()=>{
+  const f=fixture();try {
+    f.db.exec('UPDATE MatchResultsSettings SET Enabled=1');
+    enqueueLeagueMatch(f.db,1,100,{force:true,now:start});
+    assert.equal(acquireResultsWorker(f.db,'crashed-worker',start),true);
+    const old=claimResultJob(f.db,'crashed-worker',start);
+    const at=new Date(+start+181000);
+    await withNightlyResultsOwnership(f.db,async()=>{
+      await assert.rejects(withNightlyResultsOwnership(f.db,async()=>assert.fail('Concurrent nightly must not run'),{now:()=>at}),/Another nightly run/);
+      const replacement=claimResultJob(f.db,'nightly-import',at,{automatic:false});
+      assert.equal(replacement.MatchId,1);
+      const fetchImpl=async()=>({ok:true,json:async()=>payload(1,{complete:true})});
+      assert.deepEqual(await processResultJob(f.db,old,{owner:'crashed-worker',now:()=>at,fetchImpl}),{deferred:true});
+      assert.equal(f.db.prepare('SELECT COUNT(*) n FROM MatchTeam').get().n,0);
+      const result=await processResultJob(f.db,replacement,{owner:'nightly-import',now:()=>at,fetchImpl});
+      assert.equal(result.imported,true);
+    },{now:()=>at});
+  }finally{f.close();}
+});
+
 test('two imported games share a stable series, survive side swaps and link by IDs despite different names',()=>{
   const f=fixture();try {
     const event=f.schedules.save(1,{team1Key:11,team2Key:12,stage:'regular',bestOf:2,scheduledStartUtc:start.toISOString()},null,new Date(+start-3600000));

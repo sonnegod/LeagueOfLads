@@ -224,9 +224,20 @@ two minutes, `scripts/league/resultsWorker.js` retrieves its result from OpenDot
 The queue, retries and leases live in `LadsData.db`; failures and restarts retain
 pending work. The worker imports core results, rebuilds standings/Neustadtl,
 updates series completion, and requests a combined analytics/betting refresh.
-Detailed replay sections retry independently without recounting results or
-invalidating saved odds when the response is unchanged. Nightly ingestion uses
-the same importer to recover missed games. Inhouses keep their bot workflow.
+Detailed replay sections retry independently until nightly, without recounting
+results or invalidating saved odds when the response is unchanged. Nightly
+ingestion is the final cleanup pass, using the same importer to recover missed
+games and finish incomplete data. Inhouses keep their bot workflow.
+
+The existing nightly cron command automatically enters `scripts/league/runNightly.js`.
+It requests ownership, waits for the current daytime worker cycle to finish,
+then pauses daytime imports and their derived refreshes for the whole nightly run.
+Old pending games become nightly-owned, with their daytime backoff cleared for
+cleanup. They stay nightly-owned afterward, including when nightly reports a
+failure; the next nightly run or an explicit admin retry can pick them up.
+The daytime worker handles newly observed live games. Games still live during
+nightly remain eligible after they finish. Heartbeats renew ownership, and an
+expired lease allows recovery after an interrupted coordinator process.
 
 **Admin → League → Match → Automatic match results** controls automatic retrieval,
 stage defaults and the grand-final format. It also shows worker health, request
@@ -262,7 +273,13 @@ pm2 save
 
 Then configure formats and enable automatic imports in the Match admin tab.
 Existing workers are restarted with `pm2 restart league-results-worker`; no new
-cron job or Nginx change is needed. The worker stays idle when no import is due.
+cron job or Nginx change is needed. With no live games or work due, the worker
+checks the local queue once a minute without making OpenDota requests or rebuilding
+analytics. It switches to 15-second checks when live games or due work are detected.
+Pending results and replay details keep their scheduled retries until nightly
+takes ownership. Old cleanup work does not keep the daytime worker busy afterward.
+Explicit admin imports also wake processing on the next local check, outside a
+nightly ownership window. No PM2 stop/start cron entries are needed.
 Public SSE invalidations at `/api/match-results/stream` refresh affected views
 after committed changes and settlement; job errors and quota details stay admin-only.
 

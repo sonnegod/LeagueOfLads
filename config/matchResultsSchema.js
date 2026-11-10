@@ -12,7 +12,8 @@ export function ensureMatchResultsSchema(db) {
       MissingSince TEXT,StartedAt TEXT,ResultStatus TEXT NOT NULL DEFAULT 'live',
       EnrichmentStatus TEXT NOT NULL DEFAULT 'pending',AttemptCount INTEGER NOT NULL DEFAULT 0,
       NextAttemptAt TEXT,LeaseOwner TEXT,LeaseUntil TEXT,LastAttemptAt TEXT,LastError TEXT,
-      ParseJobId TEXT,ParseRequestedAt TEXT,ImportedAt TEXT,ManualRequested INTEGER NOT NULL DEFAULT 0);
+      ParseJobId TEXT,ParseRequestedAt TEXT,ImportedAt TEXT,ManualRequested INTEGER NOT NULL DEFAULT 0,
+      WorkerEligible INTEGER NOT NULL DEFAULT 0);
     CREATE INDEX IF NOT EXISTS idx_TrackedLeagueMatches_Due ON TrackedLeagueMatches(ResultStatus,NextAttemptAt);
     CREATE TABLE IF NOT EXISTS SeriesLifecycle (
       SeriesId INTEGER PRIMARY KEY,EventId INTEGER UNIQUE,BestOf INTEGER,FormatSource TEXT NOT NULL,BracketMatchId TEXT,
@@ -21,7 +22,13 @@ export function ensureMatchResultsSchema(db) {
     CREATE TABLE IF NOT EXISTS MatchResultsState (
       Id INTEGER PRIMARY KEY CHECK(Id=1),Revision INTEGER NOT NULL DEFAULT 0,
       DerivedRevision INTEGER NOT NULL DEFAULT 0,LastTickAt TEXT,LastSuccessAt TEXT,LastError TEXT);
-    INSERT OR IGNORE INTO MatchResultsState(Id) VALUES(1);`);
+    INSERT OR IGNORE INTO MatchResultsState(Id) VALUES(1);
+    CREATE TABLE IF NOT EXISTS MatchResultsRunLock (
+      Id INTEGER PRIMARY KEY CHECK(Id=1),Owner TEXT,Mode TEXT,LeaseUntil TEXT,RequestedBy TEXT,RequestUntil TEXT);
+    INSERT OR IGNORE INTO MatchResultsRunLock(Id) VALUES(1);`);
+  if(!db.pragma('table_info(TrackedLeagueMatches)').some(column=>column.name==='WorkerEligible')) {
+    db.exec("ALTER TABLE TrackedLeagueMatches ADD COLUMN WorkerEligible INTEGER NOT NULL DEFAULT 0;UPDATE TrackedLeagueMatches SET WorkerEligible=1 WHERE ResultStatus='live'");
+  }
   initialized.add(db);
 }
 export const hasTable=(db,name)=>Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name));
