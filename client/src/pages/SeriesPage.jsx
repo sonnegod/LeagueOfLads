@@ -18,6 +18,7 @@ function SeriesView({ data }) {
   const games = [...(data.seriesMatchesWithData || [])].sort((a, b) => Number(a.MatchId) - Number(b.MatchId));
   const currentMatch = games[activeMatchIndex];
   return <>
+    {data.lifecycle&&<p className="series-progress" role="status">{data.lifecycle.bestOf?`BO${data.lifecycle.bestOf} · `:''}{data.lifecycle.status==='completed'?'Completed':data.lifecycle.status==='needs_format'?'Format awaiting confirmation':data.lifecycle.status==='needs_review'?'Needs review':'In progress'}</p>}
     <header className="series-overview-header">
       <h1 className="series-matchup-title">
         <Link to={`/team/${series.Team1}`}>{series.Team1Name}</Link>

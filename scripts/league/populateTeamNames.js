@@ -15,7 +15,7 @@ async function populateTeamNames(){
     const preloadedTeams = db.preloadedData.teamNames.map(team => team.TeamId);
 
 
-    const newTeams = teams.filter(team => !preloadedTeams.includes(team.TeamId));
+    const newTeams = teams.filter(team => !preloadedTeams.includes(team.TeamId)||db.preloadedData.teamNames.find(t=>t.TeamId===team.TeamId)?.TeamName===`Team ${team.TeamId}`);
 console.log(newTeams);
 
     for(const teamId of newTeams){
@@ -37,7 +37,9 @@ console.log(newTeams);
             team_id: teamId.TeamId,
             team_name: teamInfo.name
           }
-          db.insertTeam(teamInformation);
+          if(db.db.prepare('SELECT 1 FROM TeamInfo WHERE TeamId=? AND TeamName=?').get(teamId.TeamId,`Team ${teamId.TeamId}`))
+            db.db.prepare('UPDATE TeamInfo SET TeamName=? WHERE TeamId=?').run(teamInfo.name,teamId.TeamId);
+          else db.insertTeam(teamInformation);
 
         } else {
           console.warn(`No matching team info returned for ID: ${teamId.TeamId}`);

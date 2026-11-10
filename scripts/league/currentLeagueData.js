@@ -35,6 +35,7 @@ async function checkMatches(leagueId) {
   let startAtMatchId = null;//db.getMostRecentMatch();
 
   const preloadedMatchDetailIds = db.preloadedData.matches.map(match => match.MatchId);
+  const excludedRemakes=new Set(db.db.prepare("SELECT MatchId FROM TrackedLeagueMatches WHERE ResultStatus IN ('remake','imported')").all().map(row=>row.MatchId));
   let allNewMatches = [];
 
   while (true) {
@@ -60,7 +61,7 @@ async function checkMatches(leagueId) {
       }
 
       // Filter out matches already in DB
-      const newMatches = data.result.matches.filter(match => !preloadedMatchDetailIds.includes(match.match_id));
+      const newMatches = data.result.matches.filter(match => !preloadedMatchDetailIds.includes(match.match_id)&&!excludedRemakes.has(match.match_id));
       if (newMatches.length === 0) {
         console.log('No new matches found in this batch.');
         break; // no new matches to process
@@ -94,10 +95,11 @@ async function checkMatches(leagueId) {
     }));
 
     db.db.transaction(() => {
-      if (db.insertMatches(teamMatchData) !== 1 || db.insertMatchLeague(matchLeagueIds) !== 1) {
+      const stillValid=new Set(allNewMatches.filter(match=>!db.db.prepare("SELECT 1 FROM TrackedLeagueMatches WHERE MatchId=? AND ResultStatus IN ('remake','imported')").get(match.match_id)).map(match=>match.match_id));
+      if (db.insertMatches(teamMatchData.filter(match=>stillValid.has(match.match_id))) !== 1 || db.insertMatchLeague(matchLeagueIds.filter(match=>stillValid.has(match.match_id))) !== 1) {
         throw new Error('Could not persist match history');
       }
-      for (const match of allNewMatches) recordMatchStart(db.db, match.match_id, match.start_time, 'steam_history');
+      for (const match of allNewMatches.filter(match=>stillValid.has(match.match_id))) recordMatchStart(db.db, match.match_id, match.start_time, 'steam_history');
     })();
 
     // Prepare list of match IDs for detail fetching

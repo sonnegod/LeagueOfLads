@@ -23,6 +23,12 @@ done
 
 LOG_FILE="$LOG_DIR/log_$(date +%F).txt"
 
+# Keep the existing cron entry. The coordinator drains daytime work and holds
+# ownership for this whole pipeline, releasing it even if a step fails.
+if [ -z "${LEAGUE_NIGHTLY_OWNER:-}" ]; then
+    exec "$NODE_BIN" "$PROJECT_ROOT/scripts/league/runNightly.js" >> "$LOG_FILE" 2>&1
+fi
+
 echo "$(date) - Starting nightly jobs" >> "$LOG_FILE"
 
 "$NODE_BIN" "$PROJECT_ROOT/scripts/db/cleanupLiveMatchSnapshots.js" 7 >> "$LOG_FILE" 2>&1

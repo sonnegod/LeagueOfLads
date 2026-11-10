@@ -26,6 +26,7 @@ import { configureWarehouseConnection } from './config/warehouseConnection.js';
 import { ensureRemakeDraftSchema } from './config/remakeDrafts.js';
 import { ensureQualificationSchema, saveQualificationRules } from './config/qualificationStore.js';
 import { readLiveMatchCurrentStates, readLiveMatchSnapshots } from './config/liveMatchReads.js';
+import {ensureMatchResultsSchema} from './config/matchResultsSchema.js';
 dotenv.config();
 
 class DBInstance {
@@ -51,6 +52,7 @@ class DBInstance {
             this.seasons = new SeasonStore(this.db, (type, message) => this.recordAdminAudit(type, message));
             this.playerAwards = new PlayerAwardsStore(this.db);
             this.ensureLiveMatchSchema();
+            ensureMatchResultsSchema(this.db);
             this.preloadedData = this.preloadData();
             DBInstance.instance = this;
         }
@@ -928,6 +930,11 @@ class DBInstance {
                 SELECT MatchId, MAX(SnapshotId) AS LatestSnapshotId
                 FROM LiveMatchSnapshots
                 WHERE CreatedAt >= datetime('now', ?)
+                  OR (CreatedAt >= datetime('now','-7 days') AND MatchId IN (
+                    SELECT t.MatchId FROM TrackedLeagueMatches t LEFT JOIN SeriesLifecycle s USING(SeriesId)
+                    WHERE t.ResultStatus IN ('live','pending','needs_review') OR s.Status!='completed'
+                      OR datetime(s.UpdatedAt)>=datetime('now',?)
+                  ))
                 GROUP BY MatchId
             ) latest
                 ON latest.LatestSnapshotId = lms.SnapshotId
@@ -937,7 +944,7 @@ class DBInstance {
                 WHERE lmcs.MatchId = lms.MatchId
             )
             ORDER BY lms.CreatedAt DESC
-        `, [`-${recentHours} hours`]);
+        `, [`-${recentHours} hours`,`-${recentHours} hours`]);
 
         return snapshots.map((snapshot) => ({
             ...snapshot,
@@ -2658,7 +2665,7 @@ class DBInstance {
 
     insertMatches(matchData) {
         try {
-            const insertQuery = `INSERT INTO MatchTeam (MatchId, TeamRad, TeamDire, WinnerId, SeriesId)
+            const insertQuery = `INSERT OR IGNORE INTO MatchTeam (MatchId, TeamRad, TeamDire, WinnerId, SeriesId)
                                  VALUES (@match_id, @radiant_team_id, @dire_team_id, -1, @series_id)`;
             const insertStatement = this.db.prepare(insertQuery);
             for (const match of matchData) {
@@ -2959,10 +2966,12 @@ class DBInstance {
 
     insertMatchLeague(matchLeagueIds) {
         try {
-            const insertQuery = `INSERT INTO MatchLeague (MatchId, LeagueId, DatePlayed)
+            const insertQuery = `INSERT OR IGNORE INTO MatchLeague (MatchId, LeagueId, DatePlayed)
                                  VALUES (@match_id, @league_id, @date_played)`;
             const insertStatement = this.db.prepare(insertQuery);
             for (const matchLeagues of matchLeagueIds) {
+                const existing=this.db.prepare('SELECT LeagueId FROM MatchLeague WHERE MatchId=?').get(matchLeagues.match_id);
+                if(existing&&existing.LeagueId!==matchLeagues.league_id)throw new Error('Match is already assigned to another league');
                 insertStatement.run(matchLeagues);
             }
             return 1;

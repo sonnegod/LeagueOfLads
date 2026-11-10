@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import useMatchResultsRevision from '../hooks/useMatchResultsRevision';
 import LeagueSeriesTab from './LeagueSeriesTab';
 import { seriesMatchesForDisplay } from '../utils/leagueSeries';
 
 export default function CurrentLeagueSeries({ leagueId }) {
+  const resultsRevision=useMatchResultsRevision();
   const [seriesList, setSeriesList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -10,7 +12,6 @@ export default function CurrentLeagueSeries({ leagueId }) {
   useEffect(() => {
     const controller = new AbortController();
     async function fetchSeries() {
-      setLoading(true);
       setError('');
       try {
         const url = leagueId
@@ -31,7 +32,7 @@ export default function CurrentLeagueSeries({ leagueId }) {
     }
     fetchSeries();
     return () => controller.abort();
-  }, [leagueId]);
+  }, [leagueId,resultsRevision]);
 
   const matches = useMemo(() => seriesMatchesForDisplay(seriesList), [seriesList]);
 

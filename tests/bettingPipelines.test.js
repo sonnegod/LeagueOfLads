@@ -10,7 +10,7 @@ if(!bash)try{const gitRoot=resolve(execFileSync('git',['--exec-path'],{encoding:
   const candidate=join(gitRoot,'bin','bash.exe');if(existsSync(candidate))bash=candidate;}catch{}
 const execute=promisify(execFile);
 
-async function pipeline(script,{active='200',failure=''}={}) {
+async function pipeline(script,{active='200',failure='',coordinated=false}={}) {
   const scratch=mkdtempSync(join(tmpdir(),'lads-pipeline-'));
   try {
     mkdirSync(join(scratch,'scripts','db'),{recursive:true});
@@ -26,7 +26,9 @@ if [[ "$1" == */"$FAILING_STEP" ]] && [ -n "$FAILING_STEP" ]; then exit 1; fi
     writeFileSync(join(scratch,'scripts','db','backupDatabases.sh'),'#!/bin/bash\necho "backup $*" >> "$LEAGUE_OF_LADS_ROOT/calls.txt"\n');
     let failed=false;
     try {await execute(bash,[resolve(script).replaceAll('\\','/')],{windowsHide:true,env:{...process.env,
-      LEAGUE_OF_LADS_ROOT:slash,LEAGUE_OF_LADS_NODE:`${slash}/node-shim.sh`,ACTIVE_TEST_ID:active,FAILING_STEP:failure}});}
+      LEAGUE_OF_LADS_ROOT:slash,LEAGUE_OF_LADS_NODE:`${slash}/node-shim.sh`,ACTIVE_TEST_ID:active,FAILING_STEP:failure,
+      // Inner-step tests bypass the wrapper; ownership is exercised by matchResults tests.
+      LEAGUE_NIGHTLY_OWNER:coordinated?'':'pipeline-test'}});}
     catch(error){if(error.code!==1)throw error;failed=true;}
     return {failed,calls:readFileSync(join(scratch,'calls.txt'),'utf8').trim().split('\n')};
   }finally{if(dirname(resolve(scratch))!==resolve(tmpdir()))throw Error('Unexpected cleanup target');rmSync(scratch,{recursive:true,force:true});}
@@ -36,6 +38,11 @@ test('nightly failed ingestion still refreshes derived data and backs up, while 
   const result=await pipeline('nightlyRun.sh',{failure:'currentLeagueData.js'});assert.equal(result.failed,true);
   assert.ok(result.calls.some(line=>line.includes('matchDetails.js')));assert.ok(result.calls.some(line=>line.endsWith('scripts/betting/run.js --refresh-analytics')));
   assert.equal(result.calls.at(-1),'backup');assert.equal(result.calls.some(line=>line.includes('recordLeagueCheck.js')),false);
+});
+
+test('the existing nightly cron command enters the results ownership coordinator',{skip:!bash},async()=>{
+  const result=await pipeline('nightlyRun.sh',{coordinated:true});assert.equal(result.failed,false);
+  assert.equal(result.calls.length,1);assert.ok(result.calls[0].endsWith('scripts/league/runNightly.js'));
 });
 
 test('failed active-league lookup cannot create a false successful inactive-source check',{skip:!bash},async()=>{

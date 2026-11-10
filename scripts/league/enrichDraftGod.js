@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import {fetchOpenDota} from '../../config/openDotaClient.js';
 import { ensureDraftIntelSchema, ingestDraftTelemetry } from '../../config/draftTelemetry.js';
 const db = new Database(process.argv[2] || 'db/LadsData.db');
 const arg = name => process.argv.find(a => a.startsWith(`--${name}=`))?.split('=')[1];
@@ -18,7 +19,7 @@ try {
   let ready = 0, partial = 0, failed = 0;
   for (const row of rows) {
     try {
-      const r = await fetch(`https://api.opendota.com/api/matches/${row.MatchId}`, { signal: AbortSignal.timeout(20000) });
+      const r = await fetchOpenDota(`https://api.opendota.com/api/matches/${row.MatchId}`, { db,signal: AbortSignal.timeout(20000) });
       if (!r.ok) throw new Error(`OpenDota returned ${r.status}`);
       const data = await r.json();
       if (data.match_id !== row.MatchId) throw new Error('Mismatched match ID');

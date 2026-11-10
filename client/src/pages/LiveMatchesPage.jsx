@@ -4,6 +4,8 @@ import HeroDisplay from '../components/HeroDisplay';
 import useLiveResource from '../hooks/useLiveResource';
 import useLiveSnapshots from '../hooks/useLiveSnapshots';
 import {useLiveMatches} from '../context/liveMatches';
+import {Link} from 'react-router-dom';
+import {groupLiveSeries} from '../../../shared/liveSeries.js';
 import './LiveMatchesPage.css';
 
 function formatDuration(seconds) {
@@ -130,6 +132,8 @@ function LiveMatchCard({ match, variant = 'live' }) {
 
   return (
     <section className="live-match-card" style={matchCardStyle}>
+      {match.ImportStatus?.label&&<p className="live-import-notice" role="status">{match.ImportStatus.label}</p>}
+      {match.ImportStatus?.imported&&<Link className="live-match-page-link" to={`/match/${match.MatchId}`}>View match {match.MatchId} ↗</Link>}
       <div className="live-match-header" style={matchHeaderStyle}>
         <div style={teamHeaderStyle}>
           <div style={teamNameStyle}>{selected.RadiantTeamName || `Radiant ${selected.RadiantTeamId}`}</div>
@@ -200,7 +204,7 @@ function LiveMatchCard({ match, variant = 'live' }) {
             {!isLive && 'New snapshots will load without moving this view. '}
             {variant === 'live' && (
               <button type="button" onClick={() => setSelectedSnapshotIndex(null)} style={smallButtonStyle}>
-                Return to live
+                {variant==='recent'?'Return to latest snapshot':'Return to live'}
               </button>
             )}
           </div>
@@ -244,12 +248,31 @@ function LiveFreshness({match,variant}) {
   </div>;
 }
 
+function LiveSeriesCard({series}) {
+  const active=series.games.find(game=>game.isLive)?.MatchId||series.games.at(-1)?.MatchId;
+  return <section className="live-series-card">
+    <header className="live-series-heading"><h2>
+      {series.team1.id?<Link to={`/team/${series.team1.id}`}>{series.team1.name}</Link>:series.team1.name}
+      <span className="live-series-score">{series.score[0]} – {series.score[1]}</span>
+      {series.team2.id?<Link to={`/team/${series.team2.id}`}>{series.team2.name}</Link>:series.team2.name}
+    </h2><p>{series.bestOf?`BO${series.bestOf} · `:''}{series.status==='completed'?'Completed':series.status==='needs_format'?'Format awaiting confirmation':series.status==='needs_review'?'Needs review':series.live?'Live':'Awaiting next game or results'}</p>
+    {series.seriesId&&series.games.some(game=>game.ImportStatus?.imported)&&<Link to={`/series/${series.seriesId}`}>View series ↗</Link>}</header>
+    <div className="live-series-games">{series.games.map(game=><details key={game.MatchId} open={game.MatchId===active}>
+      <summary>{game.gameNumber?`Game ${game.gameNumber}`:'Remake'} <span>{game.isLive?'Live':game.WinnerTeamId?`${game.WinnerTeamId===series.team1.id?series.team1.name:series.team2.name} won`:game.ImportStatus?.result==='remake'?'Excluded from score':'Awaiting results'}</span></summary>
+      <LiveMatchCard match={game} variant={game.isLive?'live':'recent'}/>
+    </details>)}</div>
+  </section>;
+}
+
 export default function LiveMatchesPage() {
   const live=useLiveMatches();
   const recent=useLiveResource('/api/liveMatches/recent?hours=24',30000);
   const matches=live.data?.matches||[];
   const currentMatchIds=new Set(matches.map(match=>Number(match.MatchId)));
   const recentMatches=(recent.data?.matches||[]).filter(match=>!currentMatchIds.has(Number(match.MatchId)));
+  const grouped=groupLiveSeries(matches,recentMatches);
+  const activeSeries=grouped.filter(series=>series.live||['in_progress','needs_format','needs_review'].includes(series.status)||series.games.some(game=>['pending','needs_review'].includes(game.ImportStatus?.result)));
+  const completedSeries=grouped.filter(series=>!activeSeries.includes(series));
   const previousIds=useRef([]);
   const refreshRecent=recent.refresh;
   useEffect(()=>{
@@ -265,31 +288,20 @@ export default function LiveMatchesPage() {
       {!live.loading&&<p className="live-connection-status" data-connection={live.connection}>{live.connection==='live'?'Live updates connected':live.connection==='polling'?'Refreshing automatically while live updates reconnect':live.connection==='paused'?'Updates paused while this tab is hidden':'Connecting to live updates…'}</p>}
       {live.loading&&<p role="status">Loading live matches…</p>}
       {live.error&&<p className="live-update-error" role="status">{live.data?live.error:'Unable to load live matches. Retrying automatically.'}</p>}
-      {!live.loading&&!live.error&&!matches.length&&<p style={metaStyle}>No matches are live right now.</p>}
+      {!live.loading&&!live.error&&!activeSeries.length&&<p style={metaStyle}>No live series right now.</p>}
       <div style={cardsStyle}>
-        {matches.map((match) => (
-          <LiveMatchCard
-            key={match.MatchId}
-            match={match}
-          />
-        ))}
+        {activeSeries.map(series=><LiveSeriesCard key={series.key} series={series}/>)}
       </div>
 
       <section style={recentSectionStyle}>
         <div style={sectionHeaderStyle}>
-          <h2 style={{ margin: 0 }}>Recent Matches</h2>
+          <h2 style={{ margin: 0 }}>Recent series</h2>
           <span style={metaStyle}>Last 24 hours</span>
         </div>
         {recent.error&&<p className="live-update-error" role="status">Recent matches could not be refreshed. Retrying automatically.</p>}
-        {recentMatches.length > 0 ? (
+        {completedSeries.length > 0 ? (
           <div style={cardsStyle}>
-            {recentMatches.map((match) => (
-              <LiveMatchCard
-                key={`recent-${match.MatchId}`}
-                match={match}
-                variant="recent"
-              />
-            ))}
+            {completedSeries.map(series=><LiveSeriesCard key={series.key} series={series}/>)}
           </div>
         ) : (
           <p style={metaStyle}>{recent.loading?'Loading recent matches…':recent.error?'':'No recently tracked matches.'}</p>

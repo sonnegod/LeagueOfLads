@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import useMatchResultsRevision from '../hooks/useMatchResultsRevision';
 import {normalizeLeagueRules} from '../../../config/leagueRules.js';
 import TiebreakerInfo from './TiebreakerInfo';
 import LeagueTeamRosterPreview from './LeagueTeamRosterPreview';
@@ -6,6 +7,7 @@ import { useReport } from './PerformanceUI';
 import './CurrentLeaderboardTable.css';
 
 export default function CurrentLeagueSeries({ leagueId }) {
+  const resultsRevision=useMatchResultsRevision();
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [rostersRequested, setRostersRequested] = useState(false);
@@ -30,7 +32,6 @@ export default function CurrentLeagueSeries({ leagueId }) {
 
   useEffect(() => {
     async function fetchMatches() {
-      setLoading(true);
       try {
         const url = leagueId
           ? `/api/currentLeaderboard?leagueId=${leagueId}`
@@ -46,7 +47,7 @@ export default function CurrentLeagueSeries({ leagueId }) {
       }
     }
     fetchMatches();
-  }, [leagueId]);
+  }, [leagueId,resultsRevision]);
 
   const selectedGroup = groups.find(group => group.GroupId === selectedGroupId) || groups[0];
   const showMatrix = matrixPhase === 'open' && selectedGroup?.GroupId === selectedGroupId;

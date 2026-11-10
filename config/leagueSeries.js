@@ -1,5 +1,11 @@
+import {hasTable} from './matchResultsSchema.js';
+export function withSeriesLifecycle(db,rows) {
+  if(!hasTable(db,'SeriesLifecycle'))return rows;
+  return rows.map(row=>{const state=db.prepare('SELECT Status,BestOf FROM SeriesLifecycle WHERE SeriesId=?').get(row.SeriesId);
+    return state?{...row,SeriesStatus:state.Status,BestOf:state.BestOf}:row;});
+}
 export function getLeagueSeries(db, leagueId) {
-  return db.prepare(`
+  return withSeriesLifecycle(db,db.prepare(`
     SELECT si.SeriesId, si.Team1, si.Team2,
       ti1.TeamName AS team_one, ti2.TeamName AS team_two, si.DateCreated
     FROM SeriesInfo si
@@ -12,12 +18,12 @@ export function getLeagueSeries(db, leagueId) {
       WHERE sm.SeriesId = si.SeriesId AND ml.LeagueId = ?
     )
     ORDER BY si.SeriesId DESC
-  `).all(leagueId);
+  `).all(leagueId));
 }
 
 export function getTeamSeries(db, teamId, leagueId) {
   const filtered = leagueId && leagueId !== 'all';
-  return db.prepare(`
+  return withSeriesLifecycle(db,db.prepare(`
     SELECT si.SeriesId, si.Team1, si.Team2,
       ti1.TeamName AS team_one, ti2.TeamName AS team_two, si.DateCreated
     FROM SeriesInfo si
@@ -28,5 +34,5 @@ export function getTeamSeries(db, teamId, leagueId) {
       WHERE sm.SeriesId = si.SeriesId ${filtered ? 'AND ml.LeagueId = ?' : ''}
     )
     ORDER BY si.DateCreated DESC, si.SeriesId DESC
-  `).all(...(filtered ? [teamId, teamId, leagueId] : [teamId, teamId]));
+  `).all(...(filtered ? [teamId, teamId, leagueId] : [teamId, teamId])));
 }

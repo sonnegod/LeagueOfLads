@@ -39,7 +39,7 @@ export function groupLeagueSeries(series, matches) {
       team_two: teamName(item.Team2) || item.team_two,
       team1Wins,
       team2Wins,
-      hasPendingResults: team1Wins + team2Wins < item.matches.length,
+      hasPendingResults: team1Wins + team2Wins < item.matches.length||Boolean(item.SeriesStatus&&item.SeriesStatus!=='completed'),
     };
   });
   return { series: groups, ungroupedMatches };

@@ -21,6 +21,7 @@ import { createAdminMatchRouter } from './adminMatchRoutes.js';
 import { createUpcomingGamesRouter } from './upcomingGamesRoutes.js';
 import { readUpcomingSweepOdds } from '../betting/upcomingOdds.js';
 import { createBettingRuntime, mutationRefresh } from '../betting/runtime.js';
+import {matchImportStatus,trackedSeriesStatus} from '../config/matchResults.js';
 import { classifyStandings, DEFAULT_LEAGUE_RULES,qualificationPools } from '../config/leagueRules.js';
 import { createLiveMatchRouter } from './liveMatchRoutes.js';
 import { getAppStandingsPayload } from './utility/standingsResponses.js';
@@ -1698,6 +1699,7 @@ router.get('/matches/:matchId', async (req, res) => {
     if (!matchPlayers) return res.status(404).json({ error: 'Match Player not found' });
     
     res.json({
+      importStatus:matchImportStatus(db.db,Number(matchId)),
       match,
       matchPlayers,
       matchPicksBans,
@@ -1733,6 +1735,7 @@ router.get('/series/:seriesId', async (req, res) => {
     
     res.json({
       series,
+      lifecycle:trackedSeriesStatus(db.db,Number(seriesId)),
       seriesMatchesWithData
     });
   } catch (err) {

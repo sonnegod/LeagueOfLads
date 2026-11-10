@@ -1,4 +1,9 @@
 import express from 'express';
+import {fetchOpenDota,openDotaBudgetStatus} from '../config/openDotaClient.js';
+import {ensureMatchResultsSchema,resultsChanged} from '../config/matchResultsSchema.js';
+import {enqueueLeagueMatch} from '../config/matchResults.js';
+import {refreshSeriesLifecycle,advanceCompletedPlayoffSeries} from '../config/seriesLifecycle.js';
+import {markBettingDirty} from '../betting/refreshQueue.js';
 import {fail} from '../betting/scheduleStore.js';
 import {parseScheduleTime} from '../betting/scheduleParser.js';
 import {requestAccountId} from './utility/requestAccountId.js';
@@ -16,12 +21,55 @@ const endpoint=fn=>(req,res)=>{
 
 // Mounted behind checkAdmin. Scheduling access does not grant betting management.
 export function createAdminMatchRouter({league,schedules,includeLocalTests=false,loadDraft=async id=>{
-  const response=await fetch(`https://api.opendota.com/api/matches/${id}`,{signal:AbortSignal.timeout(20000)});
+  const response=await fetchOpenDota(`https://api.opendota.com/api/matches/${id}`,{db:league,signal:AbortSignal.timeout(20000)});
   if(!response.ok)fail('Could not retrieve the draft match from OpenDota. Try again later.',502);
   return response.json();
 }}) {
   const router=express.Router();
+  ensureMatchResultsSchema(league);
   router.use((req,res,next)=>{res.set('Cache-Control','private, no-store');next();});
+  router.get('/imports',endpoint((req,res)=>res.json({
+    settings:league.prepare('SELECT * FROM MatchResultsSettings WHERE Id=1').get(),budget:openDotaBudgetStatus(league),
+    worker:league.prepare('SELECT * FROM MatchResultsState WHERE Id=1').get(),
+    coordination:league.prepare('SELECT Mode,LeaseUntil,RequestUntil FROM MatchResultsRunLock WHERE Id=1').get(),
+    jobs:league.prepare(`SELECT t.*,s.BestOf,s.Status SeriesStatus FROM TrackedLeagueMatches t LEFT JOIN SeriesLifecycle s USING(SeriesId)
+      WHERE t.ResultStatus IN ('pending','needs_review') OR (t.ResultStatus IN ('imported','remake') AND t.EnrichmentStatus NOT IN ('ready','not_applicable'))
+        OR (t.SeriesId IS NULL AND t.LastError IS NOT NULL) OR s.Status IN ('needs_format','needs_review') ORDER BY t.LastAttemptAt DESC,t.MatchId DESC LIMIT 50`).all()})));
+  router.put('/imports/settings',endpoint((req,res)=>{
+    const {enabled,playoffBestOf,grandFinalBestOf,revision}=req.body||{};
+    if(typeof enabled!=='boolean'||![3,5].includes(Number(playoffBestOf))||grandFinalBestOf!==null&&![3,5].includes(Number(grandFinalBestOf)))fail('Choose BO3 or BO5 default formats');
+    const updated=league.prepare('UPDATE MatchResultsSettings SET Enabled=?,PlayoffBestOf=?,GrandFinalBestOf=?,Revision=Revision+1 WHERE Id=1 AND Revision=?')
+      .run(Number(enabled),Number(playoffBestOf),grandFinalBestOf===null?null:Number(grandFinalBestOf),Number(revision));
+    if(!updated.changes)fail('Import settings changed. Refresh before saving.',409);
+    schedules.audit('Automatic Match Imports',`Set automatic results processing ${enabled?'on':'off'}`);return res.json({saved:true});
+  }));
+  router.post('/imports/:matchId/retry',endpoint((req,res)=>{
+    const matchId=positive(req.params.matchId),job=matchId&&league.prepare('SELECT * FROM TrackedLeagueMatches WHERE MatchId=?').get(matchId);
+    if(!job)fail('Tracked match not found',404);
+    enqueueLeagueMatch(league,matchId,job.LeagueId,{force:true});resultsChanged(league);
+    schedules.audit('Match Import Retry',`Queued match ${matchId} for retrieval`);return res.json({queued:true});
+  }));
+  router.post('/imports',endpoint((req,res)=>{
+    const matchId=positive(req.body?.matchId),seasonId=positive(req.body?.seasonId);
+    const season=seasonId&&league.prepare('SELECT ExternalLeagueId FROM LeagueSeasons WHERE SeasonId=?').get(seasonId);
+    if(!matchId||!season||!league.prepare('SELECT 1 FROM LeagueInfo WHERE LeagueId=? AND Active=1').get(season.ExternalLeagueId))fail('Select the active league and a valid match ID');
+    enqueueLeagueMatch(league,matchId,season.ExternalLeagueId,{force:true});resultsChanged(league);
+    schedules.audit('Match Import Requested',`Queued match ${matchId} for active league ${season.ExternalLeagueId}`);return res.json({queued:true});
+  }));
+  router.put('/imports/series/:seriesId/format',endpoint((req,res)=>{
+    const seriesId=positive(req.params.seriesId),bestOf=Number(req.body?.bestOf);
+    if(![1,2,3,5].includes(bestOf))fail('Select BO1, BO2, BO3 or BO5');
+    const source=league.prepare('SELECT * FROM SeriesInfo WHERE SeriesId=?').get(seriesId);
+    if(!source)fail('Series not found',404);
+    if(!(source.Stage==='g'?[2]:source.Stage==='t'?[1,3]:[3,5]).includes(bestOf))fail('Choose the format supported by this stage');
+    const event=league.prepare("SELECT * FROM ScheduledEvents WHERE SeriesId=? AND Status NOT IN ('replaced','cancelled','forfeit')").get(seriesId);
+    if(event&&event.BestOf!==bestOf)fail('Update the scheduled fixture format first so its betting rules match.',409);
+    refreshSeriesLifecycle(league,seriesId);
+    league.prepare("UPDATE SeriesLifecycle SET BestOf=?,FormatSource='admin' WHERE SeriesId=?").run(bestOf,seriesId);
+    refreshSeriesLifecycle(league,seriesId);advanceCompletedPlayoffSeries(league,source.LeagueId);resultsChanged(league);
+    markBettingDirty(league,new Date(),{refreshAnalytics:true});schedules.audit('Series Format',`Set series ${seriesId} to BO${bestOf}`);
+    return res.json({saved:true});
+  }));
   router.post('/held-drafts/import',endpoint(async(req,res)=>{
     const sourceId=positive(req.body?.sourceMatchId),sid=positive(req.body?.seasonId);
     if(!sourceId||!sid)fail('Select a season and draft match ID');

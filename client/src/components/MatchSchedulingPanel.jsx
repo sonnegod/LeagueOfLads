@@ -1,8 +1,10 @@
 import {useEffect,useState} from 'react';
 import './MatchSchedulingPanel.css';
 import HeldMatchDrafts from './HeldMatchDrafts';
+import MatchImportAdmin from './MatchImportAdmin';
 
 const blank={eventId:null,revision:null,team1Key:'',team2Key:'',stage:'regular',bestOf:2,localTime:'',utcTime:'',status:'scheduled',seriesId:''};
+const fixtureStatuses=[['needs_review','Needs review'],['scheduled','Scheduled'],['started','Started'],['completed','Completed'],['cancelled','Cancelled'],['forfeit','Forfeit'],['replaced','Replaced'],['all','All fixtures']];
 async function request(url,body,method='POST'){const response=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const data=await response.json();if(!response.ok)throw new Error(data.error||'Request failed');return data;}
 const date=value=>new Date(value).toLocaleString('en-US',{timeZone:'America/New_York',dateStyle:'short',timeStyle:'short'});
@@ -17,6 +19,7 @@ export default function MatchSchedulingPanel({seasonId,refreshKey}) {
   const [data,setData]=useState(null),[error,setError]=useState(''),[message,setMessage]=useState('');
   const [busy,setBusy]=useState(false),[refresh,setRefresh]=useState(0),[selectedSeason,setSelectedSeason]=useState('');
   const [fixture,setFixture]=useState(blank),[role,setRole]=useState(''),[aliasTeam,setAliasTeam]=useState(''),[resolveEvent,setResolveEvent]=useState({});
+  const [fixtureStatus,setFixtureStatus]=useState('needs_review');
   const requestedSeason=selectedSeason||seasonId;
   useEffect(()=>{
     const controller=new AbortController();
@@ -35,13 +38,14 @@ export default function MatchSchedulingPanel({seasonId,refreshKey}) {
   function edit(event){setFixture({eventId:event.EventId,revision:event.Revision,team1Key:String(event.Team1Key),team2Key:String(event.Team2Key),stage:event.Stage,
     bestOf:event.BestOf,localTime:localInput(event.ScheduledStartUtc),utcTime:'',status:event.Status==='replaced'?'needs_review':event.Status,seriesId:event.SeriesId||''});}
   const sid=data?.season?.seasonId;
+  const visibleEvents=data?.events.filter(event=>fixtureStatus==='all'||event.Status===fixtureStatus)||[];
   return <section className="match-scheduling-panel">
     <div className="match-scheduling-intro">
     <div className="match-scheduling-heading"><h2>Match scheduling</h2><button type="button" disabled={busy} onClick={()=>{setError('');setRefresh(r=>r+1);}}>Refresh view</button></div>
     <p className="match-scheduling-help">Record upcoming series and kickoff times, and review Discord scheduling posts for the selected season.</p>
     {data?.localTesting&&<p className="match-scheduling-test-notice">Local test fixtures are included.</p>}
     {data?.seasons&&<label>Season <select disabled={busy} value={selectedSeason||data.season?.seasonId||''} onChange={e=>{
-      setSelectedSeason(e.target.value);setData(null);setFixture(blank);setRole('');setAliasTeam('');setResolveEvent({});setError('');setMessage('');
+      setSelectedSeason(e.target.value);setData(null);setFixture(blank);setFixtureStatus('needs_review');setRole('');setAliasTeam('');setResolveEvent({});setError('');setMessage('');
     }}>{data.seasons.map(s=><option key={s.seasonId} value={s.seasonId}>{s.name}</option>)}</select></label>}
     </div>
     {error&&<p role="alert" className="match-scheduling-error">{error}</p>}{message&&<p role="status">{message}</p>}
@@ -57,8 +61,9 @@ export default function MatchSchedulingPanel({seasonId,refreshKey}) {
           </form>
         </article>)}</section>}
       <HeldMatchDrafts key={sid} seasonId={sid} refreshKey={`${refreshKey}:${refresh}`}/>
+      <MatchImportAdmin seasonId={sid} refreshKey={`${refreshKey}:${refresh}`}/>
       <section className="ui-panel match-scheduling-card"><h3>{fixture.eventId?`Edit fixture #${fixture.eventId}`:'Add a fixture'}</h3>
-        <p className="match-scheduling-help">A fixture records an upcoming series between two teams. Set its kickoff time, stage and format, and update it here when plans change. Groups use BO2; playoffs and tiebreakers use BO3 or BO5.</p>
+        <p className="match-scheduling-help">A fixture records an upcoming series between two teams. Set its kickoff time, stage and format, and update it here when plans change. Groups use BO2; choose the saved format for playoffs and tiebreakers.</p>
         <form className="match-scheduling-form" onSubmit={e=>{e.preventDefault();const body={...fixture,team1Key:Number(fixture.team1Key),team2Key:Number(fixture.team2Key),bestOf:Number(fixture.bestOf),
           ...(fixture.utcTime?{scheduledStartUtc:fixture.utcTime,timezone:'UTC'}:{localTime:parserTime(fixture.localTime)}),...(fixture.seriesId?{seriesId:Number(fixture.seriesId)}:{})};if(fixture.utcTime)delete body.localTime;if(!fixture.seriesId)delete body.seriesId;
           if(fixture.eventId&&!fixture.seriesId)body.seriesId=null;
@@ -66,15 +71,19 @@ export default function MatchSchedulingPanel({seasonId,refreshKey}) {
           {['team1Key','team2Key'].map((key,i)=><label key={key}>Team {i+1}<select required value={fixture[key]} onChange={e=>setFixture(f=>({...f,[key]:e.target.value}))}><option value="">Select team</option>
             {data.teams.map(t=><option key={t.teamKey} value={t.teamKey}>{t.name}</option>)}</select></label>)}
           <label>Stage<select value={fixture.stage} onChange={e=>setFixture(f=>({...f,stage:e.target.value,bestOf:e.target.value==='regular'?2:3}))}><option value="regular">Groups</option><option value="tiebreaker">Tiebreakers</option><option value="playoff">Playoffs</option></select></label>
-          <label>Format<select value={fixture.bestOf} onChange={e=>setFixture(f=>({...f,bestOf:Number(e.target.value)}))}>{(fixture.stage==='regular'?[2]:[3,5]).map(n=><option key={n} value={n}>BO{n}</option>)}</select></label>
+          <label>Format<select value={fixture.bestOf} onChange={e=>setFixture(f=>({...f,bestOf:Number(e.target.value)}))}>{(fixture.stage==='regular'?[2]:fixture.stage==='tiebreaker'?[1,3]:[3,5]).map(n=><option key={n} value={n}>BO{n}</option>)}</select></label>
           <label>Kickoff (New York time)<input required={!fixture.utcTime} type="datetime-local" value={fixture.localTime} onChange={e=>setFixture(f=>({...f,localTime:e.target.value}))} /></label>
           <label>Exact UTC kickoff (optional)<input placeholder="2026-11-01T06:00:00Z" value={fixture.utcTime} onChange={e=>setFixture(f=>({...f,utcTime:e.target.value}))} /><small>Use for an ambiguous daylight-saving time.</small></label>
           <label>Status<select value={fixture.status} onChange={e=>setFixture(f=>({...f,status:e.target.value}))}>{['scheduled','started','completed','needs_review','cancelled','forfeit'].map(s=><option key={s} value={s}>{s.replace('_',' ')}</option>)}</select></label>
           <label>Played series ID<input type="number" min="1" disabled={!fixture.eventId} value={fixture.seriesId} onChange={e=>setFixture(f=>({...f,seriesId:e.target.value}))} /><small>Imported results are normally linked automatically. If matching is ambiguous or the series was played on a different date, enter the ID from its series page.</small></label>
           <button disabled={busy||data.season.status==='ended'&&!fixture.eventId}>Save fixture</button><button type="button" onClick={()=>setFixture(blank)}>Clear</button>
         </form><p className="match-scheduling-help">Reschedule by editing the existing fixture. Changing teams, stage or format creates a replacement fixture.</p>
+        <div className="match-scheduling-fixture-filter"><label>Fixture status<select value={fixtureStatus} onChange={event=>setFixtureStatus(event.target.value)}>
+          {fixtureStatuses.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+          <span className="match-scheduling-help" role="status">{visibleEvents.length} of {data.events.length} fixtures</span></div>
         <div className="match-scheduling-events"><table className="match-scheduling-table"><thead><tr><th>Fixture</th><th>Teams</th><th>Kickoff (NY)</th><th>Stage / Format</th><th>Status</th><th>Series</th><th /></tr></thead><tbody>
-          {data.events.map(e=><tr key={e.EventId}><td>#{e.EventId}{e.SourceMessageId?.startsWith('local-test:')&&<small> · Test fixture</small>}</td><td>{e.Team1Name} vs {e.Team2Name}</td><td>{date(e.ScheduledStartUtc)}</td><td>{e.Stage} / BO{e.BestOf}</td><td>{e.Status}</td>
+          {!visibleEvents.length&&<tr><td colSpan={7}>{fixtureStatus==='needs_review'?'No fixtures need review.':fixtureStatus==='all'?'No fixtures for this season.':'No fixtures with this status.'}</td></tr>}
+          {visibleEvents.map(e=><tr key={e.EventId}><td>#{e.EventId}{e.SourceMessageId?.startsWith('local-test:')&&<small> · Test fixture</small>}</td><td>{e.Team1Name} vs {e.Team2Name}</td><td>{date(e.ScheduledStartUtc)}</td><td>{e.Stage} / BO{e.BestOf}</td><td>{e.Status}</td>
             <td>{e.SeriesId?<a href={`/series/${e.SeriesId}`}>{e.SeriesId}</a>:'Unlinked'}</td><td><button type="button" disabled={['replaced','cancelled','forfeit'].includes(e.Status)} onClick={()=>edit(e)}>Edit</button></td></tr>)}</tbody></table></div>
       </section>
       <section className="ui-panel match-scheduling-card"><h3>Discord team roles</h3><p className="match-scheduling-help">Optional override: the bot normally matches a mentioned role’s name to the season’s team name, ignoring capitalization. Link a role ID here when its name differs; this mapping takes priority over name matching.</p><form className="match-scheduling-form" onSubmit={e=>{e.preventDefault();run(()=>request(`/api/admin/matches/seasons/${sid}/aliases`,{roleId:role,teamKey:Number(aliasTeam)},'PUT'),'Discord role linked.');}}>

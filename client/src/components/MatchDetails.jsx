@@ -27,6 +27,7 @@ function MatchView({ data, matchId, embedded }) {
   const date = match.StartTimeUtc ? `${new Intl.DateTimeFormat(undefined, { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })
     .format(new Date(match.StartTimeUtc * 1000))} ET` : match.DatePlayed || 'Date unavailable';
   return <>
+    {data.importStatus?.label&&<p className="performance-message" role="status">{data.importStatus.label}</p>}
     <header className="match-overview-header">
       <div className="match-overview-main">
         <Heading className="match-overview-score">

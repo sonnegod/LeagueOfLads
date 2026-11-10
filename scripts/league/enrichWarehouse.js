@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import {fetchOpenDota} from '../../config/openDotaClient.js';
 import { mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { planWarehouseCollection } from '../../config/warehouseCollection.js';
@@ -44,7 +45,7 @@ try {
       const timer = setTimeout(() => activeRequest.abort(), 20000);
       try {
         totals.requests++;
-        const response = await fetch(`https://api.opendota.com/api/matches/${matchId}`, { signal: activeRequest.signal });
+        const response = await fetchOpenDota(`https://api.opendota.com/api/matches/${matchId}`, { db,signal: activeRequest.signal });
         if (!response.ok) {
           const error = new Error(`OpenDota returned ${response.status}`);
           error.rateLimit = Object.fromEntries([...response.headers].filter(([name]) =>

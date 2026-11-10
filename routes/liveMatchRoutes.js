@@ -1,6 +1,9 @@
 import express from 'express';
 import {getAppLiveMatchesPayload,toAppLiveMatch,toNullableNumber,withLiveMatchJson} from './utility/liveMatchResponses.js';
 import {createLiveMatchStream} from '../config/liveMatchStream.js';
+import {attachLiveResultStatus,groupLiveSeries} from '../config/liveSeries.js';
+import {createMatchResultsStream} from '../config/matchResultsStream.js';
+import {ensureMatchResultsSchema} from '../config/matchResultsSchema.js';
 
 function snapshotCursor(req,res,next) {
   const raw=req.query.afterSnapshotId;
@@ -13,8 +16,18 @@ function snapshotCursor(req,res,next) {
 
 export function createLiveMatchRouter(db) {
 const router=express.Router();
-const liveUpdates=createLiveMatchStream(()=>db.getLiveMatchCurrentStates().map(withLiveMatchJson));
+const status=rows=>attachLiveResultStatus(db.db,rows.map(withLiveMatchJson));
+if(db.db)ensureMatchResultsSchema(db.db);
+const results=db.db?createMatchResultsStream(db.db):null;
+const liveUpdates=createLiveMatchStream(()=>status(db.getLiveMatchCurrentStates()));
+const closeLive=liveUpdates.close;
+liveUpdates.close=()=>{closeLive();results?.close();};
 router.liveUpdates=liveUpdates;
+if(results)router.get('/match-results/stream',(req,res)=>results.subscribe(req,res));
+router.get('/liveMatches/series',(req,res)=>{
+  try{res.set('Cache-Control','no-store').json({series:groupLiveSeries(status(db.getLiveMatchCurrentStates()),status(db.getRecentLiveMatchSnapshots(24)))});}
+  catch{res.status(500).json({error:'Unable to load live series'});}
+});
 router.use(['/liveMatches','/app/live-matches'],(req,res,next)=>{
   res.set('Cache-Control','no-store');
   next();
@@ -31,7 +44,7 @@ router.get('/liveMatches/count', (req, res) => {
 
 router.get('/liveMatches', (req, res) => {
   try {
-    const matches = db.getLiveMatchCurrentStates().map(withLiveMatchJson);
+    const matches = status(db.getLiveMatchCurrentStates());
     res.json({ matches });
   } catch (err) {
     console.error(err);
@@ -42,7 +55,7 @@ router.get('/liveMatches', (req, res) => {
 router.get('/liveMatches/recent', (req, res) => {
   try {
     const hours = Number(req.query.hours || 4);
-    const matches = db.getRecentLiveMatchSnapshots(hours).map(withLiveMatchJson);
+    const matches = status(db.getRecentLiveMatchSnapshots(hours));
     res.json({ matches });
   } catch (err) {
     console.error(err);

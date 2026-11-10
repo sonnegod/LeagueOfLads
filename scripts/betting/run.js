@@ -15,6 +15,7 @@ import {prepareLocalTestSeason} from '../../betting/prepareLocalTest.js';
 import {buildHistoricalPricingInputs} from '../../betting/historicalPricing.js';
 import {WORKER_BUSY_EXIT_CODE} from '../../betting/workerLock.js';
 import {readCachedHistoricalPricing} from '../../betting/cachedPricing.js';
+import {hasTable,resultsChanged} from '../../config/matchResultsSchema.js';
 
 const paths=analyticsPaths();let bettingPath=null;
 let league,betting,analytics,publicDb;
@@ -88,6 +89,7 @@ try {
         return buildHistoricalPricingInputs(league,inputs,now);
       },
       localTestInputBuilder:localTesting?(inputs,now)=>buildLocalTestInputs(league,inputs,now):null});
+    if((result.marketsOpened||result.marketsSettled)&&hasTable(league,'MatchResultsState'))resultsChanged(league);
     console.log(JSON.stringify({...result,localTesting,...(prepared?{prepared}:{}),resources:{elapsedMs:Math.round(performance.now()-workerStarted),
       peakRssBytes:process.resourceUsage().maxRSS*1024,heapUsedBytes:process.memoryUsage().heapUsed}},null,2));
     if(!seasonId)league.prepare(`UPDATE BettingRefreshState SET CompletedRevision=MAX(CompletedRevision,?),LastCompletedAtUtc=?,

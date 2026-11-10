@@ -57,8 +57,8 @@ function SportsbookPage() {
       }
     };
     const visible=()=>{if(document.visibilityState==='visible')load(true);};
-    load();document.addEventListener('visibilitychange',visible);
-    return()=>{controller.abort();clearTimeout(timer);document.removeEventListener('visibilitychange',visible);};
+    load();document.addEventListener('visibilitychange',visible);window.addEventListener('league-results:changed',visible);
+    return()=>{controller.abort();clearTimeout(timer);document.removeEventListener('visibilitychange',visible);window.removeEventListener('league-results:changed',visible);};
   },[season,marketView,preseasonGroup,search,event,before,ticketBefore,user,refresh,revision]);
   const playerView=marketView==='preseason'&&preseasonGroup==='player';
   const teamView=marketView==='preseason'&&preseasonGroup==='team';

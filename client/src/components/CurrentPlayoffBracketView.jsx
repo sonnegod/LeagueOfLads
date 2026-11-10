@@ -1,6 +1,7 @@
 // SECTION: Read-Only Sub-Components
 // These components are self-contained and only display data.
 import React, { useState, useEffect } from 'react';
+import useMatchResultsRevision from '../hooks/useMatchResultsRevision';
 import { useNavigate } from 'react-router-dom';
 import './CurrentPlayoffBracketView.css';
 
@@ -98,7 +99,8 @@ const CurrentPlayoffBracketView = ({ leagueId }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const navigate = useNavigate(); 
+    const navigate = useNavigate();
+    const resultsRevision=useMatchResultsRevision();
     
     // Function to handle the click and navigation
     const handleMatchClick = (seriesId) => {
@@ -111,7 +113,6 @@ const CurrentPlayoffBracketView = ({ leagueId }) => {
     useEffect(() => {
         const fetchBracket = async () => {
             try {
-                setIsLoading(true);
                 setError(null);
 
                 // Use the correct dedicated API endpoint
@@ -141,7 +142,7 @@ const CurrentPlayoffBracketView = ({ leagueId }) => {
         };
 
         fetchBracket();
-    }, [leagueId]);
+    }, [leagueId,resultsRevision]);
 
     // --- Loading and Error States ---
     if (isLoading) {

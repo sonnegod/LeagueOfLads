@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import {notifyLiveMatchUpdate} from './config/liveMatchNotifications.js';
+import {observeLeagueMatches} from './config/matchResults.js';
 dotenv.config();
 
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
@@ -17,6 +18,7 @@ let lastErrorLoggedAt = 0;
 let lastSkippedMatchWarningAt = 0;
 let lastHeartbeatLoggedAt = 0;
 let lastPushErrorAt = 0;
+let lastResultsTrackingErrorAt=0;
 
 function timestamp() {
   return new Date().toISOString();
@@ -266,6 +268,7 @@ async function pollLiveMatches({ database, apiKey = STEAM_API_KEY, fetchImpl = f
   let changedMatches = 0;
   let skippedMatches = 0;
   const seenMatchIds = [];
+  const normalizedMatches=[];
 
   for (const game of games) {
     const matchData = normalizeLiveMatch(game, activeLeagueId);
@@ -275,6 +278,7 @@ async function pollLiveMatches({ database, apiKey = STEAM_API_KEY, fetchImpl = f
     }
 
     seenMatchIds.push(matchData.MatchId);
+    normalizedMatches.push(matchData);
     if (db.recordLiveMatchSnapshot(matchData)) changedMatches += 1;
   }
 
@@ -283,6 +287,11 @@ async function pollLiveMatches({ database, apiKey = STEAM_API_KEY, fetchImpl = f
     STALE_LIVE_MATCH_SECONDS,
     activeLeagueId
   );
+  if(db.db)try{observeLeagueMatches(db.db,activeLeagueId,normalizedMatches);}
+  catch(error){if(Date.now()-lastResultsTrackingErrorAt>=REPEATED_ERROR_LOG_INTERVAL_MS){
+    console.error(`[${timestamp()}] Live snapshots saved; results tracking deferred (${error.code||'tracking_error'}).`);
+    lastResultsTrackingErrorAt=Date.now();
+  }}
 
   // Commit all changes before notifying the web process. Successful unchanged
   // polls also update the viewers' "last checked" time, without new snapshots.

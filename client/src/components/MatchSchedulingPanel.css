@@ -23,6 +23,9 @@
 .match-scheduling-form label { display: grid; gap: var(--space-2); min-width: 0; }
 .match-scheduling-form input, .match-scheduling-form select { min-width: 0; width: 100%; box-sizing: border-box; }
 .match-scheduling-events { overflow: auto; }
+.match-scheduling-fixture-filter { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-3); margin: var(--space-4) 0 var(--space-3); }
+.match-scheduling-fixture-filter label { display: grid; gap: var(--space-2); min-width: 0; max-width: 100%; }
+.match-scheduling-fixture-filter .match-scheduling-help { margin: 0; }
 .match-scheduling-table { width: 100%; }
 .match-scheduling-table th, .match-scheduling-table td { padding: var(--ui-table-inset); text-align: left; }
 .match-review-post + .match-review-post { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid #334155; }

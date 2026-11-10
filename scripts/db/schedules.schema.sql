@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS ScheduledEvents (
   EventId INTEGER PRIMARY KEY AUTOINCREMENT, SeasonId INTEGER NOT NULL,
   Team1Key INTEGER NOT NULL, Team2Key INTEGER NOT NULL CHECK (Team1Key <> Team2Key),
   Stage TEXT NOT NULL CHECK (Stage IN ('regular','tiebreaker','playoff')),
-  BestOf INTEGER NOT NULL CHECK (BestOf IN (2,3,5)), ScheduledStartUtc TEXT NOT NULL,
+  BestOf INTEGER NOT NULL CHECK (BestOf IN (1,2,3,5)), ScheduledStartUtc TEXT NOT NULL,
   Timezone TEXT NOT NULL, Status TEXT NOT NULL DEFAULT 'scheduled'
     CHECK (Status IN ('scheduled','started','completed','needs_review','cancelled','forfeit','replaced')),
   Revision INTEGER NOT NULL DEFAULT 1, StartedAtUtc TEXT, SeriesId INTEGER UNIQUE,

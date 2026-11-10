@@ -48,10 +48,12 @@ export default function useLiveResource(url, intervalMs, enabled = true) {
     load();
     document.addEventListener('visibilitychange',visibilityChanged);
     window.addEventListener('focus',load);
+    window.addEventListener('league-results:changed',load);
     return()=>{
       disposed=true;clearTimeout(timer);controller?.abort();
       document.removeEventListener('visibilitychange',visibilityChanged);
       window.removeEventListener('focus',load);
+      window.removeEventListener('league-results:changed',load);
     };
   },[url,intervalMs,attempt,enabled]);
 

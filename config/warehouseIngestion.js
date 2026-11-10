@@ -270,7 +270,7 @@ export function recordWarehouseFailure(db, matchId, error, now = new Date().toIS
     .run(matchId, error.conflict ? 'conflict' : 'error', IMPORTER_VERSION, now, JSON.stringify(error.issues || []), error.message);
 }
 
-export function ingestWarehouseMatch(db, data, { expectedMatchId = data?.match_id, now = new Date().toISOString(), repairIncomplete = false } = {}) {
+export function ingestWarehouseMatch(db, data, { expectedMatchId = data?.match_id, now = new Date().toISOString(), repairIncomplete = false, skipUnchanged = false } = {}) {
   initializeWarehouse(db);
   try {
     const match = validateIdentity(db, data, expectedMatchId, { repairIncomplete });
@@ -286,6 +286,11 @@ export function ingestWarehouseMatch(db, data, { expectedMatchId = data?.match_i
       && sections.teamTimeline.gold > 0 && sections.teamTimeline.xp > 0 && sections.purchases.players === 10
       && sections.objectives.available && sections.fights.available;
     const payload = JSON.stringify(merged), sourceHash = hash(payload), compressed = gzipSync(payload);
+    if(skipUnchanged&&!repairPlan) {
+      const saved=db.prepare('SELECT SourceHash,ImporterVersion FROM MatchIngestionState WHERE MatchId=?').get(expectedMatchId);
+      if(saved?.SourceHash===sourceHash&&saved.ImporterVersion===IMPORTER_VERSION)
+        return {matchId:expectedMatchId,status:ready?'ready':'partial',sections,issues,unchanged:true};
+    }
     return db.transaction(() => {
       // Recheck inside the write transaction: an admin may have changed/deleted it during normalization.
       const current = validateIdentity(db, data, expectedMatchId, { repairIncomplete });
