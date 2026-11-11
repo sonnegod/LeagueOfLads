@@ -1,6 +1,6 @@
 ﻿import db from '../../database.js';
 import {startSourceLoad,finishSourceLoad} from '../../analytics/sourceMetadata.js';
-import {enqueueLeagueMatch,runResultBatch} from '../../config/matchResults.js';
+import {enqueueLeagueMatch,runResultBatch,nightlyMatchCandidates} from '../../config/matchResults.js';
 import {ScheduleStore} from '../../betting/scheduleStore.js';
 
 // Nightly owns cleanup, resetting daytime backoff and reviewing incomplete imports.
@@ -9,10 +9,7 @@ new ScheduleStore(db.db);
 const run=startSourceLoad(db.db,'match_details');
 try {
   if(leagueId) {
-    const matches=db.db.prepare(`SELECT m.MatchId,m.TeamRad,m.TeamDire,l.DatePlayed FROM MatchLeague l JOIN MatchTeam m USING(MatchId)
-      WHERE l.LeagueId=? AND ((SELECT COUNT(DISTINCT p.PlayerId) FROM MatchPlayer p WHERE p.MatchId=m.MatchId)<10
-        OR (datetime(l.DatePlayed)>datetime('now','-7 days') AND NOT EXISTS(SELECT 1 FROM MatchIngestionState i WHERE i.MatchId=m.MatchId AND i.Status='ready')))
-      AND NOT EXISTS(SELECT 1 FROM LiveMatchCurrentState c WHERE c.MatchId=m.MatchId) ORDER BY m.MatchId`).all(leagueId);
+    const matches=nightlyMatchCandidates(db.db,leagueId);
     for(const m of matches) {
       enqueueLeagueMatch(db.db,m.MatchId,leagueId,{teamRad:m.TeamRad,teamDire:m.TeamDire,startedAt:m.DatePlayed,nightly:true});
       db.db.prepare("UPDATE TrackedLeagueMatches SET ResultStatus='pending',NextAttemptAt=COALESCE(NextAttemptAt,?) WHERE MatchId=? AND ResultStatus='live'")

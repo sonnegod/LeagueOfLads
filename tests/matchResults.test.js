@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import {readFileSync} from 'node:fs';
 import {ensureMatchResultsSchema} from '../config/matchResultsSchema.js';
-import {observeLeagueMatches,enqueueLeagueMatch,claimResultJob,processResultJob,runResultBatch,resultWorkerPollDelay} from '../config/matchResults.js';
+import {observeLeagueMatches,enqueueLeagueMatch,claimResultJob,processResultJob,runResultBatch,resultWorkerPollDelay,nightlyMatchCandidates} from '../config/matchResults.js';
 import {acquireResultsWorker,releaseResultsWorker,nightlyOwnsResults,withNightlyResultsOwnership} from '../config/matchResultsOwnership.js';
 import {importLeagueMatch,enrichLeagueMatch} from '../config/importLeagueMatch.js';
 import {refreshSeriesLifecycle,seriesFormat,advanceCompletedPlayoffSeries,stageForLeagueMatch} from '../config/seriesLifecycle.js';
@@ -394,4 +394,78 @@ test('remakes do not count as games, and a delayed Captains Mode draft is retrie
     assert.equal(f.db.prepare('SELECT COUNT(*) n FROM SeriesMatch').get().n,0);
     assert.equal(parses,1);assert.equal(f.db.prepare('SELECT EnrichmentStatus FROM TrackedLeagueMatches').get().EnrichmentStatus,'not_applicable');
   }finally{f.close();}
+});
+
+test('long draft-only remakes are excluded regardless of lobby duration and retain their held draft',()=>{
+  const f=fixture();try {
+    const data={...payload(),duration:2841,game_mode:2,radiant_score:0,dire_score:0,version:22,
+      picks_bans:Array.from({length:10},(_,i)=>({is_pick:true,hero_id:i+1,team:i<5?0:1,order:i}))};
+    const result=importLeagueMatch(f.db,data,queued(f));
+    assert.equal(result.remake,true);
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM MatchTeam').get().n,0);
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM MatchPlayer').get().n,0);
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM SeriesMatch').get().n,0);
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM RemakeDraftSources').get().n,1);
+  }finally{f.close();}
+});
+
+test('nightly cleanup revisits ready zero-score imports and removes their results while retaining drafts and live observations',async()=>{
+  const f=fixture();try {
+    const data={...payload(1,{complete:true}),duration:2841,game_mode:2,radiant_score:0,dire_score:0,
+      players:payload(1,{complete:true}).players.map(p=>({...p,kills:0,deaths:0,assists:0})),
+      picks_bans:Array.from({length:10},(_,i)=>({is_pick:true,hero_id:i+1,team:i<5?0:1,order:i}))};
+    // Reproduce the old import: a long 0–0 lobby with ten zero-kill players
+    // already has a complete warehouse record and a credited series result.
+    const job=queued(f);
+    importLeagueMatch(f.db,{...data,radiant_score:1},job);
+    enrichLeagueMatch(f.db,data,job);
+    f.db.exec("UPDATE MatchLeague SET DatePlayed='2020-01-01';INSERT INTO LiveMatchSnapshots(MatchId,LeagueId,SnapshotHash) VALUES(1,100,'original')");
+    assert.equal(f.db.prepare('SELECT Status FROM MatchIngestionState WHERE MatchId=1').get().Status,'ready');
+    assert.equal(f.db.prepare('SELECT Wins FROM LeagueStandings WHERE TeamId=1001').get().Wins,1);
+    f.db.exec("INSERT INTO LiveMatchCurrentState(MatchId,LeagueId,SnapshotHash) VALUES(1,100,'live')");
+    assert.deepEqual(nightlyMatchCandidates(f.db,100),[],'Nightly must not clean a game still being observed live');
+    f.db.exec('DELETE FROM LiveMatchCurrentState');
+    const [candidate]=nightlyMatchCandidates(f.db,100);assert.equal(candidate.MatchId,1);
+    const revision=f.db.prepare('SELECT RequestedRevision FROM BettingRefreshState').get().RequestedRevision;
+    enqueueLeagueMatch(f.db,1,100,{nightly:true});
+    const results=await runResultBatch(f.db,{automatic:false,fetchImpl:async()=>({ok:true,json:async()=>data})});
+    assert.equal(results[0].remake,true);
+    for(const table of ['MatchTeam','MatchPlayer','MatchTeamPlayer','MatchLeague','SeriesMatch','PickInfo',
+      'MatchIngestionState','MatchSourceResponses','MatchPlayerTimeline','MatchTeamTimeline']) {
+      assert.equal(f.db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE MatchId=1`).get().n,0,table);
+    }
+    assert.equal(f.db.prepare('SELECT ResultStatus FROM TrackedLeagueMatches WHERE MatchId=1').get().ResultStatus,'remake');
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM RemakeDraftSources').get().n,1);
+    assert.equal(f.db.prepare('SELECT COUNT(*) n FROM LiveMatchSnapshots').get().n,1);
+    assert.equal(f.db.prepare('SELECT Wins FROM LeagueStandings WHERE TeamId=1001').get().Wins,0);
+    assert.equal(f.db.prepare('SELECT Team1Wins+Team2Wins n FROM SeriesLifecycle LIMIT 1').get().n,0);
+    assert.ok(f.db.prepare('SELECT RequestedRevision FROM BettingRefreshState').get().RequestedRevision>revision);
+    assert.deepEqual(nightlyMatchCandidates(f.db,100),[]);
+  }finally{f.close();}
+});
+
+test('zero scores alone mark a remake even for an existing import with different saved statistics',()=>{
+  for(const details of [{},{version:undefined,players:undefined}]) {
+    const f=fixture();try {
+      const job=queued(f),data=payload(1,{complete:true});
+      importLeagueMatch(f.db,data,job);enrichLeagueMatch(f.db,data,job);
+      const result=importLeagueMatch(f.db,{...data,...details,radiant_score:0,dire_score:0},job);
+      assert.equal(result.remake,true);
+      assert.equal(f.db.prepare('SELECT COUNT(*) n FROM MatchPlayer').get().n,0);
+      assert.equal(f.db.prepare('SELECT COUNT(*) n FROM MatchTeam').get().n,0);
+      assert.equal(f.db.prepare('SELECT ResultStatus FROM TrackedLeagueMatches WHERE MatchId=1').get().ResultStatus,'remake');
+    }finally{f.close();}
+  }
+});
+
+test('a game with a nonzero score on either side remains a played game',()=>{
+  for(const [radiant_score,dire_score] of [[1,0],[0,1]]) {
+    const f=fixture();try {
+      const data={...payload(1,{complete:true}),radiant_score,dire_score};
+      const result=importLeagueMatch(f.db,data,queued(f));enrichLeagueMatch(f.db,data,queued(f));
+      assert.equal(result.imported,true);
+      assert.equal(f.db.prepare('SELECT COUNT(*) n FROM MatchPlayer').get().n,10);
+      assert.deepEqual(nightlyMatchCandidates(f.db,100),[]);
+    }finally{f.close();}
+  }
 });

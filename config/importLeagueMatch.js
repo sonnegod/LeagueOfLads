@@ -6,6 +6,7 @@ import {associateTrackedSeries,refreshSeriesLifecycle,advanceCompletedPlayoffSer
 import {hasTable,resultsChanged} from './matchResultsSchema.js';
 import {markBettingDirty} from '../betting/refreshQueue.js';
 import {ingestDraftTelemetry} from './draftTelemetry.js';
+import {deleteMatchRecords} from './matchMaintenance.js';
 
 const positive=n=>Number.isSafeInteger(n)&&n>0;
 const reject=message=>{throw Object.assign(new Error(message),{review:true});};
@@ -17,17 +18,22 @@ export function importLeagueMatch(db,data,tracked,now=new Date()) {
   if(!existing&&tracked.ResultStatus==='imported'&&!tracked.ManualRequested)reject('This imported match was removed. Only an explicit admin reimport can restore it.');
   if(existing&&(existing.TeamRad!==data.radiant_team_id||existing.TeamDire!==data.dire_team_id))reject('Saved team assignment differs from OpenDota; preserve the admin correction');
   if(!existing&&((tracked.TeamRad&&tracked.TeamRad!==data.radiant_team_id)||(tracked.TeamDire&&tracked.TeamDire!==data.dire_team_id)))reject('Result team IDs differ from the observed live game');
-  if(data.duration<300&&data.radiant_score===0&&data.dire_score===0) {
+  if(data.radiant_score===0&&data.dire_score===0) {
     return db.transaction(()=>{
       const needsDraft=data.game_mode===2&&!data.picks_bans?.length;
       if(data.game_mode===2&&data.picks_bans?.length)archiveRemakeDraft(db,data,now);
-      // Never delete an already curated/imported game just because a later response is incomplete.
-      if(existing&&db.prepare('SELECT 1 FROM MatchPlayer WHERE MatchId=?').get(data.match_id))reject('Remake response conflicts with an existing played game');
-      if(existing){db.prepare('DELETE FROM SeriesMatch WHERE MatchId=?').run(data.match_id);db.prepare('DELETE FROM MatchLeague WHERE MatchId=?').run(data.match_id);db.prepare('DELETE FROM MatchTeam WHERE MatchId=?').run(data.match_id);}
+      // Match the original loader: a completed 0–0 result marks a remake,
+      // regardless of duration, player statistics or replay parse status.
+      const series=db.prepare('SELECT DISTINCT SeriesId FROM SeriesMatch WHERE MatchId=?').all(data.match_id);
+      if(existing)deleteMatchRecords(db,data.match_id);
       db.prepare("UPDATE TrackedLeagueMatches SET ResultStatus='remake',EnrichmentStatus=?,NextAttemptAt=?,LastError=? WHERE MatchId=?")
         .run(needsDraft?(data.version==null?'pending':'needs_review'):'not_applicable',needsDraft?new Date(now.getTime()+Math.min(3600000,60000*2**Math.min(tracked.AttemptCount||0,6))).toISOString():null,
           needsDraft?'Remake draft data has not arrived yet':null,data.match_id);
-      if(tracked.SeriesId)refreshSeriesLifecycle(db,tracked.SeriesId,now);
+      for(const seriesId of new Set([...series.map(row=>row.SeriesId),tracked.SeriesId].filter(Boolean)))refreshSeriesLifecycle(db,seriesId,now);
+      if(existing) {
+        if(hasTable(db,'GroupNames'))rebuildLeagueGroupStandings(db,tracked.LeagueId);
+        if(hasTable(db,'BettingRefreshState'))markBettingDirty(db,now,{refreshAnalytics:true});
+      }
       resultsChanged(db);return {remake:true,needsDraft:needsDraft&&data.version==null};
     }).immediate();
   }

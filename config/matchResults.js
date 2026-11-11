@@ -51,6 +51,13 @@ export function enqueueLeagueMatch(db,matchId,leagueId,{stage=stageForLeagueMatc
   if(nightly)db.prepare('UPDATE TrackedLeagueMatches SET WorkerEligible=0 WHERE MatchId=?').run(matchId);
   if(force)db.prepare('UPDATE TrackedLeagueMatches SET ManualRequested=1,WorkerEligible=1 WHERE MatchId=?').run(matchId);
 }
+export function nightlyMatchCandidates(db,leagueId) {
+  return db.prepare(`SELECT m.MatchId,m.TeamRad,m.TeamDire,l.DatePlayed FROM MatchLeague l JOIN MatchTeam m USING(MatchId)
+    WHERE l.LeagueId=? AND ((SELECT COUNT(DISTINCT p.PlayerId) FROM MatchPlayer p WHERE p.MatchId=m.MatchId)<10
+      OR (m.RadiantScore=0 AND m.DireScore=0)
+      OR (datetime(l.DatePlayed)>datetime('now','-7 days') AND NOT EXISTS(SELECT 1 FROM MatchIngestionState i WHERE i.MatchId=m.MatchId AND i.Status='ready')))
+    AND NOT EXISTS(SELECT 1 FROM LiveMatchCurrentState c WHERE c.MatchId=m.MatchId) ORDER BY m.MatchId`).all(leagueId);
+}
 export function claimResultJob(db,owner,now=new Date(),{automatic=true}={}) {
   ensureMatchResultsSchema(db);
   return db.transaction(()=>{
