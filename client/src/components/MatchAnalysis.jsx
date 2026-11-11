@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import HeroDisplay from './HeroDisplay';
 import InventorySlot from './MatchInventorySlot';
@@ -22,6 +22,16 @@ function LoadedAnalysis({ data, section, initialPlayerId }) {
   const eventsReport = useReport(showFlow ? `/api/matches/${data.match.MatchId}/analysis/events` : null);
   const [hoveredEvent, setHoveredEvent] = useState(null), [focusedEvent, setFocusedEvent] = useState(null);
   const [hiddenEvents, setHiddenEvents] = useState([]);
+  const [showEvents, setShowEvents] = useState(false), eventsId = useId();
+  const graphRef = useRef(null), [graphHeight, setGraphHeight] = useState(null);
+  useLayoutEffect(() => {
+    if (!showFlow || !graphRef.current) return undefined;
+    const measure = () => setGraphHeight(Math.round(graphRef.current.getBoundingClientRect().height));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(graphRef.current);
+    return () => observer.disconnect();
+  }, [showFlow]);
   const activeEvent = hoveredEvent ?? focusedEvent;
   const { match, objectives } = data;
   const events = [...objectives, ...(eventsReport.data?.deaths || [])].sort((a, b) => a.time - b.time);
@@ -31,10 +41,13 @@ function LoadedAnalysis({ data, section, initialPlayerId }) {
     {combined && <nav className="match-analysis-jumps" aria-label="Jump to analysis section"><a href="#match-game-flow">Game flow & objectives</a>
       <a href="#match-player-economy">Player economy</a><a href="#match-teamfights">Teamfights</a></nav>}
     <p className="performance-coverage">{match.Status === 'partial' ? 'Some extended sections are unavailable.' : 'Extended match data available.'} Missing values are shown as —.</p>
-    {showFlow && <section id="match-game-flow" className="match-analysis-section" aria-label="Game flow and objectives"><div className="match-flow-layout">
-      <Panel title="Game flow">
-        <div className="performance-chart-event-controls" aria-label="Chart events">{[['death', 'Hero deaths'], ['tower', 'Towers'], ['roshan', 'Roshan']].map(([key, label]) =>
-          <button type="button" key={key} aria-pressed={!hiddenEvents.includes(key)} onClick={() => setHiddenEvents(old => old.includes(key) ? old.filter(k => k !== key) : [...old, key])}>{label}</button>)}</div>
+    {showFlow && <section id="match-game-flow" className="match-analysis-section" aria-label="Game flow and objectives"><div className={`match-flow-layout${showEvents ? '' : ' is-graph-only'}`}>
+      <div className="match-flow-graph" ref={graphRef}><Panel title="Game flow">
+        <div className="match-flow-tools"><div className="performance-chart-event-controls" aria-label="Chart events">{[['death', 'Hero deaths'], ['tower', 'Towers'], ['roshan', 'Roshan']].map(([key, label]) =>
+          <button type="button" key={key} aria-pressed={!hiddenEvents.includes(key)} onClick={() => setHiddenEvents(old => old.includes(key) ? old.filter(k => k !== key) : [...old, key])}>{label}</button>)}
+          <span className="match-roshan-credit"><img src="/icons/roshan.png?v=2" alt="" width="20" height="20" />Roshan artwork by <strong>fibsh</strong></span></div>
+          <button type="button" className="match-flow-events-toggle" aria-expanded={showEvents} aria-controls={eventsId}
+            onClick={() => { setShowEvents(value => !value); setHoveredEvent(null); setFocusedEvent(null); }}>{showEvents ? 'Hide key events' : 'Show key events'}</button></div>
         <TimelineChart points={points} series={[
           { key: 'gold', label: 'Gold advantage', color: '#facc15' },
           { key: 'xp', label: 'XP advantage', color: '#60a5fa' },
@@ -45,8 +58,8 @@ function LoadedAnalysis({ data, section, initialPlayerId }) {
         {eventsReport.loading && <p className="performance-note" role="status">Loading hero death events…</p>}
         {eventsReport.error && <p className="performance-note" role="alert">Hero death events could not be loaded. <button type="button" onClick={eventsReport.retry}>Retry</button></p>}
         {eventsReport.data && <p className="performance-note">{eventsReport.data.available ? '' : 'Individual hero death times were not recorded for this match.'}</p>}
-      </Panel>
-      <Panel title="Objectives & key events" className="match-flow-events">
+      </Panel></div>
+      <FlowEventsPanel graphHeight={graphHeight} id={eventsId} visible={showEvents}>
         {events.length ? <ol className="performance-events">{events.map(event => <li key={event.index} tabIndex={0}
           data-event-index={event.index} data-active={activeEvent === event.index}
           onPointerEnter={() => setHoveredEvent(event.index)} onPointerLeave={() => setHoveredEvent(null)}
@@ -55,12 +68,20 @@ function LoadedAnalysis({ data, section, initialPlayerId }) {
           <div className="match-flow-event-meta"><small className={`performance-side-${event.teamSide}`}>{teamName(event.teamSide)}</small>
             {event.playerId != null && <Link to={`/player/${event.playerId}`}>{data.players.find(p => p.PlayerId === event.playerId)?.PlayerName || `Player ${event.playerId}`}</Link>}</div>
         </li>)}</ol> : <p className="performance-message">{data.sections.objectives?.available ? 'No objective events recorded.' : 'Objective data is unavailable.'}</p>}
-      </Panel>
+      </FlowEventsPanel>
     </div></section>}
     {(section === 'economy' || combined) && <section id="match-player-economy" className="match-analysis-section" aria-label="Player economy"><PlayerEconomy data={data} /></section>}
     {section === 'items' && <MatchItems data={data} initialPlayerId={initialPlayerId} />}
     {(section === 'fights' || combined) && <section id="match-teamfights" className="match-analysis-section" aria-label="Teamfights"><FightAnalysis match={match} /></section>}
   </div>;
+}
+
+function FlowEventsPanel({ graphHeight, id, visible, children }) {
+  return <section id={id} className="performance-panel match-flow-events" hidden={!visible}
+    style={graphHeight ? { height: graphHeight } : undefined}>
+    <h2 id={`${id}-heading`}>Objectives &amp; key events</h2>
+    <div className="match-flow-events-body" role="region" aria-labelledby={`${id}-heading`}>{children}</div>
+  </section>;
 }
 
 function PlayerEconomy({ data }) {

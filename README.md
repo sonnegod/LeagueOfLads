@@ -124,6 +124,16 @@ results. In League stages, review the completed results and confirm any tied
 qualification cutoffs before starting playoffs. Closing tiebreakers saves the
 final placements and supplies the bracket editor's upper/lower team pools.
 
+In **Admin > League > Playoffs**, review the qualified pools and use **Suggest
+matchups** to fill starting slots from the saved seed order. Selecting an already
+assigned team swaps its slot; seeding stays editable until playoff play begins.
+Publish the bracket after every entrant has a slot. Select a match card to edit
+manual scores or the grand-final format. Playoffs use BO3; the final can use BO3
+or BO5. Teams advance only after a clinch, and linked series scores come from
+the recorded games. Saves check the latest bracket revision so newer results
+cannot be overwritten by an older editor. The public bracket includes explicit
+winner/loser paths, schedules, series links and a team search.
+
 Once a league starts, admins can open **Admin > League > Schedule** to set the first
 window's date and the pace of play. The default is **3 series per team every 2 weeks**;
 both counts are configurable. Save the pace, then randomize a single round robin
