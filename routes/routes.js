@@ -18,6 +18,7 @@ import { createAnalyticsRoutes } from './analyticsRoutes.js';
 import { createBettingRoutes } from './bettingRoutes.js';
 import { createAdminRosterRouter, createRosterChangeHandler } from './rosterRoutes.js';
 import { createAdminMatchRouter } from './adminMatchRoutes.js';
+import {createPlayoffRouter} from './playoffRoutes.js';
 import { createUpcomingGamesRouter } from './upcomingGamesRoutes.js';
 import { readUpcomingSweepOdds } from '../betting/upcomingOdds.js';
 import { createBettingRuntime, mutationRefresh } from '../betting/runtime.js';
@@ -1497,70 +1498,8 @@ router.get('/tiebreakerMatches', (req, res) => {
   }
 });
 
-router.get('/admin/playoffBracket', (req, res) => {
-  try {
-
-    const result = db.adminGetCurrentPlayoffTeams();
-
-    const playoff = db.adminGetCurrentPlayoffBracket();
-
-    if(playoff.length === 0){
-      //return playoff teams
-
-      return res.json({ result });
-    }
-    else{
-      const playoffBracket = JSON.parse(playoff[0].PlayoffStructure);
-
-      return res.json({ playoffBracket,result });
-    }
-
-
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-router.get('/getCurrentBracket', (req, res) => {
-  try {
-    const leagueId = req.query.leagueId || resolveActiveLeague();
-
-    if (!leagueId) {
-      return res.json({ playoffBracket: null });
-    }
-
-    const playoff = db.getPlayoffBracket(leagueId);
-
-    if (!playoff || playoff.length === 0) {
-      return res.json({ playoffBracket: null });
-    }
-
-    const playoffBracket = JSON.parse(playoff[0].PlayoffStructure);
-
-    return res.json({ playoffBracket });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-router.post('/admin/saveBracket', (req, res) => {
-  try {
-
-    const bracket = req.body.bracketData;
-
-    db.insertBracket(bracket);
- 
-    return res.json({success : true})
-
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ success: false, error: 'Internal server error' });
-    }
-});
-
-
+router.use(createPlayoffRouter({db:db.db,activeLeague:()=>db.getActiveLeague()?.[0]?.LeagueId,
+  publicLeague:resolveActiveLeague,audit:(type,message)=>db.recordAdminAudit(type,message)}));
 
 router.get('/logout', logoutHandler);
 

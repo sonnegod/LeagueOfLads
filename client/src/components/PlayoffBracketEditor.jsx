@@ -1,478 +1,122 @@
-import React, { useState, useEffect } from 'react';
-import {
-  generatePlayoffBracket,
-  normalizeEqualSizePlayoffBracket
-} from '../utils/playoffBracket.js';
+import {useEffect,useRef,useState} from 'react';
+import {Link} from 'react-router-dom';
+import {generatePlayoffBracket,playoffMatches,playoffLabels,playoffFormat,playoffHasResult,playoffResult,resolvePlayoffProgression,suggestPlayoffSeeding} from '../../../shared/playoffBracket.js';
+import PlayoffBracketBoard from './PlayoffBracketBoard';
 
-// ==========================================
-// SECTION 2: THE COMPONENT
-// ==========================================
+async function request(path,options={}) {
+  const response=await fetch(path,{cache:'no-store',...options});const data=await response.json();
+  if(!response.ok)throw Error(data.error||'Unable to load or save playoffs.');return data;
+}
+const sourceLabel=team=>team?`${team.GroupName||'Group'}${team.GroupRank?` · #${team.GroupRank}`:''}${team.TiebreakerName?` · ${team.TiebreakerName}${team.TiebreakerRank?` #${team.TiebreakerRank}`:''}`:''}`:'';
 
-const PlayoffBracketEditor = () => {
-  const [loading, setLoading] = useState(true);
-  const [bracket, setBracket] = useState(null);
-  const [existing, setExisting] = useState(null);
-  const [error,setError]=useState('');
-  const [attempt,setAttempt]=useState(0);
+function MatchEditor({match,detail={},label,onApply,onClose}) {
+  const [a,setA]=useState(String(detail.team1Score??match.team1Score??0)),[b,setB]=useState(String(detail.team2Score??match.team2Score??0));
+  const [bestOf,setBestOf]=useState(String(detail.bestOf||playoffFormat(match)||'')),[error,setError]=useState('');
+  const panel=useRef(null),linked=Boolean(detail.seriesId||match.seriesId);
+  useEffect(()=>{panel.current?.querySelector('input:not([disabled]),select:not([disabled]),button')?.focus();},[]);
+  function apply(event) {
+    event.preventDefault();const changes={bestOf:Number(bestOf)};
+    if(!linked)Object.assign(changes,{team1Score:Number(a),team2Score:Number(b),resultSource:'manual'});
+    if(![3,5].includes(changes.bestOf))return setError('Choose the grand-final format.');
+    const result=playoffResult({...match,...changes});if(!result.valid)return setError(`Enter a valid BO${changes.bestOf} score.`);
+    const problem=onApply(match.id,changes);if(problem)setError(problem);
+  }
+  return <aside className="playoff-editor-panel" ref={panel} aria-label={`Edit ${label}`} onKeyDown={event=>{if(event.key==='Escape')onClose();}}>
+    <div className="playoff-panel-heading"><h3>{label}</h3><button type="button" aria-label="Close match editor" onClick={onClose}>Close</button></div>
+    <form onSubmit={apply}>
+      <label>Series format{match.bracket==='grand'?<select value={bestOf} disabled={linked&&Boolean(detail.bestOf)} onChange={event=>setBestOf(event.target.value)}>
+        <option value="">Choose format</option><option value="3">BO3</option><option value="5">BO5</option></select>:<strong>BO3 · First to 2 wins</strong>}</label>
+      <div className="playoff-edit-scores">{[[1,a,setA],[2,b,setB]].map(([slot,value,setValue])=><label key={slot}><span title={match[`team${slot}Name`]||'Awaiting team'}>{match[`team${slot}Name`]||'Awaiting team'}</span>
+        <input aria-label={`Team ${slot} score`} type="number" min="0" max={bestOf==='5'?3:2} step="1" required value={value} disabled={linked||!match.team1Id||!match.team2Id} onChange={event=>setValue(event.target.value)}/></label>)}</div>
+      {linked?<p>Scores come from the recorded series. Correct its games in the match editor when needed.</p>:<p>A score lead stays in progress. Teams advance after 2 wins in BO3 or 3 wins in BO5.</p>}
+      {detail.kickoff&&<p>Scheduled: {new Date(detail.kickoff).toLocaleString('en-US',{timeZone:'America/New_York'})} NY. Edit scheduling under League → Match.</p>}
+      {detail.seriesId&&<Link to={`/series/${detail.seriesId}`}>View recorded series</Link>}
+      {error&&<p role="alert" className="playoff-error">{error}</p>}
+      <button type="submit" className="ui-button-primary" disabled={linked&&Boolean(detail.bestOf)}>Apply changes</button>
+    </form>
+  </aside>;
+}
 
-  const [teams, setTeams] = useState([]);
-  const [dirty, setDirty] = useState(false);
-
-  useEffect(() => {
-    const controller=new AbortController();
-    const init = async () => {
-      setLoading(true);setError('');
+export default function PlayoffBracketEditor() {
+  const [data,setData]=useState(null),[bracket,setBracket]=useState(null),[error,setError]=useState(''),[message,setMessage]=useState('');
+  const [saving,setSaving]=useState(false),[attempt,setAttempt]=useState(0),[selectedId,setSelectedId]=useState(null),[newResults,setNewResults]=useState(false);
+  const editing=useRef(false),generation=useRef(0);
+  const dirty=Boolean(bracket)&&JSON.stringify(bracket)!==JSON.stringify(data?.playoffBracket);
+  useEffect(()=>{editing.current=dirty||Boolean(selectedId);},[dirty,selectedId]);
+  useEffect(()=>{
+    let disposed=false,controller;
+    async function load(force=false) {
+      controller?.abort();controller=new AbortController();
+      const requestGeneration=++generation.current;
       try {
-        const res = await fetch('/api/admin/playoffBracket',{signal:controller.signal});
-        const data = await res.json();
-        if(!res.ok)throw Error(data.error||'Could not load playoff teams');
-        if(controller.signal.aborted)return;
-        setTeams(data.result || []);
-        if (data.playoffBracket) {
-          const normalized = normalizeEqualSizePlayoffBracket(data.playoffBracket);
-          setBracket(normalized.bracket);
-          setExisting(true);
-          setDirty(normalized.changed);
-          if (normalized.error) console.error(normalized.error);
-        } else {
-          setBracket(generatePlayoffBracket(data.result || []));
-          setExisting(false);setDirty(false);
+        const value=await request('/api/admin/playoffBracket',{signal:controller.signal});if(disposed||requestGeneration!==generation.current)return;
+        if(!force&&editing.current){setNewResults(true);return;}
+        let initial=value.playoffBracket;
+        if(!initial&&value.result?.length) {
+          initial=generatePlayoffBracket(value.result);
+          initial.grandFinals.forEach(match=>{match.bestOf=value.grandFinalDefault||5;});
         }
-      }catch(error){if(!controller.signal.aborted)setError(error.message);}
-      finally{if(!controller.signal.aborted)setLoading(false);}
-    };
-
-    init();
-    return()=>controller.abort();
-  }, [attempt]);
-
-  // --- CORE LOGIC: UPDATE MATCH & ADVANCE TEAMS ---
-  const updateMatch = (matchId, field, value) => {
-    setDirty(true);
-    const newBracket = JSON.parse(JSON.stringify(bracket)); // Deep Clone
-
-    // 1. Helper to find match in the tree
-    let targetMatch = null;
-    
-    // Search UB
-    for (const r of newBracket.upperBracket) {
-      const found = r.matches.find(m => m.id === matchId);
-      if (found) { targetMatch = found; break; }
+        setData(value);setBracket(initial);setError('');setNewResults(false);setSelectedId(null);
+      }catch(cause){if(!disposed&&cause.name!=='AbortError')setError(cause.message);}
     }
-    // Search LB
-    if (!targetMatch) {
-      for (const r of newBracket.lowerBracket) {
-        const found = r.matches.find(m => m.id === matchId);
-        if (found) { targetMatch = found; break; }
-      }
-    }
-    // Search GF
-    if (!targetMatch) {
-        const found = newBracket.grandFinals.find(m => m.id === matchId);
-        if(found) { targetMatch = found; }
-    }
-
-    if (!targetMatch) return;
-
-    // 2. Update the field (Score or Manual Team selection)
-    targetMatch[field] = value;
-
-    if (field === 'team1Id' || field === 'team2Id') {
-        // 1. LOOKUP: Finds the team object using the ID passed from the dropdown (value)
-        const team = teams.find(t => t.TeamId === parseInt(value)); 
-        
-        // 2. PROPERTY MAP: Determines the destination name field
-        const nameField = field.replace('Id', 'Name'); 
-        
-        // 3. STORAGE: Sets BOTH the ID and the corresponding Name
-        targetMatch[nameField] = team ? team.TeamName : null; 
-    }
-
-    // 3. AUTO-ADVANCEMENT LOGIC
-    // Only run if we have two valid teams and scores
-    if (targetMatch.team1Id && targetMatch.team2Id) {
-      const s1 = parseInt(targetMatch.team1Score || 0);
-      const s2 = parseInt(targetMatch.team2Score || 0);
-
-      if (s1 !== s2) {
-        const winnerId = s1 > s2 ? targetMatch.team1Id : targetMatch.team2Id;
-        const loserId = s1 > s2 ? targetMatch.team2Id : targetMatch.team1Id;
-
-        const winnerName = s1 > s2 ? targetMatch.team1Name : targetMatch.team2Name;
-        const loserName = s1 > s2 ? targetMatch.team2Name : targetMatch.team1Name;
-
-        // A. Handle Winner
-        if (targetMatch.winnerTo) {
-          updateTargetMatch(newBracket, targetMatch.winnerTo, targetMatch.winnerToSlot, winnerId, winnerName);
-        }
-
-        // B. Handle Loser (Only for Upper Bracket)
-        if (targetMatch.loserTo) {
-          // In Drop rounds, UB losers usually go to Slot 2
-          updateTargetMatch(newBracket, targetMatch.loserTo, 2, loserId, loserName);
-        }
-      }
-    }
-
-    setBracket(newBracket);
-  };
-
-  // Helper to find a future match and set its team
-  const updateTargetMatch = (bracketObj, matchId, slot, teamId, teamName) => {
-    // Flatten search
-    const allMatches = [
-      ...bracketObj.upperBracket.flatMap(r => r.matches),
-      ...bracketObj.lowerBracket.flatMap(r => r.matches),
-      ...bracketObj.grandFinals
-    ];
-    
-    const m = allMatches.find(x => x.id === matchId);
-    if (m) {
-      if (slot === 1) {
-        m.team1Id = teamId;
-        m.team1Name = teamName
-      }
-      if (slot === 2) {
-        m.team2Id = teamId;
-        m.team2Name = teamName
-      }
-    }
-  };
-
-  const handleSave = async () => {
+    function changed(){if(editing.current)setNewResults(true);else load();}
+    load(true);window.addEventListener('league-results:changed',changed);
+    return()=>{disposed=true;controller?.abort();window.removeEventListener('league-results:changed',changed);};
+  },[attempt]);
+  const teams=data?.result||[],matches=playoffMatches(bracket),labels=playoffLabels(bracket);
+  const started=matches.some(match=>playoffHasResult(match)||data?.matchDetails?.[match.id]?.seriesId);
+  const selected=matches.find(match=>match.id===selectedId);
+  function apply(matchId,changes) {
+    const next=structuredClone(bracket),match=playoffMatches(next).find(item=>item.id===matchId);Object.assign(match,changes);
+    const resolved=resolvePlayoffProgression(next);if(resolved.errors.length)return resolved.errors[0];
+    setBracket(resolved.bracket);setSelectedId(null);setError('');setMessage('');return null;
+  }
+  function assign(matchId,slot,value) {
+    const next=structuredClone(bracket),match=playoffMatches(next).find(item=>item.id===matchId),old=match[`team${slot}Id`],id=Number(value)||null;
+    const first=[...next.upperBracket[0].matches,...next.lowerBracket[0].matches];
+    const put=(target,position,teamId)=>{const team=teams.find(item=>item.TeamId===teamId);target[`team${position}Id`]=teamId;
+      target[`team${position}Name`]=team?.TeamName||null;target[`team${position}Seed`]=team?.Seed||null;};
+    if(id)for(const target of first)for(const position of [1,2])if((target.id!==matchId||position!==slot)&&Number(target[`team${position}Id`])===id)put(target,position,old);
+    put(match,slot,id);const resolved=resolvePlayoffProgression(next);
+    if(resolved.errors.length)return setError(resolved.errors[0]);setBracket(resolved.bracket);setMessage('');
+  }
+  async function save() {
+    generation.current++;setSaving(true);setError('');setMessage('');
     try {
-      const res = await fetch("/api/admin/saveBracket", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body : JSON.stringify({
-                bracketData: bracket, 
-            }),
-      });
-
-      if (res.ok) {
-            setDirty(false);
-            console.log("Bracket saved successfully!");
-
-        } else {
-            console.error("Save failed:");
-            alert("Error saving bracket data.");
-      }
-    }
-    catch(err) {
-        console.error(err);
-    }
-
-    
-    setDirty(false);
-  };
-
-  if (loading) return <div style={styles.loading}>Generating Bracket Structure...</div>;
-  if(error)return <div role="alert">{error} <button type="button" onClick={()=>setAttempt(value=>value+1)}>Reload playoff teams</button></div>;
-
-  if (!bracket || existing === null) {
-    return <div>Loading bracket data...</div>; // Show a loader or null
+      const value=await request('/api/admin/saveBracket',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bracketData:bracket,revision:data.revision})});
+      setData(value);setBracket(value.playoffBracket);setNewResults(false);setSelectedId(null);setMessage('Playoff bracket saved.');
+    }catch(cause){setError(cause.message);}finally{setSaving(false);}
   }
-
-  return (
-    <div className="playoff-bracket-editor" style={styles.container}>
-      <div style={styles.header}>
-        <button className="ui-button-primary" onClick={handleSave} style={styles.saveBtn}>Save Bracket</button>
-        {dirty && <span style={styles.unsaved}>Unsaved Changes</span>}
-      </div>
-
-      <div style={styles.board}>
-        {/* --- UPPER BRACKET ROW --- */}
-        <div style={styles.bracketRow}>
-          <div style={styles.bracketLabel}>Upper Bracket</div>
-          <div style={styles.roundsContainer}>
-            {bracket.upperBracket.map((round) => (
-              <RoundColumn key={round.round} title={`Round ${round.round}`}>
-                {round.matches.map(m => (
-                  <MatchCard 
-                    key={m.id} 
-                    match={m} 
-                    teams={teams} 
-                    onUpdate={updateMatch}
-                    manualSelect={m.round === 1} // Only R1 is manually selectable
-                    existing = {existing}
-                  />
-                ))}
-              </RoundColumn>
-            ))}
-            
-            {/* Grand Finals (Visual Placement) */}
-            <RoundColumn title="Grand Finals">
-                 <MatchCard 
-                    match={bracket.grandFinals[0]} 
-                    teams={teams} 
-                    onUpdate={updateMatch}
-                    manualSelect={false}
-                    isGrandFinal
-                    existing = {existing}
-                 />
-            </RoundColumn>
-          </div>
+  const slots=matches.filter(match=>match.round===1&&['upper','lower'].includes(match.bracket));
+  const assigned=slots.reduce((sum,match)=>sum+Number(Boolean(match.team1Id))+Number(Boolean(match.team2Id)),0);
+  const ready=Boolean(bracket)&&assigned===teams.length&&teams.length>0&&bracket.grandFinals.every(match=>[3,5].includes(playoffFormat(match)));
+  return <div className="playoff-bracket-editor">
+    <div className="playoff-editor-toolbar"><div><button type="button" className="ui-button-primary" disabled={saving||!dirty||!ready||Boolean(selected)} onClick={save}>{saving?'Saving…':data?.playoffBracket?'Save bracket':'Publish bracket'}</button>
+      <button type="button" disabled={saving} onClick={()=>{setMessage('');setAttempt(n=>n+1);}}>Reload latest bracket</button></div>
+      <small>{selected?'Apply or close the match editor before saving.':dirty?'Unsaved changes':'All changes saved'}</small></div>
+    {error&&<p role="alert" className="playoff-error">{error}</p>}{message&&<p role="status" className="playoff-message">{message}</p>}
+    {newResults&&<p role="status" className="playoff-notice">New results are available. Your edits are kept; reload the latest bracket before saving if it has changed.</p>}
+    {!data&&!error&&<p role="status">Loading playoff teams…</p>}
+    {data&&!bracket&&<p className="playoff-empty">Qualified teams will appear here after group and tiebreaker results are finalized.</p>}
+    {bracket&&<>
+      <details className="playoff-starting-teams" open={!data.playoffBracket}>
+        <summary>Starting teams <span>{assigned} / {teams.length} assigned{started?' · Seeding locked':''}</span></summary>
+        <div className="playoff-setup-content"><div className="playoff-panel-heading"><p>{started?'Seeding is fixed because playoff play has begun.':"Suggest matchups from the saved seed order, then select teams to swap starting slots."}</p>
+          <button type="button" disabled={started||saving} onClick={()=>{setBracket(suggestPlayoffSeeding(bracket,teams));setMessage('Suggested matchups filled. Review them before publishing.');}}>Suggest matchups</button></div>
+          <div className="playoff-pools">{[['upper','Upper bracket'],['lower','Lower bracket']].map(([pool,title])=><section key={pool} className={`playoff-pool ${pool}`}><h4>{title} · {teams.filter(team=>team.Bracket===pool).length} teams</h4>
+            {slots.filter(match=>match.bracket===pool).flatMap(match=>[1,2].map(slot=>{
+              const team=teams.find(item=>item.TeamId===Number(match[`team${slot}Id`]));
+              return <label className="playoff-starting-slot" key={`${match.id}:${slot}`}><span>{labels.get(match.id)} · {slot}</span>
+                <select aria-label={`${labels.get(match.id)} team ${slot}`} value={match[`team${slot}Id`]||''} disabled={started||saving} onChange={event=>assign(match.id,slot,event.target.value)}>
+                  <option value="">Select team</option>{teams.filter(item=>item.Bracket===pool).map(item=><option key={item.TeamId} value={item.TeamId}>#{item.Seed} · {String(item.TeamName)}</option>)}</select>
+                {team&&<small>{sourceLabel(team)}</small>}</label>;
+            }))}</section>)}</div>
         </div>
-
-        {/* --- DIVIDER --- */}
-        <hr style={{borderColor: 'var(--border)', margin: '30px 0'}} />
-
-        {/* --- LOWER BRACKET ROW --- */}
-        <div style={styles.bracketRow}>
-          <div style={styles.bracketLabel}>Lower Bracket</div>
-          <div style={styles.roundsContainer}>
-            {bracket.lowerBracket.map((round) => (
-              <RoundColumn key={round.round} title={`Round ${round.round}`}>
-                {round.matches.map(m => (
-                  <MatchCard 
-                    key={m.id} 
-                    match={m} 
-                    teams={teams} 
-                    onUpdate={updateMatch}
-                    manualSelect={m.round === 1}
-                    existing = {existing}
-                  />
-                ))}
-              </RoundColumn>
-            ))}
-          </div>
-        </div>
+      </details>
+      <div className={`playoff-editor-layout${selected?' has-selection':''}`}>
+        {selected&&<MatchEditor key={selected.id} match={selected} detail={data.matchDetails?.[selected.id]} label={labels.get(selected.id)} onApply={apply} onClose={()=>setSelectedId(null)}/>}
+        <PlayoffBracketBoard bracket={bracket} matchDetails={data.matchDetails} onSelect={saving?undefined:setSelectedId} selectedId={selectedId}/>
       </div>
-    </div>
-  );
-};
-
-// ==========================================
-// SECTION 3: SUB-COMPONENTS & STYLES
-// ==========================================
-
-const RoundColumn = ({ title, children }) => (
-  <div style={styles.column}>
-    <h4 style={styles.colTitle}>{title}</h4>
-    <div style={styles.colBody}>{children}</div>
-  </div>
-);
-
-const MatchCard = ({ match, teams, onUpdate, manualSelect, isGrandFinal, existing }) => {
-  
-  const isTeamSelectionLocked = existing
-
-  // Filter teams for initial dropdowns
-  let ubTeams = [];
-  let lbTeams = [];
-  let selectionPool = [];
-  if(!existing && teams){
-    ubTeams = teams.filter(t => t.Bracket === 'upper');
-    lbTeams = teams.filter(t => t.Bracket === 'lower');
-    selectionPool = match.bracket === 'upper' ? ubTeams : lbTeams;
-  }
-
-  // Visual cues
-  const isDropRound = match.isDropRound;
-  const cardStyle = {
-    ...styles.card,
-    border: isGrandFinal ? '1px solid #d4a72c' : '1px solid var(--border)',
-    borderLeft: isDropRound ? '4px solid #f87171' : '4px solid #60a5fa'
-  };
-
-  return (
-    <div style={cardStyle}>
-      <div style={styles.cardHeader}>
-        <span>M{match.matchNum}</span>
-        {isDropRound && <span style={styles.dropLabel}>UB Drop</span>}
-      </div>
-
-      {/* TEAM 1 ROW */}
-      <TeamRow 
-        slot={1}
-        teamId={match.team1Id}
-        teamName={match.team1Name}
-        score={match.team1Score}
-        manualSelect={!isTeamSelectionLocked && manualSelect}
-        pool={selectionPool}
-        onChange={(val) => onUpdate(match.id, 'team1Id', val)}
-        onScore={(val) => onUpdate(match.id, 'team1Score', val)}
-        readOnlyName={!manualSelect && match.team1Id}
-        placeholder={manualSelect ? "Select Team" : (match.bracket==='lower' && match.winnerToSlot===1 && match.round > 1 ? "Winner LB" : "Winner/Seed")}
-      />
-
-      {/* TEAM 2 ROW */}
-      <TeamRow 
-        slot={2}
-        teamId={match.team2Id}
-        teamName={match.team2Name}
-        score={match.team2Score}
-        manualSelect={!isTeamSelectionLocked && manualSelect}
-        pool={selectionPool}
-        onChange={(val) => onUpdate(match.id, 'team2Id', val)}
-        onScore={(val) => onUpdate(match.id, 'team2Score', val)}
-        readOnlyName={!manualSelect && match.team2Id}
-        placeholder={isDropRound ? "UB Loser" : (manualSelect ? "Select Team" : "Winner/Seed")}
-      />
-    </div>
-  );
-};
-
-const TeamRow = ({ teamId, teamName, score, manualSelect, pool, onChange, onScore, placeholder }) => (
-  <div style={styles.teamRow}>
-    <div style={styles.teamName}>
-      {manualSelect ? (
-        <select value={teamId || ''} onChange={(e) => onChange(e.target.value)} style={styles.select}>
-          <option value="">{placeholder}</option>
-          {pool.map(t => <option key={t.TeamId} value={t.TeamId}>{t.TeamName}</option>)}
-        </select>
-      ) : (
-        <span style={{ color: teamId ? 'var(--text)' : 'var(--muted-text)', fontSize: '12px' }}>
-          {teamId ? teamName : placeholder}
-        </span>
-      )}
-    </div>
-    <input 
-      type="number" 
-      value={score} 
-      onChange={(e) => onScore(e.target.value)}
-      style={styles.scoreInput}
-      min="0"
-    />
-  </div>
-);
-
-// --- CSS-IN-JS STYLES ---
-const styles = {
-  container: {
-    padding: '20px',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-    backgroundColor: 'var(--bg)',
-    color: 'var(--text)',
-    minHeight: '100vh',
-    overflowX: 'hidden'
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'flex-start',
-    gap: '20px',
-    alignItems: 'center',
-    marginBottom: '20px',
-    padding: '10px',
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: '12px',
-  },
-  saveBtn: {
-    padding: '10px 20px',
-    backgroundColor: '#1d4ed8',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 'bold'
-  },
-  unsaved: {
-    color: '#fbbf24',
-    fontWeight: 'bold',
-    marginRight: '20px'
-  },
-  board: {
-    display: 'flex',
-    flexDirection: 'column',
-    overflowX: 'auto',
-    paddingBottom: '50px'
-  },
-  bracketRow: {
-    marginBottom: '20px'
-  },
-  bracketLabel: {
-    fontSize: '18px',
-    fontWeight: 'bold',
-    marginBottom: '10px',
-    textTransform: 'uppercase',
-    letterSpacing: '1px',
-    color: '#bfdbfe'
-  },
-  roundsContainer: {
-    display: 'flex',
-    gap: '40px'
-  },
-  column: {
-    display: 'flex',
-    flexDirection: 'column',
-    minWidth: '220px'
-  },
-  colTitle: {
-    textAlign: 'center',
-    marginBottom: '15px',
-    color: 'var(--muted-text)'
-  },
-  colBody: {
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-around',
-    flexGrow: 1
-  },
-  card: {
-    backgroundColor: 'var(--surface)',
-    borderRadius: '12px',
-    boxShadow: 'var(--ui-shadow)',
-    marginBottom: '20px',
-    padding: '10px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '5px',
-    color: 'var(--text)'
-  },
-  cardHeader: {
-    fontSize: '10px',
-    color: 'var(--muted-text)',
-    display: 'flex',
-    justifyContent: 'space-between',
-    textTransform: 'uppercase',
-    fontWeight: 'bold',
-    marginBottom: '4px'
-  },
-  dropLabel: {
-    color: '#fca5a5'
-  },
-  teamRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'var(--surface-soft)',
-    border: '1px solid var(--border)',
-    padding: '6px 8px',
-    borderRadius: '8px'
-  },
-  teamName: {
-    flexGrow: 1,
-    paddingRight: '10px',
-    overflow: 'hidden',
-    whiteSpace: 'nowrap',
-    textOverflow: 'ellipsis'
-  },
-  select: {
-    width: '100%',
-    padding: '4px',
-    fontSize: '12px',
-    border: '1px solid var(--border)',
-    borderRadius: '6px',
-    background: 'var(--bg)',
-    color: 'var(--text)'
-  },
-  scoreInput: {
-    width: '40px',
-    textAlign: 'center',
-    border: '1px solid var(--border)',
-    borderRadius: '6px',
-    background: 'var(--bg)',
-    color: 'var(--text)',
-    padding: '4px',
-    fontWeight: 'bold'
-  },
-  loading: {
-    padding: '40px',
-    textAlign: 'center',
-    fontSize: '20px',
-    color: 'var(--muted-text)'
-  }
-};
-
-export default PlayoffBracketEditor;
+    </>}
+  </div>;
+}

@@ -73,8 +73,21 @@
 .match-build-purchases time { min-width: 40px; color: #94a3b8; font-variant-numeric: tabular-nums; }
 @media (min-width: 1400px) {
   .match-analysis-section .match-flow-layout { grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr); }
-  .match-analysis-section .match-flow-events .performance-events { max-height: 500px; }
 }
+.match-flow-graph { min-width: 0; }
+.match-analysis-section .match-flow-layout.is-graph-only { grid-template-columns: minmax(0, 1fr); }
+.match-flow-tools { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.match-flow-tools .performance-chart-event-controls { margin-bottom: 0; }
+.match-flow-tools .performance-chart-event-controls { align-items: center; }
+.match-roshan-credit { display: inline-flex; align-items: center; gap: 5px; color: #94a3b8; font-size: .75rem; white-space: nowrap; }
+.match-roshan-credit img { flex: none; object-fit: contain; }
+.match-roshan-credit strong { color: #cbd5e1; font-weight: 600; }
+.content .match-flow-events-toggle { min-height: 32px; padding: 5px 9px; font-size: .8rem; }
+.match-flow-events { display: flex; flex-direction: column; box-sizing: border-box; }
+.match-flow-events[hidden] { display: none; }
+.match-flow-events > h2 { flex: none; }
+.match-flow-events-body { min-height: 0; flex: 1; overflow-y: auto; }
+.match-analysis-section .match-flow-events .performance-events { max-height: none; overflow: visible; }
 @media (max-width: 1050px) {
   .match-comparison-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .match-table-scroll-hint { display: block; }

@@ -200,7 +200,7 @@ function EventGlyph({ category }) {
     <path d="M5 3h3v3h2V3h3v3h2V3h3v6l-2 2v7h2v2H4v-2h2v-7L5 9Z" />
     <path d="M10 14h3v6h-3Z" fill="#334155" />
   </g>;
-  if (category === 'roshan') return <image href="/icons/roshan.png" x="1" y="1" width="20" height="20" />;
+  if (category === 'roshan') return <image href="/icons/roshan.png?v=2" x="1" y="1" width="20" height="20" />;
   if (category === 'tormentor') return <g fill="#d1a183" stroke="#7c4935" strokeWidth="1">
     <path d="m5 8-3-6 7 4h4l7-4-3 6 1 6-4 6H8l-4-6Z" />
     <path d="m7 10 3 2m5-2-3 2" stroke="#fee2a1" strokeWidth="2" /><path d="m8 16 3-2 3 2" fill="none" />
