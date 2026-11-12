@@ -378,6 +378,21 @@ test('deleted imported matches stay deleted until an admin explicitly requests r
   }finally{f.close();}
 });
 
+test('deleting a played game immediately reduces its team record and reopens the incomplete series',()=>{
+  const f=fixture();try {
+    importLeagueMatch(f.db,payload(),queued(f),start);
+    importLeagueMatch(f.db,payload(2,{offset:3600}),queued(f,2,{offset:3600}),start);
+    const readSeries=()=>f.db.prepare('SELECT Status,Team1Wins,Team2Wins FROM SeriesLifecycle LIMIT 1').get();
+    assert.deepEqual(readSeries(),{Status:'completed',Team1Wins:2,Team2Wins:0});
+    assert.equal(f.db.prepare('SELECT Wins FROM LeagueStandings WHERE TeamId=1001').get().Wins,2);
+    deleteMatchRecords(f.db,1);
+    assert.deepEqual(readSeries(),{Status:'in_progress',Team1Wins:1,Team2Wins:0});
+    assert.equal(f.db.prepare('SELECT Wins FROM LeagueStandings WHERE TeamId=1001').get().Wins,1);
+    assert.equal(f.db.prepare('SELECT Losses FROM LeagueStandings WHERE TeamId=1002').get().Losses,1);
+    assert.equal(f.db.prepare('SELECT MatchId FROM SeriesMatch').get().MatchId,2);
+  }finally{f.close();}
+});
+
 test('remakes do not count as games, and a delayed Captains Mode draft is retrieved without duplicate parse requests',async()=>{
   const f=fixture();try {
     queued(f);let at=start,attempt=0,parses=0;

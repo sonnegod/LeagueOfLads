@@ -1,4 +1,8 @@
 import { WAREHOUSE_CHILDREN } from './warehouseSchema.js';
+import { rebuildLeagueGroupStandings } from './groupStandings.js';
+import { refreshSeriesLifecycle } from './seriesLifecycle.js';
+import { hasTable, resultsChanged } from './matchResultsSchema.js';
+import { markBettingDirty } from '../betting/refreshQueue.js';
 
 // Live observations may precede warehouse ingestion, so they are not orphans
 // merely because their MatchTeam row is absent.
@@ -20,11 +24,27 @@ function children(db) {
 export function deleteMatchRecords(db, matchId, audit) {
   const id = positiveId(matchId);
   return db.transaction(() => {
+    // Capture these links before deleting them; standings and series scores
+    // must be rebuilt from the remaining matches in the same transaction.
+    const leagues = hasTable(db, 'MatchLeague')
+      ? db.prepare('SELECT DISTINCT LeagueId FROM MatchLeague WHERE MatchId=?').all(id) : [];
+    const series = hasTable(db, 'SeriesMatch')
+      ? db.prepare('SELECT DISTINCT SeriesId FROM SeriesMatch WHERE MatchId=?').all(id) : [];
     const deleted = {};
     for (const table of [...children(db), 'MatchTeam']) {
       deleted[table] = db.prepare(`DELETE FROM ${table} WHERE MatchId=?`).run(id).changes;
     }
-    if (Object.values(deleted).some(Boolean)) audit?.(id, deleted);
+    if (Object.values(deleted).some(Boolean)) {
+      if (hasTable(db, 'GroupNames')) {
+        for (const { LeagueId } of leagues) rebuildLeagueGroupStandings(db, LeagueId);
+      }
+      if (hasTable(db, 'SeriesLifecycle')) {
+        for (const { SeriesId } of series) refreshSeriesLifecycle(db, SeriesId);
+      }
+      if (hasTable(db, 'BettingRefreshState')) markBettingDirty(db, new Date(), { refreshAnalytics: true });
+      if (hasTable(db, 'MatchResultsState')) resultsChanged(db);
+      audit?.(id, deleted);
+    }
     return deleted;
   }).immediate();
 }

@@ -30,10 +30,6 @@ export function importLeagueMatch(db,data,tracked,now=new Date()) {
         .run(needsDraft?(data.version==null?'pending':'needs_review'):'not_applicable',needsDraft?new Date(now.getTime()+Math.min(3600000,60000*2**Math.min(tracked.AttemptCount||0,6))).toISOString():null,
           needsDraft?'Remake draft data has not arrived yet':null,data.match_id);
       for(const seriesId of new Set([...series.map(row=>row.SeriesId),tracked.SeriesId].filter(Boolean)))refreshSeriesLifecycle(db,seriesId,now);
-      if(existing) {
-        if(hasTable(db,'GroupNames'))rebuildLeagueGroupStandings(db,tracked.LeagueId);
-        if(hasTable(db,'BettingRefreshState'))markBettingDirty(db,now,{refreshAnalytics:true});
-      }
       resultsChanged(db);return {remake:true,needsDraft:needsDraft&&data.version==null};
     }).immediate();
   }
