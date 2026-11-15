@@ -63,6 +63,7 @@ elif [ "$ACTIVE_CHECK_OK" -eq 1 ]; then
     "$NODE_BIN" "$PROJECT_ROOT/scripts/league/enrichDraftGod.js" "$PROJECT_ROOT/db/LadsData.db" --league="$ACTIVE_LEAGUE_ID" --limit=20 >> "$LOG_FILE" 2>&1 || echo "Draft enrichment unavailable" >> "$LOG_FILE"
     run_step "$NODE_BIN" "$PROJECT_ROOT/scripts/league/populateTeamNames.js"
     run_step "$NODE_BIN" "$PROJECT_ROOT/scripts/league/updateNeustadtl.js"
+    run_step "$NODE_BIN" "$PROJECT_ROOT/scripts/league/closeSeries.js"
     run_step "$NODE_BIN" "$PROJECT_ROOT/scripts/league/checkPlayoffSeries.js"
 fi
 

@@ -1,9 +1,9 @@
 import express from 'express';
-import { analyticsEnabled, excludedVisitor, setVisitor, safelyRecord } from '../config/siteAnalytics.js';
+import { analyticsEnabled, analyticsPlayer, excludedVisitor, setVisitor, safelyRecord } from '../config/siteAnalytics.js';
 import { CLIENT_EVENTS, PAGE_TYPES } from '../config/siteAnalyticsStore.js';
 
 export function createSiteAnalyticsRouter({ enabled = analyticsEnabled, excluded = excludedVisitor,
-  record = (token, events) => safelyRecord(db => db.record(token, events)),
+  record = (token, events, player) => safelyRecord(db => db.record(token, events, player)),
   allowedOrigins = ['https://www.leagueoflads.com', 'https://leagueoflads.com',
     ...(process.env.ENVIRONMENT !== 'PROD' ? ['http://localhost:5173', 'http://127.0.0.1:5173'] : [])],
 } = {}) {
@@ -46,7 +46,7 @@ export function createSiteAnalyticsRouter({ enabled = analyticsEnabled, excluded
         || (event.name !== 'page_view' && (event.page !== undefined || event.source !== undefined)))) {
       return res.status(400).json({ error: 'Invalid analytics events' });
     }
-    record(setVisitor(req, res), events);
+    record(setVisitor(req, res), events, analyticsPlayer(req));
     return res.status(204).end();
   });
   router.use((error, req, res, next) => {

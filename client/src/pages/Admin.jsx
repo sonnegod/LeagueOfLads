@@ -22,6 +22,7 @@ import PastChampionsPanel from "../components/PastChampionsPanel";
 import RecordManagementPanel from "../components/RecordManagementPanel";
 import AdminNavigation from "../components/AdminNavigation";
 import InhouseAdminPanel from "../components/InhouseAdminPanel";
+import SignupHistoryPanel from "../components/SignupHistoryPanel";
 import {InhouseAdminProvider, InhouseAvailability} from "../components/InhouseAdminControls";
 
 
@@ -65,7 +66,7 @@ export default function AdminPage() {
       setSeasonStatus(status);
       setSeasonId(data.season?.SeasonId || null);
       if (status !== 'active') setActiveLeagueTab(current =>
-        ((current === 'match' && data.season) || (status === 'signup_closed' && current === 'rosterChanges')) ? current : 'overview');
+        (current === 'signups' || (current === 'match' && data.season) || (status === 'signup_closed' && current === 'rosterChanges')) ? current : 'overview');
     }).catch(() => {});
     return () => { active = false; };
   }, [refreshKey]);
@@ -75,7 +76,7 @@ export default function AdminPage() {
   if (!adminData) return <div>Loading admin data...</div>;
 
   const sections=activeTab==='league'?[
-    ['overview','Overview'],
+    ['overview','Overview'],['signups','Signups'],
     ...(['signup_closed','active'].includes(seasonStatus)?[['rosterChanges','Roster Changes']]:[]),
     ...(seasonId?[['match','Match']]:[]),
     ...(seasonStatus==='active'?[['schedule','Schedule'],['highlights','Highlights'],['editor','Editor'],['playoffs','Playoffs'],['settings','Settings']]:[]),
@@ -96,6 +97,7 @@ export default function AdminPage() {
         onSectionChange={activeTab==='league'?setActiveLeagueTab:activeTab==='inhouses'?setActiveInhouseTab:setActiveAdminTab} />
 
       {activeTab === 'inhouses' && <InhouseAdminPanel section={activeInhouseTab} />}
+      {activeTab === 'league' && activeLeagueTab === 'signups' && <SignupHistoryPanel />}
 
       {activeTab === "league" && activeLeagueTab === "editor" && (
           <div style={pageContainer}>

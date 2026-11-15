@@ -255,7 +255,7 @@ function LiveSeriesCard({series}) {
       {series.team1.id?<Link to={`/team/${series.team1.id}`}>{series.team1.name}</Link>:series.team1.name}
       <span className="live-series-score">{series.score[0]} – {series.score[1]}</span>
       {series.team2.id?<Link to={`/team/${series.team2.id}`}>{series.team2.name}</Link>:series.team2.name}
-    </h2><p>{series.bestOf?`BO${series.bestOf} · `:''}{series.status==='completed'?'Completed':series.status==='needs_format'?'Format awaiting confirmation':series.status==='needs_review'?'Needs review':series.live?'Live':'Awaiting next game or results'}</p>
+    </h2><p>{series.bestOf?`BO${series.bestOf} · `:''}{series.status==='completed'?'Completed':series.status==='closed'?'Closed · incomplete':series.status==='needs_format'?'Format awaiting confirmation':series.status==='needs_review'?'Needs review':series.live?'Live':'Awaiting next game or results'}</p>
     {series.seriesId&&series.games.some(game=>game.ImportStatus?.imported)&&<Link to={`/series/${series.seriesId}`}>View series ↗</Link>}</header>
     <div className="live-series-games">{series.games.map(game=><details key={game.MatchId} open={game.MatchId===active}>
       <summary>{game.gameNumber?`Game ${game.gameNumber}`:'Remake'} <span>{game.isLive?'Live':game.WinnerTeamId?`${game.WinnerTeamId===series.team1.id?series.team1.name:series.team2.name} won`:game.ImportStatus?.result==='remake'?'Excluded from score':'Awaiting results'}</span></summary>
@@ -271,7 +271,7 @@ export default function LiveMatchesPage() {
   const currentMatchIds=new Set(matches.map(match=>Number(match.MatchId)));
   const recentMatches=(recent.data?.matches||[]).filter(match=>!currentMatchIds.has(Number(match.MatchId)));
   const grouped=groupLiveSeries(matches,recentMatches);
-  const activeSeries=grouped.filter(series=>series.live||['in_progress','needs_format','needs_review'].includes(series.status)||series.games.some(game=>['pending','needs_review'].includes(game.ImportStatus?.result)));
+  const activeSeries=grouped.filter(series=>series.live||series.status!=='closed'&&(['in_progress','needs_format','needs_review'].includes(series.status)||series.games.some(game=>['pending','needs_review'].includes(game.ImportStatus?.result))));
   const completedSeries=grouped.filter(series=>!activeSeries.includes(series));
   const previousIds=useRef([]);
   const refreshRecent=recent.refresh;

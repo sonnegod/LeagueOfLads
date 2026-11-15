@@ -1,0 +1,29 @@
+.signup-history { display: grid; gap: var(--ui-content-gap); min-width: 0; }
+.signup-history-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.signup-history-heading h2 { margin: 0; }
+.signup-history-heading p { margin: 6px 0 0; color: var(--muted-text); }
+.signup-history-summary { color: var(--muted-text); font-size: .82rem; white-space: nowrap; }
+.signup-history-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; max-width: 800px; }
+.signup-history-toolbar label { display: grid; gap: 6px; min-width: 0; font-size: .8rem; }
+.signup-history-toolbar :is(select,input) { width: 100%; min-width: 0; }
+.signup-history-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: var(--ui-content-gap); align-items: start; }
+.signup-history-team { min-width: 0; border: 1px solid var(--border); border-radius: var(--ui-radius,12px); background: var(--surface); overflow: hidden; }
+.signup-history-team > header { display: flex; justify-content: space-between; align-items: start; gap: 16px; padding: 16px; background: var(--surface-raised,#111c30); }
+.signup-history-team > header > div:first-child { min-width: 0; }
+.signup-history-team h3 { min-height: 2.8em; margin: 0 0 5px; font-size: .95rem; line-height: 1.4; overflow-wrap: anywhere; }
+.signup-history-team header span { color: var(--muted-text); font-size: .72rem; }
+.signup-history-average { display: grid; gap: 4px; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+.signup-history-average small { font-size: .65rem; color: var(--muted-text); }
+.signup-history-average strong { font-size: 1rem; }
+.signup-history-team table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.signup-history-team table th:first-child, .signup-history-team td:first-child { width: 42px; text-align: center; }
+.signup-history-team table :is(th,td):last-child { width: 80px; text-align: right; font-variant-numeric: tabular-nums; }
+.signup-history-team table :is(th,td) { padding: 10px 12px; border-top: 1px solid var(--border); }
+.signup-history-team thead th { color: var(--muted-text); font-size: .65rem; text-transform: uppercase; letter-spacing: .05em; text-align: left; }
+.signup-history-team .signup-history-player { font-weight: 500; text-align: left; font-size: .82rem; overflow-wrap: anywhere; }
+.signup-history-team td { font-size: .8rem; }
+.signup-history-team td:first-child { color: var(--muted-text); }
+.signup-history-team a { color: inherit; }
+.signup-history-team a:hover { color: var(--primary); text-decoration: underline; }
+.signup-history-empty { margin: 0; padding: 16px; color: var(--muted-text); font-size: .85rem; }
+@media (max-width: 600px) { .signup-history-toolbar { grid-template-columns: minmax(0,1fr); gap: 12px; } }

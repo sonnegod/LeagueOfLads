@@ -1,4 +1,4 @@
-import {ensureMatchResultsSchema,hasTable} from './matchResultsSchema.js';
+import {ensureMatchResultsSchema,hasTable,resultsChanged} from './matchResultsSchema.js';
 
 const nyDay=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
 export const stageCode=stage=>({regular:'g',playoff:'p',tiebreaker:'t'})[stage]||stage;
@@ -52,10 +52,11 @@ export function associateTrackedSeries(db,tracked,now=new Date()) {
   if(!seriesId) {
     const candidates=db.prepare(`SELECT s.SeriesId,l.Status FROM SeriesInfo s LEFT JOIN SeriesLifecycle l USING(SeriesId)
       WHERE s.LeagueId=? AND s.Stage=? AND ((s.Team1=? AND s.Team2=?) OR (s.Team1=? AND s.Team2=?))
+      AND (COALESCE(l.Status,'')!='closed' OR l.UpdatedAt>=?)
       AND (s.DateCreated=? OR (l.Status IN ('in_progress','needs_format') AND EXISTS(SELECT 1 FROM TrackedLeagueMatches t
         WHERE t.SeriesId=s.SeriesId AND t.FirstSeenAt>?)))
       AND (l.EventId IS NULL OR l.EventId=?)`).all(tracked.LeagueId,stage,tracked.TeamRad,tracked.TeamDire,tracked.TeamDire,tracked.TeamRad,
-        nyDay.format(start),new Date(start.getTime()-12*3600000).toISOString(),event?.EventId||null);
+        start.toISOString(),nyDay.format(start),new Date(start.getTime()-12*3600000).toISOString(),event?.EventId||null);
     if(candidates.length>1)return {issue:'Multiple played series match these teams'};
     if(candidates[0]?.Status==='completed')return {issue:'A previous series between these teams is already complete. Assign this game to its scheduled fixture.'};
     seriesId=candidates[0]?.SeriesId;
@@ -114,10 +115,35 @@ export function refreshSeriesLifecycle(db,seriesId,now=new Date()) {
     if(games[i].WinnerId===series.Team1)aRunning++;else bRunning++;
   }
   const completed=(lifecycle.BestOf===2?games.length===2:Math.max(a,b)===target)&&!missingReplacement;
-  const status=!lifecycle.BestOf?'needs_format':games.length>lifecycle.BestOf||clinchedEarly||overlap?'needs_review':completed&&!pending?'completed':'in_progress';
+  const status=!lifecycle.BestOf?'needs_format':games.length>lifecycle.BestOf||clinchedEarly||overlap?'needs_review':completed&&!pending?'completed':lifecycle.Status==='closed'?'closed':'in_progress';
   db.prepare('UPDATE SeriesLifecycle SET Status=?,Team1Wins=?,Team2Wins=?,UpdatedAt=? WHERE SeriesId=? AND (Status!=? OR Team1Wins!=? OR Team2Wins!=?)')
     .run(status,a,b,now.toISOString(),seriesId,status,a,b);
   return {...lifecycle,Status:status,Team1Wins:a,Team2Wins:b,games};
+}
+
+// Nightly is the end of the playing window. Close partial series without
+// treating an incomplete score as a verified series result.
+export function closeNightlySeries(db,leagueId,now=new Date()) {
+  ensureMatchResultsSchema(db);
+  return db.transaction(()=>{
+    const rows=db.prepare(`SELECT s.SeriesId,l.Status,l.Team1Wins,l.Team2Wins FROM SeriesInfo s
+      JOIN SeriesLifecycle l USING(SeriesId) WHERE s.LeagueId=? AND s.DateCreated<=?
+      AND l.Status IN ('in_progress','closed')`).all(leagueId,nyDay.format(now));
+    const live=db.prepare(`SELECT 1 FROM LiveMatchCurrentState c WHERE
+      EXISTS(SELECT 1 FROM TrackedLeagueMatches t WHERE t.MatchId=c.MatchId AND t.SeriesId=?)
+      OR EXISTS(SELECT 1 FROM SeriesMatch sm WHERE sm.MatchId=c.MatchId AND sm.SeriesId=?) LIMIT 1`);
+    const close=db.prepare("UPDATE SeriesLifecycle SET Status='closed',UpdatedAt=? WHERE SeriesId=? AND Status='in_progress'");
+    const closed=[];let changed=false;
+    for(const row of rows) {
+      if(live.get(row.SeriesId,row.SeriesId))continue;
+      const state=refreshSeriesLifecycle(db,row.SeriesId,now);
+      if(state.Status==='in_progress'&&state.games.length) {
+        close.run(now.toISOString(),row.SeriesId);closed.push(row.SeriesId);changed=true;
+      }else if(state.Status!==row.Status||state.Team1Wins!==row.Team1Wins||state.Team2Wins!==row.Team2Wins)changed=true;
+    }
+    if(changed)resultsChanged(db);
+    return closed;
+  }).immediate();
 }
 export function advanceCompletedPlayoffSeries(db,leagueId,now=new Date()) {
   if(!hasTable(db,'PlayoffBracket'))return;

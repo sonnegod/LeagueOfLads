@@ -6,7 +6,8 @@ import {ensureMatchResultsSchema} from '../config/matchResultsSchema.js';
 import {observeLeagueMatches,enqueueLeagueMatch,claimResultJob,processResultJob,runResultBatch,resultWorkerPollDelay,nightlyMatchCandidates} from '../config/matchResults.js';
 import {acquireResultsWorker,releaseResultsWorker,nightlyOwnsResults,withNightlyResultsOwnership} from '../config/matchResultsOwnership.js';
 import {importLeagueMatch,enrichLeagueMatch} from '../config/importLeagueMatch.js';
-import {refreshSeriesLifecycle,seriesFormat,advanceCompletedPlayoffSeries,stageForLeagueMatch} from '../config/seriesLifecycle.js';
+import {refreshSeriesLifecycle,seriesFormat,advanceCompletedPlayoffSeries,stageForLeagueMatch,closeNightlySeries} from '../config/seriesLifecycle.js';
+import {verifiedFixtureGames} from '../betting/engine.js';
 import {reserveOpenDotaRequest,fetchOpenDota} from '../config/openDotaClient.js';
 import {groupLiveSeries} from '../config/liveSeries.js';
 import {ScheduleStore} from '../betting/scheduleStore.js';
@@ -259,6 +260,89 @@ test('BO3 brackets do not advance on game one, and grand finals require a separa
     advanceCompletedPlayoffSeries(f.db,100);
   }finally{f.close();}
 });
+test('nightly closes a one-game series, preserves scores and standings, and ordinary refreshes keep it closed',()=>{
+  const f=fixture();try {
+    const {seriesId}=importLeagueMatch(f.db,payload(),queued(f),start);
+    const at=new Date('2026-11-09T10:00:00Z');
+    const standings=f.db.prepare('SELECT * FROM LeagueStandings ORDER BY TeamId').all();
+    assert.equal(refreshSeriesLifecycle(f.db,seriesId,at).Status,'in_progress');
+    assert.deepEqual(closeNightlySeries(f.db,100,at),[seriesId]);
+    const state=refreshSeriesLifecycle(f.db,seriesId,new Date(+at+3600000));
+    assert.equal(state.Status,'closed');assert.equal(state.Team1Wins,1);assert.equal(state.Team2Wins,0);
+    assert.deepEqual(f.db.prepare('SELECT * FROM LeagueStandings ORDER BY TeamId').all(),standings);
+    const revision=f.db.prepare('SELECT Revision FROM MatchResultsState').get().Revision;
+    assert.deepEqual(closeNightlySeries(f.db,100,at),[]);
+    assert.equal(f.db.prepare('SELECT Revision FROM MatchResultsState').get().Revision,revision,'Repeated closure is a no-op');
+    assert.equal(verifiedFixtureGames(f.db,{}, {SeriesId:seriesId,BestOf:2}),null,'A partial series is not a complete betting result');
+    const late=payload(2,{offset:3600});
+    importLeagueMatch(f.db,late,queued(f,2,{offset:3600}),new Date(+at+7200000));
+    const complete=refreshSeriesLifecycle(f.db,seriesId,at);
+    assert.equal(complete.Status,'completed');assert.equal(complete.Team1Wins,2);
+  }finally{f.close();}
+});
+
+test('nightly also closes games played after midnight, while live games and future series stay open',()=>{
+  const f=fixture();try {
+    const offset=5*3600;
+    const {seriesId}=importLeagueMatch(f.db,payload(1,{offset}),queued(f,1,{offset}),start);
+    const at=new Date('2026-11-09T10:00:00Z');
+    observeLeagueMatches(f.db,100,[{MatchId:2,RadiantTeamId:1001,DireTeamId:1002,GameDuration:100}],new Date('2026-11-09T07:00:00Z'));
+    f.db.exec("INSERT INTO LiveMatchCurrentState(MatchId,LeagueId,SnapshotHash) VALUES(2,100,'live')");
+    assert.deepEqual(closeNightlySeries(f.db,100,at),[],'The next live game protects the entire series');
+    assert.equal(refreshSeriesLifecycle(f.db,seriesId,at).Status,'in_progress');
+    f.db.exec("DELETE FROM LiveMatchCurrentState;UPDATE TrackedLeagueMatches SET ResultStatus='remake' WHERE MatchId=2");
+    assert.deepEqual(closeNightlySeries(f.db,200,at),[],'Closure is limited to the selected league');
+    f.db.prepare("UPDATE SeriesInfo SET DateCreated='2026-11-10' WHERE SeriesId=?").run(seriesId);
+    assert.deepEqual(closeNightlySeries(f.db,100,at),[],'Future series are left open');
+    f.db.prepare("UPDATE SeriesInfo SET DateCreated='2026-11-09' WHERE SeriesId=?").run(seriesId);
+    assert.deepEqual(closeNightlySeries(f.db,100,at),[seriesId]);
+  }finally{f.close();}
+});
+
+test('a closed unscheduled series is not reused for another game on the same date',()=>{
+  const f=fixture();try {
+    const {seriesId}=importLeagueMatch(f.db,payload(),queued(f),start);
+    closeNightlySeries(f.db,100,new Date('2026-11-09T03:00:00Z'));
+    observeLeagueMatches(f.db,100,[{MatchId:2,RadiantTeamId:1001,DireTeamId:1002,GameDuration:100}],new Date('2026-11-09T03:30:00Z'));
+    const next=f.db.prepare('SELECT SeriesId FROM TrackedLeagueMatches WHERE MatchId=2').get().SeriesId;
+    assert.notEqual(next,seriesId);assert.ok(next);
+    assert.equal(refreshSeriesLifecycle(f.db,seriesId,start).Status,'closed');
+  }finally{f.close();}
+});
+
+test('nightly closure preserves completed series and does not advance an incomplete playoff series',()=>{
+  const f=fixture();try {
+    const bracket={upperBracket:[{matches:[{id:'ub',team1Id:1001,team2Id:1002,winnerTo:'final'}]}],lowerBracket:[],grandFinals:[{id:'final'}]};
+    f.db.prepare('INSERT INTO PlayoffBracket VALUES(100,?)').run(JSON.stringify(bracket));
+    const job=queued(f);job.Stage='p';f.db.exec("UPDATE TrackedLeagueMatches SET Stage='p'");
+    const {seriesId}=importLeagueMatch(f.db,payload(),job,start);
+    const at=new Date('2026-11-09T10:00:00Z');
+    assert.deepEqual(closeNightlySeries(f.db,100,at),[seriesId]);
+    advanceCompletedPlayoffSeries(f.db,100,at);
+    assert.deepEqual(JSON.parse(f.db.prepare('SELECT PlayoffStructure FROM PlayoffBracket').get().PlayoffStructure),bracket);
+    assert.equal(refreshSeriesLifecycle(f.db,seriesId,at).Status,'closed');
+    f.db.prepare('UPDATE SeriesLifecycle SET BestOf=1 WHERE SeriesId=?').run(seriesId);
+    assert.equal(refreshSeriesLifecycle(f.db,seriesId,at).Status,'completed');
+    assert.deepEqual(closeNightlySeries(f.db,100,at),[]);
+  }finally{f.close();}
+});
+
+test('nightly closure ignores empty and disputed series and rolls back when an update fails',()=>{
+  const f=fixture();try {
+    const {seriesId}=importLeagueMatch(f.db,payload(),queued(f),start);
+    const at=new Date('2026-11-09T10:00:00Z');
+    const revision=f.db.prepare('SELECT Revision FROM MatchResultsState').get().Revision;
+    f.db.exec("CREATE TRIGGER prevent_series_close BEFORE UPDATE ON SeriesLifecycle WHEN NEW.Status='closed' BEGIN SELECT RAISE(ABORT,'closure blocked'); END");
+    assert.throws(()=>closeNightlySeries(f.db,100,at),/closure blocked/);
+    assert.equal(refreshSeriesLifecycle(f.db,seriesId,at).Status,'in_progress');
+    assert.equal(f.db.prepare('SELECT Revision FROM MatchResultsState').get().Revision,revision);
+    f.db.exec("DROP TRIGGER prevent_series_close;UPDATE SeriesLifecycle SET Status='needs_review'");
+    assert.deepEqual(closeNightlySeries(f.db,100,at),[]);
+    f.db.exec("DELETE FROM SeriesMatch;UPDATE SeriesLifecycle SET Status='in_progress'");
+    assert.deepEqual(closeNightlySeries(f.db,100,at),[]);
+  }finally{f.close();}
+});
+
 test('a replacement fixture format takes precedence without using the replaced fixture rules',()=>{
   const f=fixture();try {
     const input={team1Key:11,team2Key:12,stage:'tiebreaker',bestOf:1,scheduledStartUtc:start.toISOString()};

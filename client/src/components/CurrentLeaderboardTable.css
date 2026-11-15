@@ -1,5 +1,6 @@
 .leaderboard-workspace {
-  --leaderboard-rail-width: clamp(300px, 32%, 380px);
+  --leaderboard-rail-width: clamp(300px, 32cqw, 380px);
+  container-type: inline-size;
   display: flex;
   align-items: flex-start;
   gap: 0;
@@ -243,6 +244,9 @@
 .leaderboard-standings tbody tr[class^='leaderboard-qualification-']:not(.leaderboard-qualification-upper):not(.leaderboard-qualification-tiebreaker):not(.leaderboard-qualification-lower) th:first-child { border-left-color: #fb7185; }
 
 .leaderboard-h2h-panel {
+  /* Reveal the table at its final width instead of rewrapping each frame. */
+  width: calc(100cqw - var(--leaderboard-rail-width) - 20px);
+  box-sizing: border-box;
   padding: 20px 24px 24px;
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -345,6 +349,7 @@
     width: 100%;
     margin-top: 16px;
   }
+  .leaderboard-h2h-panel { width: 100cqw; }
 }
 
 @media (max-width: 767px) {

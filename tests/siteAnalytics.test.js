@@ -5,6 +5,105 @@ import { SiteAnalyticsStore } from '../config/siteAnalyticsStore.js';
 import { createSiteAnalyticsRouter } from '../routes/siteAnalyticsRoutes.js';
 import { analyticsEnabled, createSiteApiHealth, createSiteSignupProgress } from '../config/siteAnalytics.js';
 
+test('signed-in browsers consolidate daily, hourly, page and signup uniques without losing views or earlier activity', () => {
+  let time = new Date('2026-11-12T15:00:00Z');
+  const store = new SiteAnalyticsStore(':memory:', { now: () => time });
+  const player = '76561198000000001', otherPlayer = '76561198000000002';
+  const visit = (source = 'Direct') => ({name:'page_view',page:'home',source});
+  try {
+    store.record('a'.repeat(64), [visit('Discord'), {...visit(),page:'betting'}, {name:'signup_started'}]);
+    store.record('b'.repeat(64), [visit('Google'), {name:'signup_signed_in'}]);
+    assert.equal(store.report(7).summary.visitors,2);
+    time = new Date('2026-11-13T15:00:00Z');
+    store.record('a'.repeat(64), [visit(), {name:'signup_submitted'}, {name:'series_expanded'}], player);
+    store.record('b'.repeat(64), [visit(), {name:'signup_started'}], player);
+    assert.equal(store.report(7).summary.visitors,1,'Earlier anonymous records are merged when each browser signs in');
+    store.record('c'.repeat(64), [visit('Google')]);
+    store.record('d'.repeat(64), [visit()], otherPlayer);
+    const week = store.report(7), today = store.report(1);
+    assert.equal(week.summary.visitors,3);assert.equal(week.summary.pageViews,7);
+    assert.equal(week.summary.returningPercent,33.3);
+    assert.deepEqual(week.daily.slice(-2), [{date:'2026-11-12',visitors:1,pageViews:3},{date:'2026-11-13',visitors:3,pageViews:4}]);
+    assert.deepEqual(today.hourly[10], {date:'2026-11-13',hour:10,visitors:3,pageViews:4});
+    assert.equal(week.pages.find(row=>row.name==='Home').visitors,3);
+    assert.equal(week.pages.find(row=>row.name==='Home').views,6);
+    assert.equal(week.sources.find(row=>row.name==='Discord').percent,33.3);
+    assert.equal(week.sources.find(row=>row.name==='Google').percent,33.3);
+    assert.deepEqual(week.signups.steps.map(row=>row.count),[1,1,1,1]);
+    assert.equal(week.features.find(row=>row.name==='Series expanded').count,1);
+    const saved = JSON.stringify(['SiteVisitors','SiteVisitorDays','SitePageDays','SiteTrafficHours','SiteEventDays']
+      .map(table=>store.db.prepare(`SELECT * FROM ${table}`).all()));
+    for (const value of [player,otherPlayer,...['a','b','c','d'].map(letter=>letter.repeat(64))]) assert.ok(!saved.includes(value));
+    assert.ok(!JSON.stringify(week).includes(player));
+  } finally { store.close(); }
+});
+
+test('shared browsers keep different players separate and signed-out activity stays anonymous until the next sign-in', () => {
+  const store = new SiteAnalyticsStore(':memory:');
+  const visit = {name:'page_view',page:'home',source:'Direct'};
+  try {
+    const browser = 'a'.repeat(64);
+    store.record(browser,[visit],'76561198000000001');
+    store.record(browser,[visit],'76561198000000002');
+    assert.equal(store.report(7).summary.visitors,2);
+    store.record(browser,[visit]);
+    assert.equal(store.report(7).summary.visitors,3);
+    store.record(browser,[visit],'76561198000000002');
+    const report = store.report(7);
+    assert.equal(report.summary.visitors,2);assert.equal(report.summary.pageViews,4);
+    const views = store.db.prepare('SELECT Views FROM SitePageDays ORDER BY Views').all().map(row=>row.Views);
+    assert.deepEqual(views,[1,3],'Switching accounts does not transfer another signed-in player’s history');
+  } finally { store.close(); }
+});
+
+test('a failed identity consolidation retains the original anonymous and player records atomically', () => {
+  const store = new SiteAnalyticsStore(':memory:');
+  const visit = {name:'page_view',page:'home',source:'Direct'}, player = '76561198000000001';
+  try {
+    store.record('a'.repeat(64),[visit]);store.record('b'.repeat(64),[visit],player);
+    const before = store.report(7);
+    store.db.exec("CREATE TRIGGER prevent_visitor_merge BEFORE DELETE ON SitePageDays BEGIN SELECT RAISE(ABORT,'merge blocked'); END");
+    assert.throws(()=>store.record('a'.repeat(64),[visit],player),/merge blocked/);
+    assert.deepEqual(store.report(7),before);
+    store.db.exec('DROP TRIGGER prevent_visitor_merge');
+    store.record('a'.repeat(64),[visit],player);
+    assert.equal(store.report(7).summary.visitors,1);assert.equal(store.report(7).summary.pageViews,3);
+  } finally { store.close(); }
+});
+
+test('collection and confirmed signup submissions use only the authenticated server account for identity', async () => {
+  let player = null, authenticated = false;
+  const store = new SiteAnalyticsStore(':memory:');
+  const record = (token,events,account) => store.record(token,events,account);
+  const app = express();
+  app.use((req,res,next)=>{req.user=player?{id:player}:null;req.isAuthenticated=()=>authenticated;next();});
+  app.use('/api/site-analytics',createSiteAnalyticsRouter({enabled:()=>true,record,allowedOrigins:['http://localhost:5173']}));
+  app.use('/api/signup',createSiteSignupProgress({enabled:()=>true,record}));
+  app.post('/api/signup/1/teams',(req,res)=>res.status(201).json({}));
+  const server = app.listen(0,'127.0.0.1');
+  await new Promise(resolve=>server.once('listening',resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const visit = {name:'page_view',page:'signup',source:'Direct'};
+  const post = (browser,body={events:[visit]},route='/api/site-analytics/events',extra={}) => fetch(base+route,{
+    method:'POST',headers:{Origin:'http://localhost:5173','Content-Type':'application/json','User-Agent':'Test browser',
+      Cookie:`lads_visitor=${browser.repeat(64)}`,...extra},body:JSON.stringify(body),
+  });
+  try {
+    await post('a');await post('b');
+    player = '76561198000000001';
+    await post('a');assert.equal(store.report(7).summary.visitors,2,'A user object without authentication cannot identify a player');
+    authenticated = true;
+    await post('a');await post('b');
+    assert.equal(store.report(7).summary.visitors,1);
+    assert.equal((await post('c',{events:[visit],playerId:'76561198000000002'})).status,400);
+    await post('c',undefined,undefined,{DNT:'1'});
+    assert.equal(store.report(7).summary.visitors,1);
+    await post('b',{},'/api/signup/1/teams');
+    assert.deepEqual(store.report(7).signups.steps.map(row=>row.count),[1,1,1,1]);
+    assert.equal(store.db.prepare('SELECT COUNT(*) n FROM SiteVisitors').get().n,1);
+  } finally { server.closeAllConnections();await new Promise(resolve=>server.close(resolve));store.close(); }
+});
+
 test('daily aggregation deduplicates browsers and preserves source, features, and returning visits', () => {
   let time = new Date('2026-10-15T15:00:00Z');
   const store = new SiteAnalyticsStore(':memory:', { now: () => time });

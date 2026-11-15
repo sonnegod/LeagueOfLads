@@ -37,6 +37,7 @@ import { createPlayerLoginRouter } from './playerLoginRoutes.js';
 import {InhouseStore} from '../inhouses/store.js';
 import {createInhouseRoutes} from './inhouseRoutes.js';
 import {createLogoutHandler} from './authLogout.js';
+import {createAdminSignupRouter} from './adminSignupRoutes.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
@@ -248,6 +249,7 @@ router.use('/admin/rosters', rosterRoutes);
 router.use('/admin/matches', createAdminMatchRouter({league:db.db,schedules:bettingRuntime.schedules,
   includeLocalTests:bettingRuntime.book.localTesting}));
 router.use('/admin/seasons', adminSeasonRoutes);
+router.use('/admin/signups',createAdminSignupRouter({league:db.db}));
 router.use('/admin/analytics', highlightRoutes);
 
 router.get('/admin/auditLog', (req, res) => {

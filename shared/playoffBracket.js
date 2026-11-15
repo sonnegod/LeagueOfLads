@@ -10,7 +10,7 @@ export function playoffResult(match,bestOf=playoffFormat(match)) {
   const valid=Number.isInteger(a)&&Number.isInteger(b)&&a>=0&&b>=0
     &&(!target||a<=target&&b<=target&&a+b<=bestOf&&!(a===target&&b===target));
   const complete=valid&&Boolean(match?.team1Id&&match?.team2Id&&Number(match.team1Id)!==Number(match.team2Id))
-    &&Boolean(target)&&(a===target||b===target)&&!['in_progress','needs_review','needs_format'].includes(match.seriesStatus);
+    &&Boolean(target)&&(a===target||b===target)&&!['in_progress','needs_review','needs_format','closed'].includes(match.seriesStatus);
   return {valid,complete,a,b,target,winnerSlot:complete?(a>b?1:2):null,loserSlot:complete?(a>b?2:1):null};
 }
 export const playoffHasResult=match=>Boolean(match?.seriesId)||Number(match?.team1Score||0)!==0||Number(match?.team2Score||0)!==0;

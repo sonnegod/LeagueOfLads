@@ -70,10 +70,12 @@ export class SiteAnalyticsStore {
       .run('salt', randomBytes(32).toString('hex'));
     this.salt = this.db.prepare("SELECT Value FROM SiteMetadata WHERE Key = 'salt'").get().Value;
     this.pendingApi = new Map();
-    this.writeEvents = this.db.transaction((visitor, events, day, hour, timestamp) => {
+    this.writeEvents = this.db.transaction((browser, player, events, day, hour, timestamp) => {
       this.beginCollection();
+      const visitor = player || browser;
+      if (player) this.mergeVisitor(browser, player);
       this.db.prepare(`INSERT INTO SiteVisitors VALUES (?, ?, ?) ON CONFLICT(Visitor)
-        DO UPDATE SET LastDay = excluded.LastDay`).run(visitor, day, day);
+        DO UPDATE SET FirstDay = MIN(FirstDay, excluded.FirstDay), LastDay = MAX(LastDay, excluded.LastDay)`).run(visitor, day, day);
       for (const event of events) {
         if (event.name === 'page_view') {
           this.db.prepare('INSERT OR IGNORE INTO SiteMetadata VALUES (?, ?)').run('hourlyStartedAt', timestamp);
@@ -100,11 +102,34 @@ export class SiteAnalyticsStore {
       .run('startedAt', this.now().toISOString());
   }
 
-  record(token, events) {
+  mergeVisitor(browser, player) {
+    const previous = this.db.prepare('SELECT FirstDay, LastDay FROM SiteVisitors WHERE Visitor = ?').get(browser);
+    if (!previous) return;
+    this.db.prepare(`INSERT INTO SiteVisitors VALUES (?, ?, ?) ON CONFLICT(Visitor)
+      DO UPDATE SET FirstDay = MIN(FirstDay, excluded.FirstDay), LastDay = MAX(LastDay, excluded.LastDay)`)
+      .run(player, previous.FirstDay, previous.LastDay);
+    this.db.prepare(`INSERT OR IGNORE INTO SiteVisitorDays
+      SELECT Day, ?, Source FROM SiteVisitorDays WHERE Visitor = ?`).run(player, browser);
+    this.db.prepare(`INSERT INTO SitePageDays SELECT Day, ?, Page, Views FROM SitePageDays WHERE Visitor = ?
+      ON CONFLICT(Day, Visitor, Page) DO UPDATE SET Views = SitePageDays.Views + excluded.Views`).run(player, browser);
+    this.db.prepare(`INSERT INTO SiteTrafficHours SELECT Day, Hour, ?, Views FROM SiteTrafficHours WHERE Visitor = ?
+      ON CONFLICT(Day, Hour, Visitor) DO UPDATE SET Views = SiteTrafficHours.Views + excluded.Views`).run(player, browser);
+    this.db.prepare(`INSERT INTO SiteEventDays SELECT Day, ?, Event, Count FROM SiteEventDays WHERE Visitor = ?
+      ON CONFLICT(Day, Visitor, Event) DO UPDATE SET Count = SiteEventDays.Count + excluded.Count`).run(player, browser);
+    for (const table of ['SiteVisitorDays', 'SitePageDays', 'SiteTrafficHours', 'SiteEventDays', 'SiteVisitors']) {
+      this.db.prepare(`DELETE FROM ${table} WHERE Visitor = ?`).run(browser);
+    }
+  }
+
+  record(token, events, playerId = null) {
     const now = this.now(), day = localDay(now);
     this.prune(day);
-    const visitor = createHmac('sha256', this.salt).update(token).digest('hex');
-    this.writeEvents(visitor, events, day, localHour(now), now.toISOString());
+    const hash = value => createHmac('sha256', this.salt).update(value).digest('hex');
+    const browser = hash(token);
+    // The account comes only from the server session. Keep the existing cookie
+    // hashes so retained anonymous history can be consolidated on the next login.
+    const player = typeof playerId === 'string' && /^\d{17}$/.test(playerId) ? hash(`player:${playerId}`) : null;
+    this.writeEvents(browser, player, events, day, localHour(now), now.toISOString());
   }
 
   recordApi(status, duration) {
@@ -174,8 +199,8 @@ export class SiteAnalyticsStore {
     }) : [];
     const events = rows(`SELECT Event name, SUM(Count) count FROM SiteEventDays
       WHERE Day BETWEEN ? AND ? GROUP BY Event`, from, to);
-    // Cumulative stages per browser in the period; later stages imply earlier stages.
-    // Counts represent browsers, not teams, and carry no season or account identifier.
+    // Cumulative stages per visitor in the period; later stages imply earlier stages.
+    // Signed-in browsers share a hashed player identity; anonymous browsers stay separate.
     const funnel = rows(`SELECT Visitor, MAX(CASE Event WHEN 'signup_submitted' THEN 3
       WHEN 'signup_started' THEN 2 WHEN 'signup_signed_in' THEN 1 ELSE 0 END) stage
       FROM SiteEventDays WHERE Day BETWEEN ? AND ? AND Event LIKE 'signup_%' GROUP BY Visitor`, from, to);

@@ -7,7 +7,7 @@ const kickoff=value=>value?new Date(value).toLocaleString('en-US',{timeZone:'Ame
 function MatchCard({match,bracket,detail={},labels,onSelect,selected,related,dimmed,onFocus}) {
   const game={...match,...detail,bestOf:detail.bestOf||playoffFormat(match)},result=playoffResult(game);
   const status=game.seriesStatus==='needs_review'||!result.valid?'Needs review':game.live?'Live':result.complete?'Complete'
-    :game.seriesStatus==='needs_format'?'Set format':result.a||result.b?'In progress':!game.team1Id||!game.team2Id?'Awaiting teams':game.kickoff?'Scheduled':'Ready';
+    :game.seriesStatus==='closed'?'Closed · incomplete':game.seriesStatus==='needs_format'?'Set format':result.a||result.b?'In progress':!game.team1Id||!game.team2Id?'Awaiting teams':game.kickoff?'Scheduled':'Ready';
   const label=labels.get(match.id),time=kickoff(game.kickoff);
   const click=event=>{if(onSelect&&!event.target.closest('a,button'))onSelect(match.id);};
   return <article className={`playoff-match${selected?' is-selected':''}${related?' is-related':''}${dimmed?' is-dimmed':''}${result.complete?' is-complete':''}${game.live?' is-live':''}`}

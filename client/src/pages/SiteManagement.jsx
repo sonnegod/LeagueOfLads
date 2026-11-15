@@ -70,10 +70,10 @@ function AnalyticsDashboard({ data }) {
 
   return <>
     <div className="site-analytics-metrics">
-      <Metric icon={<Users size={18} aria-hidden="true" />} label="Visitors" value={formatCount(data.summary.visitors)} detail="Unique browsers in this period" />
+      <Metric icon={<Users size={18} aria-hidden="true" />} label="Visitors" value={formatCount(data.summary.visitors)} detail="Unique players + anonymous browsers" />
       <Metric icon={<Eye size={18} aria-hidden="true" />} label="Page views" value={formatCount(data.summary.pageViews)} detail="Public page navigation" />
       <Metric icon={<Repeat size={18} aria-hidden="true" />} label="Returning visitors" value={`${data.summary.returningPercent}%`} detail="Seen on an earlier day within retention" />
-      <Metric icon={<ClipboardCheck size={18} aria-hidden="true" />} label="Signup completion" value={`${data.summary.completionPercent}%`} detail="Browsers submitting / starting forms" />
+      <Metric icon={<ClipboardCheck size={18} aria-hidden="true" />} label="Signup completion" value={`${data.summary.completionPercent}%`} detail="Visitors submitting / starting forms" />
     </div>
 
     <div className="site-analytics-row site-analytics-row--traffic">
@@ -98,7 +98,7 @@ function AnalyticsDashboard({ data }) {
           <span><i style={{ background: source.color }} aria-hidden="true" />{source.name}</span>
           <strong>{source.percent}%</strong>
         </li>)}</ul>
-        <p className="site-analytics-note">First source in this period per browser. Discord links should include ?utm_source=discord; apps often hide the referrer.</p>
+        <p className="site-analytics-note">First source in this period per visitor. Discord links should include ?utm_source=discord; apps often hide the referrer.</p>
       </section>
     </div>
 
@@ -132,7 +132,7 @@ function AnalyticsDashboard({ data }) {
           <strong>{formatCount(step.count)}</strong><span>{step.name}</span>
           <small>{index ? steps[index - 1].count ? `${Math.round(step.count / steps[index - 1].count * 100)}% of previous step` : 'No activity yet' : 'Entry point'}</small>
         </div>)}</div>
-        <p className="site-analytics-note"><strong>{data.signups.uploadFailures} screenshot processing or upload failures</strong> in this period. Stages count unique browsers; submission is confirmed by the server and implies prior steps. Seasons are combined for this period.</p>
+        <p className="site-analytics-note"><strong>{data.signups.uploadFailures} screenshot processing or upload failures</strong> in this period. Stages count unique visitors; submission is confirmed by the server and implies prior steps. Seasons are combined for this period.</p>
       </section>
       <section className="site-analytics-panel">
         <div className="site-analytics-panel-heading"><div><h2>Site health</h2><p>Reliability and response times</p></div></div>
@@ -215,7 +215,7 @@ export default function SiteManagement() {
     <div className="site-analytics-preview"><Info size={18} aria-hidden="true" />
       <p>{data ? <><strong>{data.collectionEnabled ? 'Live first-party analytics.' : 'Collection disabled in this environment.'}</strong>{' '}
         {data.startedAt ? `Data since ${new Date(data.startedAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}. ` : 'No activity recorded yet. '}
-        Public usage excludes signed-in league admins and site managers, known bots, and opted-out browsers. Anonymous usage records are retained for 90 days; visitor counts are estimates.</> : 'Loading collection status...'}</p>
+        Public usage excludes signed-in league admins and site managers, known bots, and opted-out browsers. Signed-in players count once across browsers; anonymous browsers count separately. Usage records are retained for 90 days; visitor counts are estimates.</> : 'Loading collection status...'}</p>
     </div>
     {currentError ? <div className="site-analytics-panel" role="alert"><p>{currentError}</p>
       <button type="button" onClick={() => setAttempt(value => value + 1)}>Retry</button>

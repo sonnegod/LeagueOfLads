@@ -7,7 +7,7 @@ export default function PrivacyPolicy() {
     <div className="ui-page" style={pageStyle}>
       <section className="ui-panel" style={cardStyle}>
         <h1>Privacy Policy</h1>
-        <p style={updatedStyle}>Last updated: October 16, 2026</p>
+        <p style={updatedStyle}>Last updated: November 13, 2026</p>
 
         <p>
           League of Lads uses Steam sign-in, league submissions, and first-party site metrics to
@@ -26,7 +26,10 @@ export default function PrivacyPolicy() {
         <p>
           We use an anonymous first-party browser cookie, lads_visitor, for up to 90 days to estimate
           visitors, returning visits, page categories, feature usage, signup progress, and referral
-          categories. Site analytics does not store Steam IDs, IP addresses, search text, full page or
+          categories. When you sign in, a hashed account identifier combines activity across browsers,
+          including earlier anonymous activity from the browser you sign in on. Anonymous browsers
+          that have not signed in are counted separately. Site analytics does not store raw Steam IDs,
+          IP addresses, search text, full page or
           referral URLs, screenshots, or form contents. The anonymous identifier is hashed before
           storage. Daily usage records are deleted after 90 days. Aggregate API status and response
           time measurements help monitor reliability. Analytics is visible only to site managers.

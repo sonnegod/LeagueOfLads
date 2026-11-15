@@ -142,7 +142,7 @@ export default function LeaguePage({
   );
 
   return (
-    <div className="league-page" style={{ padding: "1rem", overflowX: "auto" }}>
+    <div className="league-page" style={{ padding: "1rem", overflowX: activeTab === 'group' ? 'clip' : 'auto' }}>
       <h1>{league[0].LeagueName}</h1>
       {showHighlights && <LeagueHighlightsFeed key={leagueId} leagueId={leagueId} />}
 

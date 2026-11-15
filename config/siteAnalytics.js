@@ -19,6 +19,8 @@ export function safelyRecord(action) {
   }
 }
 export const trackingDeclined = req => req.get('DNT') === '1' || req.get('Sec-GPC') === '1';
+export const analyticsPlayer = req => req.isAuthenticated?.() && /^\d{17}$/.test(req.user?.id || '')
+  ? String(req.user.id) : null;
 export const excludedVisitor = req => trackingDeclined(req)
   || isSiteManagerSteamId(req.user?.id)
   || /bot|spider|crawler|headless|preview|lighthouse/i.test(req.get('user-agent') || '');
@@ -47,14 +49,14 @@ export function createSiteApiHealth({ enabled = analyticsEnabled,
 }
 export const siteApiHealth = createSiteApiHealth();
 export function createSiteSignupProgress({ enabled = analyticsEnabled, excluded = excludedVisitor,
-  record = (token, events) => safelyRecord(db => db.record(token, events)),
+  record = (token, events, player) => safelyRecord(db => db.record(token, events, player)),
 } = {}) {
   return (req, res, next) => {
     if (!enabled() || !visitorToken(req) || excluded(req)) return next();
     const isSubmission = req.method === 'POST'
       && /^\/\d+\/(teams|drafts\/[^/]+\/submit)\/?$/.test(req.path);
     if (isSubmission) res.once('finish', () => {
-      if (res.statusCode === 201) record(visitorToken(req), [{ name: 'signup_submitted' }]);
+      if (res.statusCode === 201) record(visitorToken(req), [{ name: 'signup_submitted' }], analyticsPlayer(req));
     });
     next();
   };
