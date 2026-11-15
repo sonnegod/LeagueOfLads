@@ -168,7 +168,35 @@ export class SiteAnalyticsStore {
     this.prunedDay = day;
   }
 
-  report(days = 7, enabled = true) {
+  viewerActivity(from, to, days, directory) {
+    if (!directory.length) return [];
+    const names = new Map();
+    for (const player of directory) {
+      if (!/^\d+$/.test(String(player.playerId)) || BigInt(player.playerId) <= 0n || BigInt(player.playerId) >= 4294967295n) continue;
+      const steamId = (76561197960265728n + BigInt(player.playerId)).toString();
+      const visitor = createHmac('sha256', this.salt).update(`player:${steamId}`).digest('hex');
+      names.set(visitor, { playerId: String(player.playerId), name: String(player.name || `Player ${player.playerId}`) });
+    }
+    const daily = this.db.prepare(`SELECT Visitor,Day,SUM(Views) views FROM SitePageDays
+      WHERE Day BETWEEN ? AND ? GROUP BY Visitor,Day ORDER BY Day`).all(from, to);
+    const viewers = new Map();
+    for (const day of daily) {
+      const player = names.get(day.Visitor); if (!player) continue;
+      if (!viewers.has(day.Visitor)) viewers.set(day.Visitor, { ...player, activeDays: 0, pageViews: 0, lastSeen: day.Day,
+        activity: Array(days === 1 ? 24 : days).fill(0) });
+      const row = viewers.get(day.Visitor);
+      row.activeDays++; row.pageViews += day.views; row.lastSeen = day.Day;
+      if (days !== 1) row.activity[Math.round((Date.parse(day.Day) - Date.parse(from)) / 86400000)] = day.views;
+    }
+    if (days === 1) {
+      for (const hour of this.db.prepare('SELECT Visitor,Hour,Views FROM SiteTrafficHours WHERE Day=?').all(to)) {
+        const row = viewers.get(hour.Visitor); if (row) row.activity[hour.Hour] += hour.Views;
+      }
+    }
+    return [...viewers.values()].sort((a, b) => b.activeDays - a.activeDays || b.pageViews - a.pageViews || a.name.localeCompare(b.name));
+  }
+
+  report(days = 7, enabled = true, directory = []) {
     if (![1, 7, 30].includes(days)) throw new RangeError('Choose 1, 7, or 30 days');
     this.flush();
     const now = this.now(), to = localDay(now), from = shiftDay(to, 1 - days);
@@ -225,6 +253,7 @@ export class SiteAnalyticsStore {
       isPreview: false, collectionEnabled: enabled,
       startedAt: this.db.prepare("SELECT Value FROM SiteMetadata WHERE Key = 'startedAt'").get()?.Value || null,
       retentionDays: 90, days, timezone: 'America/New_York', period: { from, to }, daily, hourly, hourlyStartedAt,
+      viewers: this.viewerActivity(from, to, days, directory),
       summary: { visitors, pageViews, returningPercent: percent(returning, visitors),
         completionPercent: percent(steps[3].count, steps[2].count) },
       pages: rows(`SELECT Page, SUM(Views) views, COUNT(DISTINCT Visitor) visitors

@@ -38,6 +38,7 @@ import {InhouseStore} from '../inhouses/store.js';
 import {createInhouseRoutes} from './inhouseRoutes.js';
 import {createLogoutHandler} from './authLogout.js';
 import {createAdminSignupRouter} from './adminSignupRoutes.js';
+import {analyticsPlayerDirectory} from '../config/siteAnalytics.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
@@ -223,7 +224,8 @@ router.use(publicSeasonRoutes);
 router.use('/analytics', publicAnalyticsRoutes);
 router.use('/betting', publicBettingRoutes);
 router.use('/site-management', createSiteManagementRouter({ bettingRoutes: adminBettingRoutes,
-  leagueAnalyticsRoutes: adminAnalyticsRoutes, onMutation: mutationRefresh }));
+  leagueAnalyticsRoutes: adminAnalyticsRoutes, onMutation: mutationRefresh,
+  viewerDirectory:()=>analyticsPlayerDirectory(db.db) }));
 
 router.use('/admin', checkAdmin);
 router.use('/admin', mutationRefresh);

@@ -65,6 +65,20 @@
 .site-analytics-table th:not(:first-child), .site-analytics-table td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
 .site-analytics-table td strong { font-weight: 600; font-size: .82rem; }
 .site-analytics-table td small { display: block; margin-top: var(--space-1); color: #94a3b8; font-size: .68rem; }
+.site-viewers-search { display: grid; gap: 5px; font-size: .75rem; min-width: 0; }
+.site-viewers-search input { width: min(240px,100%); }
+.site-viewers-table { table-layout: fixed; }
+.site-viewers-table th:nth-child(2), .site-viewers-table th:nth-child(3) { width: 95px; }
+.site-viewers-table th:last-child { width: 110px; }
+.site-viewer-name { display: inline-block; max-width: 100%; font-size: .85rem; font-weight: 600; overflow-wrap: anywhere; }
+.site-viewer-activity { display: grid; grid-template-columns: repeat(var(--activity-count),minmax(0,1fr)); gap: 3px; width: min(220px,100%); margin-top: 7px; }
+.site-viewer-activity > span { height: 8px; border-radius: 2px; background: #263449; }
+.site-viewer-activity > span[data-active='true'] { background: #38bdf8; }
+.site-analytics-table .site-viewer-mobile-last { display: none; }
+.site-viewers-pagination { display: flex; align-items: center; justify-content: end; flex-wrap: wrap; gap: 8px; margin-top: 16px; font-size: .75rem; color: #94a3b8; }
+.site-viewers-pagination > span { margin-right: auto; }
+.site-viewers-pagination button { padding: 6px 10px; font-size: .75rem; }
+.site-viewers-empty { text-align: left !important; color: #94a3b8; font-size: .82rem; }
 .site-analytics-features { display: grid; gap: var(--space-6); padding-top: var(--space-1); }
 .site-analytics-features li > div:first-child { display: flex; justify-content: space-between; gap: var(--space-3); font-size: .83rem; }
 .site-analytics-features li span { color: #cbd5e1; }
@@ -90,6 +104,9 @@
   .site-analytics-row, .site-analytics-row--traffic { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 560px) {
+  .site-viewers-last-seen { display: none; }
+  .site-viewers-table th:nth-child(2), .site-viewers-table th:nth-child(3) { width: 75px; }
+  .site-analytics-table .site-viewer-mobile-last { display: block; }
   .site-analytics-metric { padding: var(--space-4); }
   .site-analytics-metric > div { font-size: .75rem; }
   .site-analytics-metric > div svg { display: none; }

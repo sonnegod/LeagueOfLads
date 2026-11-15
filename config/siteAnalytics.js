@@ -21,6 +21,11 @@ export function safelyRecord(action) {
 export const trackingDeclined = req => req.get('DNT') === '1' || req.get('Sec-GPC') === '1';
 export const analyticsPlayer = req => req.isAuthenticated?.() && /^\d{17}$/.test(req.user?.id || '')
   ? String(req.user.id) : null;
+export function analyticsPlayerDirectory(league) {
+  return league.prepare(`SELECT CAST(l.SteamID AS TEXT) playerId,
+    COALESCE(NULLIF(TRIM(CAST(p.PlayerName AS TEXT)),''),NULLIF(TRIM(CAST(l.Username AS TEXT)),''),'Player '||l.SteamID) name
+    FROM Logins l LEFT JOIN PlayerInfo p ON p.PlayerId=l.SteamID WHERE l.SteamID>0 AND l.SteamID<4294967295`).all();
+}
 export const excludedVisitor = req => trackingDeclined(req)
   || isSiteManagerSteamId(req.user?.id)
   || /bot|spider|crawler|headless|preview|lighthouse/i.test(req.get('user-agent') || '');

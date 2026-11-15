@@ -2,7 +2,8 @@ import express from 'express';
 import { checkSiteManager } from '../middleware/checkSiteManager.js';
 import { analyticsEnabled, getSiteAnalyticsStore } from '../config/siteAnalytics.js';
 
-export function createSiteManagementRouter({ report = days => getSiteAnalyticsStore().report(days, analyticsEnabled()),
+export function createSiteManagementRouter({ viewerDirectory = () => [],
+  report = days => getSiteAnalyticsStore().report(days, analyticsEnabled(), viewerDirectory()),
   bettingRoutes, leagueAnalyticsRoutes, onMutation = (req, res, next) => next() } = {}) {
   const router = express.Router();
   router.use(checkSiteManager);

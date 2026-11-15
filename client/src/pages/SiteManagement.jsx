@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import AnalyticsStatusPanel from '../components/AnalyticsStatusPanel';
 import BettingAdminPanel from '../components/BettingAdminPanel';
 import BettingTicketsAdmin from '../components/BettingTicketsAdmin';
+import SiteViewerActivity from '../components/SiteViewerActivity';
 import './SiteManagement.css';
 
 const formatCount = value => value == null ? '\u2014' : Number(value).toLocaleString('en-US');
@@ -101,6 +102,8 @@ function AnalyticsDashboard({ data }) {
         <p className="site-analytics-note">First source in this period per visitor. Discord links should include ?utm_source=discord; apps often hide the referrer.</p>
       </section>
     </div>
+
+    <SiteViewerActivity key={data.days} viewers={data.viewers} days={data.days} from={data.period.from} />
 
     <div className="site-analytics-row">
       <section className="site-analytics-panel">

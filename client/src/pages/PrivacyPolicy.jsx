@@ -7,7 +7,7 @@ export default function PrivacyPolicy() {
     <div className="ui-page" style={pageStyle}>
       <section className="ui-panel" style={cardStyle}>
         <h1>Privacy Policy</h1>
-        <p style={updatedStyle}>Last updated: November 13, 2026</p>
+        <p style={updatedStyle}>Last updated: November 15, 2026</p>
 
         <p>
           League of Lads uses Steam sign-in, league submissions, and first-party site metrics to
@@ -32,7 +32,8 @@ export default function PrivacyPolicy() {
           IP addresses, search text, full page or
           referral URLs, screenshots, or form contents. The anonymous identifier is hashed before
           storage. Daily usage records are deleted after 90 days. Aggregate API status and response
-          time measurements help monitor reliability. Analytics is visible only to site managers.
+          time measurements help monitor reliability. Site managers can match signed-in activity to
+          player names to see active days and page-view frequency. Analytics is visible only to site managers.
         </p>
         <p>
           We do not use a third-party analytics or advertising service. Browser Do Not Track and
