@@ -39,11 +39,7 @@ export default function SignupHistoryPanel() {
     .some(value=>String(value??'').toLocaleLowerCase().includes(query)));
   const playerCount=(data?.teams||[]).reduce((sum,team)=>sum+team.players.length,0);
 
-  return <section className="signup-history" aria-labelledby="signup-history-title">
-    <header className="signup-history-heading">
-      <div><h2 id="signup-history-title">Signups</h2><p>Submitted teams, players and MMRs by season.</p></div>
-      {data&&<span className="signup-history-summary">{data.teams.length} teams · {playerCount} players</span>}
-    </header>
+  return <section className="signup-history" aria-label="Signup history">
     <div className="signup-history-toolbar">
       <label htmlFor="signup-history-season">Season<select id="signup-history-season" value={seasonId} disabled={!seasons?.length}
         onChange={event=>{setSeasonId(event.target.value);setSearch('');}}>
@@ -53,6 +49,7 @@ export default function SignupHistoryPanel() {
       </select></label>
       <label htmlFor="signup-history-search">Find a team or player<input id="signup-history-search" type="search"
         placeholder="Search teams or players" value={search} onChange={event=>setSearch(event.target.value)} disabled={!data}/></label>
+      {data&&<span className="signup-history-summary">{data.teams.length} teams · {playerCount} players</span>}
     </div>
     {currentError?<div className="ui-panel" role="alert"><p>{currentError}</p><button type="button" onClick={()=>setAttempt(value=>value+1)}>Retry</button></div>
       :seasons===null||seasonId&&!data?<p role="status">Loading signups…</p>

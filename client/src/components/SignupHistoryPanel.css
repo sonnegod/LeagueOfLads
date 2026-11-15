@@ -1,9 +1,6 @@
 .signup-history { display: grid; gap: var(--ui-content-gap); min-width: 0; }
-.signup-history-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-.signup-history-heading h2 { margin: 0; }
-.signup-history-heading p { margin: 6px 0 0; color: var(--muted-text); }
-.signup-history-summary { color: var(--muted-text); font-size: .82rem; white-space: nowrap; }
-.signup-history-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; max-width: 800px; }
+.signup-history-summary { display: flex; align-items: center; justify-self: end; min-height: 40px; color: var(--muted-text); font-size: .82rem; white-space: nowrap; }
+.signup-history-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 16px; }
 .signup-history-toolbar label { display: grid; gap: 6px; min-width: 0; font-size: .8rem; }
 .signup-history-toolbar :is(select,input) { width: 100%; min-width: 0; }
 .signup-history-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: var(--ui-content-gap); align-items: start; }
