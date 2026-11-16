@@ -1,6 +1,7 @@
 // index.js
 import express from 'express';
 import session from 'express-session';
+import {createSessionOptions} from './config/sessionStore.js';
 import passport from 'passport';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -30,16 +31,8 @@ app.use(cors({
 app.use(siteApiHealth);
 
 // Session setup
-app.use(session({
-  secret: 'your-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.ENVIRONMENT === 'PROD',
-    httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000
-  }
-}));
+const sessionOptions=createSessionOptions();
+app.use(session(sessionOptions));
 
 app.use('/api/site-analytics', express.json({ limit: '8kb' }));
 app.use('/api/signup', express.json({ limit: '16mb' }));
@@ -100,7 +93,7 @@ function shutdown() {
   liveMatchUpdates.close();
   inhouseUpdates.close();
   liveNotifications?.close();
-  server.close(()=>process.exit(0));
+  server.close(()=>{sessionOptions.store.close();process.exit(0);});
   setTimeout(()=>process.exit(0),3000).unref();
 }
 process.once('SIGINT',shutdown);

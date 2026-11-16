@@ -5,7 +5,7 @@ import useLiveResource from '../hooks/useLiveResource';
 import useLiveSnapshots from '../hooks/useLiveSnapshots';
 import {useLiveMatches} from '../context/liveMatches';
 import {Link} from 'react-router-dom';
-import {groupLiveSeries} from '../../../shared/liveSeries.js';
+import {groupLiveSeries,isActiveLiveSeries} from '../../../shared/liveSeries.js';
 import './LiveMatchesPage.css';
 
 function formatDuration(seconds) {
@@ -249,7 +249,7 @@ function LiveFreshness({match,variant}) {
 }
 
 function LiveSeriesCard({series}) {
-  const active=series.games.find(game=>game.isLive)?.MatchId||series.games.at(-1)?.MatchId;
+  const active=series.games.find(game=>game.isLive)?.MatchId||(series.status==='closed'?null:series.games.at(-1)?.MatchId);
   return <section className="live-series-card">
     <header className="live-series-heading"><h2>
       {series.team1.id?<Link to={`/team/${series.team1.id}`}>{series.team1.name}</Link>:series.team1.name}
@@ -271,7 +271,7 @@ export default function LiveMatchesPage() {
   const currentMatchIds=new Set(matches.map(match=>Number(match.MatchId)));
   const recentMatches=(recent.data?.matches||[]).filter(match=>!currentMatchIds.has(Number(match.MatchId)));
   const grouped=groupLiveSeries(matches,recentMatches);
-  const activeSeries=grouped.filter(series=>series.live||series.status!=='closed'&&(['in_progress','needs_format','needs_review'].includes(series.status)||series.games.some(game=>['pending','needs_review'].includes(game.ImportStatus?.result))));
+  const activeSeries=grouped.filter(isActiveLiveSeries);
   const completedSeries=grouped.filter(series=>!activeSeries.includes(series));
   const previousIds=useRef([]);
   const refreshRecent=recent.refresh;

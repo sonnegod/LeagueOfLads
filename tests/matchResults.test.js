@@ -236,7 +236,7 @@ test('live grouping retains completed snapshots with a current game and excludes
   const base={TrackedSeriesId:4,SeriesTeam1:1001,SeriesTeam2:1002,SeriesTeam1Wins:1,SeriesTeam2Wins:0};
   const groups=groupLiveSeries([{...base,MatchId:3,MatchStartedAt:'2026-11-09T02:00:00Z'}],
     [{...base,MatchId:1,MatchStartedAt:'2026-11-09T01:00:00Z',ImportStatus:{result:'remake'}},
-     {...base,MatchId:2,MatchStartedAt:'2026-11-09T01:10:00Z',ImportStatus:{result:'imported'}}]);
+     {...base,MatchId:2,MatchStartedAt:'2026-11-09T01:10:00Z',ImportStatus:{result:'imported'}}],new Date('2026-11-09T03:00:00Z'));
   assert.equal(groups.length,1);assert.equal(groups[0].live,true);
   assert.deepEqual(groups[0].games.map(g=>g.gameNumber),[null,1,2]);assert.deepEqual(groups[0].score,[1,0]);
 });

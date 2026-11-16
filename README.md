@@ -21,7 +21,12 @@ concurrency fix; run `npm install` after updating the checkout.
    a `.env`), then replace the Steam API key placeholder with a development key
    from a maintainer. Do not commit `.env`. The key lets the Steam login strategy
    fetch the signed-in user's Steam profile after authentication; the example
-   ports match the Vite API proxy and Steam login callback.
+   ports match the Vite API proxy and Steam login callback. Also generate a session
+   secret and set `SESSION_SECRET` in `.env` (required in development and production):
+
+   ```bash
+   node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+   ```
 
 3. Populate `db/` from the backup databases as described below **before** starting the
    server. `ENVIRONMENT=DEV` selects the local database paths; without it the code
@@ -37,6 +42,23 @@ concurrency fix; run `npm install` after updating the checkout.
    Open <http://localhost:5173>. The API runs on port 3000, and Vite proxies
    `/api` requests to it. On Windows PowerShell, use `npm.cmd` in place of `npm`
    if execution policy blocks `npm.ps1`.
+
+## Login sessions
+
+Login sessions are stored in `db/Sessions.db`, created automatically at server
+startup. Both the browser cookie and stored session expire after 30 days of
+inactivity; requests renew that period. Logout deletes the stored session.
+Expired rows are removed at startup and hourly. Production cookies require HTTPS.
+
+Set `SESSION_SECRET` in the server's `.env` **before deploying this change**. Keep
+the same secret and session database across deployments so users remain signed
+in after a restart. Changing the secret or deleting this database signs users
+out. Existing memory-only sessions cannot be migrated, so users must sign in
+once after the initial deployment.
+
+This database contains private authentication data. It is ignored by Git and is
+excluded from the normal league backup/export scripts; do not distribute it with
+collaborator databases. No database migration command or extra worker is needed.
 
 ## Restore backup databases for local use
 

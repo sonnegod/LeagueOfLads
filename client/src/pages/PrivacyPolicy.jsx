@@ -7,7 +7,7 @@ export default function PrivacyPolicy() {
     <div className="ui-page" style={pageStyle}>
       <section className="ui-panel" style={cardStyle}>
         <h1>Privacy Policy</h1>
-        <p style={updatedStyle}>Last updated: November 15, 2026</p>
+        <p style={updatedStyle}>Last updated: November 16, 2026</p>
 
         <p>
           League of Lads uses Steam sign-in, league submissions, and first-party site metrics to
@@ -17,7 +17,8 @@ export default function PrivacyPolicy() {
         <h2>Information We Collect</h2>
         <p>
           Steam sign-in provides your account identifier and public profile details. A session cookie
-          keeps you signed in for up to a week. Team signups include roster information, MMR values,
+          keeps you signed in and expires after 30 days of inactivity. Signing out removes your
+          saved login session. Team signups include roster information, MMR values,
           player profile links, and screenshots. MMR screenshots are available only to league admins.
           The site also displays league, team, player, and match statistics.
         </p>
