@@ -38,6 +38,8 @@ import {InhouseStore} from '../inhouses/store.js';
 import {createInhouseRoutes} from './inhouseRoutes.js';
 import {createLogoutHandler} from './authLogout.js';
 import {createAdminSignupRouter} from './adminSignupRoutes.js';
+import {createAdminMatchBrowserRouter} from './adminMatchBrowserRoutes.js';
+import {createLeagueOverviewRouter} from './leagueOverviewRoutes.js';
 import {analyticsPlayerDirectory} from '../config/siteAnalytics.js';
 
 import dotenv from 'dotenv';
@@ -248,6 +250,8 @@ router.use('/admin', createLeagueGroupBoardRouter({db:db.db,
   },
   audit:(type,message)=>db.recordAdminAudit(type,message)}));
 router.use('/admin/rosters', rosterRoutes);
+router.use('/admin/league-overview',createLeagueOverviewRouter({league:db.db}));
+router.use('/admin/match-records',createAdminMatchBrowserRouter({league:db.db,activeLeague:()=>db.getActiveLeague()?.[0]}));
 router.use('/admin/matches', createAdminMatchRouter({league:db.db,schedules:bettingRuntime.schedules,
   includeLocalTests:bettingRuntime.book.localTesting}));
 router.use('/admin/seasons', adminSeasonRoutes);
@@ -683,8 +687,10 @@ router.get('/admin/unmatchedMatchTeams', checkAdmin, (req, res) => {
 });
 
 router.get('/admin/recordTeams', checkAdmin, (req,res) => {
-  const leagueId=positiveInteger(req.query.leagueId);
-  if(!leagueId)return res.status(400).json({error:'Select a season'});
+  const requested=req.query.leagueId;
+  if(requested!==undefined&&!positiveInteger(requested))return res.status(400).json({error:'Select a season'});
+  const leagueId=requested===undefined?db.getActiveLeague()?.[0]?.LeagueId:positiveInteger(requested);
+  if(!leagueId)return res.json({teams:[]});
   if(!db.queryDatabase('SELECT 1 FROM LeagueInfo WHERE LeagueId=?',[leagueId]).length)return res.status(404).json({error:'Season not found'});
   return res.json({teams:db.adminCurrentTeams(leagueId)});
 });
@@ -1878,6 +1884,7 @@ router.get('/matchEdit/:matchId', async (req, res) => {
     
     res.json({
       matchId:Number(matchId),league:{LeagueId:matchTeams[0].LeagueId,LeagueName:matchTeams[0].LeagueName},
+      playedAt:matchTeams[0].DatePlayed,seriesId:matchTeams[0].LinkedSeriesId,
       team1: { TeamId: matchTeams[0].TeamRad, TeamName:  matchTeams[0].RadTeamName },
       team2: { TeamId:  matchTeams[0].TeamDire, TeamName:  matchTeams[0].DireTeamName },
       winner: { TeamId:  matchTeams[0].WinnerId, TeamName:  matchTeams[0].WinnerTeamName }

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import LeagueRulesCard from './LeagueRulesCard';
-import LeagueEndPanel from './LeagueEndPanel';
 import { prepareScreenshot, readScreenshot } from '../utils/screenshotUpload';
 import './SeasonAdminPanel.css';
 
@@ -323,7 +322,7 @@ function GroupsPanel({ season, teams, groups, spread, refresh, run, busy }) {
   </section>;
 }
 
-export default function SeasonAdminPanel({ onChanged }) {
+export default function SeasonAdminPanel({ onChanged, showActiveSummary=true }) {
   const [data, setData] = useState(null);
   const [name, setName] = useState('');
   const [title, setTitle] = useState('');
@@ -377,6 +376,7 @@ export default function SeasonAdminPanel({ onChanged }) {
       : Math.max(...groupSizes) - Math.min(...groupSizes) > 1
         ? 'Balance the groups so their team counts differ by at most one before starting the league.'
         : '';
+  if(!showActiveSummary&&season?.Status==='active'&&!error&&!message&&!data.unassignedSignups?.length)return null;
   return <section className="season-admin-panel">
     {error && <p role="alert" className="season-error">{error}</p>}
     {message && <p role="status">{message}</p>}
@@ -391,8 +391,8 @@ export default function SeasonAdminPanel({ onChanged }) {
         onChange={event => setLeagueId(event.target.value)} /></label>
       <button className="ui-button-primary" disabled={busy}>Create league draft</button>
     </form> : <>
-      <p><strong>{season.LeagueName}</strong> · {season.Status.replace('_', ' ')} · Season #{sid}
-        {season.ExternalLeagueId ? ` · League ID ${season.ExternalLeagueId}` : ''}</p>
+      {(showActiveSummary||season.Status!=='active')&&<p><strong>{season.LeagueName}</strong> · {season.Status.replace('_', ' ')} · Season #{sid}
+        {season.ExternalLeagueId ? ` · League ID ${season.ExternalLeagueId}` : ''}</p>}
       {season.Status === 'draft' && <form className="season-signup-details" onSubmit={event => {
         event.preventDefault();
         run(() => request(`/api/admin/seasons/${sid}/signup`, { method: 'PUT',
@@ -448,7 +448,7 @@ export default function SeasonAdminPanel({ onChanged }) {
         </form>
       </>}
       {season.Status === 'active' && <>
-        <p>League ID: {season.ExternalLeagueId}. Use Schedule to suggest regular season matchups, or Editor, Playoffs, and Settings for other league operations.</p>
+        {showActiveSummary&&<p>Use Schedule for regular-season matchups, Editor for groups, results, rosters and playoffs, and Settings for stage changes and ending the league.</p>}
         {data.unassignedSignups?.length > 0 && <section className="season-submissions">
           <h3>Unassigned team signups ({data.unassignedSignups.length})</h3>
           <div className="season-team-list">{data.unassignedSignups.map(team => <div className="season-team-card" key={team.TeamSubmissionId}>
@@ -457,10 +457,6 @@ export default function SeasonAdminPanel({ onChanged }) {
             </div>
           </div>)}</div>
         </section>}
-        <LeagueEndPanel season={season} onEnded={() => {
-          reload().catch(err => setError(err.message));
-          onChanged?.();
-        }} />
       </>}
     </>}
   </section>;

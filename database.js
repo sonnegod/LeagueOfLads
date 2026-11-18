@@ -1620,7 +1620,8 @@ class DBInstance {
                 COALESCE(ln2.DisplayName,ti2.TeamName,'Team ' || mt.TeamDire) as DireTeamName,
                 WinnerId, 
                 COALESCE(ln3.DisplayName,ti3.TeamName,'Team ' || mt.WinnerId) as WinnerTeamName,
-                ml.LeagueId,li.LeagueName
+                ml.LeagueId,li.LeagueName,ml.DatePlayed,
+                (SELECT MAX(sm.SeriesId) FROM SeriesMatch sm WHERE sm.MatchId=mt.MatchId) AS LinkedSeriesId
             FROM MatchTeam mt
             LEFT JOIN MatchLeague ml ON ml.MatchId=mt.MatchId
             LEFT JOIN LeagueInfo li ON li.LeagueId=ml.LeagueId

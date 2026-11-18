@@ -1,10 +1,13 @@
 .league-stage-panel {
   display: grid;
+  min-width: 0;
   gap: 0.85rem;
   padding: 1rem;
   border: 1px solid var(--border, #555);
   border-radius: 9px;
 }
+
+.league-stage-panel :is(h2,h3,p) { margin: 0; }
 
 .league-stage-current { font-size: 1.05rem; }
 
@@ -16,7 +19,7 @@
 }
 
 .league-stage-actions label { display: block; }
-.league-stage-actions select { max-width: 100%; }
+.league-stage-actions select { min-width: 0; max-width: 100%; box-sizing: border-box; }
 
 .league-stage-end {
   display: grid;

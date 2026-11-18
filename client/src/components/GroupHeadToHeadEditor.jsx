@@ -88,27 +88,30 @@ export default function GroupHeadToHeadEditor({ refreshKey, onResultsUpdated }) 
         const record = matrix.standings.find((row) => row.TeamId === team.TeamId);
         return <th key={team.TeamId}>{team.TeamName}<small>{record?.Wins ?? 0}–{record?.Losses ?? 0}</small></th>;
       })}</tr></thead>
-      <tbody>{matrix.teams.map((row) => <tr key={row.TeamId}>
+      <tbody>{matrix.teams.map((row,rowIndex) => <tr key={row.TeamId}>
         <th>{row.TeamName}<small>Neustadtl {matrix.standings.find((team) => team.TeamId === row.TeamId)?.Score ?? 0}</small></th>
-        {matrix.teams.map((column) => {
+        {matrix.teams.map((column,columnIndex) => {
           if (row.TeamId === column.TeamId) return <td key={column.TeamId}>—</td>;
           const key = `${Math.min(row.TeamId, column.TeamId)}:${Math.max(row.TeamId, column.TeamId)}`;
           const pair = pairMap.get(key);
           if (!pair) return <td key={column.TeamId}>—</td>;
-          if (row.TeamId > column.TeamId) return <td key={column.TeamId}>{pair.WinsB}–{pair.WinsA}</td>;
+          // Place editors by visible order; saved scores still use canonical team IDs.
+          const rowIsA=row.TeamId===pair.TeamA;
+          if (rowIndex > columnIndex) return <td key={column.TeamId}>{rowIsA?pair.WinsA:pair.WinsB}–{rowIsA?pair.WinsB:pair.WinsA}</td>;
           const draft = drafts[key] || { winsA: '0', winsB: '0' };
+          const rowField=rowIsA?'winsA':'winsB',columnField=rowIsA?'winsB':'winsA';
           const changed = Number(draft.winsA) !== pair.WinsA || Number(draft.winsB) !== pair.WinsB;
           return <td key={column.TeamId}><div className="admin-teams-score">
             <input type="number" min="0" step="1" aria-label={`${row.TeamName} wins against ${column.TeamName}`}
-              value={draft.winsA} onChange={(event) => edit(key, 'winsA', event.target.value)} />
+              value={draft[rowField]} onChange={(event) => edit(key, rowField, event.target.value)} />
             <span>–</span>
             <input type="number" min="0" step="1" aria-label={`${column.TeamName} wins against ${row.TeamName}`}
-              value={draft.winsB} onChange={(event) => edit(key, 'winsB', event.target.value)} />
+              value={draft[columnField]} onChange={(event) => edit(key, columnField, event.target.value)} />
           </div><div className="admin-teams-score-actions">
             <button type="button" disabled={!changed || saving !== null} onClick={() => save(pair)}>Save</button>
             {pair.Overridden && <button type="button" disabled={saving !== null} onClick={() => save(pair, true)}
-              title={`Recorded games: ${pair.ActualWinsA}–${pair.ActualWinsB}`}>Use games</button>}
-          </div>{pair.Overridden && <small>Override · games {pair.ActualWinsA}–{pair.ActualWinsB}</small>}
+              title={`Recorded games: ${rowIsA?pair.ActualWinsA:pair.ActualWinsB}–${rowIsA?pair.ActualWinsB:pair.ActualWinsA}`}>Use games</button>}
+          </div>{pair.Overridden && <small>Override · games {rowIsA?pair.ActualWinsA:pair.ActualWinsB}–{rowIsA?pair.ActualWinsB:pair.ActualWinsA}</small>}
           </td>;
         })}
       </tr>)}</tbody>

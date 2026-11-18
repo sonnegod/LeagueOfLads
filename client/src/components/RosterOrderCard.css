@@ -1,6 +1,31 @@
-.roster-order-card {max-width:680px;}
-.roster-order-card label {display:grid;gap:.4rem;}
+.roster-order-fields {min-width:0;}
 .roster-order-list {list-style:none;padding:0;margin:1rem 0;display:grid;gap:.4rem;}
-.roster-order-list li {display:grid;grid-template-columns:48px minmax(0,1fr) 44px 44px;align-items:center;gap:.5rem;padding:.4rem;border-bottom:1px solid var(--border,#334155);}
+.roster-order-list li {display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:.5rem;padding:.4rem;border-bottom:1px solid var(--border,#334155);}
 .roster-order-list li>span {overflow-wrap:anywhere;}
+.roster-order-list li {border-radius:6px;transition:background-color .15s ease,box-shadow .15s ease;}
+.roster-order-list li:hover,.roster-order-list li:focus-within {background:rgba(96,165,250,.1);box-shadow:inset 3px 0 0 #60a5fa;}
+@media(prefers-reduced-motion:reduce){.roster-order-list li {transition:none;}}
 .roster-order-position {color:var(--muted-text,#9ca3af);}
+.roster-order-actions {display:flex;gap:.25rem;}
+.roster-order-actions button {width:38px;padding:0;display:flex;align-items:center;justify-content:center;}
+.roster-order-list li.is-replacing {grid-template-columns:48px minmax(0,1fr);align-items:center;}
+.roster-team-details-card form.roster-inline-replacement {min-width:0;padding:0;grid-template-columns:minmax(0,1fr) 160px 32px 32px;gap:4px;align-items:center;}
+.roster-inline-replacement > button {width:32px;padding:0;display:flex;align-items:center;justify-content:center;}
+.roster-inline-replacement > select {font-size:12px;height:38px;padding:4px!important;}
+.roster-player-picker-compact {min-width:0;font-size:12px;}
+.roster-player-picker-compact > label {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+@media(max-width:600px){
+  .roster-order-list li.is-replacing {grid-template-columns:32px minmax(0,1fr);gap:4px;}
+  .is-replacing .roster-order-position {white-space:nowrap;font-size:12px;}
+  .roster-team-details-card form.roster-inline-replacement {grid-template-columns:minmax(0,1fr) 112px 28px 28px;gap:3px;}
+  .roster-inline-replacement > button {width:28px;}
+}
+@media(max-width:400px){
+  .roster-order-list li:not(.is-replacing) {grid-template-columns:48px minmax(0,1fr);}
+  .roster-order-actions {grid-column:2;justify-self:end;}
+  .roster-order-actions button {width:34px;}
+  .roster-order-list li.is-replacing {grid-template-columns:minmax(0,1fr);}
+  .is-replacing > .roster-order-position {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);}
+  .roster-team-details-card form.roster-inline-replacement {grid-template-columns:minmax(0,1fr) 112px 24px 24px;}
+  .roster-inline-replacement > button {width:24px;}
+}

@@ -145,3 +145,28 @@ test('roster API exposes current captains, accepts a new replacement, and saves 
     assert.equal(continued,true);
   }finally{if(server)await new Promise(done=>server.close(done));f.close();}
 });
+
+test('inline roster replacement uses server time and preserves the outgoing player slot for a new account',async()=>{
+  const f=fixture();let server;
+  try {
+    const app=express();app.use(express.json());
+    app.use((req,res,next)=>{req.user={id:'76561197960265827'};req.isAuthenticated=()=>true;next();});
+    app.use('/rosters',createAdminRosterRouter({league:f.league,schedules:f.schedules}));
+    server=app.listen(0,'127.0.0.1');await new Promise(done=>server.once('listening',done));
+    const before=Date.now();
+    const response=await fetch(`http://127.0.0.1:${server.address().port}/rosters/seasons/2/roster-changes`,{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        playerId:210,fromTeamKey:21,replacementPlayerId:777777,replacementPlayerName:'New account',
+        effectiveNow:true,effectiveAtUtc:'2099-01-01T00:00:00Z',localTime:'invalid client time',
+        kind:'permanent',reason:'Replaced player from roster row',
+      }),
+    });
+    assert.equal(response.status,200);
+    const saved=f.league.prepare('SELECT * FROM SeasonRosterChanges ORDER BY ChangeId DESC LIMIT 1').get();
+    assert.ok(Date.parse(saved.EffectiveAtUtc)>=before&&Date.parse(saved.EffectiveAtUtc)<=Date.now());
+    assert.equal(f.league.prepare('SELECT PlayerName FROM PlayerInfo WHERE PlayerId=777777').get().PlayerName,'New account');
+    assert.equal(f.league.prepare('SELECT Slot FROM TeamRosterPlayers WHERE TeamSubmissionId=21 AND PlayerId=777777').get().Slot,0);
+    assert.equal(f.league.prepare('SELECT 1 FROM TeamRosterPlayers WHERE TeamSubmissionId=21 AND PlayerId=210').get(),undefined);
+    assert.equal(f.refreshes(),1);
+  }finally{if(server){server.closeAllConnections();await new Promise(done=>server.close(done));}f.close();}
+});

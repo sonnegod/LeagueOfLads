@@ -1,6 +1,14 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useId, useRef } from "react";
+import { Link } from 'react-router-dom';
+import MatchRecordBrowser from './MatchRecordBrowser';
+import './MatchEditorPanel.css';
+import {matchRecordDay} from '../../../shared/matchRecordDay.js';
 
-export default function MatchEditorPanel({ onMatchUpdated, leagueId }) {
+export default function MatchEditorPanel({ onMatchUpdated, leagueId, refreshKey }) {
+  const formId=useId();
+  const detail=useRef(null),browser=useRef(null);
+  const isEditorStacked=()=>detail.current&&browser.current&&Math.abs(detail.current.getBoundingClientRect().left-browser.current.getBoundingClientRect().left)<2;
+  const [revision,setRevision]=useState(0);
   const [matchId, setMatchId] = useState("");
   const [teamList, setTeamList] = useState([]);
 
@@ -10,7 +18,8 @@ export default function MatchEditorPanel({ onMatchUpdated, leagueId }) {
 
   const [original, setOriginal] = useState(null);
 
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState('');
+  const loading=Boolean(busy);
   const [message, setMessage] = useState("");
 
   // ---------------------------------------------------------
@@ -18,27 +27,33 @@ export default function MatchEditorPanel({ onMatchUpdated, leagueId }) {
   // ---------------------------------------------------------
   useEffect(() => {
     const controller=new AbortController();
-    fetch(leagueId?`/api/admin/recordTeams?leagueId=${leagueId}`:'/api/activeTeams',{signal:controller.signal})
+    fetch(`/api/admin/recordTeams${leagueId?`?leagueId=${leagueId}`:''}`,{signal:controller.signal})
       .then(async res => {const data=await res.json();if(!res.ok)throw new Error(data.error||'Error loading teams');return data;})
       .then(data => setTeamList(data.teams||[]))
       .catch(err => {if(err.name!=='AbortError')setMessage(err.message);});
     return()=>controller.abort();
-  }, [leagueId]);
+  }, [leagueId,refreshKey,revision]);
 
   // ---------------------------------------------------------
   // Load match data by ID
   // ---------------------------------------------------------
-  const loadMatch = async () => {
-    if (!matchId.trim()) {
-        setMessage("Enter a Match ID.");
+  const loadMatch = async (requestedId=matchId,record=null) => {
+    const text=String(requestedId).trim();
+    const id=/^\d+$/.test(text)?text:text.match(/\/(?:match|matches)\/(\d+)(?:[/?#]|$)/)?.[1];
+    if (!id) {
+        setMessage("Enter a Match ID or match link.");
         return;
     }
+    if(original&&(team1!==original.team1||team2!==original.team2||winner!==original.winner)
+      &&!window.confirm('Discard your unsaved match changes and load this game?'))return;
 
-    setLoading(true);
+    setMatchId(id);
+    setBusy('load');
+    setOriginal(null);
     setMessage("");
 
     try {
-        const res = await fetch(`/api/matchEdit/${encodeURIComponent(matchId.trim())}${leagueId?`?leagueId=${leagueId}`:''}`);
+        const res = await fetch(`/api/matchEdit/${encodeURIComponent(id)}${leagueId?`?leagueId=${leagueId}`:''}`);
         const data = await res.json();
         if(!res.ok)throw new Error(data.error||'Error loading match');
 
@@ -47,15 +62,22 @@ export default function MatchEditorPanel({ onMatchUpdated, leagueId }) {
         } else {
         setTeam1(String(data.team1.TeamId ?? ''));
         setTeam2(String(data.team2.TeamId ?? ''));
-        setWinner(String(data.winner.TeamId ?? ''));
+        setWinner(String(data.winner?.TeamId ?? ''));
         setMessage("Match loaded successfully.");
 
         //helps check for change
         setOriginal({
+            matchId:id,
+            playedAt:data.playedAt??record?.playedAt,
+            seriesId:data.seriesId??record?.seriesId,
+            leagueName:data.league?.LeagueName,
+            team1Name:data.team1.TeamName||`Team ${data.team1.TeamId}`,
+            team2Name:data.team2.TeamName||`Team ${data.team2.TeamId}`,
             team1: String(data.team1.TeamId),
             team2: String(data.team2.TeamId),
-            winner: String(data.winner.TeamId),
+            winner: String(data.winner?.TeamId??''),
         });
+        if(isEditorStacked())detail.current?.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
         }
     } catch (err) {
         console.error("Load error:", err);
@@ -63,7 +85,7 @@ export default function MatchEditorPanel({ onMatchUpdated, leagueId }) {
         setMessage(err.message||"Error loading match.");
     }
 
-    setLoading(false);
+    setBusy('');
   };
 
 
@@ -85,7 +107,7 @@ export default function MatchEditorPanel({ onMatchUpdated, leagueId }) {
         return;
     }
 
-    setLoading(true);
+    setBusy('update');
     setMessage("");
 
     try {
@@ -93,7 +115,7 @@ export default function MatchEditorPanel({ onMatchUpdated, leagueId }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          matchId:matchId.trim(),
+          matchId:original.matchId,
           team1,
           team2,
           winner,
@@ -106,17 +128,24 @@ export default function MatchEditorPanel({ onMatchUpdated, leagueId }) {
 
       const result = await res.json();
 
-      if (result.success) {
+      if (res.ok&&result.success) {
         setMessage("Match updated successfully!");
         
         //need to reset new values
-        setOriginal({
+        const details=await fetch(`/api/matchEdit/${encodeURIComponent(original.matchId)}${leagueId?`?leagueId=${leagueId}`:''}`)
+          .then(response=>response.ok?response.json():null).catch(()=>null);
+        setOriginal(current=>({...current,
             team1,
             team2,
             winner,
-        });
+            playedAt:details?.playedAt??current.playedAt,
+            seriesId:details?details.seriesId:current.seriesId,
+            team1Name:details?.team1?.TeamName||teamList.find(t=>String(t.TeamId)===team1)?.TeamName||current.team1Name,
+            team2Name:details?.team2?.TeamName||teamList.find(t=>String(t.TeamId)===team2)?.TeamName||current.team2Name,
+        }));
 
         onMatchUpdated && onMatchUpdated();
+        setRevision(value=>value+1);
       } else {
         setMessage(result.error||"Update failed.");
       }
@@ -125,117 +154,137 @@ export default function MatchEditorPanel({ onMatchUpdated, leagueId }) {
       setMessage("Error updating match.");
     }
 
-    setLoading(false);
+    setBusy('');
   };
 
-  return (
-    <div style={adminWidgetStyle}
-    >
-      <h3 style={{ textAlign: "center", marginBottom: "12px" }}>
-        Match Editor
-      </h3>
+  const deleteMatch=async()=>{
+    if(!original||loading)return;
+    const {matchId:id,leagueName,team1Name,team2Name}=original;
+    if(!window.confirm(`Delete Match ${id}${leagueName?` from ${leagueName}`:''}?\n${team1Name} vs ${team2Name}\nThis cannot be undone.`))return;
+    setBusy('delete');setMessage('');
+    try {
+      const response=await fetch('/api/admin/deleteMatch',{
+        method:'DELETE',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({matchId:id,...(leagueId?{leagueId}:{})}),
+      });
+      const result=await response.json();
+      if(!response.ok||!result.success)throw new Error(result.error||'Delete failed.');
+      setOriginal(null);setMatchId('');setTeam1('');setTeam2('');setWinner('');
+      setMessage(`Match ${id} deleted successfully.`);
+      onMatchUpdated?.();
+      setRevision(value=>value+1);
+      if(isEditorStacked())browser.current?.scrollIntoView({block:'start'});
+    }catch(error){setMessage(error.message||'Error deleting match.');}
+    finally{setBusy('');}
+  };
 
-      {/* MATCH ID INPUT */}
-      <label>Match ID</label>
-      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+  const options=[...teamList];
+  if(original)for(const [id,name] of [[original.team1,original.team1Name],[original.team2,original.team2Name]]) {
+    if(!options.some(team=>String(team.TeamId)===id))options.push({TeamId:id,TeamName:name});
+  }
+  const nameFor=id=>options.find(team=>String(team.TeamId)===id)?.TeamName||`Team ${id}`;
+  return (
+    <section className="match-editor-card" aria-labelledby={`${formId}-title`}>
+      <h3 id={`${formId}-title`}>Match Editor</h3>
+      <div className="match-editor-workspace">
+      <div ref={browser} className="match-editor-browser"><MatchRecordBrowser leagueId={leagueId} refreshKey={`${refreshKey}:${revision}`} selectedId={original?.matchId}
+        disabled={loading} onSelect={record=>loadMatch(record.matchId,record)} /></div>
+      <div ref={detail} className="match-editor-detail">
+      <button type="button" className="match-editor-back" onClick={()=>browser.current?.scrollIntoView({block:'start'})}>Back to matches</button>
+      <form className="match-editor-load" onSubmit={event=>{event.preventDefault();loadMatch();}}>
+      <label htmlFor={`${formId}-match`}>Match ID or link</label>
+      <div className="match-editor-id-row">
         <input
+          id={`${formId}-match`}
           type="text"
           value={matchId}
           disabled={loading}
           onChange={e => {setMatchId(e.target.value);setOriginal(null);setTeam1('');setTeam2('');setWinner('');setMessage('');}}
-          placeholder="Enter match ID"
-          style={{ flex: 1 }}
+          placeholder="Enter match ID or paste a link"
         />
-        <button onClick={loadMatch} disabled={loading}>Load</button>
+        <button type="submit" disabled={loading}>{busy==='load'?'Loading…':'Load'}</button>
       </div>
-
-      {/* TEAM 1 */}
-      <label>Team 1</label>
+      </form>
+      {original?<div className="match-editor-context">
+        <Link to={`/match/${original.matchId}`}>Match #{original.matchId} ↗</Link>
+        <strong>{original.team1Name} vs {original.team2Name}</strong>
+        <span>{[original.leagueName,matchRecordDay(original.playedAt),original.seriesId?`Series #${original.seriesId}`:null].filter(Boolean).join(' · ')}</span>
+      </div>:<p className="match-editor-empty">Select a game from the list, or load a match by ID.</p>}
+      <div className="match-editor-fields">
+      <label htmlFor={`${formId}-radiant`}>Radiant team</label>
       <select
+        id={`${formId}-radiant`}
         value={team1}
         disabled={loading||!original}
         onChange={e => {const next=e.target.value;if(winner===team1)setWinner(next);setTeam1(next);}}
-        style={{ width: "100%", marginBottom: 12 }}
       >
         <option value="">Select Team</option>
-        {teamList.map(t => (
+        {options.map(t => (
             <option key={t.TeamId} value={t.TeamId}>
             {t.TeamName} ({t.TeamId})
             </option>
         ))}
       </select>
 
-      {/* TEAM 2 */}
-      <label>Team 2</label>
+      <label htmlFor={`${formId}-dire`}>Dire team</label>
       <select
+        id={`${formId}-dire`}
         value={team2}
         disabled={loading||!original}
         onChange={e => {const next=e.target.value;if(winner===team2)setWinner(next);setTeam2(next);}}
-        style={{ width: "100%", marginBottom: 12 }}
       >
         <option value="">Select Team</option>
-        {teamList.map(t => (
+        {options.map(t => (
             <option key={t.TeamId} value={t.TeamId}>
             {t.TeamName} ({t.TeamId})
             </option>
         ))}
       </select>
 
-      {/* WINNER */}
-      <label>Winner</label>
+      <label htmlFor={`${formId}-winner`}>Winner</label>
       <select
+        id={`${formId}-winner`}
         value={winner}
         disabled={loading||!original}
         onChange={e => setWinner(e.target.value)}
-        style={{ width: "100%", marginBottom: 18 }}
       >
         <option value="">Select Winner</option>
 
         {team1 && (
             <option value={team1}>
-            {teamList.find(t => t.TeamId == team1)?.TeamName}
+            {nameFor(team1)}
             </option>
         )}
 
-        {team2 && (
+        {team2 && team2!==team1 && (
             <option value={team2}>
-            {teamList.find(t => t.TeamId == team2)?.TeamName}
+            {nameFor(team2)}
             </option>
         )}
       </select>
-
+      </div>
+      <div className="match-editor-actions">
       <button
+        type="button"
         className="ui-button-primary"
         onClick={updateMatch}
         disabled={loading||!original}
-        style={{
-          width: "100%",
-          padding: "8px 12px",
-          background: "#0077ff",
-          border: "none",
-          borderRadius: 6,
-          cursor: "pointer"
-        }}
       >
-        {loading ? "Updating…" : "Update Match"}
+        {busy==='update' ? "Updating…" : "Update Match"}
       </button>
 
+      <button type="button" className="ui-button-danger" onClick={deleteMatch}
+        disabled={loading||!original}>
+        {busy==='delete'?'Deleting…':'Delete Match'}
+      </button>
+      </div>
       {message && (
-        <div style={{ marginTop: 12, color: "green", fontWeight: 600 }}>
+        <div role="status" className="match-editor-message">
           {message}
         </div>
       )}
-    </div>
+      </div>
+      </div>
+    </section>
   );
 }
-
-const adminWidgetStyle = {
-  height: "450px",       // match CurrentLeagueTeams
-  display: "flex",
-  flexDirection: "column",
-  justifyContent: "space-between",
-  border: "1px solid #ccc",
-  borderRadius: "8px",
-  padding: "16px",
-  boxSizing: "border-box",
-};

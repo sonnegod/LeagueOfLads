@@ -104,6 +104,7 @@ export default function MatchTeamIdReplacementCard({ refreshKey, onUpdated, leag
 
 const cardStyle = {
   minHeight: '450px',
+  minWidth: 0,
   border: '1px solid var(--border, #ccc)',
   borderRadius: '8px',
   padding: '16px',
@@ -113,6 +114,8 @@ const cardStyle = {
 const formStyle = { display: 'grid', gap: '10px' };
 const inputStyle = {
   width: '100%',
+  minWidth: 0,
+  boxSizing: 'border-box',
   padding: '10px',
   border: '1px solid var(--border, #222428)',
   borderRadius: '6px',

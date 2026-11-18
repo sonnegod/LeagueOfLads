@@ -1,0 +1,4 @@
+.admin-editor-toolbar {display:flex;align-items:center;justify-content:space-between;gap:var(--ui-control-gap,12px);min-width:0;}
+.admin-editor-toolbar .admin-editor-tabs {flex:0 1 auto;min-width:0;width:auto;overflow-x:auto;scrollbar-width:thin;}
+.admin-editor-refresh {flex:none;margin-left:auto;white-space:nowrap;}
+@media(max-width:600px){.admin-editor-refresh {font-size:12px;padding:8px;}}

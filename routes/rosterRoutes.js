@@ -23,7 +23,8 @@ function effectiveTime(body) {
 export function createRosterChangeHandler({schedules}) {
   return endpoint((req,res)=>{
     const sid=positive(req.params.seasonId);if(!sid)fail('Invalid season');
-    return res.json(schedules.changeRoster(sid,effectiveTime({...req.body}),requestAccountId(req)));
+    const body=req.body?.effectiveNow===true?{...req.body,localTime:null,effectiveAtUtc:new Date().toISOString()}:effectiveTime({...req.body});
+    return res.json(schedules.changeRoster(sid,body,requestAccountId(req)));
   });
 }
 

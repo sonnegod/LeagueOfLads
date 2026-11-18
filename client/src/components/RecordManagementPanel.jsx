@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import MatchEditorPanel from './MatchEditorPanel';
 import MatchTeamIdReplacementCard from './MatchTeamIdReplacementCard';
-import DeleteMatchCard from './DeleteMatchCard';
 
 export default function RecordManagementPanel({ refreshKey, onChanged }) {
   const [leagues,setLeagues]=useState([]);
@@ -31,10 +30,9 @@ export default function RecordManagementPanel({ refreshKey, onChanged }) {
       </select>
       {error&&<p role="alert">{error}</p>}
     </header>
-    {leagueId&&<div key={leagueId} style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',gap:20,alignItems:'start'}}>
-      <MatchEditorPanel leagueId={Number(leagueId)} onMatchUpdated={onChanged}/>
+    {leagueId&&<div key={leagueId} className="match-admin-workspace">
+      <MatchEditorPanel leagueId={Number(leagueId)} refreshKey={refreshKey} onMatchUpdated={onChanged}/>
       <MatchTeamIdReplacementCard leagueId={Number(leagueId)} refreshKey={refreshKey} onUpdated={onChanged}/>
-      <DeleteMatchCard leagueId={Number(leagueId)} onMatchDeleted={onChanged}/>
     </div>}
   </section>;
 }
