@@ -53,7 +53,7 @@ export default function LeagueOverviewPanel({seasonId,refreshKey,onOpenSettings,
                 <td><strong className="league-overview-remaining-count" data-complete={team.remainingSeries===0}>{team.remainingSeries}</strong></td></tr>)}</tbody>
             </table>:<p className="league-overview-note">No teams assigned.</p>}
           </section>)}</div>
-          <p className="league-overview-note">Most remaining first. Includes H2H score overrides, completed series, closed series and forfeits.</p>
+          <p className="league-overview-note">Most remaining first. Based on group H2H scores; a complete BO2 counts as played.</p>
         </>}
       </section>
     </>}

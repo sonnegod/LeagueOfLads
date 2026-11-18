@@ -1,3 +1,5 @@
+import {buildGroupResults} from './groupResults.js';
+
 const pair=(a,b)=>Number(a)>0&&Number(b)>0?[Number(a),Number(b)].sort((x,y)=>x-y).join(':'):null;
 const terminal=new Set(['completed','closed']);
 
@@ -5,26 +7,18 @@ export function buildLeagueOverview({season,groups,entries,roster,series,events,
   const submissions=new Set(entries.map(entry=>entry.TeamSubmissionId).filter(id=>id!=null));
   const lifecycle=new Map(series.map(item=>[item.SeriesId,item.Status]));
   const fixtures=events.filter(event=>!['cancelled','replaced','needs_review'].includes(event.Status));
-  const playedPairs=new Set(series.filter(item=>['g','regular'].includes(item.Stage)&&terminal.has(item.Status))
-    .map(item=>pair(item.Team1,item.Team2)).filter(Boolean));
-  const finishedFixtures=new Set(fixtures.filter(event=>event.Stage==='regular'&&['completed','forfeit'].includes(event.Status))
-    .map(event=>pair(event.Team1Key,event.Team2Key)).filter(Boolean));
-  const closedPairs=new Set(series.filter(item=>['g','regular'].includes(item.Stage)&&item.Status==='closed')
-    .map(item=>pair(item.Team1,item.Team2)).filter(Boolean));
   const remainingGroups=groups.map(group=>{
     const members=entries.filter(entry=>entry.GroupId===group.GroupId);
     const results=buildGroupResults(members.filter(team=>team.TeamId>0),matches,overrides.filter(row=>row.GroupId===group.GroupId));
-    const manualScores=new Map(results.pairs.filter(score=>score.Overridden).map(score=>[pair(score.TeamA,score.TeamB),score]));
+    const scores=new Map(results.pairs.map(score=>[pair(score.TeamA,score.TeamB),score]));
     const counts=new Map(members.map(team=>[team.EntryId,0]));
     let remainingSeries=0;
     for(let i=0;i<members.length;i++)for(let j=i+1;j<members.length;j++){
       const a=members[i],b=members[j];
-      const key=pair(a.TeamId,b.TeamId),manual=manualScores.get(key);
-      // An H2H override takes precedence over imported or fixture results.
-      // Keep later imported wins using the same baseline rules as standings.
-      const played=manual?manual.WinsA+manual.WinsB>=2||(manual.WinsA+manual.WinsB>0&&closedPairs.has(key))
-        :playedPairs.has(key)||finishedFixtures.has(pair(a.TeamSubmissionId,b.TeamSubmissionId));
-      if(played)continue;
+      const key=pair(a.TeamId,b.TeamId),score=scores.get(key);
+      const games=score?score.WinsA+score.WinsB:0;
+      // Use the same effective H2H scores as the group matrix, including admin edits.
+      if(games>=2)continue;
       counts.set(a.EntryId,counts.get(a.EntryId)+1);counts.set(b.EntryId,counts.get(b.EntryId)+1);remainingSeries++;
     }
     return {groupId:group.GroupId,name:String(group.GroupName),remainingSeries,
@@ -43,5 +37,3 @@ export function buildLeagueOverview({season,groups,entries,roster,series,events,
     remaining:{totalSeries:remainingGroups.reduce((total,group)=>total+group.remainingSeries,0),groups:remainingGroups},updatedAt:now.toISOString(),
   };
 }
-import {buildGroupResults} from './groupResults.js';
-
