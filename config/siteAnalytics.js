@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { SiteAnalyticsStore } from './siteAnalyticsStore.js';
 import { isSiteManagerSteamId } from '../middleware/checkSiteManager.js';
+import {apiErrorContext} from './apiErrorDetails.js';
 
 export const analyticsEnabled = () => process.env.SITE_ANALYTICS_ENABLED === 'true'
   || (process.env.SITE_ANALYTICS_ENABLED !== 'false' && process.env.ENVIRONMENT === 'PROD');
@@ -41,14 +42,15 @@ export function setVisitor(req, res) {
 }
 // Aggregate every API response, including parser failures; no per-request records are retained.
 export function createSiteApiHealth({ enabled = analyticsEnabled,
-  record = (status, duration) => safelyRecord(db => db.recordApi(status, duration)),
+  record = (status, duration, details) => safelyRecord(db => db.recordApi(status, duration, details)),
 } = {}) {
   return (req, res, next) => {
     if (!enabled() || !req.path.startsWith('/api/')
       || /^\/api\/(site-analytics|site-management)(\/|$)/.test(req.path)
       || /^\/api\/(liveMatches\/stream|match-results\/stream|inhouses\/(stream|activity\/stream))\/?$/.test(req.path)) return next();
     const start = performance.now();
-    res.once('finish', () => record(res.statusCode, performance.now() - start));
+    res.once('finish', () => record(res.statusCode, performance.now() - start,
+      res.statusCode>=400?apiErrorContext(req):undefined));
     next();
   };
 }

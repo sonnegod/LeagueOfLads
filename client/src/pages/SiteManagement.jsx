@@ -6,6 +6,7 @@ import AnalyticsStatusPanel from '../components/AnalyticsStatusPanel';
 import BettingAdminPanel from '../components/BettingAdminPanel';
 import BettingTicketsAdmin from '../components/BettingTicketsAdmin';
 import SiteViewerActivity from '../components/SiteViewerActivity';
+import SiteApiErrorBreakdown from '../components/SiteApiErrorBreakdown';
 import './SiteManagement.css';
 
 const formatCount = value => value == null ? '\u2014' : Number(value).toLocaleString('en-US');
@@ -146,6 +147,7 @@ function AnalyticsDashboard({ data }) {
         <ul className="site-analytics-issues">{data.health.issues.map(issue => <li key={issue.name}>
           <span>{issue.name}</span><strong>{formatCount(issue.count)}</strong>
         </li>)}</ul>
+        <SiteApiErrorBreakdown data={data.health.errorBreakdown} />
         <p className="site-analytics-note">Across {formatCount(data.health.requests)} API requests, including admin requests and polling. Analytics requests are excluded. Timings use latency buckets; errors include 4xx and 5xx responses.</p>
       </section>
     </div>

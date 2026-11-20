@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { createHmac, randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
+import {apiErrorLabel,safeApiErrorContext} from './apiErrorDetails.js';
 
 export const PAGE_TYPES = {
   home: ['Home', '/'], league: ['League pages', '/league/:id'],
@@ -65,11 +66,15 @@ export class SiteAnalyticsStore {
       CREATE TABLE IF NOT EXISTS SiteApiDays (
         Day TEXT NOT NULL, Status INTEGER NOT NULL, Bucket INTEGER NOT NULL,
         Count INTEGER NOT NULL, PRIMARY KEY (Day, Status, Bucket));
+      CREATE TABLE IF NOT EXISTS SiteApiErrorDays (
+        Day TEXT NOT NULL, Status INTEGER NOT NULL, Method TEXT NOT NULL, Route TEXT NOT NULL,
+        Count INTEGER NOT NULL, PRIMARY KEY (Day, Status, Method, Route));
     `);
     this.db.prepare('INSERT OR IGNORE INTO SiteMetadata VALUES (?, ?)')
       .run('salt', randomBytes(32).toString('hex'));
     this.salt = this.db.prepare("SELECT Value FROM SiteMetadata WHERE Key = 'salt'").get().Value;
     this.pendingApi = new Map();
+    this.pendingApiErrors = new Map();
     this.writeEvents = this.db.transaction((browser, player, events, day, hour, timestamp) => {
       this.beginCollection();
       const visitor = player || browser;
@@ -132,14 +137,20 @@ export class SiteAnalyticsStore {
     this.writeEvents(browser, player, events, day, localHour(now), now.toISOString());
   }
 
-  recordApi(status, duration) {
+  recordApi(status, duration, details) {
     const day = localDay(this.now());
     const bucket = LATENCY_BUCKETS.find(value => duration <= value) ?? 60000;
-    // Only finite status and latency categories enter the buffer, never URLs or request details.
+    // Keep existing latency totals; error details below use only method and route template.
     const category = status >= 500 ? 500 : status === 413 ? 413 : status >= 400 ? 400 : 200;
     const key = `${day}|${category}|${bucket}`;
     this.pendingApi.set(key, (this.pendingApi.get(key) || 0) + 1);
-    if (this.pendingApi.size > 100) this.flush();
+    if(Number.isInteger(status)&&status>=400&&status<=599){
+      const {method,route}=safeApiErrorContext(details);
+      const errorKey=JSON.stringify([day,status,method,route]);
+      this.pendingApiErrors.set(errorKey,(this.pendingApiErrors.get(errorKey)||0)+1);
+      this.errorDetailsStartedAt??=this.now().toISOString();
+    }
+    if (this.pendingApi.size > 100||this.pendingApiErrors.size>100) this.flush();
   }
 
   flush() {
@@ -149,8 +160,15 @@ export class SiteAnalyticsStore {
         const stmt = this.db.prepare(`INSERT INTO SiteApiDays VALUES (?, ?, ?, ?)
           ON CONFLICT(Day, Status, Bucket) DO UPDATE SET Count = Count + excluded.Count`);
         for (const [key, count] of this.pendingApi) stmt.run(...key.split('|'), count);
+        if(this.pendingApiErrors.size){
+          this.db.prepare('INSERT OR IGNORE INTO SiteMetadata VALUES (?,?)').run('apiErrorsStartedAt',this.errorDetailsStartedAt);
+          const errorStmt=this.db.prepare(`INSERT INTO SiteApiErrorDays VALUES (?,?,?,?,?)
+            ON CONFLICT(Day,Status,Method,Route) DO UPDATE SET Count=Count+excluded.Count`);
+          for(const [key,count] of this.pendingApiErrors)errorStmt.run(...JSON.parse(key),count);
+        }
       })();
       this.pendingApi.clear();
+      this.pendingApiErrors.clear();
     }
     this.prune(localDay(this.now()));
   }
@@ -159,7 +177,7 @@ export class SiteAnalyticsStore {
     if (day === this.prunedDay) return;
     const cutoff = shiftDay(day, -89);
     this.db.transaction(() => {
-      for (const table of ['SiteVisitorDays', 'SitePageDays', 'SiteTrafficHours', 'SiteEventDays', 'SiteApiDays']) {
+      for (const table of ['SiteVisitorDays', 'SitePageDays', 'SiteTrafficHours', 'SiteEventDays', 'SiteApiDays','SiteApiErrorDays']) {
         this.db.prepare(`DELETE FROM ${table} WHERE Day < ?`).run(cutoff);
       }
       this.db.prepare('DELETE FROM SiteVisitors WHERE LastDay < ?').run(cutoff);
@@ -243,6 +261,18 @@ export class SiteAnalyticsStore {
       WHERE Day BETWEEN ? AND ? AND Day = (SELECT MIN(x.Day) FROM SiteVisitorDays x
         WHERE x.Visitor = d.Visitor AND x.Day BETWEEN ? AND ?) GROUP BY Source`, from, to, from, to);
     const api = rows('SELECT Status, Bucket, SUM(Count) n FROM SiteApiDays WHERE Day BETWEEN ? AND ? GROUP BY Status, Bucket', from, to);
+    const errorCodes=rows('SELECT Status status,SUM(Count) count FROM SiteApiErrorDays WHERE Day BETWEEN ? AND ? GROUP BY Status',from,to);
+    const sumCodes=(min,max)=>errorCodes.filter(row=>row.status>=min&&row.status<=max).reduce((sum,row)=>sum+row.count,0);
+    // The old 400 category excludes 413. Subtract detailed counts to preserve earlier grouped totals.
+    const old4xx=Math.max(0,api.filter(row=>row.Status===400).reduce((sum,row)=>sum+row.n,0)-sumCodes(400,499)+sumCodes(413,413));
+    const old5xx=Math.max(0,api.filter(row=>row.Status===500).reduce((sum,row)=>sum+row.n,0)-sumCodes(500,599));
+    const all413=api.filter(row=>row.Status===413).reduce((sum,row)=>sum+row.n,0);
+    const old413=Math.max(0,all413-sumCodes(413,413));
+    const statuses=errorCodes.filter(row=>row.status!==413).map(row=>({...row,label:apiErrorLabel(row.status)}));
+    if(all413)statuses.push({status:413,label:apiErrorLabel(413),count:all413});
+    if(old4xx)statuses.push({status:null,family:'4xx',label:'Earlier rejections · status unavailable',count:old4xx});
+    if(old5xx)statuses.push({status:null,family:'5xx',label:'Earlier server errors · status unavailable',count:old5xx});
+    statuses.sort((a,b)=>b.count-a.count||(a.status||0)-(b.status||0));
     const requests = api.reduce((sum, row) => sum + row.n, 0);
     let cumulative = 0;
     const p95 = [...api].sort((a, b) => a.Bucket - b.Bucket).find(row => {
@@ -265,6 +295,11 @@ export class SiteAnalyticsStore {
         percent: percent(sources.find(row => row.name === name)?.count || 0, visitors) })),
       signups: { steps, uploadFailures: events.find(row => row.name === 'upload_failure')?.count || 0 },
       health: { requests, p95ResponseMs: p95,
+        errorBreakdown:{startedAt:this.db.prepare("SELECT Value FROM SiteMetadata WHERE Key='apiErrorsStartedAt'").get()?.Value||null,
+          statuses,legacyRequests:old4xx+old5xx+old413,
+          routes:rows(`SELECT Status status,Method method,Route route,SUM(Count) count FROM SiteApiErrorDays
+            WHERE Day BETWEEN ? AND ? GROUP BY Status,Method,Route ORDER BY count DESC,Status,Method,Route LIMIT 20`,from,to)
+            .map(row=>({...row,label:apiErrorLabel(row.status)}))},
         apiErrorPercent: percent(api.filter(row => row.Status >= 400).reduce((sum, row) => sum + row.n, 0), requests),
         issues: [
           { name: 'Server errors (5xx)', count: api.filter(row => row.Status === 500).reduce((sum, row) => sum + row.n, 0) },
