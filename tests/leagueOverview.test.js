@@ -27,7 +27,7 @@ function inputs() {
 
 test('remaining series use current group membership, deduplicate opponents, and sort each team by remaining count',()=>{
   const data=buildLeagueOverview(inputs(),new Date('2026-11-18T12:00:00Z'));
-  assert.deepEqual(data.snapshot,{teams:7,groups:2,players:7,completedSeries:4,closedSeries:1,inProgressSeries:2,scheduledSeries:1});
+  assert.deepEqual(data.snapshot,{teams:7,groups:2,players:7,completedSeries:1,remainingSeries:8,totalSeries:9,partialSeries:0});
   assert.equal(data.remaining.totalSeries,8);
   const [moon,sun]=data.remaining.groups;
   assert.equal(moon.remainingSeries,2);
@@ -57,6 +57,27 @@ test('unequal groups, empty groups and unlinked IDs need no schedule generation 
   input.groups.push({GroupId:4,GroupName:'Empty'});
   data=buildLeagueOverview(input);assert.deepEqual(data.remaining.groups[3].teams,[]);assert.equal(data.remaining.groups[3].remainingSeries,0);
   input.groups=[];assert.deepEqual(buildLeagueOverview(input).remaining,{totalSeries:0,groups:[]});
+});
+
+test('both snapshot totals use effective H2H scores and ignore series lifecycle, fixtures and time',()=>{
+  const input=inputs();
+  input.matches.push({TeamRad:201,TeamDire:203,WinnerId:201});
+  input.overrides=[{GroupId:2,TeamA:204,TeamB:205,WinsA:2,WinsB:0,BaseWinsA:0,BaseWinsB:0}];
+  const data=buildLeagueOverview(input,new Date('2026-11-20T18:00:00Z'));
+  assert.deepEqual(data.snapshot,{teams:7,groups:2,players:7,completedSeries:2,remainingSeries:7,totalSeries:9,partialSeries:1});
+  assert.equal(data.snapshot.remainingSeries,data.remaining.totalSeries);
+  assert.equal(data.snapshot.completedSeries+data.snapshot.remainingSeries,9);
+  const withoutTracking={...input,series:[],events:[]};
+  assert.deepEqual(data.snapshot,buildLeagueOverview(withoutTracking,new Date('2026-11-21T12:00:00Z')).snapshot);
+  input.overrides.push({GroupId:1,TeamA:201,TeamB:202,WinsA:0,WinsB:0,BaseWinsA:1,BaseWinsB:1});
+  const reset=buildLeagueOverview(input);
+  assert.equal(reset.snapshot.completedSeries,1,'A manual H2H reset removes the pairing from completed');
+  assert.equal(reset.snapshot.remainingSeries,8,'The same reset adds it to remaining');
+  input.overrides.push({GroupId:1,TeamA:201,TeamB:203,WinsA:1,WinsB:1,BaseWinsA:1,BaseWinsB:0});
+  const finished=buildLeagueOverview(input);
+  assert.equal(finished.snapshot.completedSeries,2);
+  assert.equal(finished.snapshot.remainingSeries,7);
+  assert.equal(finished.snapshot.partialSeries,0,'A manually completed partial score is no longer partial');
 });
 
 test('recorded BO2 games reduce remaining series even with stale, missing or split series tracking',()=>{
@@ -104,6 +125,10 @@ test('9/9/10 groups subtract completed H2H pairings independently of series and 
   const data=buildLeagueOverview(input);
   assert.deepEqual(data.remaining.groups.map(group=>group.remainingSeries),[32,32,41]);
   assert.equal(data.remaining.totalSeries,105);
+  assert.equal(data.snapshot.completedSeries,12);
+  assert.equal(data.snapshot.remainingSeries,105);
+  assert.equal(data.snapshot.totalSeries,117);
+  assert.equal(data.snapshot.partialSeries,3);
   assert.deepEqual(data.remaining,buildLeagueOverview({...input,series:[],events:[]}).remaining,'Only H2H results determine remaining series');
   for(const [groupIndex,group] of data.remaining.groups.entries()) {
     const first=[1,10,19][groupIndex],size=[9,9,10][groupIndex];
@@ -144,24 +169,15 @@ test('overview endpoint scopes saved records and H2H overrides to the active lea
   db.exec(`CREATE TABLE LeagueSeasons(SeasonId INTEGER PRIMARY KEY,LeagueName TEXT,Status TEXT,ExternalLeagueId INTEGER);
     CREATE TABLE LeagueRosterEntries(EntryId INTEGER,TeamSubmissionId INTEGER,LeagueId INTEGER,TeamId INTEGER,GroupId INTEGER,DisplayName TEXT,SortOrder INTEGER);
     CREATE TABLE GroupNames(LeagueId INTEGER,GroupId INTEGER,GroupName TEXT);
-    CREATE TABLE SeriesInfo(SeriesId INTEGER,Team1 INTEGER,Team2 INTEGER,Stage TEXT,LeagueId INTEGER,DateCreated TEXT);
-    CREATE TABLE SeriesLifecycle(SeriesId INTEGER,Status TEXT);
-    CREATE TABLE SeriesMatch(SeriesId INTEGER,MatchId INTEGER);
     CREATE TABLE MatchLeague(MatchId INTEGER,LeagueId INTEGER);
     CREATE TABLE MatchTeam(MatchId INTEGER,TeamRad INTEGER,TeamDire INTEGER,WinnerId INTEGER);
     CREATE TABLE GroupResultOverrides(LeagueId INTEGER,GroupId INTEGER,TeamA INTEGER,TeamB INTEGER,WinsA INTEGER,WinsB INTEGER,BaseWinsA INTEGER,BaseWinsB INTEGER);
-    CREATE TABLE ScheduledEvents(EventId INTEGER,SeasonId INTEGER,Team1Key INTEGER,Team2Key INTEGER,Stage TEXT,Status TEXT,ScheduledStartUtc TEXT,SeriesId INTEGER,SourceMessageId TEXT);
     CREATE TABLE LeagueStageBoundaries(LeagueId INTEGER,GroupEndMatchId INTEGER,TieBreakerEndMatchId INTEGER);
     INSERT INTO LeagueSeasons VALUES(1,'Current','active',100),(2,'Past','ended',200);
     INSERT INTO LeagueRosterEntries VALUES(1,101,100,1,1,'Current team',0),(2,201,200,2,1,'Past team',0);
     INSERT INTO GroupNames VALUES(100,1,'Moon'),(200,1,'Past group');
-    INSERT INTO SeriesInfo VALUES(10,1,2,'g',100,'2026-11-17'),(20,1,2,'g',200,'2026-11-17'),(30,1,2,'g',100,'2026-11-17');
-    INSERT INTO SeriesLifecycle VALUES(10,'completed'),(20,'completed'),(30,'completed');
-    INSERT INTO SeriesMatch VALUES(10,10),(10,11),(20,20);INSERT INTO MatchLeague VALUES(10,100),(11,100),(20,200);
+    INSERT INTO MatchLeague VALUES(10,100),(11,100),(20,200);
     INSERT INTO MatchTeam VALUES(10,1,2,1),(11,2,1,2);
-    INSERT INTO ScheduledEvents VALUES(1,1,101,102,'regular','scheduled','2026-11-20T23:00:00Z',NULL,NULL),
-      (2,2,201,202,'regular','scheduled','2026-11-20T23:00:00Z',NULL,NULL),
-      (3,1,101,102,'regular','scheduled','2026-11-20T23:00:00Z',NULL,'local-test:123');
     INSERT INTO LeagueStageBoundaries VALUES(100,11,NULL);`);
   const app=express();
   app.use('/overview',(req,res,next)=>req.headers['x-admin']==='yes'?next():res.sendStatus(403),
@@ -174,21 +190,26 @@ test('overview endpoint scopes saved records and H2H overrides to the active lea
     assert.equal((await get(1,false)).status,403);
     const response=await get(1);assert.match(response.headers.get('cache-control'),/no-store/);
     const data=await response.json();assert.equal(data.season.stage,'tiebreakers');
-    assert.equal(data.snapshot.completedSeries,1);assert.equal(data.snapshot.scheduledSeries,1);assert.equal(data.snapshot.players,1);
+    assert.equal(data.snapshot.completedSeries,0);assert.equal(data.snapshot.remainingSeries,0);assert.equal(data.snapshot.players,1);
     assert.deepEqual(data.remaining.groups.map(group=>group.name),['Moon']);
     assert.deepEqual(data.remaining.groups[0].teams,[{entryId:1,name:'Current team',remainingSeries:0}]);
     assert.ok(!/MMR|Screenshot|1234|PlayerId|private/.test(JSON.stringify(data)));
     db.exec(`INSERT INTO LeagueRosterEntries VALUES(3,102,100,2,1,'Second current team',1);
       INSERT INTO GroupResultOverrides VALUES(100,1,1,2,0,0,1,1),(200,1,1,2,2,0,0,0);`);
-    assert.equal((await(await get(1)).json()).remaining.totalSeries,1,'Reads the active league reset without using another season override');
+    const expectCounts=async(completed,remaining,message)=>{
+      const overview=await(await get(1)).json();
+      assert.equal(overview.snapshot.completedSeries,completed,message);
+      assert.equal(overview.snapshot.remainingSeries,remaining,message);
+      assert.equal(overview.remaining.totalSeries,remaining,message);
+      assert.equal(overview.snapshot.totalSeries,completed+remaining);
+    };
+    await expectCounts(0,1,'Reads the active league reset without using another season override');
     db.exec('UPDATE GroupResultOverrides SET WinsA=2 WHERE LeagueId=100');
-    assert.equal((await(await get(1)).json()).remaining.totalSeries,0,'Reads a manual completed result');
+    await expectCounts(1,0,'Reads a manual completed result in both cards');
     db.exec('DELETE FROM GroupResultOverrides WHERE LeagueId=100');
-    assert.equal((await(await get(1)).json()).remaining.totalSeries,0,'Restores actual game scores after clearing the override');
-    db.exec("UPDATE SeriesLifecycle SET Status='in_progress' WHERE SeriesId=10");
-    assert.equal((await(await get(1)).json()).remaining.totalSeries,0,'Recorded BO2 games count even with a stale saved series status');
+    await expectCounts(1,0,'Restores actual game scores after clearing the override without lifecycle or fixture tables');
     db.exec('UPDATE LeagueStageBoundaries SET GroupEndMatchId=10 WHERE LeagueId=100');
-    assert.equal((await(await get(1)).json()).remaining.totalSeries,1,'Games after the group-stage boundary do not finish a regular-season pair');
+    await expectCounts(0,1,'Games after the group-stage boundary do not finish a regular-season pair');
     assert.equal((await get(0)).status,400);assert.equal((await get('invalid')).status,400);
     assert.equal((await get(99)).status,404);assert.equal((await get(2)).status,409);
   }finally{server.closeAllConnections();await new Promise(done=>server.close(done));db.close();}

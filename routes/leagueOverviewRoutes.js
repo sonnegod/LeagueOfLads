@@ -16,18 +16,12 @@ export function createLeagueOverviewRouter({league,readRoster=currentSeasonRoste
       const entries=league.prepare(`SELECT EntryId,TeamSubmissionId,TeamId,GroupId,DisplayName AS TeamName FROM LeagueRosterEntries
         WHERE LeagueId=? ORDER BY SortOrder,EntryId`).all(season.ExternalLeagueId);
       const groups=league.prepare('SELECT GroupId,GroupName FROM GroupNames WHERE LeagueId=? ORDER BY GroupId').all(season.ExternalLeagueId);
-      const series=league.prepare(`SELECT s.SeriesId,s.Team1,s.Team2,s.Stage,l.Status FROM SeriesInfo s
-        LEFT JOIN SeriesLifecycle l ON l.SeriesId=s.SeriesId WHERE s.LeagueId=?
-        AND EXISTS(SELECT 1 FROM SeriesMatch sm JOIN MatchLeague m ON m.MatchId=sm.MatchId WHERE sm.SeriesId=s.SeriesId AND m.LeagueId=?)
-        ORDER BY s.DateCreated DESC,s.SeriesId DESC`).all(season.ExternalLeagueId,season.ExternalLeagueId);
-      const events=league.prepare(`SELECT EventId,Team1Key,Team2Key,Stage,Status,ScheduledStartUtc,SeriesId FROM ScheduledEvents
-        WHERE SeasonId=? AND (SourceMessageId IS NULL OR SourceMessageId NOT LIKE 'local-test:%')`).all(id);
       const boundary=league.prepare('SELECT GroupEndMatchId,TieBreakerEndMatchId FROM LeagueStageBoundaries WHERE LeagueId=?').get(season.ExternalLeagueId);
       const matches=league.prepare(`SELECT m.TeamRad,m.TeamDire,m.WinnerId FROM MatchLeague l JOIN MatchTeam m ON m.MatchId=l.MatchId
         WHERE l.LeagueId=? AND m.WinnerId IN (m.TeamRad,m.TeamDire) AND (? IS NULL OR m.MatchId<=?)`)
         .all(season.ExternalLeagueId,boundary?.GroupEndMatchId??null,boundary?.GroupEndMatchId??null);
       const overrides=league.prepare('SELECT GroupId,TeamA,TeamB,WinsA,WinsB,BaseWinsA,BaseWinsB FROM GroupResultOverrides WHERE LeagueId=?').all(season.ExternalLeagueId);
-      return res.json(buildLeagueOverview({season,entries,groups,series,events,matches,overrides,
+      return res.json(buildLeagueOverview({season,entries,groups,matches,overrides,
         roster:readRoster(league,id,season.Status),stage:boundary?.TieBreakerEndMatchId!=null?'playoffs':boundary?.GroupEndMatchId!=null?'tiebreakers':'groups'},now()));
     }catch(error){
       console.error('Could not load league overview:',error.code||'internal');

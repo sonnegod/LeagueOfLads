@@ -36,8 +36,8 @@ export default function LeagueOverviewPanel({seasonId,refreshKey,onOpenSettings,
         <div className="league-overview-stats">
           <div><strong>{snapshot.teams}</strong><span>Teams</span><small>{snapshot.groups} groups</small></div>
           <div><strong>{snapshot.players}</strong><span>Rostered players</span><small>Current league rosters</small></div>
-          <div><strong>{snapshot.completedSeries}</strong><span>Completed series</span><small>{snapshot.closedSeries} closed incomplete</small></div>
-          <div><strong>{snapshot.scheduledSeries}</strong><span>Upcoming series</span><small>{snapshot.inProgressSeries} in progress</small></div>
+          <div><strong>{snapshot.completedSeries}</strong><span>Completed series</span><small>of {snapshot.totalSeries} group H2H pairings</small></div>
+          <div><strong>{snapshot.remainingSeries}</strong><span>Remaining series</span><small>{snapshot.partialSeries} with one game recorded</small></div>
         </div>
       </section>
       <section className="league-overview-remaining" aria-label="Remaining regular-season series">
